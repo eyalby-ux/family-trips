@@ -1,14 +1,14 @@
+export type Screen = "home" | "itinerary" | "packing" | "shopping" | "games";
+
 export type Participant = {
   id: string;
   name: string;
   role?: string;
 };
 
-export type ActionCard = {
-  id: string;
-  title: string;
-  icon: string;
-  description: string;
+export type LinkItem = {
+  label: string;
+  url: string;
 };
 
 export type TripDay = {
@@ -19,5 +19,29 @@ export type TripDay = {
   hiking: string;
   lodging: string;
   food: string[];
-  links: { label: string; url: string }[];
+  links: LinkItem[];
+};
+
+export type PackingItem = {
+  id: string;
+  name: string;
+  owner: string;
+  packed: boolean;
+  note?: string;
+};
+
+export type ShoppingItem = {
+  id: string;
+  name: string;
+  owner: string;
+  done: boolean;
+  quantity?: string;
+};
+
+export type TriviaQuestion = {
+  id: string;
+  question: string;
+  answers: string[];
+  correctIndex: number;
+  explanation: string;
 };

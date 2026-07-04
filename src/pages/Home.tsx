@@ -1,32 +1,65 @@
 import Header from "../components/layout/Header";
-import { actionCards, participants, tripDays } from "../data/trips";
+import { participants, tripDays } from "../data/tripData";
+import type { Screen } from "../types";
 
-function Home() {
+type HomeProps = {
+  onNavigate: (screen: Screen) => void;
+};
+
+function Home({ onNavigate }: HomeProps) {
+  const nextDay = tripDays[0];
+
   return (
-    <main className="app" dir="rtl">
+    <>
       <Header />
 
       <section className="section">
         <div className="sectionTitle">
           <h2>פעולות מהירות</h2>
-          <span>גרסת MVP לטיול הקרוב</span>
+          <span>גרסה שימושית לטיול הקרוב</span>
         </div>
 
         <div className="cardsGrid">
-          {actionCards.map((card) => (
-            <button key={card.id} className="actionCard">
-              <span className="cardIcon">{card.icon}</span>
-              <strong>{card.title}</strong>
-              <small>{card.description}</small>
-            </button>
-          ))}
+          <button className="actionCard" onClick={() => onNavigate("itinerary")}>
+            <span className="cardIcon">📅</span>
+            <strong>מסלול יומי</strong>
+            <small>ימים, נסיעות, טיולים, לינה וקישורים</small>
+          </button>
+
+          <button className="actionCard" onClick={() => onNavigate("packing")}>
+            <span className="cardIcon">🎒</span>
+            <strong>ציוד</strong>
+            <small>מי מביא מה ומה כבר נארז</small>
+          </button>
+
+          <button className="actionCard" onClick={() => onNavigate("shopping")}>
+            <span className="cardIcon">🛒</span>
+            <strong>קניות</strong>
+            <small>סופר, מים, חטיפים ופק״ל</small>
+          </button>
+
+          <button className="actionCard" onClick={() => onNavigate("games")}>
+            <span className="cardIcon">🎮</span>
+            <strong>משחקים</strong>
+            <small>טריוויה ואתגרים לנסיעה</small>
+          </button>
         </div>
+      </section>
+
+      <section className="section highlight">
+        <div className="sectionTitle">
+          <h2>היום הראשון</h2>
+          <span>{nextDay.date}</span>
+        </div>
+        <h3>{nextDay.title}</h3>
+        <p><strong>🚗 נסיעה:</strong> {nextDay.driving}</p>
+        <p><strong>🥾 טיול:</strong> {nextDay.hiking}</p>
       </section>
 
       <section className="section">
         <div className="sectionTitle">
           <h2>משתתפים</h2>
-          <span>טיול דולומיטים</span>
+          <span>{participants.length} אנשים</span>
         </div>
 
         <div className="participants">
@@ -41,40 +74,7 @@ function Home() {
           ))}
         </div>
       </section>
-
-      <section className="section">
-        <div className="sectionTitle">
-          <h2>מסלול יומי</h2>
-          <span>טיוטה שימושית ראשונה</span>
-        </div>
-
-        <div className="timeline">
-          {tripDays.map((day) => (
-            <article key={day.id} className="dayCard">
-              <div className="dayHeader">
-                <span className="dateBadge">{day.date}</span>
-                <h3>{day.title}</h3>
-              </div>
-
-              <div className="dayContent">
-                <p><strong>🚗 נסיעה:</strong> {day.driving}</p>
-                <p><strong>🥾 טיול:</strong> {day.hiking}</p>
-                <p><strong>🏨 לינה:</strong> {day.lodging}</p>
-                <p><strong>🍝 אוכל:</strong> {day.food.join(" · ")}</p>
-              </div>
-
-              <div className="linksRow">
-                {day.links.map((link) => (
-                  <a key={link.url} href={link.url} target="_blank" rel="noreferrer">
-                    {link.label}
-                  </a>
-                ))}
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
-    </main>
+    </>
   );
 }
 

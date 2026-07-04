@@ -13,13 +13,14 @@ body {
   background: #eef3f8;
 }
 
-button, a {
+button,
+a {
   font-family: inherit;
 }
 
 .app {
   min-height: 100vh;
-  padding: 18px;
+  padding: 18px 18px 92px;
   max-width: 1120px;
   margin: 0 auto;
 }
@@ -71,8 +72,8 @@ button, a {
 }
 
 .heroStats div {
-  background: rgba(255,255,255,0.16);
-  border: 1px solid rgba(255,255,255,0.22);
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: 18px;
   padding: 14px;
   display: grid;
@@ -96,6 +97,10 @@ button, a {
   box-shadow: 0 12px 32px rgba(16, 32, 51, 0.08);
 }
 
+.highlight {
+  border: 2px solid #bbdefb;
+}
+
 .sectionTitle {
   display: flex;
   justify-content: space-between;
@@ -116,7 +121,7 @@ button, a {
 
 .cardsGrid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 14px;
 }
 
@@ -134,7 +139,7 @@ button, a {
 
 .actionCard:hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 24px rgba(16, 32, 51, 0.10);
+  box-shadow: 0 10px 24px rgba(16, 32, 51, 0.1);
 }
 
 .cardIcon {
@@ -212,6 +217,7 @@ button, a {
   font-weight: 800;
   padding: 8px 12px;
   border-radius: 999px;
+  white-space: nowrap;
 }
 
 .dayContent {
@@ -241,9 +247,104 @@ button, a {
   font-size: 14px;
 }
 
+.list {
+  display: grid;
+  gap: 12px;
+}
+
+.listItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #f8fbff;
+  border: 1px solid #dde6f0;
+  border-radius: 18px;
+  padding: 14px;
+}
+
+.listItem input {
+  width: 22px;
+  height: 22px;
+}
+
+.listItem small {
+  display: block;
+  color: #637083;
+  margin-top: 3px;
+}
+
+.answerGrid {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.answerButton {
+  border: 1px solid #dde6f0;
+  background: white;
+  border-radius: 14px;
+  padding: 12px;
+  text-align: right;
+  cursor: pointer;
+}
+
+.answerButton.correct {
+  background: #e8f5e9;
+  border-color: #66bb6a;
+}
+
+.answerButton.wrong {
+  background: #ffebee;
+  border-color: #ef5350;
+}
+
+.explanation {
+  background: #fff8e1;
+  border-radius: 14px;
+  padding: 12px;
+  margin-bottom: 0;
+}
+
+.bottomNav {
+  position: fixed;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  width: min(720px, calc(100% - 24px));
+  background: white;
+  border: 1px solid #dde6f0;
+  box-shadow: 0 14px 40px rgba(16, 32, 51, 0.18);
+  border-radius: 24px;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  padding: 8px;
+  z-index: 10;
+}
+
+.bottomNav button {
+  border: 0;
+  background: transparent;
+  border-radius: 16px;
+  padding: 8px 6px;
+  display: grid;
+  gap: 2px;
+  cursor: pointer;
+  color: #637083;
+}
+
+.bottomNav button.active {
+  background: #e3f2fd;
+  color: #0d47a1;
+  font-weight: 800;
+}
+
+.bottomNav span {
+  font-size: 22px;
+}
+
 @media (max-width: 760px) {
   .app {
-    padding: 0 12px 18px;
+    padding: 0 12px 88px;
   }
 
   .hero {
@@ -278,5 +379,9 @@ button, a {
 
   .heroIcon {
     margin-top: 12px;
+  }
+
+  .bottomNav small {
+    font-size: 11px;
   }
 }

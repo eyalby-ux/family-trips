@@ -1,8 +1,27 @@
+import { useState } from "react";
+import BottomNav from "./components/layout/BottomNav";
+import Games from "./pages/Games";
 import Home from "./pages/Home";
+import Itinerary from "./pages/Itinerary";
+import Packing from "./pages/Packing";
+import Shopping from "./pages/Shopping";
+import type { Screen } from "./types";
 import "./styles/global.css";
 
 function App() {
-  return <Home />;
+  const [activeScreen, setActiveScreen] = useState<Screen>("home");
+
+  return (
+    <main className="app" dir="rtl">
+      {activeScreen === "home" && <Home onNavigate={setActiveScreen} />}
+      {activeScreen === "itinerary" && <Itinerary />}
+      {activeScreen === "packing" && <Packing />}
+      {activeScreen === "shopping" && <Shopping />}
+      {activeScreen === "games" && <Games />}
+
+      <BottomNav activeScreen={activeScreen} onChange={setActiveScreen} />
+    </main>
+  );
 }
 
 export default App;

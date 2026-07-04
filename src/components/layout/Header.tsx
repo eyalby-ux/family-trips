@@ -5,7 +5,7 @@ function Header() {
         <div>
           <p className="eyebrow">Family Trips</p>
           <h1>דולומיטים 2026</h1>
-          <p className="subtitle">מסלול משפחתי, ציוד, קניות, משחקים וקישורים במקום אחד</p>
+          <p className="subtitle">מסלול, ניווט, ציוד, קניות ומשחקים במקום אחד</p>
         </div>
         <div className="heroIcon">🏔️</div>
       </div>
