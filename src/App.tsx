@@ -12,6 +12,7 @@ import "./styles/firebase-packing-additions.css";
 import "./styles/itinerary-additions.css";
 import "./styles/editable-checklist-additions.css";
 import "./styles/personal-packing-additions.css";
+import "./styles/day-carousel-additions.css";
 
 function App() {
   const [activeScreen, setActiveScreen] = useState<Screen>("home");

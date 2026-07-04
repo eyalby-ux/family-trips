@@ -1,4 +1,5 @@
 import Header from "../components/layout/Header";
+import DayCarousel from "../components/trip/DayCarousel";
 import { participants, tripDays } from "../data/tripData";
 import type { Screen } from "../types";
 
@@ -49,6 +50,8 @@ function Home({ onNavigate }: HomeProps) {
           </button>
         </div>
       </section>
+
+      <DayCarousel onOpenItinerary={onNavigate} />
 
       <section className="section highlight">
         <div className="sectionTitle">
