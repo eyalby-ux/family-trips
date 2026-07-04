@@ -1,0 +1,56 @@
+.notice {
+  background: #e3f2fd;
+  color: #0d47a1;
+  border-radius: 16px;
+  padding: 12px;
+  margin-bottom: 14px;
+}
+
+.errorNotice {
+  background: #ffebee;
+  color: #b71c1c;
+  display: grid;
+  gap: 4px;
+}
+
+.emptyState {
+  background: #f8fbff;
+  border: 1px dashed #90caf9;
+  border-radius: 20px;
+  padding: 18px;
+  margin-bottom: 16px;
+}
+
+.primaryButton {
+  border: 0;
+  background: #1976d2;
+  color: white;
+  border-radius: 999px;
+  padding: 12px 18px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.primaryButton:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.editableListItem {
+  justify-content: space-between;
+  align-items: center;
+}
+
+.checkboxLine {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.editableListItem select {
+  border: 1px solid #dde6f0;
+  border-radius: 999px;
+  padding: 10px 12px;
+  background: white;
+  min-width: 130px;
+}
