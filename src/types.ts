@@ -14,11 +14,14 @@ export type LinkItem = {
 export type TripDay = {
   id: string;
   date: string;
+  weekday: string;
   title: string;
   driving: string;
   hiking: string;
   lodging: string;
   food: string[];
+  notes?: string[];
+  alternatives?: string[];
   links: LinkItem[];
 };
 

@@ -1,0 +1,21 @@
+.infoBox {
+  background: #f8fbff;
+  border: 1px solid #dde6f0;
+  border-radius: 16px;
+  padding: 12px;
+  margin-top: 12px;
+}
+
+.infoBox ul {
+  margin: 8px 0 0;
+  padding-right: 18px;
+}
+
+.infoBox li {
+  margin: 6px 0;
+}
+
+.altBox {
+  background: #fff8e1;
+  border-color: #ffe082;
+}

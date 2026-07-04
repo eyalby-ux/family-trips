@@ -4,15 +4,15 @@ function Itinerary() {
   return (
     <section className="section">
       <div className="sectionTitle">
-        <h2>מסלול יומי</h2>
-        <span>טיוטה שימושית ראשונה</span>
+        <h2>מסלול יומי אמיתי</h2>
+        <span>מבוסס על קובץ התכנון</span>
       </div>
 
       <div className="timeline">
         {tripDays.map((day) => (
           <article key={day.id} className="dayCard">
             <div className="dayHeader">
-              <span className="dateBadge">{day.date}</span>
+              <span className="dateBadge">{day.weekday} · {day.date}</span>
               <h3>{day.title}</h3>
             </div>
 
@@ -21,6 +21,28 @@ function Itinerary() {
               <p><strong>🥾 טיול:</strong> {day.hiking}</p>
               <p><strong>🏨 לינה:</strong> {day.lodging}</p>
               <p><strong>🍝 אוכל:</strong> {day.food.join(" · ")}</p>
+
+              {day.notes && day.notes.length > 0 && (
+                <div className="infoBox">
+                  <strong>📝 הערות:</strong>
+                  <ul>
+                    {day.notes.map((note) => (
+                      <li key={note}>{note}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {day.alternatives && day.alternatives.length > 0 && (
+                <div className="infoBox altBox">
+                  <strong>🔁 אפשרויות נוספות:</strong>
+                  <ul>
+                    {day.alternatives.map((alternative) => (
+                      <li key={alternative}>{alternative}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
 
             <div className="linksRow">

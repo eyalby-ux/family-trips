@@ -8,6 +8,7 @@ import Shopping from "./pages/Shopping";
 import type { Screen } from "./types";
 import "./styles/global.css";
 import "./styles/firebase-packing-additions.css";
+import "./styles/itinerary-additions.css";
 
 function App() {
   const [activeScreen, setActiveScreen] = useState<Screen>("home");
