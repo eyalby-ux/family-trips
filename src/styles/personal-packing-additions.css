@@ -1,0 +1,117 @@
+.personalPackingHeader {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.personalPackingHeader label {
+  background: #f8fbff;
+  border: 1px solid #dde6f0;
+  border-radius: 20px;
+  padding: 16px;
+  display: grid;
+  gap: 8px;
+}
+
+.personalPackingHeader label span {
+  color: #637083;
+  font-size: 14px;
+}
+
+.personalPackingHeader select {
+  border: 1px solid #dde6f0;
+  border-radius: 14px;
+  padding: 12px;
+  background: white;
+}
+
+.progressCard {
+  background: #e3f2fd;
+  border: 1px solid #90caf9;
+  border-radius: 20px;
+  padding: 16px;
+  display: grid;
+  gap: 8px;
+}
+
+.progressCard strong {
+  font-size: 32px;
+  color: #0d47a1;
+}
+
+.progressTrack {
+  height: 10px;
+  background: white;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: #1976d2;
+  border-radius: 999px;
+  transition: width 0.2s ease;
+}
+
+.personalPackingGroups {
+  display: grid;
+  gap: 16px;
+}
+
+.personalCategory {
+  border: 1px solid #dde6f0;
+  background: #fbfdff;
+  border-radius: 20px;
+  padding: 14px;
+}
+
+.personalCategory h3 {
+  margin: 0 0 12px;
+}
+
+.personalAddGrid {
+  grid-template-columns: 1.3fr 1fr 130px auto;
+}
+
+.requiredToggle {
+  background: white;
+  border: 1px solid #dde6f0;
+  border-radius: 14px;
+  padding: 12px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.bottomNav {
+  grid-template-columns: repeat(6, 1fr);
+}
+
+@media (max-width: 760px) {
+  .personalPackingHeader {
+    grid-template-columns: 1fr;
+  }
+
+  .personalAddGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .bottomNav {
+    width: calc(100% - 16px);
+    bottom: 8px;
+    border-radius: 20px;
+  }
+
+  .bottomNav button {
+    padding: 7px 2px;
+  }
+
+  .bottomNav span {
+    font-size: 19px;
+  }
+
+  .bottomNav small {
+    font-size: 10px;
+  }
+}

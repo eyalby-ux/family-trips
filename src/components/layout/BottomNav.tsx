@@ -8,7 +8,8 @@ type BottomNavProps = {
 const navItems: { id: Screen; label: string; icon: string }[] = [
   { id: "home", label: "בית", icon: "🏠" },
   { id: "itinerary", label: "מסלול", icon: "📅" },
-  { id: "packing", label: "ציוד", icon: "🎒" },
+  { id: "packing", label: "קבוצתי", icon: "🎒" },
+  { id: "personalPacking", label: "אישי", icon: "👤" },
   { id: "shopping", label: "קניות", icon: "🛒" },
   { id: "games", label: "משחקים", icon: "🎮" },
 ];

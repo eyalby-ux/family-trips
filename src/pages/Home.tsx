@@ -2,9 +2,7 @@ import Header from "../components/layout/Header";
 import { participants, tripDays } from "../data/tripData";
 import type { Screen } from "../types";
 
-type HomeProps = {
-  onNavigate: (screen: Screen) => void;
-};
+type HomeProps = { onNavigate: (screen: Screen) => void; };
 
 function Home({ onNavigate }: HomeProps) {
   const nextDay = tripDays[0];
@@ -30,6 +28,12 @@ function Home({ onNavigate }: HomeProps) {
             <span className="cardIcon">🎒</span>
             <strong>ציוד קבוצתי</strong>
             <small>מי אחראי ומה כבר נארז</small>
+          </button>
+
+          <button className="actionCard" onClick={() => onNavigate("personalPacking")}>
+            <span className="cardIcon">👤</span>
+            <strong>ציוד אישי</strong>
+            <small>כל משתתף מסמן לעצמו מה הביא</small>
           </button>
 
           <button className="actionCard" onClick={() => onNavigate("shopping")}>
@@ -61,7 +65,6 @@ function Home({ onNavigate }: HomeProps) {
           <h2>משתתפים</h2>
           <span>{participants.length} אנשים</span>
         </div>
-
         <div className="participants">
           {participants.map((person) => (
             <div key={person.id} className="participant">

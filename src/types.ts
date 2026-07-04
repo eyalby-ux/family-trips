@@ -1,15 +1,13 @@
-export type Screen = "home" | "itinerary" | "packing" | "shopping" | "games";
+export type Screen =
+  | "home"
+  | "itinerary"
+  | "packing"
+  | "personalPacking"
+  | "shopping"
+  | "games";
 
-export type Participant = {
-  id: string;
-  name: string;
-  role?: string;
-};
-
-export type LinkItem = {
-  label: string;
-  url: string;
-};
+export type Participant = { id: string; name: string; role?: string; };
+export type LinkItem = { label: string; url: string; };
 
 export type TripDay = {
   id: string;
@@ -25,21 +23,8 @@ export type TripDay = {
   links: LinkItem[];
 };
 
-export type PackingItem = {
-  id: string;
-  name: string;
-  owner: string;
-  packed: boolean;
-  note?: string;
-};
-
-export type ShoppingItem = {
-  id: string;
-  name: string;
-  owner: string;
-  done: boolean;
-  quantity?: string;
-};
+export type PackingItem = { id: string; name: string; owner: string; packed: boolean; note?: string; };
+export type ShoppingItem = { id: string; name: string; owner: string; done: boolean; quantity?: string; };
 
 export type SharedChecklistItem = {
   id: string;
@@ -56,6 +41,22 @@ export type InitialChecklistItem = {
   owner: string;
   done: boolean;
   details?: string;
+};
+
+export type PersonalPackingItem = {
+  id: string;
+  name: string;
+  packed: boolean;
+  category: string;
+  required: boolean;
+  createdAt?: number;
+};
+
+export type InitialPersonalPackingItem = {
+  id: string;
+  name: string;
+  category: string;
+  required: boolean;
 };
 
 export type TriviaQuestion = {
