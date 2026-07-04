@@ -41,6 +41,23 @@ export type ShoppingItem = {
   quantity?: string;
 };
 
+export type SharedChecklistItem = {
+  id: string;
+  name: string;
+  owner: string;
+  done: boolean;
+  details?: string;
+  createdAt?: number;
+};
+
+export type InitialChecklistItem = {
+  id: string;
+  name: string;
+  owner: string;
+  done: boolean;
+  details?: string;
+};
+
 export type TriviaQuestion = {
   id: string;
   question: string;

@@ -1,0 +1,57 @@
+.addItemCard {
+  background: #f8fbff;
+  border: 1px solid #dde6f0;
+  border-radius: 20px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.addItemCard h3 {
+  margin: 0 0 12px;
+}
+
+.addItemGrid {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr 160px auto;
+  gap: 10px;
+}
+
+.addItemGrid input,
+.addItemGrid select {
+  border: 1px solid #dde6f0;
+  border-radius: 14px;
+  padding: 12px;
+  background: white;
+  min-width: 0;
+}
+
+.itemActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.deleteButton {
+  border: 0;
+  background: #ffebee;
+  color: #b71c1c;
+  border-radius: 999px;
+  padding: 10px 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+@media (max-width: 760px) {
+  .addItemGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .editableListItem {
+    display: grid;
+    gap: 12px;
+  }
+
+  .itemActions {
+    justify-content: space-between;
+  }
+}
