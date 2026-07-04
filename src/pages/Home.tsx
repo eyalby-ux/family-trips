@@ -28,8 +28,8 @@ function Home({ onNavigate }: HomeProps) {
 
           <button className="actionCard" onClick={() => onNavigate("packing")}>
             <span className="cardIcon">🎒</span>
-            <strong>ציוד</strong>
-            <small>מי מביא מה ומה כבר נארז</small>
+            <strong>ציוד קבוצתי</strong>
+            <small>מי אחראי ומה כבר נארז</small>
           </button>
 
           <button className="actionCard" onClick={() => onNavigate("shopping")}>

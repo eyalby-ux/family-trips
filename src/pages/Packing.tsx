@@ -15,8 +15,8 @@ function Packing() {
   return (
     <section className="section">
       <div className="sectionTitle">
-        <h2>ציוד משותף</h2>
-        <span>בשלב הבא נחבר ל־Firebase</span>
+        <h2>ציוד קבוצתי</h2>
+        <span>בשלב הבא נחבר ל־Firebase ונאפשר שיבוץ אחראי</span>
       </div>
 
       <div className="list">

@@ -1,12 +1,12 @@
 import type { Participant, PackingItem, ShoppingItem, TriviaQuestion, TripDay } from "../types";
 
 export const participants: Participant[] = [
-  { id: "eyal", name: "אייל", role: "מנהל הטיול" },
+  { id: "eyal", name: "אייל", role: "אחראי אפליקציה" },
   { id: "daniel", name: "דניאל" },
-  { id: "guy", name: "גיא", role: "41" },
-  { id: "neta", name: "נטע", role: "37" },
-  { id: "gal", name: "גל", role: "27" },
-  { id: "omri", name: "עומרי" },
+  { id: "guy", name: "גיא" },
+  { id: "neta", name: "נטע" },
+  { id: "gal", name: "גל" },
+  { id: "omri", name: "עומרי", role: "מוביל הטיול" },
 ];
 
 export const tripDays: TripDay[] = [
@@ -105,12 +105,15 @@ export const tripDays: TripDay[] = [
 ];
 
 export const initialPacking: PackingItem[] = [
-  { id: "first-aid", name: "ערכת עזרה ראשונה", owner: "גיא", packed: false },
-  { id: "coffee-kit", name: "פק״ל קפה", owner: "אייל", packed: false },
-  { id: "power-bank", name: "מטענים ניידים", owner: "גל", packed: false },
-  { id: "cards", name: "קלפים / משחקי דרך", owner: "דניאל", packed: false },
-  { id: "rain", name: "מעילי גשם", owner: "כל אחד", packed: false },
-  { id: "hiking", name: "נעלי הליכה", owner: "כל אחד", packed: false },
+  { id: "akamol", name: "אקמול", owner: "לא שובץ", packed: false, note: "ציוד קבוצתי" },
+  { id: "bengay", name: "בנגיי", owner: "לא שובץ", packed: false, note: "ציוד קבוצתי" },
+  { id: "bandages", name: "פלסטרים", owner: "לא שובץ", packed: false, note: "ציוד קבוצתי" },
+  { id: "aloe-vera", name: "אלוורה", owner: "לא שובץ", packed: false, note: "ציוד קבוצתי" },
+  { id: "iodine", name: "יוד", owner: "לא שובץ", packed: false, note: "ציוד קבוצתי" },
+  { id: "pocket-knife", name: "אולר", owner: "לא שובץ", packed: false, note: "ציוד קבוצתי" },
+  { id: "hand-sanitizer", name: "אלכוג׳ל", owner: "לא שובץ", packed: false, note: "ציוד קבוצתי" },
+  { id: "coffee-kit", name: "ערכת קפה", owner: "לא שובץ", packed: false, note: "ציוד קבוצתי" },
+  { id: "tweezers", name: "פינצטה", owner: "לא שובץ", packed: false, note: "ציוד קבוצתי" },
 ];
 
 export const initialShopping: ShoppingItem[] = [
@@ -118,7 +121,7 @@ export const initialShopping: ShoppingItem[] = [
   { id: "snacks", name: "חטיפים לנסיעות", quantity: "כמה סוגים", owner: "גל", done: false },
   { id: "bread", name: "לחם / לחמניות", quantity: "לפיקניק", owner: "אייל", done: false },
   { id: "fruit", name: "פירות", quantity: "לכולם", owner: "עומרי", done: false },
-  { id: "coffee", name: "קפה וחלב", quantity: "לפק״ל", owner: "גיא", done: false },
+  { id: "coffee", name: "קפה וחלב", quantity: "לערכת קפה", owner: "גיא", done: false },
 ];
 
 export const trivia: TriviaQuestion[] = [
