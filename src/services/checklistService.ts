@@ -72,7 +72,10 @@ export function listenToChecklistItems(
       memoryCache[collectionName] = items;
       onChange(items);
     },
-    (error) => onError(error.message)
+    (error) => {
+      console.error("[Firebase Error]", error);
+      onError(error.message);
+    }
   );
 }
 
