@@ -11,17 +11,14 @@ import { db } from "../firebase/firebase";
 import type { InitialChecklistItem, SharedChecklistItem } from "../types";
 
 const tripId = "dolomites-2026";
+const memoryCache: Record<string, SharedChecklistItem[]> = {};
 
 function getCollectionPath(collectionName: string) {
   return `trips/${tripId}/${collectionName}`;
 }
 
-function normalizeItem(
-  id: string,
-  data: Record<string, unknown>
-): SharedChecklistItem {
-  const legacyPacked =
-    typeof data.packed === "boolean" ? data.packed : undefined;
+function normalizeItem(id: string, data: Record<string, unknown>): SharedChecklistItem {
+  const legacyPacked = typeof data.packed === "boolean" ? data.packed : undefined;
 
   return {
     id,
@@ -45,29 +42,37 @@ function normalizeItem(
   };
 }
 
+function sortItems(items: SharedChecklistItem[]) {
+  return [...items].sort((a, b) => {
+    if (a.done !== b.done) return a.done ? 1 : -1;
+    return a.name.localeCompare(b.name, "he");
+  });
+}
+
 export function listenToChecklistItems(
   collectionName: string,
   onChange: (items: SharedChecklistItem[]) => void,
   onError: (message: string) => void
 ): Unsubscribe {
+  const cachedItems = memoryCache[collectionName];
+
+  if (cachedItems) {
+    onChange(cachedItems);
+  }
+
   return onSnapshot(
     collection(db, getCollectionPath(collectionName)),
     (snapshot) => {
-      const items = snapshot.docs
-        .map((document) => normalizeItem(document.id, document.data()))
-        .sort((a, b) => {
-          if (a.done !== b.done) {
-            return a.done ? 1 : -1;
-          }
+      const items = sortItems(
+        snapshot.docs.map((document) =>
+          normalizeItem(document.id, document.data())
+        )
+      );
 
-          return a.name.localeCompare(b.name, "he");
-        });
-
+      memoryCache[collectionName] = items;
       onChange(items);
     },
-    (error) => {
-      onError(error.message);
-    }
+    (error) => onError(error.message)
   );
 }
 

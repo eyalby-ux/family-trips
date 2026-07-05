@@ -11,6 +11,7 @@ import { db } from "../firebase/firebase";
 import type { InitialPersonalPackingItem, PersonalPackingItem } from "../types";
 
 const tripId = "dolomites-2026";
+const memoryCache: Record<string, PersonalPackingItem[]> = {};
 
 function getPersonalPackingPath(participantId: string) {
   return `trips/${tripId}/personalPacking/${participantId}/items`;
@@ -27,22 +28,35 @@ function normalizeItem(id: string, data: Record<string, unknown>): PersonalPacki
   };
 }
 
+function sortItems(items: PersonalPackingItem[]) {
+  return [...items].sort((a, b) => {
+    if (a.packed !== b.packed) return a.packed ? 1 : -1;
+    if (a.required !== b.required) return a.required ? -1 : 1;
+    return a.category.localeCompare(b.category, "he") || a.name.localeCompare(b.name, "he");
+  });
+}
+
 export function listenToPersonalPackingItems(
   participantId: string,
   onChange: (items: PersonalPackingItem[]) => void,
   onError: (message: string) => void
 ): Unsubscribe {
+  const cachedItems = memoryCache[participantId];
+
+  if (cachedItems) {
+    onChange(cachedItems);
+  }
+
   return onSnapshot(
     collection(db, getPersonalPackingPath(participantId)),
     (snapshot) => {
-      const items = snapshot.docs
-        .map((document) => normalizeItem(document.id, document.data()))
-        .sort((a, b) => {
-          if (a.packed !== b.packed) return a.packed ? 1 : -1;
-          if (a.required !== b.required) return a.required ? -1 : 1;
-          return a.category.localeCompare(b.category, "he") || a.name.localeCompare(b.name, "he");
-        });
+      const items = sortItems(
+        snapshot.docs.map((document) =>
+          normalizeItem(document.id, document.data())
+        )
+      );
 
+      memoryCache[participantId] = items;
       onChange(items);
     },
     (error) => onError(error.message)
@@ -71,6 +85,7 @@ export async function addPersonalPackingItem(
   item: Omit<PersonalPackingItem, "id">
 ): Promise<void> {
   const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
   await setDoc(doc(db, getPersonalPackingPath(participantId), id), {
     name: item.name,
     packed: item.packed,
@@ -88,6 +103,9 @@ export async function updatePersonalPackingItem(
   await updateDoc(doc(db, getPersonalPackingPath(participantId), id), updates);
 }
 
-export async function deletePersonalPackingItem(participantId: string, id: string): Promise<void> {
+export async function deletePersonalPackingItem(
+  participantId: string,
+  id: string
+): Promise<void> {
   await deleteDoc(doc(db, getPersonalPackingPath(participantId), id));
 }

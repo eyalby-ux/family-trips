@@ -42,6 +42,13 @@
 }
 
 @media (max-width: 520px) {
-  .dayCarousel { grid-auto-columns: minmax(260px, 86vw); }
-  .daySummaryCard { min-height: 330px; }
+  .dayCarousel {
+    grid-auto-columns: 100%;
+    gap: 0;
+  }
+
+  .daySummaryCard {
+    min-height: 330px;
+    margin: 0;
+  }
 }

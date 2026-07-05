@@ -1,4 +1,4 @@
-const CACHE_NAME = "family-trips-dolomites-v1";
+const CACHE_NAME = "family-trips-dolomites-v2";
 
 const APP_SHELL = [
   "/",
@@ -18,9 +18,7 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(
-        keys
-          .filter((key) => key !== CACHE_NAME)
-          .map((key) => caches.delete(key))
+        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
       )
     )
   );
@@ -28,17 +26,22 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
-  if (event.request.method !== "GET") {
+  const url = new URL(event.request.url);
+
+  // לא להתערב ב-Firebase / Firestore / בקשות חיצוניות
+  if (
+    event.request.method !== "GET" ||
+    url.origin !== self.location.origin ||
+    url.pathname.includes("channel")
+  ) {
     return;
   }
 
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        const responseClone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseClone);
-        });
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         return response;
       })
       .catch(() => caches.match(event.request).then((cached) => cached || caches.match("/")))
