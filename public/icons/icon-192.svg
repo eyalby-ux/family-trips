@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="42" fill="#1976d2"/>
+  <path d="M30 140 L72 74 L104 116 L126 84 L164 140 Z" fill="#ffffff"/>
+  <circle cx="136" cy="48" r="18" fill="#bbdefb"/>
+  <text x="96" y="171" font-size="22" text-anchor="middle" font-family="Arial" fill="#ffffff" font-weight="700">Trips</text>
+</svg>
