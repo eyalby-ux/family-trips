@@ -1,0 +1,73 @@
+.mapIntro {
+  background: #e3f2fd;
+  color: #0d47a1;
+  border-radius: 18px;
+  padding: 14px;
+  margin-bottom: 16px;
+  display: grid;
+  gap: 4px;
+}
+
+.mapDayCard {
+  background: linear-gradient(180deg, #ffffff, #f8fbff);
+}
+
+.mapDrivingText {
+  color: #26384d;
+  line-height: 1.5;
+}
+
+.mapPointGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.mapPoint {
+  text-decoration: none;
+  color: #102033;
+  border: 1px solid #dde6f0;
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 12px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-weight: 800;
+  transition: 0.16s ease;
+}
+
+.mapPoint:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(16, 32, 51, 0.1);
+}
+
+.mapPointIcon {
+  font-size: 22px;
+}
+
+.mapPoint-route { background: #e3f2fd; }
+.mapPoint-sleep { background: #f3e5f5; }
+.mapPoint-hike { background: #e8f5e9; }
+.mapPoint-food { background: #fff8e1; }
+.mapPoint-parking { background: #ede7f6; }
+.mapPoint-backup { background: #f5f5f5; }
+
+.bottomNav {
+  grid-template-columns: repeat(7, 1fr);
+}
+
+@media (max-width: 760px) {
+  .mapPointGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .bottomNav span {
+    font-size: 18px;
+  }
+
+  .bottomNav small {
+    font-size: 9px;
+  }
+}
