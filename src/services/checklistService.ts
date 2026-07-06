@@ -12,11 +12,6 @@ import type { InitialChecklistItem, SharedChecklistItem } from "../types";
 
 const tripId = "dolomites-2026";
 const memoryCache: Record<string, SharedChecklistItem[]> = {};
-const activeListeners: Record<string, number> = {};
-
-function debugLog(...args: unknown[]) {
-  console.log("[LISTS-DEBUG]", ...args);
-}
 
 function getCollectionPath(collectionName: string) {
   return `trips/${tripId}/${collectionName}`;
@@ -29,15 +24,8 @@ function getCacheKey(collectionName: string) {
 function loadCachedItems(collectionName: string): SharedChecklistItem[] | null {
   try {
     const raw = localStorage.getItem(getCacheKey(collectionName));
-    const items = raw ? (JSON.parse(raw) as SharedChecklistItem[]) : null;
-    debugLog("load localStorage", {
-      collectionName,
-      count: items?.length ?? 0,
-      key: getCacheKey(collectionName),
-    });
-    return items;
-  } catch (error) {
-    debugLog("load localStorage failed", { collectionName, error });
+    return raw ? (JSON.parse(raw) as SharedChecklistItem[]) : null;
+  } catch {
     return null;
   }
 }
@@ -45,13 +33,8 @@ function loadCachedItems(collectionName: string): SharedChecklistItem[] | null {
 function saveCachedItems(collectionName: string, items: SharedChecklistItem[]) {
   try {
     localStorage.setItem(getCacheKey(collectionName), JSON.stringify(items));
-    debugLog("save localStorage", {
-      collectionName,
-      count: items.length,
-      key: getCacheKey(collectionName),
-    });
-  } catch (error) {
-    debugLog("save localStorage failed", { collectionName, error });
+  } catch {
+    // Firebase remains the source of truth.
   }
 }
 
@@ -87,85 +70,97 @@ function sortItems(items: SharedChecklistItem[]) {
   });
 }
 
+function mergeById(currentItems: SharedChecklistItem[], snapshotItems: SharedChecklistItem[]) {
+  const merged = new Map<string, SharedChecklistItem>();
+  currentItems.forEach((item) => merged.set(item.id, item));
+  snapshotItems.forEach((item) => merged.set(item.id, item));
+  return sortItems([...merged.values()]);
+}
+
+function shouldIgnoreEmptyCacheSnapshot(
+  snapshotItems: SharedChecklistItem[],
+  currentItems: SharedChecklistItem[],
+  fromCache: boolean,
+  hasPendingWrites: boolean
+) {
+  return fromCache && !hasPendingWrites && snapshotItems.length === 0 && currentItems.length === 0;
+}
+
+function isSuspiciousPartialSnapshot(
+  snapshotItems: SharedChecklistItem[],
+  currentItems: SharedChecklistItem[],
+  fromCache: boolean,
+  hasPendingWrites: boolean
+) {
+  return (
+    fromCache &&
+    hasPendingWrites &&
+    currentItems.length > 2 &&
+    snapshotItems.length < currentItems.length - 1
+  );
+}
+
 export function listenToChecklistItems(
   collectionName: string,
   onChange: (items: SharedChecklistItem[]) => void,
   onError: (message: string) => void
 ): Unsubscribe {
-  const path = getCollectionPath(collectionName);
-  activeListeners[collectionName] = (activeListeners[collectionName] ?? 0) + 1;
-
-  debugLog("listener start", {
-    collectionName,
-    path,
-    activeListeners: activeListeners[collectionName],
-  });
-
   const cachedItems = memoryCache[collectionName] ?? loadCachedItems(collectionName);
 
   if (cachedItems) {
     memoryCache[collectionName] = cachedItems;
-    debugLog("emit cached items", {
-      collectionName,
-      count: cachedItems.length,
-      ids: cachedItems.map((item) => item.id),
-    });
     onChange(cachedItems);
   }
 
-  const unsubscribe = onSnapshot(
-    collection(db, path),
+  return onSnapshot(
+    collection(db, getCollectionPath(collectionName)),
     (snapshot) => {
-      const items = sortItems(
+      const snapshotItems = sortItems(
         snapshot.docs.map((document) => normalizeItem(document.id, document.data()))
       );
 
-      debugLog("snapshot", {
-        collectionName,
-        path,
-        docs: snapshot.docs.length,
-        fromCache: snapshot.metadata.fromCache,
-        hasPendingWrites: snapshot.metadata.hasPendingWrites,
-        ids: items.map((item) => item.id),
-      });
+      const currentItems = memoryCache[collectionName] ?? cachedItems ?? [];
 
-      memoryCache[collectionName] = items;
-      saveCachedItems(collectionName, items);
-      onChange(items);
+      if (
+        shouldIgnoreEmptyCacheSnapshot(
+          snapshotItems,
+          currentItems,
+          snapshot.metadata.fromCache,
+          snapshot.metadata.hasPendingWrites
+        )
+      ) {
+        return;
+      }
+
+      if (
+        isSuspiciousPartialSnapshot(
+          snapshotItems,
+          currentItems,
+          snapshot.metadata.fromCache,
+          snapshot.metadata.hasPendingWrites
+        )
+      ) {
+        const mergedItems = mergeById(currentItems, snapshotItems);
+        memoryCache[collectionName] = mergedItems;
+        onChange(mergedItems);
+        return;
+      }
+
+      memoryCache[collectionName] = snapshotItems;
+      saveCachedItems(collectionName, snapshotItems);
+      onChange(snapshotItems);
     },
-    (error) => {
-      debugLog("snapshot error", { collectionName, path, error });
-      onError(error.message);
-    }
+    (error) => onError(error.message)
   );
-
-  return () => {
-    activeListeners[collectionName] = Math.max((activeListeners[collectionName] ?? 1) - 1, 0);
-    debugLog("listener stop", {
-      collectionName,
-      path,
-      activeListeners: activeListeners[collectionName],
-    });
-    unsubscribe();
-  };
 }
 
 export async function seedChecklistItems(
   collectionName: string,
   initialItems: InitialChecklistItem[]
 ): Promise<void> {
-  const path = getCollectionPath(collectionName);
-
-  debugLog("seed start", {
-    collectionName,
-    path,
-    count: initialItems.length,
-    ids: initialItems.map((item) => item.id),
-  });
-
   await Promise.all(
     initialItems.map((item, index) =>
-      setDoc(doc(db, path, item.id), {
+      setDoc(doc(db, getCollectionPath(collectionName), item.id), {
         name: item.name,
         owner: item.owner,
         done: item.done,
@@ -174,36 +169,20 @@ export async function seedChecklistItems(
       })
     )
   );
-
-  debugLog("seed done", { collectionName, path });
 }
 
 export async function addChecklistItem(
   collectionName: string,
   item: Omit<SharedChecklistItem, "id">
 ): Promise<void> {
-  const path = getCollectionPath(collectionName);
   const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-  debugLog("add item start", {
-    collectionName,
-    path,
-    id,
-    item,
-  });
-
-  await setDoc(doc(db, path, id), {
+  await setDoc(doc(db, getCollectionPath(collectionName), id), {
     name: item.name,
     owner: item.owner,
     done: item.done,
     details: item.details ?? "",
     createdAt: Date.now(),
-  });
-
-  debugLog("add item done", {
-    collectionName,
-    path,
-    id,
   });
 }
 
@@ -212,41 +191,12 @@ export async function updateChecklistItem(
   id: string,
   updates: Partial<Omit<SharedChecklistItem, "id">>
 ): Promise<void> {
-  const path = getCollectionPath(collectionName);
-
-  debugLog("update item start", {
-    collectionName,
-    path,
-    id,
-    updates,
-  });
-
-  await updateDoc(doc(db, path, id), updates);
-
-  debugLog("update item done", {
-    collectionName,
-    path,
-    id,
-  });
+  await updateDoc(doc(db, getCollectionPath(collectionName), id), updates);
 }
 
 export async function deleteChecklistItem(
   collectionName: string,
   id: string
 ): Promise<void> {
-  const path = getCollectionPath(collectionName);
-
-  debugLog("delete item start", {
-    collectionName,
-    path,
-    id,
-  });
-
-  await deleteDoc(doc(db, path, id));
-
-  debugLog("delete item done", {
-    collectionName,
-    path,
-    id,
-  });
+  await deleteDoc(doc(db, getCollectionPath(collectionName), id));
 }
