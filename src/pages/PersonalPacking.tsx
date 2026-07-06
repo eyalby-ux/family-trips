@@ -69,26 +69,73 @@ function PersonalPacking() {
     const trimmedName = newItemName.trim();
     if (!trimmedName) return;
 
-    await addPersonalPackingItem(selectedParticipantId, {
+    const optimisticItem: PersonalPackingItem = {
+      id: `optimistic-${Date.now()}`,
       name: trimmedName,
       packed: false,
       category: newItemCategory.trim() || "כללי",
       required: isRequired,
       createdAt: Date.now(),
-    });
+    };
 
-    setNewItemName("");
-    setNewItemCategory("כללי");
-    setIsRequired(true);
+    setItems((current) => [optimisticItem, ...current]);
+
+    try {
+      await addPersonalPackingItem(selectedParticipantId, {
+        name: trimmedName,
+        packed: false,
+        category: newItemCategory.trim() || "כללי",
+        required: isRequired,
+        createdAt: Date.now(),
+      });
+
+      setNewItemName("");
+      setNewItemCategory("כללי");
+      setIsRequired(true);
+    } catch (err) {
+      setItems((current) => current.filter((item) => item.id !== optimisticItem.id));
+      setError(err instanceof Error ? err.message : "שגיאה בהוספת פריט אישי");
+    }
   }
 
   async function togglePacked(item: PersonalPackingItem) {
-    await updatePersonalPackingItem(selectedParticipantId, item.id, { packed: !item.packed });
+    setItems((current) =>
+      current.map((currentItem) =>
+        currentItem.id === item.id
+          ? { ...currentItem, packed: !currentItem.packed }
+          : currentItem
+      )
+    );
+
+    try {
+      await updatePersonalPackingItem(selectedParticipantId, item.id, {
+        packed: !item.packed,
+      });
+    } catch (err) {
+      setItems((current) =>
+        current.map((currentItem) =>
+          currentItem.id === item.id
+            ? { ...currentItem, packed: item.packed }
+            : currentItem
+        )
+      );
+      setError(err instanceof Error ? err.message : "שגיאה בסימון פריט");
+    }
   }
 
   async function removeItem(item: PersonalPackingItem) {
     const confirmed = window.confirm(`למחוק את "${item.name}" מהרשימה של ${selectedParticipant?.name}?`);
-    if (confirmed) await deletePersonalPackingItem(selectedParticipantId, item.id);
+    if (!confirmed) return;
+
+    const previousItems = items;
+    setItems((current) => current.filter((currentItem) => currentItem.id !== item.id));
+
+    try {
+      await deletePersonalPackingItem(selectedParticipantId, item.id);
+    } catch (err) {
+      setItems(previousItems);
+      setError(err instanceof Error ? err.message : "שגיאה במחיקת פריט אישי");
+    }
   }
 
   return (

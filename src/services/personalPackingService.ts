@@ -104,7 +104,7 @@ export async function seedPersonalPackingItems(
 export async function addPersonalPackingItem(
   participantId: string,
   item: Omit<PersonalPackingItem, "id">
-): Promise<void> {
+): Promise<string> {
   const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
   await setDoc(doc(db, getPersonalPackingPath(participantId), id), {
@@ -114,6 +114,8 @@ export async function addPersonalPackingItem(
     required: item.required,
     createdAt: Date.now(),
   });
+
+  return id;
 }
 
 export async function updatePersonalPackingItem(
