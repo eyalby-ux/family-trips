@@ -12,6 +12,11 @@ import type { InitialChecklistItem, SharedChecklistItem } from "../types";
 
 const tripId = "dolomites-2026";
 const memoryCache: Record<string, SharedChecklistItem[]> = {};
+const activeListeners: Record<string, number> = {};
+
+function debugLog(...args: unknown[]) {
+  console.log("[LISTS-DEBUG]", ...args);
+}
 
 function getCollectionPath(collectionName: string) {
   return `trips/${tripId}/${collectionName}`;
@@ -24,8 +29,15 @@ function getCacheKey(collectionName: string) {
 function loadCachedItems(collectionName: string): SharedChecklistItem[] | null {
   try {
     const raw = localStorage.getItem(getCacheKey(collectionName));
-    return raw ? (JSON.parse(raw) as SharedChecklistItem[]) : null;
-  } catch {
+    const items = raw ? (JSON.parse(raw) as SharedChecklistItem[]) : null;
+    debugLog("load localStorage", {
+      collectionName,
+      count: items?.length ?? 0,
+      key: getCacheKey(collectionName),
+    });
+    return items;
+  } catch (error) {
+    debugLog("load localStorage failed", { collectionName, error });
     return null;
   }
 }
@@ -33,8 +45,13 @@ function loadCachedItems(collectionName: string): SharedChecklistItem[] | null {
 function saveCachedItems(collectionName: string, items: SharedChecklistItem[]) {
   try {
     localStorage.setItem(getCacheKey(collectionName), JSON.stringify(items));
-  } catch {
-    // Firebase remains the source of truth.
+    debugLog("save localStorage", {
+      collectionName,
+      count: items.length,
+      key: getCacheKey(collectionName),
+    });
+  } catch (error) {
+    debugLog("save localStorage failed", { collectionName, error });
   }
 }
 
@@ -75,35 +92,80 @@ export function listenToChecklistItems(
   onChange: (items: SharedChecklistItem[]) => void,
   onError: (message: string) => void
 ): Unsubscribe {
+  const path = getCollectionPath(collectionName);
+  activeListeners[collectionName] = (activeListeners[collectionName] ?? 0) + 1;
+
+  debugLog("listener start", {
+    collectionName,
+    path,
+    activeListeners: activeListeners[collectionName],
+  });
+
   const cachedItems = memoryCache[collectionName] ?? loadCachedItems(collectionName);
 
   if (cachedItems) {
     memoryCache[collectionName] = cachedItems;
+    debugLog("emit cached items", {
+      collectionName,
+      count: cachedItems.length,
+      ids: cachedItems.map((item) => item.id),
+    });
     onChange(cachedItems);
   }
 
-  return onSnapshot(
-    collection(db, getCollectionPath(collectionName)),
+  const unsubscribe = onSnapshot(
+    collection(db, path),
     (snapshot) => {
       const items = sortItems(
         snapshot.docs.map((document) => normalizeItem(document.id, document.data()))
       );
 
+      debugLog("snapshot", {
+        collectionName,
+        path,
+        docs: snapshot.docs.length,
+        fromCache: snapshot.metadata.fromCache,
+        hasPendingWrites: snapshot.metadata.hasPendingWrites,
+        ids: items.map((item) => item.id),
+      });
+
       memoryCache[collectionName] = items;
       saveCachedItems(collectionName, items);
       onChange(items);
     },
-    (error) => onError(error.message)
+    (error) => {
+      debugLog("snapshot error", { collectionName, path, error });
+      onError(error.message);
+    }
   );
+
+  return () => {
+    activeListeners[collectionName] = Math.max((activeListeners[collectionName] ?? 1) - 1, 0);
+    debugLog("listener stop", {
+      collectionName,
+      path,
+      activeListeners: activeListeners[collectionName],
+    });
+    unsubscribe();
+  };
 }
 
 export async function seedChecklistItems(
   collectionName: string,
   initialItems: InitialChecklistItem[]
 ): Promise<void> {
+  const path = getCollectionPath(collectionName);
+
+  debugLog("seed start", {
+    collectionName,
+    path,
+    count: initialItems.length,
+    ids: initialItems.map((item) => item.id),
+  });
+
   await Promise.all(
     initialItems.map((item, index) =>
-      setDoc(doc(db, getCollectionPath(collectionName), item.id), {
+      setDoc(doc(db, path, item.id), {
         name: item.name,
         owner: item.owner,
         done: item.done,
@@ -112,20 +174,36 @@ export async function seedChecklistItems(
       })
     )
   );
+
+  debugLog("seed done", { collectionName, path });
 }
 
 export async function addChecklistItem(
   collectionName: string,
   item: Omit<SharedChecklistItem, "id">
 ): Promise<void> {
+  const path = getCollectionPath(collectionName);
   const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-  await setDoc(doc(db, getCollectionPath(collectionName), id), {
+  debugLog("add item start", {
+    collectionName,
+    path,
+    id,
+    item,
+  });
+
+  await setDoc(doc(db, path, id), {
     name: item.name,
     owner: item.owner,
     done: item.done,
     details: item.details ?? "",
     createdAt: Date.now(),
+  });
+
+  debugLog("add item done", {
+    collectionName,
+    path,
+    id,
   });
 }
 
@@ -134,12 +212,41 @@ export async function updateChecklistItem(
   id: string,
   updates: Partial<Omit<SharedChecklistItem, "id">>
 ): Promise<void> {
-  await updateDoc(doc(db, getCollectionPath(collectionName), id), updates);
+  const path = getCollectionPath(collectionName);
+
+  debugLog("update item start", {
+    collectionName,
+    path,
+    id,
+    updates,
+  });
+
+  await updateDoc(doc(db, path, id), updates);
+
+  debugLog("update item done", {
+    collectionName,
+    path,
+    id,
+  });
 }
 
 export async function deleteChecklistItem(
   collectionName: string,
   id: string
 ): Promise<void> {
-  await deleteDoc(doc(db, getCollectionPath(collectionName), id));
+  const path = getCollectionPath(collectionName);
+
+  debugLog("delete item start", {
+    collectionName,
+    path,
+    id,
+  });
+
+  await deleteDoc(doc(db, path, id));
+
+  debugLog("delete item done", {
+    collectionName,
+    path,
+    id,
+  });
 }

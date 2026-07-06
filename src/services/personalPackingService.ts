@@ -12,6 +12,11 @@ import type { InitialPersonalPackingItem, PersonalPackingItem } from "../types";
 
 const tripId = "dolomites-2026";
 const memoryCache: Record<string, PersonalPackingItem[]> = {};
+const activeListeners: Record<string, number> = {};
+
+function debugLog(...args: unknown[]) {
+  console.log("[PERSONAL-PACKING-DEBUG]", ...args);
+}
 
 function getPersonalPackingPath(participantId: string) {
   return `trips/${tripId}/personalPacking/${participantId}/items`;
@@ -24,8 +29,15 @@ function getCacheKey(participantId: string) {
 function loadCachedItems(participantId: string): PersonalPackingItem[] | null {
   try {
     const raw = localStorage.getItem(getCacheKey(participantId));
-    return raw ? (JSON.parse(raw) as PersonalPackingItem[]) : null;
-  } catch {
+    const items = raw ? (JSON.parse(raw) as PersonalPackingItem[]) : null;
+    debugLog("load localStorage", {
+      participantId,
+      count: items?.length ?? 0,
+      key: getCacheKey(participantId),
+    });
+    return items;
+  } catch (error) {
+    debugLog("load localStorage failed", { participantId, error });
     return null;
   }
 }
@@ -33,8 +45,13 @@ function loadCachedItems(participantId: string): PersonalPackingItem[] | null {
 function saveCachedItems(participantId: string, items: PersonalPackingItem[]) {
   try {
     localStorage.setItem(getCacheKey(participantId), JSON.stringify(items));
-  } catch {
-    // Firebase remains the source of truth.
+    debugLog("save localStorage", {
+      participantId,
+      count: items.length,
+      key: getCacheKey(participantId),
+    });
+  } catch (error) {
+    debugLog("save localStorage failed", { participantId, error });
   }
 }
 
@@ -62,35 +79,80 @@ export function listenToPersonalPackingItems(
   onChange: (items: PersonalPackingItem[]) => void,
   onError: (message: string) => void
 ): Unsubscribe {
+  const path = getPersonalPackingPath(participantId);
+  activeListeners[participantId] = (activeListeners[participantId] ?? 0) + 1;
+
+  debugLog("listener start", {
+    participantId,
+    path,
+    activeListeners: activeListeners[participantId],
+  });
+
   const cachedItems = memoryCache[participantId] ?? loadCachedItems(participantId);
 
   if (cachedItems) {
     memoryCache[participantId] = cachedItems;
+    debugLog("emit cached items", {
+      participantId,
+      count: cachedItems.length,
+      ids: cachedItems.map((item) => item.id),
+    });
     onChange(cachedItems);
   }
 
-  return onSnapshot(
-    collection(db, getPersonalPackingPath(participantId)),
+  const unsubscribe = onSnapshot(
+    collection(db, path),
     (snapshot) => {
       const items = sortItems(
         snapshot.docs.map((document) => normalizeItem(document.id, document.data()))
       );
 
+      debugLog("snapshot", {
+        participantId,
+        path,
+        docs: snapshot.docs.length,
+        fromCache: snapshot.metadata.fromCache,
+        hasPendingWrites: snapshot.metadata.hasPendingWrites,
+        ids: items.map((item) => item.id),
+      });
+
       memoryCache[participantId] = items;
       saveCachedItems(participantId, items);
       onChange(items);
     },
-    (error) => onError(error.message)
+    (error) => {
+      debugLog("snapshot error", { participantId, path, error });
+      onError(error.message);
+    }
   );
+
+  return () => {
+    activeListeners[participantId] = Math.max((activeListeners[participantId] ?? 1) - 1, 0);
+    debugLog("listener stop", {
+      participantId,
+      path,
+      activeListeners: activeListeners[participantId],
+    });
+    unsubscribe();
+  };
 }
 
 export async function seedPersonalPackingItems(
   participantId: string,
   initialItems: InitialPersonalPackingItem[]
 ): Promise<void> {
+  const path = getPersonalPackingPath(participantId);
+
+  debugLog("seed start", {
+    participantId,
+    path,
+    count: initialItems.length,
+    ids: initialItems.map((item) => item.id),
+  });
+
   await Promise.all(
     initialItems.map((item, index) =>
-      setDoc(doc(db, getPersonalPackingPath(participantId), item.id), {
+      setDoc(doc(db, path, item.id), {
         name: item.name,
         packed: false,
         category: item.category,
@@ -99,20 +161,36 @@ export async function seedPersonalPackingItems(
       })
     )
   );
+
+  debugLog("seed done", { participantId, path });
 }
 
 export async function addPersonalPackingItem(
   participantId: string,
   item: Omit<PersonalPackingItem, "id">
 ): Promise<string> {
+  const path = getPersonalPackingPath(participantId);
   const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-  await setDoc(doc(db, getPersonalPackingPath(participantId), id), {
+  debugLog("add item start", {
+    participantId,
+    path,
+    id,
+    item,
+  });
+
+  await setDoc(doc(db, path, id), {
     name: item.name,
     packed: item.packed,
     category: item.category,
     required: item.required,
     createdAt: Date.now(),
+  });
+
+  debugLog("add item done", {
+    participantId,
+    path,
+    id,
   });
 
   return id;
@@ -123,12 +201,41 @@ export async function updatePersonalPackingItem(
   id: string,
   updates: Partial<Omit<PersonalPackingItem, "id">>
 ): Promise<void> {
-  await updateDoc(doc(db, getPersonalPackingPath(participantId), id), updates);
+  const path = getPersonalPackingPath(participantId);
+
+  debugLog("update item start", {
+    participantId,
+    path,
+    id,
+    updates,
+  });
+
+  await updateDoc(doc(db, path, id), updates);
+
+  debugLog("update item done", {
+    participantId,
+    path,
+    id,
+  });
 }
 
 export async function deletePersonalPackingItem(
   participantId: string,
   id: string
 ): Promise<void> {
-  await deleteDoc(doc(db, getPersonalPackingPath(participantId), id));
+  const path = getPersonalPackingPath(participantId);
+
+  debugLog("delete item start", {
+    participantId,
+    path,
+    id,
+  });
+
+  await deleteDoc(doc(db, path, id));
+
+  debugLog("delete item done", {
+    participantId,
+    path,
+    id,
+  });
 }
