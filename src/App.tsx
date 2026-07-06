@@ -6,7 +6,6 @@ import Itinerary from "./pages/Itinerary";
 import Packing from "./pages/Packing";
 import PersonalPacking from "./pages/PersonalPacking";
 import Shopping from "./pages/Shopping";
-import TripMap from "./pages/TripMap";
 import type { Screen } from "./types";
 import "./styles/global.css";
 import "./styles/firebase-packing-additions.css";
@@ -23,8 +22,7 @@ function App() {
   return (
     <main className="app" dir="rtl">
       {activeScreen === "home" && <Home onNavigate={setActiveScreen} />}
-      {activeScreen === "itinerary" && <Itinerary />}
-      {activeScreen === "map" && <TripMap />}
+      {(activeScreen === "itinerary" || activeScreen === "map") && <Itinerary />}
       {activeScreen === "packing" && <Packing />}
       {activeScreen === "personalPacking" && <PersonalPacking />}
       {activeScreen === "shopping" && <Shopping />}

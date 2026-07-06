@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { participants } from "../../data/tripData";
 import { listenToChecklistItems } from "../../services/checklistService";
-import { listenToPersonalPackingItems } from "../../services/personalPackingService";
-import type { Screen, SharedChecklistItem, PersonalPackingItem } from "../../types";
+import type { Screen, SharedChecklistItem } from "../../types";
 
 type MobileDashboardProps = {
   onNavigate: (screen: Screen) => void;
@@ -34,14 +32,15 @@ function getDaysUntilTrip() {
 
 function MetricCard({ icon, title, done, total, actionLabel, onClick }: MetricCardProps) {
   const progress = total === 0 ? 0 : Math.round((done / total) * 100);
+  const openItems = Math.max(total - done, 0);
 
   return (
-    <button className="dashboardMetric" onClick={onClick}>
+    <button className="dashboardMetric compactMetric" onClick={onClick}>
       <div className="metricTop">
         <span className="metricIcon">{icon}</span>
         <div>
           <strong>{title}</strong>
-          <small>{done} מתוך {total}</small>
+          <small>{openItems === 0 ? "הכל סגור" : `נשארו ${openItems}`}</small>
         </div>
       </div>
 
@@ -57,32 +56,11 @@ function MetricCard({ icon, title, done, total, actionLabel, onClick }: MetricCa
 function MobileDashboard({ onNavigate }: MobileDashboardProps) {
   const [packing, setPacking] = useState<SharedChecklistItem[]>([]);
   const [shopping, setShopping] = useState<SharedChecklistItem[]>([]);
-  const [personalPacking, setPersonalPacking] = useState<PersonalPackingItem[]>([]);
 
   useEffect(() => {
     const unsubscribers = [
       listenToChecklistItems("packing", setPacking, () => undefined),
       listenToChecklistItems("shopping", setShopping, () => undefined),
-      ...participants.map((person) =>
-        listenToPersonalPackingItems(
-          person.id,
-          (items) => {
-            setPersonalPacking((current) => {
-              const withoutPerson = current.filter(
-                (item) => !item.id.startsWith(`${person.id}::`)
-              );
-
-              const withPerson = items.map((item) => ({
-                ...item,
-                id: `${person.id}::${item.id}`,
-              }));
-
-              return [...withoutPerson, ...withPerson];
-            });
-          },
-          () => undefined
-        )
-      ),
     ];
 
     return () => {
@@ -92,20 +70,14 @@ function MobileDashboard({ onNavigate }: MobileDashboardProps) {
 
   const packingDone = packing.filter((item) => item.done).length;
   const shoppingDone = shopping.filter((item) => item.done).length;
-  const personalDone = personalPacking.filter((item) => item.packed).length;
-
-  const totalDone = packingDone + shoppingDone + personalDone;
-  const totalItems = packing.length + shopping.length + personalPacking.length;
-
   const daysUntilTrip = useMemo(() => getDaysUntilTrip(), []);
-  const totalProgress = totalItems === 0 ? 0 : Math.round((totalDone / totalItems) * 100);
 
   return (
-    <section className="mobileDashboard">
-      <div className="tripHero">
+    <section className="mobileDashboard simplifiedDashboard">
+      <div className="tripHero simplifiedHero">
         <div>
           <span className="heroEyebrow">Dolomites 2026</span>
-          <h2>סטטוס הכנות</h2>
+          <h2>מוכנים לטיול?</h2>
         </div>
 
         <div className="countdownPill">
@@ -114,34 +86,14 @@ function MobileDashboard({ onNavigate }: MobileDashboardProps) {
         </div>
       </div>
 
-      <div className="overallCard">
-        <div>
-          <strong>{totalProgress}% מוכנים</strong>
-          <span>{totalDone} מתוך {totalItems} משימות</span>
-        </div>
-
-        <div className="metricProgressTrack">
-          <div className="metricProgressFill" style={{ width: `${totalProgress}%` }} />
-        </div>
-      </div>
-
-      <div className="metricGrid">
+      <div className="metricGrid simplifiedMetricGrid">
         <MetricCard
           icon="🎒"
           title="ציוד קבוצתי"
           done={packingDone}
           total={packing.length}
-          actionLabel="פתח ציוד"
+          actionLabel="פתח"
           onClick={() => onNavigate("packing")}
-        />
-
-        <MetricCard
-          icon="👤"
-          title="ציוד אישי"
-          done={personalDone}
-          total={personalPacking.length}
-          actionLabel="פתח אישי"
-          onClick={() => onNavigate("personalPacking")}
         />
 
         <MetricCard
@@ -149,15 +101,10 @@ function MobileDashboard({ onNavigate }: MobileDashboardProps) {
           title="קניות"
           done={shoppingDone}
           total={shopping.length}
-          actionLabel="פתח קניות"
+          actionLabel="פתח"
           onClick={() => onNavigate("shopping")}
         />
       </div>
-
-      <button className="continueButton" onClick={() => onNavigate("itinerary")}>
-        <span>📅</span>
-        <strong>פתח את מסלול הטיול</strong>
-      </button>
     </section>
   );
 }

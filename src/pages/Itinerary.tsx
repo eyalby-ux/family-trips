@@ -1,9 +1,14 @@
 import { useMemo, useState } from "react";
 import { tripDays } from "../data/tripData";
+import { getMapPointIcon, mapPointsByDay } from "../data/mapData";
+
+type DayTab = "route" | "navigation";
 
 function Itinerary() {
   const [activeIndex, setActiveIndex] = useState(0);
+  const [activeTab, setActiveTab] = useState<DayTab>("route");
   const activeDay = tripDays[activeIndex];
+  const mapPoints = mapPointsByDay[activeDay.id] ?? [];
 
   const dayLabel = useMemo(() => {
     return `יום ${activeIndex + 1} מתוך ${tripDays.length}`;
@@ -18,19 +23,19 @@ function Itinerary() {
   }
 
   return (
-    <section className="section itineraryMobile">
-      <div className="sectionTitle">
-        <h2>מסלול יומי</h2>
-        <span>יום אחד בכל פעם</span>
+    <section className="section itineraryMobile combinedItinerary">
+      <div className="sectionTitle compactSectionTitle">
+        <h2>מסלול וניווט</h2>
+        <span>{dayLabel}</span>
       </div>
 
-      <div className="dayStepper">
+      <div className="dayStepper compactDayStepper">
         <button onClick={goToPreviousDay} disabled={activeIndex === 0}>
           ▶
         </button>
 
         <div>
-          <strong>{dayLabel}</strong>
+          <strong>{activeDay.title}</strong>
           <span>{activeDay.weekday} · {activeDay.date}</span>
         </div>
 
@@ -39,82 +44,93 @@ function Itinerary() {
         </button>
       </div>
 
-      <div className="dayTabs" aria-label="בחירת יום">
-        {tripDays.map((day, index) => (
-          <button
-            key={day.id}
-            className={index === activeIndex ? "active" : ""}
-            onClick={() => setActiveIndex(index)}
-          >
-            יום {index + 1}
-          </button>
-        ))}
+      <div className="routeTabs" role="tablist" aria-label="מסלול או ניווט">
+        <button className={activeTab === "route" ? "active" : ""} onClick={() => setActiveTab("route")}>
+          מסלול
+        </button>
+        <button className={activeTab === "navigation" ? "active" : ""} onClick={() => setActiveTab("navigation")}>
+          ניווט
+        </button>
       </div>
 
-      <article className="dayCard focusedDayCard">
-        <div className="dayHeader">
-          <span className="dateBadge">{activeDay.weekday} · {activeDay.date}</span>
-          <h3>{activeDay.title}</h3>
-        </div>
+      <article className="dayCard focusedDayCard compactDayCard">
+        {activeTab === "route" && (
+          <>
+            <div className="mobileInfoStack">
+              <div className="infoPanel">
+                <strong>🚗 נסיעה</strong>
+                <p>{activeDay.driving}</p>
+              </div>
 
-        <div className="mobileInfoStack">
-          <div className="infoPanel">
-            <strong>🚗 נסיעה</strong>
-            <p>{activeDay.driving}</p>
-          </div>
+              <div className="infoPanel">
+                <strong>🥾 טיול</strong>
+                <p>{activeDay.hiking}</p>
+              </div>
 
-          <div className="infoPanel">
-            <strong>🥾 טיול</strong>
-            <p>{activeDay.hiking}</p>
-          </div>
+              <div className="infoPanel">
+                <strong>🏨 לינה</strong>
+                <p>{activeDay.lodging}</p>
+              </div>
+            </div>
 
-          <div className="infoPanel">
-            <strong>🏨 לינה</strong>
-            <p>{activeDay.lodging}</p>
-          </div>
-        </div>
+            {activeDay.notes && activeDay.notes.length > 0 && (
+              <details className="dayDetails">
+                <summary>📝 הערות</summary>
+                <ul>
+                  {activeDay.notes.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </details>
+            )}
 
-        {activeDay.food.length > 0 && (
-          <div className="daySubSection">
-            <h4>🍽️ אוכל</h4>
-            <ul>
-              {activeDay.food.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          </div>
+            {activeDay.alternatives && activeDay.alternatives.length > 0 && (
+              <details className="dayDetails">
+                <summary>🔁 חלופות</summary>
+                <ul>
+                  {activeDay.alternatives.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </>
         )}
 
-        {activeDay.notes && activeDay.notes.length > 0 && (
-          <div className="daySubSection">
-            <h4>📝 הערות</h4>
-            <ul>
-              {activeDay.notes.map((item) => (
-                <li key={item}>{item}</li>
+        {activeTab === "navigation" && (
+          <>
+            <div className="mapPointGrid compactMapPointGrid">
+              {mapPoints.map((point) => (
+                <a
+                  key={point.id}
+                  className={`mapPoint mapPoint-${point.type}`}
+                  href={point.url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <span className="mapPointIcon">{getMapPointIcon(point.type)}</span>
+                  <span>{point.label}</span>
+                </a>
               ))}
-            </ul>
-          </div>
-        )}
+            </div>
 
-        {activeDay.alternatives && activeDay.alternatives.length > 0 && (
-          <div className="daySubSection">
-            <h4>🔁 חלופות</h4>
-            <ul>
-              {activeDay.alternatives.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          </div>
-        )}
+            {activeDay.links.length > 0 && (
+              <details className="dayDetails">
+                <summary>🔗 קישורים נוספים</summary>
+                <div className="linkGrid compactLinkGrid">
+                  {activeDay.links.map((link) => (
+                    <a key={link.url} href={link.url} target="_blank" rel="noreferrer">
+                      {link.label}
+                    </a>
+                  ))}
+                </div>
+              </details>
+            )}
 
-        {activeDay.links.length > 0 && (
-          <div className="linkGrid">
-            {activeDay.links.map((link) => (
-              <a key={link.url} href={link.url} target="_blank" rel="noreferrer">
-                {link.label}
-              </a>
-            ))}
-          </div>
+            {mapPoints.length === 0 && activeDay.links.length === 0 && (
+              <div className="notice">אין קישורי ניווט ליום הזה עדיין.</div>
+            )}
+          </>
         )}
       </article>
     </section>

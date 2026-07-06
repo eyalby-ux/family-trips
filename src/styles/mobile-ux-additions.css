@@ -46,38 +46,12 @@
   font-weight: 800;
 }
 
-.overallCard,
-.dashboardMetric,
-.continueButton {
+.dashboardMetric {
   border: 1px solid #dde6f0;
   background: #ffffff;
   border-radius: 22px;
   padding: 16px;
   box-shadow: 0 10px 22px rgba(16, 32, 51, 0.05);
-}
-
-.overallCard {
-  display: grid;
-  gap: 12px;
-}
-
-.overallCard strong {
-  display: block;
-  font-size: 20px;
-}
-
-.overallCard span {
-  color: #637083;
-  font-size: 14px;
-}
-
-.metricGrid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 11px;
-}
-
-.dashboardMetric {
   cursor: pointer;
   text-align: right;
   display: grid;
@@ -123,20 +97,26 @@
   font-weight: 900;
 }
 
-.continueButton {
-  border: 0;
-  background: #102033;
-  color: white;
-  cursor: pointer;
-  min-height: 56px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.simplifiedDashboard {
+  gap: 12px;
+}
+
+.simplifiedHero {
+  padding: 16px;
+}
+
+.simplifiedMetricGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
 
-.continueButton span {
-  font-size: 22px;
+.compactMetric {
+  min-height: 112px;
+}
+
+.compactSectionTitle {
+  margin-bottom: 10px;
 }
 
 .dayStepper {
@@ -149,6 +129,10 @@
   align-items: center;
   gap: 8px;
   margin-bottom: 12px;
+}
+
+.compactDayStepper {
+  margin-bottom: 10px;
 }
 
 .dayStepper button {
@@ -182,85 +166,86 @@
   font-size: 13px;
 }
 
-.dayTabs {
+.routeTabs {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(74px, max-content);
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
-  overflow-x: auto;
-  padding-bottom: 10px;
   margin-bottom: 10px;
-}
-
-.dayTabs button {
-  border: 1px solid #dde6f0;
-  background: white;
+  background: #eef3f8;
+  padding: 5px;
   border-radius: 999px;
-  padding: 10px 14px;
-  font-weight: 900;
-  cursor: pointer;
-  white-space: nowrap;
 }
 
-.dayTabs button.active {
-  background: #1976d2;
-  color: white;
-  border-color: #1976d2;
+.routeTabs button {
+  border: 0;
+  border-radius: 999px;
+  min-height: 44px;
+  background: transparent;
+  font-weight: 900;
+  color: #637083;
+  cursor: pointer;
+}
+
+.routeTabs button.active {
+  background: #ffffff;
+  color: #1976d2;
+  box-shadow: 0 6px 14px rgba(16, 32, 51, 0.08);
 }
 
 .focusedDayCard {
   display: grid;
-  gap: 14px;
+  gap: 12px;
+}
+
+.compactDayCard {
+  padding: 14px;
 }
 
 .mobileInfoStack {
   display: grid;
-  gap: 10px;
+  gap: 9px;
 }
 
 .infoPanel {
   border: 1px solid #dde6f0;
   border-radius: 18px;
-  padding: 13px;
+  padding: 12px;
   background: #fbfdff;
 }
 
 .infoPanel strong {
   display: block;
-  margin-bottom: 6px;
+  margin-bottom: 5px;
 }
 
 .infoPanel p {
   margin: 0;
-  line-height: 1.5;
+  line-height: 1.45;
 }
 
-.daySubSection {
-  border-top: 1px solid #edf2f7;
-  padding-top: 12px;
+.dayDetails {
+  border: 1px solid #dde6f0;
+  border-radius: 16px;
+  padding: 11px 12px;
+  background: #ffffff;
 }
 
-.daySubSection h4 {
-  margin: 0 0 8px;
+.dayDetails summary {
+  cursor: pointer;
+  font-weight: 900;
 }
 
-.daySubSection ul {
-  margin: 0;
+.dayDetails ul {
+  margin: 10px 0 0;
   padding-inline-start: 20px;
 }
 
-.linkGrid {
-  display: grid;
-  gap: 8px;
+.compactMapPointGrid {
+  grid-template-columns: 1fr;
 }
 
-.linkGrid a {
-  text-decoration: none;
-  color: #0d47a1;
-  background: #e3f2fd;
-  border-radius: 14px;
-  padding: 12px;
-  font-weight: 900;
+.compactLinkGrid {
+  margin-top: 10px;
 }
 
 @media (max-width: 760px) {
@@ -269,24 +254,29 @@
     padding-bottom: 96px;
   }
 
-  .metricGrid {
-    grid-template-columns: 1fr;
-  }
-
-  .dashboardMetric {
-    min-height: 88px;
-  }
-
-  .metricTop {
-    grid-template-columns: 34px 1fr;
-    align-items: center;
-  }
-
   .tripHero h2 {
-    font-size: 24px;
+    font-size: 22px;
   }
 
   .section {
     margin-bottom: 14px;
+  }
+
+  .bottomNav {
+    grid-template-columns: repeat(6, 1fr);
+  }
+
+  .bottomNav span {
+    font-size: 19px;
+  }
+
+  .bottomNav small {
+    font-size: 9px;
+  }
+}
+
+@media (max-width: 420px) {
+  .simplifiedMetricGrid {
+    grid-template-columns: 1fr;
   }
 }
