@@ -15,6 +15,7 @@ import "./styles/editable-checklist-additions.css";
 import "./styles/personal-packing-additions.css";
 import "./styles/day-carousel-additions.css";
 import "./styles/trip-map-additions.css";
+import "./styles/mobile-ux-additions.css";
 
 function App() {
   const [activeScreen, setActiveScreen] = useState<Screen>("home");
