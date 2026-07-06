@@ -64,15 +64,6 @@ function mergeById(currentItems: PersonalPackingItem[], snapshotItems: PersonalP
   return sortItems([...merged.values()]);
 }
 
-function shouldIgnoreEmptyCacheSnapshot(
-  snapshotItems: PersonalPackingItem[],
-  currentItems: PersonalPackingItem[],
-  fromCache: boolean,
-  hasPendingWrites: boolean
-) {
-  return fromCache && !hasPendingWrites && snapshotItems.length === 0 && currentItems.length === 0;
-}
-
 function isSuspiciousPartialSnapshot(
   snapshotItems: PersonalPackingItem[],
   currentItems: PersonalPackingItem[],
@@ -107,17 +98,6 @@ export function listenToPersonalPackingItems(
       );
 
       const currentItems = memoryCache[participantId] ?? cachedItems ?? [];
-
-      if (
-        shouldIgnoreEmptyCacheSnapshot(
-          snapshotItems,
-          currentItems,
-          snapshot.metadata.fromCache,
-          snapshot.metadata.hasPendingWrites
-        )
-      ) {
-        return;
-      }
 
       if (
         isSuspiciousPartialSnapshot(

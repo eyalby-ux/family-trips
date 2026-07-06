@@ -77,15 +77,6 @@ function mergeById(currentItems: SharedChecklistItem[], snapshotItems: SharedChe
   return sortItems([...merged.values()]);
 }
 
-function shouldIgnoreEmptyCacheSnapshot(
-  snapshotItems: SharedChecklistItem[],
-  currentItems: SharedChecklistItem[],
-  fromCache: boolean,
-  hasPendingWrites: boolean
-) {
-  return fromCache && !hasPendingWrites && snapshotItems.length === 0 && currentItems.length === 0;
-}
-
 function isSuspiciousPartialSnapshot(
   snapshotItems: SharedChecklistItem[],
   currentItems: SharedChecklistItem[],
@@ -120,17 +111,6 @@ export function listenToChecklistItems(
       );
 
       const currentItems = memoryCache[collectionName] ?? cachedItems ?? [];
-
-      if (
-        shouldIgnoreEmptyCacheSnapshot(
-          snapshotItems,
-          currentItems,
-          snapshot.metadata.fromCache,
-          snapshot.metadata.hasPendingWrites
-        )
-      ) {
-        return;
-      }
 
       if (
         isSuspiciousPartialSnapshot(
