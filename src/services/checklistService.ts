@@ -17,6 +17,27 @@ function getCollectionPath(collectionName: string) {
   return `trips/${tripId}/${collectionName}`;
 }
 
+function getCacheKey(collectionName: string) {
+  return `familyTrips:${tripId}:${collectionName}`;
+}
+
+function loadCachedItems(collectionName: string): SharedChecklistItem[] | null {
+  try {
+    const raw = localStorage.getItem(getCacheKey(collectionName));
+    return raw ? (JSON.parse(raw) as SharedChecklistItem[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveCachedItems(collectionName: string, items: SharedChecklistItem[]) {
+  try {
+    localStorage.setItem(getCacheKey(collectionName), JSON.stringify(items));
+  } catch {
+    // Firebase remains the source of truth.
+  }
+}
+
 function normalizeItem(id: string, data: Record<string, unknown>): SharedChecklistItem {
   const legacyPacked = typeof data.packed === "boolean" ? data.packed : undefined;
 
@@ -54,9 +75,10 @@ export function listenToChecklistItems(
   onChange: (items: SharedChecklistItem[]) => void,
   onError: (message: string) => void
 ): Unsubscribe {
-  const cachedItems = memoryCache[collectionName];
+  const cachedItems = memoryCache[collectionName] ?? loadCachedItems(collectionName);
 
   if (cachedItems) {
+    memoryCache[collectionName] = cachedItems;
     onChange(cachedItems);
   }
 
@@ -64,18 +86,14 @@ export function listenToChecklistItems(
     collection(db, getCollectionPath(collectionName)),
     (snapshot) => {
       const items = sortItems(
-        snapshot.docs.map((document) =>
-          normalizeItem(document.id, document.data())
-        )
+        snapshot.docs.map((document) => normalizeItem(document.id, document.data()))
       );
 
       memoryCache[collectionName] = items;
+      saveCachedItems(collectionName, items);
       onChange(items);
     },
-    (error) => {
-      console.error("[Firebase Error]", error);
-      onError(error.message);
-    }
+    (error) => onError(error.message)
   );
 }
 

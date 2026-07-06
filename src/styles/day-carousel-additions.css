@@ -10,8 +10,14 @@
   margin: 0 -2px;
 }
 
-.dayCarousel::-webkit-scrollbar { height: 8px; }
-.dayCarousel::-webkit-scrollbar-thumb { background: #bbdefb; border-radius: 999px; }
+.dayCarousel::-webkit-scrollbar {
+  height: 8px;
+}
+
+.dayCarousel::-webkit-scrollbar-thumb {
+  background: #bbdefb;
+  border-radius: 999px;
+}
 
 .daySummaryCard {
   scroll-snap-align: start;
@@ -26,9 +32,22 @@
   gap: 10px;
 }
 
-.daySummaryTop { display: flex; justify-content: flex-start; }
-.daySummaryCard h3 { margin: 0; line-height: 1.3; }
-.daySummaryCard p { margin: 0; color: #26384d; line-height: 1.45; font-size: 14px; }
+.daySummaryTop {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.daySummaryCard h3 {
+  margin: 0;
+  line-height: 1.3;
+}
+
+.daySummaryCard p {
+  margin: 0;
+  color: #26384d;
+  line-height: 1.45;
+  font-size: 14px;
+}
 
 .smallPrimaryButton {
   margin-top: auto;

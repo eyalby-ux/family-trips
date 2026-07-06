@@ -17,6 +17,27 @@ function getPersonalPackingPath(participantId: string) {
   return `trips/${tripId}/personalPacking/${participantId}/items`;
 }
 
+function getCacheKey(participantId: string) {
+  return `familyTrips:${tripId}:personalPacking:${participantId}`;
+}
+
+function loadCachedItems(participantId: string): PersonalPackingItem[] | null {
+  try {
+    const raw = localStorage.getItem(getCacheKey(participantId));
+    return raw ? (JSON.parse(raw) as PersonalPackingItem[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveCachedItems(participantId: string, items: PersonalPackingItem[]) {
+  try {
+    localStorage.setItem(getCacheKey(participantId), JSON.stringify(items));
+  } catch {
+    // Firebase remains the source of truth.
+  }
+}
+
 function normalizeItem(id: string, data: Record<string, unknown>): PersonalPackingItem {
   return {
     id,
@@ -41,9 +62,10 @@ export function listenToPersonalPackingItems(
   onChange: (items: PersonalPackingItem[]) => void,
   onError: (message: string) => void
 ): Unsubscribe {
-  const cachedItems = memoryCache[participantId];
+  const cachedItems = memoryCache[participantId] ?? loadCachedItems(participantId);
 
   if (cachedItems) {
+    memoryCache[participantId] = cachedItems;
     onChange(cachedItems);
   }
 
@@ -51,12 +73,11 @@ export function listenToPersonalPackingItems(
     collection(db, getPersonalPackingPath(participantId)),
     (snapshot) => {
       const items = sortItems(
-        snapshot.docs.map((document) =>
-          normalizeItem(document.id, document.data())
-        )
+        snapshot.docs.map((document) => normalizeItem(document.id, document.data()))
       );
 
       memoryCache[participantId] = items;
+      saveCachedItems(participantId, items);
       onChange(items);
     },
     (error) => onError(error.message)

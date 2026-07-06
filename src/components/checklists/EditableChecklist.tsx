@@ -39,6 +39,8 @@ function EditableChecklist({
   const [newItemDetails, setNewItemDetails] = useState("");
 
   useEffect(() => {
+    setIsLoading(true);
+
     const unsubscribe = listenToChecklistItems(
       collectionName,
       (nextItems) => {
@@ -71,36 +73,76 @@ function EditableChecklist({
   async function handleAddItem() {
     const trimmedName = newItemName.trim();
 
-    if (!trimmedName) {
-      return;
-    }
+    if (!trimmedName) return;
 
-    await addChecklistItem(collectionName, {
+    const optimisticItem: SharedChecklistItem = {
+      id: `optimistic-${Date.now()}`,
       name: trimmedName,
       owner: newItemOwner,
       done: false,
       details: newItemDetails.trim(),
       createdAt: Date.now(),
-    });
+    };
 
-    setNewItemName("");
-    setNewItemOwner("לא שובץ");
-    setNewItemDetails("");
+    setItems((current) => [optimisticItem, ...current]);
+
+    try {
+      await addChecklistItem(collectionName, {
+        name: trimmedName,
+        owner: newItemOwner,
+        done: false,
+        details: newItemDetails.trim(),
+        createdAt: Date.now(),
+      });
+
+      setNewItemName("");
+      setNewItemOwner("לא שובץ");
+      setNewItemDetails("");
+    } catch (err) {
+      setItems((current) => current.filter((item) => item.id !== optimisticItem.id));
+      setError(err instanceof Error ? err.message : "שגיאה בהוספת פריט");
+    }
   }
 
   async function toggleDone(item: SharedChecklistItem) {
-    await updateChecklistItem(collectionName, item.id, { done: !item.done });
+    setItems((current) =>
+      current.map((currentItem) =>
+        currentItem.id === item.id ? { ...currentItem, done: !currentItem.done } : currentItem
+      )
+    );
+
+    try {
+      await updateChecklistItem(collectionName, item.id, { done: !item.done });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "שגיאה בעדכון פריט");
+    }
   }
 
   async function changeOwner(item: SharedChecklistItem, owner: string) {
-    await updateChecklistItem(collectionName, item.id, { owner });
+    setItems((current) =>
+      current.map((currentItem) =>
+        currentItem.id === item.id ? { ...currentItem, owner } : currentItem
+      )
+    );
+
+    try {
+      await updateChecklistItem(collectionName, item.id, { owner });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "שגיאה בעדכון אחראי");
+    }
   }
 
   async function removeItem(item: SharedChecklistItem) {
     const confirmed = window.confirm(`למחוק את "${item.name}"?`);
 
-    if (confirmed) {
+    if (!confirmed) return;
+
+    setItems((current) => current.filter((currentItem) => currentItem.id !== item.id));
+
+    try {
       await deleteChecklistItem(collectionName, item.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "שגיאה במחיקת פריט");
     }
   }
 
@@ -134,33 +176,17 @@ function EditableChecklist({
         <h3>{addButtonLabel}</h3>
 
         <div className="addItemGrid">
-          <input
-            value={newItemName}
-            onChange={(event) => setNewItemName(event.target.value)}
-            placeholder={itemNamePlaceholder}
-          />
+          <input value={newItemName} onChange={(event) => setNewItemName(event.target.value)} placeholder={itemNamePlaceholder} />
+          <input value={newItemDetails} onChange={(event) => setNewItemDetails(event.target.value)} placeholder={detailsPlaceholder} />
 
-          <input
-            value={newItemDetails}
-            onChange={(event) => setNewItemDetails(event.target.value)}
-            placeholder={detailsPlaceholder}
-          />
-
-          <select
-            value={newItemOwner}
-            onChange={(event) => setNewItemOwner(event.target.value)}
-          >
+          <select value={newItemOwner} onChange={(event) => setNewItemOwner(event.target.value)}>
             <option value="לא שובץ">לא שובץ</option>
             {participants.map((person) => (
-              <option key={person.id} value={person.name}>
-                {person.name}
-              </option>
+              <option key={person.id} value={person.name}>{person.name}</option>
             ))}
           </select>
 
-          <button className="primaryButton" onClick={handleAddItem}>
-            הוסף
-          </button>
+          <button className="primaryButton" onClick={handleAddItem}>הוסף</button>
         </div>
       </div>
 
@@ -168,37 +194,22 @@ function EditableChecklist({
         {items.map((item) => (
           <div key={item.id} className="listItem editableListItem">
             <label className="checkboxLine">
-              <input
-                type="checkbox"
-                checked={item.done}
-                onChange={() => toggleDone(item)}
-              />
+              <input type="checkbox" checked={item.done} onChange={() => toggleDone(item)} />
               <div>
                 <strong>{item.name}</strong>
-                <small>
-                  {item.done ? "בוצע" : "פתוח"}
-                  {item.details ? ` · ${item.details}` : ""}
-                </small>
+                <small>{item.done ? "בוצע" : "פתוח"}{item.details ? ` · ${item.details}` : ""}</small>
               </div>
             </label>
 
             <div className="itemActions">
-              <select
-                value={item.owner}
-                onChange={(event) => changeOwner(item, event.target.value)}
-                aria-label={`אחראי על ${item.name}`}
-              >
+              <select value={item.owner} onChange={(event) => changeOwner(item, event.target.value)} aria-label={`אחראי על ${item.name}`}>
                 <option value="לא שובץ">לא שובץ</option>
                 {participants.map((person) => (
-                  <option key={person.id} value={person.name}>
-                    {person.name}
-                  </option>
+                  <option key={person.id} value={person.name}>{person.name}</option>
                 ))}
               </select>
 
-              <button className="deleteButton" onClick={() => removeItem(item)}>
-                מחק
-              </button>
+              <button className="deleteButton" onClick={() => removeItem(item)}>מחק</button>
             </div>
           </div>
         ))}
