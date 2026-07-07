@@ -20,7 +20,29 @@ import "./styles/travel-hub-additions.css";
 
 function App() {
   const [activeScreen, setActiveScreen] = useState<Screen>("home");
-  return <main className="app" dir="rtl">{activeScreen === "home" && <Home onNavigate={setActiveScreen} />}{(activeScreen === "itinerary" || activeScreen === "map") && <Itinerary />}{activeScreen === "packing" && <Packing />}{activeScreen === "personalPacking" && <PersonalPacking />}{activeScreen === "shopping" && <Shopping />}{activeScreen === "useful" && <TravelHub />}{activeScreen === "games" && <Games />}<BottomNav activeScreen={activeScreen} onChange={setActiveScreen} /></main>;
+  const [travelHubKey, setTravelHubKey] = useState(0);
+
+  function handleNavChange(nextScreen: Screen) {
+    if (nextScreen === "useful" && activeScreen === "useful") {
+      setTravelHubKey((current) => current + 1);
+      return;
+    }
+
+    setActiveScreen(nextScreen);
+  }
+
+  return (
+    <main className="app" dir="rtl">
+      {activeScreen === "home" && <Home onNavigate={handleNavChange} />}
+      {(activeScreen === "itinerary" || activeScreen === "map") && <Itinerary />}
+      {activeScreen === "packing" && <Packing />}
+      {activeScreen === "personalPacking" && <PersonalPacking />}
+      {activeScreen === "shopping" && <Shopping />}
+      {activeScreen === "useful" && <TravelHub key={travelHubKey} />}
+      {activeScreen === "games" && <Games />}
+      <BottomNav activeScreen={activeScreen} onChange={handleNavChange} />
+    </main>
+  );
 }
 
 export default App;

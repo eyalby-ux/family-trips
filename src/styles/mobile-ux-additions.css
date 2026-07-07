@@ -1,282 +1,45 @@
-.mobileDashboard {
-  display: grid;
-  gap: 14px;
-  margin-bottom: 16px;
-}
-
-.tripHero {
-  border-radius: 24px;
-  padding: 18px;
-  background: linear-gradient(135deg, #e3f2fd, #f8fbff);
-  border: 1px solid #d7e6f5;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.heroEyebrow {
-  color: #637083;
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.tripHero h2 {
-  margin: 4px 0 0;
-  font-size: 28px;
-}
-
-.countdownPill {
-  background: #1976d2;
-  color: white;
-  border-radius: 20px;
-  padding: 10px 14px;
-  min-width: 76px;
-  text-align: center;
-  display: grid;
-}
-
-.countdownPill strong {
-  font-size: 26px;
-  line-height: 1;
-}
-
-.countdownPill span {
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.dashboardMetric {
-  border: 1px solid #dde6f0;
-  background: #ffffff;
-  border-radius: 22px;
-  padding: 16px;
-  box-shadow: 0 10px 22px rgba(16, 32, 51, 0.05);
-  cursor: pointer;
-  text-align: right;
-  display: grid;
-  gap: 12px;
-}
-
-.metricTop {
-  display: grid;
-  gap: 8px;
-}
-
-.metricIcon {
-  font-size: 26px;
-}
-
-.dashboardMetric strong {
-  display: block;
-  font-size: 15px;
-}
-
-.dashboardMetric small {
-  color: #637083;
-  font-size: 12px;
-}
-
-.metricProgressTrack {
-  height: 9px;
-  background: #eef3f8;
-  border-radius: 999px;
-  overflow: hidden;
-}
-
-.metricProgressFill {
-  height: 100%;
-  background: #1976d2;
-  border-radius: 999px;
-  transition: width 0.2s ease;
-}
-
-.metricAction {
-  color: #1976d2;
-  font-size: 13px;
-  font-weight: 900;
-}
-
-.simplifiedDashboard {
-  gap: 12px;
-}
-
-.simplifiedHero {
-  padding: 16px;
-}
-
-.simplifiedMetricGrid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
-.compactMetric {
-  min-height: 112px;
-}
-
-.compactSectionTitle {
-  margin-bottom: 10px;
-}
-
-.dayStepper {
-  background: #ffffff;
-  border: 1px solid #dde6f0;
-  border-radius: 22px;
-  padding: 12px;
-  display: grid;
-  grid-template-columns: 52px 1fr 52px;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.compactDayStepper {
-  margin-bottom: 10px;
-}
-
-.dayStepper button {
-  border: 0;
-  border-radius: 16px;
-  min-height: 48px;
-  background: #e3f2fd;
-  color: #0d47a1;
-  font-size: 20px;
-  font-weight: 900;
-  cursor: pointer;
-}
-
-.dayStepper button:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-
-.dayStepper div {
-  text-align: center;
-  display: grid;
-  gap: 2px;
-}
-
-.dayStepper strong {
-  font-size: 17px;
-}
-
-.dayStepper span {
-  color: #637083;
-  font-size: 13px;
-}
-
-.routeTabs {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-bottom: 10px;
-  background: #eef3f8;
-  padding: 5px;
-  border-radius: 999px;
-}
-
-.routeTabs button {
-  border: 0;
-  border-radius: 999px;
-  min-height: 44px;
-  background: transparent;
-  font-weight: 900;
-  color: #637083;
-  cursor: pointer;
-}
-
-.routeTabs button.active {
-  background: #ffffff;
-  color: #1976d2;
-  box-shadow: 0 6px 14px rgba(16, 32, 51, 0.08);
-}
-
-.focusedDayCard {
-  display: grid;
-  gap: 12px;
-}
-
-.compactDayCard {
-  padding: 14px;
-}
-
-.mobileInfoStack {
-  display: grid;
-  gap: 9px;
-}
-
-.infoPanel {
-  border: 1px solid #dde6f0;
-  border-radius: 18px;
-  padding: 12px;
-  background: #fbfdff;
-}
-
-.infoPanel strong {
-  display: block;
-  margin-bottom: 5px;
-}
-
-.infoPanel p {
-  margin: 0;
-  line-height: 1.45;
-}
-
-.dayDetails {
-  border: 1px solid #dde6f0;
-  border-radius: 16px;
-  padding: 11px 12px;
-  background: #ffffff;
-}
-
-.dayDetails summary {
-  cursor: pointer;
-  font-weight: 900;
-}
-
-.dayDetails ul {
-  margin: 10px 0 0;
-  padding-inline-start: 20px;
-}
-
-.compactMapPointGrid {
-  grid-template-columns: 1fr;
-}
-
-.compactLinkGrid {
-  margin-top: 10px;
-}
-
-@media (max-width: 760px) {
-  .app {
-    padding-inline: 12px;
-    padding-bottom: 96px;
-  }
-
-  .tripHero h2 {
-    font-size: 22px;
-  }
-
-  .section {
-    margin-bottom: 14px;
-  }
-
-  .bottomNav {
-    grid-template-columns: repeat(6, 1fr);
-  }
-
-  .bottomNav span {
-    font-size: 19px;
-  }
-
-  .bottomNav small {
-    font-size: 9px;
-  }
-}
-
-@media (max-width: 420px) {
-  .simplifiedMetricGrid {
-    grid-template-columns: 1fr;
-  }
-}
+.mobileDashboard { display: grid; gap: 14px; margin-bottom: 16px; }
+.tripHero { border-radius: 24px; padding: 18px; background: linear-gradient(135deg, #e3f2fd, #f8fbff); border: 1px solid #d7e6f5; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.heroEyebrow { color: #637083; font-size: 13px; font-weight: 800; }
+.tripHero h2 { margin: 4px 0 0; font-size: 28px; }
+.tripHero p { margin: 7px 0 0; color: #637083; font-weight: 800; }
+.countdownPill { background: #1976d2; color: white; border-radius: 20px; padding: 10px 14px; min-width: 76px; text-align: center; display: grid; }
+.countdownPill strong { font-size: 26px; line-height: 1; }
+.countdownPill span { font-size: 12px; font-weight: 800; }
+.homeExperience { gap: 12px; }
+.countdownHero { min-height: 118px; }
+.todayHero { min-height: 112px; }
+.homeCard { background: #fff; border: 1px solid #dde6f0; border-radius: 22px; padding: 14px; display: grid; gap: 10px; box-shadow: 0 10px 22px rgba(16, 32, 51, 0.05); }
+.homeCard h3 { margin: 0; font-size: 17px; }
+.prepList { display: grid; gap: 8px; }
+.prepItem { border: 1px solid #edf2f7; background: #fbfdff; border-radius: 16px; padding: 12px; display: grid; grid-template-columns: 28px 1fr; align-items: center; text-align: right; cursor: pointer; }
+.prepItem strong { font-size: 14px; }
+.nextEvents, .todaySummary { display: grid; gap: 8px; }
+.nextEvents span, .todaySummary span { border: 1px solid #edf2f7; background: #fbfdff; border-radius: 15px; padding: 11px; color: #26384d; font-weight: 800; }
+.quickActionsGrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; }
+.quickAction { border: 1px solid #dde6f0; background: #fff; border-radius: 20px; padding: 14px 10px; display: grid; gap: 5px; justify-items: center; box-shadow: 0 8px 18px rgba(16, 32, 51, 0.045); cursor: pointer; }
+.quickAction span { font-size: 24px; }
+.quickAction strong { font-size: 14px; }
+.dayStepper { background: #ffffff; border: 1px solid #dde6f0; border-radius: 22px; padding: 12px; display: grid; grid-template-columns: 52px 1fr 52px; align-items: center; gap: 8px; margin-bottom: 12px; }
+.compactDayStepper { margin-bottom: 10px; }
+.dayStepper button { border: 0; border-radius: 16px; min-height: 48px; background: #e3f2fd; color: #0d47a1; font-size: 20px; font-weight: 900; cursor: pointer; }
+.dayStepper button:disabled { opacity: 0.35; cursor: not-allowed; }
+.dayStepper div { text-align: center; display: grid; gap: 2px; }
+.dayStepper strong { font-size: 17px; }
+.dayStepper span { color: #637083; font-size: 13px; }
+.routeTabs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; background: #eef3f8; padding: 5px; border-radius: 999px; }
+.routeTabs button { border: 0; border-radius: 999px; min-height: 44px; background: transparent; font-weight: 900; color: #637083; cursor: pointer; }
+.routeTabs button.active { background: #fff; color: #1976d2; box-shadow: 0 6px 14px rgba(16, 32, 51, 0.08); }
+.focusedDayCard { display: grid; gap: 12px; }
+.compactDayCard { padding: 14px; }
+.mobileInfoStack { display: grid; gap: 9px; }
+.infoPanel { border: 1px solid #dde6f0; border-radius: 18px; padding: 12px; background: #fbfdff; }
+.infoPanel strong { display: block; margin-bottom: 5px; }
+.infoPanel p { margin: 0; line-height: 1.45; }
+.dayDetails { border: 1px solid #dde6f0; border-radius: 16px; padding: 11px 12px; background: #fff; }
+.dayDetails summary { cursor: pointer; font-weight: 900; }
+.dayDetails ul { margin: 10px 0 0; padding-inline-start: 20px; }
+.compactMapPointGrid { grid-template-columns: 1fr; }
+.compactLinkGrid { margin-top: 10px; }
+@media (max-width: 760px) { .app { padding-inline: 12px; padding-bottom: 96px; } .tripHero h2 { font-size: 22px; } .section { margin-bottom: 14px; } }
+@media (max-width: 420px) { .quickActionsGrid { grid-template-columns: 1fr; } }

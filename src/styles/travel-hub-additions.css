@@ -3,14 +3,20 @@
 .travelersPill { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
 .travelersPill span { background: #eef3f8; color: #26384d; border-radius: 999px; padding: 7px 11px; font-size: 12px; font-weight: 900; white-space: nowrap; }
 .hubModuleGrid { display: grid; grid-template-columns: 1fr; gap: 10px; }
-.hubModuleCard { border: 1px solid #dde6f0; background: #fff; border-radius: 22px; padding: 16px; min-height: 92px; text-align: right; display: grid; grid-template-columns: 42px 1fr; column-gap: 10px; row-gap: 2px; align-items: center; box-shadow: 0 10px 22px rgba(16,32,51,.05); cursor: pointer; }
+.hubModuleCard { border: 1px solid #dde6f0; background: #fff; border-radius: 22px; padding: 16px; min-height: 92px; text-align: right; display: grid; grid-template-columns: 42px 1fr; column-gap: 10px; row-gap: 2px; align-items: center; box-shadow: 0 10px 22px rgba(16, 32, 51, 0.05); cursor: pointer; }
 .hubModuleCard span { grid-row: span 2; font-size: 28px; }
 .hubModuleCard strong { font-size: 18px; }
-.hubModuleCard small, .hubInfoGrid span, .liveField span, .hubDetailCard p, .hubDetailCard small { color: #637083; font-size: 13px; line-height: 1.4; }
+.hubModuleCard small { color: #637083; font-size: 13px; }
 .backHubButton { border: 0; background: #eef3f8; color: #26384d; border-radius: 999px; padding: 10px 14px; width: fit-content; font-weight: 900; cursor: pointer; }
 .hubStack { display: grid; gap: 12px; }
 .hubStack h3 { margin: 0; }
-.hubDetailCard { background: #fff; border: 1px solid #dde6f0; border-radius: 22px; padding: 15px; display: grid; gap: 12px; box-shadow: 0 10px 22px rgba(16,32,51,.05); }
+.compactList { display: grid; gap: 8px; }
+.compactHotelCard { border: 1px solid #dde6f0; background: #fff; border-radius: 18px; padding: 12px; min-height: 68px; display: grid; grid-template-columns: 74px 1fr 22px; gap: 10px; align-items: center; text-align: right; cursor: pointer; box-shadow: 0 8px 18px rgba(16, 32, 51, 0.045); }
+.compactDate { background: #e3f2fd; color: #0d47a1; border-radius: 14px; padding: 9px 7px; text-align: center; font-weight: 900; font-size: 12px; }
+.compactHotelCard strong { font-size: 15px; }
+.compactHotelCard small { color: #637083; display: block; margin-top: 3px; }
+.compactArrow { color: #1976d2; font-size: 28px; line-height: 1; }
+.hubDetailCard { background: #fff; border: 1px solid #dde6f0; border-radius: 22px; padding: 15px; display: grid; gap: 12px; box-shadow: 0 10px 22px rgba(16, 32, 51, 0.05); }
 .hubDetailHeader { display: grid; grid-template-columns: 42px 1fr; gap: 10px; align-items: center; }
 .hubDetailHeader h3 { margin: 0; font-size: 18px; }
 .hubDetailHeader span:not(.hubIcon) { color: #637083; font-size: 13px; }
@@ -21,6 +27,7 @@
 .hubInfoGrid { display: grid; grid-template-columns: 1fr; gap: 8px; }
 .hubInfoGrid div { border: 1px solid #edf2f7; background: #fbfdff; border-radius: 15px; padding: 11px; display: grid; gap: 4px; }
 .hubInfoGrid strong, .liveField strong { color: #102033; font-size: 13px; }
+.hubInfoGrid span, .liveField span, .hubDetailCard p, .hubDetailCard small { color: #637083; font-size: 13px; line-height: 1.4; }
 .liveNotesBox { border: 1px solid #dde6f0; border-radius: 18px; padding: 12px; background: #fbfdff; display: grid; gap: 10px; }
 .liveNotesBox h4 { margin: 0; }
 .liveField { background: #fff; border: 1px solid #edf2f7; border-radius: 15px; padding: 11px; display: grid; gap: 8px; }
