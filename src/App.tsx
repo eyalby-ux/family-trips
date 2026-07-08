@@ -5,6 +5,7 @@ import Home from "./pages/Home";
 import Itinerary from "./pages/Itinerary";
 import Packing from "./pages/Packing";
 import PersonalPacking from "./pages/PersonalPacking";
+import Preparations from "./pages/Preparations";
 import Shopping from "./pages/Shopping";
 import TravelHub from "./pages/TravelHub";
 import type { Screen } from "./types";
@@ -17,32 +18,7 @@ import "./styles/day-carousel-additions.css";
 import "./styles/trip-map-additions.css";
 import "./styles/mobile-ux-additions.css";
 import "./styles/travel-hub-additions.css";
-
-function App() {
-  const [activeScreen, setActiveScreen] = useState<Screen>("home");
-  const [travelHubKey, setTravelHubKey] = useState(0);
-
-  function handleNavChange(nextScreen: Screen) {
-    if (nextScreen === "useful" && activeScreen === "useful") {
-      setTravelHubKey((current) => current + 1);
-      return;
-    }
-
-    setActiveScreen(nextScreen);
-  }
-
-  return (
-    <main className="app" dir="rtl">
-      {activeScreen === "home" && <Home onNavigate={handleNavChange} />}
-      {(activeScreen === "itinerary" || activeScreen === "map") && <Itinerary />}
-      {activeScreen === "packing" && <Packing />}
-      {activeScreen === "personalPacking" && <PersonalPacking />}
-      {activeScreen === "shopping" && <Shopping />}
-      {activeScreen === "useful" && <TravelHub key={travelHubKey} />}
-      {activeScreen === "games" && <Games />}
-      <BottomNav activeScreen={activeScreen} onChange={handleNavChange} />
-    </main>
-  );
-}
-
+import "./styles/preparations-additions.css";
+import "./styles/games-additions.css";
+function App() { const [activeScreen, setActiveScreen] = useState<Screen>("home"); const [travelHubKey, setTravelHubKey] = useState(0); function handleNavChange(nextScreen: Screen) { if (nextScreen === "useful" && activeScreen === "useful") { setTravelHubKey((current) => current + 1); return; } setActiveScreen(nextScreen); } return <main className="app" dir="rtl">{activeScreen === "home" && <Home onNavigate={handleNavChange} />}{(activeScreen === "itinerary" || activeScreen === "map") && <Itinerary />}{activeScreen === "packing" && <Packing />}{activeScreen === "personalPacking" && <PersonalPacking />}{activeScreen === "shopping" && <Shopping />}{activeScreen === "preparations" && <Preparations />}{activeScreen === "useful" && <TravelHub key={travelHubKey} />}{activeScreen === "games" && <Games />}<BottomNav activeScreen={activeScreen} onChange={handleNavChange} /></main>; }
 export default App;
