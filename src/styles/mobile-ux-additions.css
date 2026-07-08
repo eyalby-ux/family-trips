@@ -1,1 +1,344 @@
-.mobileDashboard{display:grid;gap:14px;margin-bottom:16px}.tripHero{border-radius:24px;padding:18px;background:linear-gradient(135deg,#e3f2fd,#f8fbff);border:1px solid #d7e6f5;display:flex;align-items:center;justify-content:space-between;gap:12px}.heroEyebrow{color:#637083;font-size:13px;font-weight:800}.tripHero h2{margin:4px 0 0;font-size:24px}.tripHero p{margin:7px 0 0;color:#637083;font-weight:800}.countdownPill{background:#1976d2;color:white;border-radius:20px;padding:10px 14px;min-width:76px;text-align:center;display:grid}.countdownPill strong{font-size:26px;line-height:1}.countdownPill span{font-size:12px;font-weight:800}.homeCard{background:#fff;border:1px solid #dde6f0;border-radius:22px;padding:14px;display:grid;gap:10px;box-shadow:0 10px 22px rgba(16,32,51,.05);text-align:right}button.homeCard{cursor:pointer}.homeCard h3{margin:0;font-size:17px}.cardHeaderLine{display:flex;justify-content:space-between;align-items:center;gap:8px}.cardHeaderLine span{background:#eef3f8;color:#26384d;border-radius:999px;padding:6px 9px;font-weight:900;font-size:12px}.prepOverviewList{display:grid;gap:8px}.prepOverviewList div{border:1px solid #edf2f7;background:#fbfdff;border-radius:15px;padding:10px;display:grid;grid-template-columns:28px 1fr;gap:7px;align-items:center}.prepOverviewList div .visualProgress{grid-column:1/-1}.miniStatusGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.miniStatusCard{border:1px solid #edf2f7;background:#fbfdff;border-radius:16px;padding:12px;display:grid;gap:8px;text-align:right;cursor:pointer}.nextEvents{display:grid;gap:8px}.nextEvents span{border:1px solid #edf2f7;background:#fbfdff;border-radius:15px;padding:11px;color:#26384d;font-weight:800}.visualProgress{height:9px;background:#eef3f8;border-radius:999px;overflow:hidden;width:100%}.visualProgress span{display:block;height:100%;border-radius:999px}.visualProgress.ready span{width:100%;background:#2e7d32}.visualProgress.progress span{width:62%;background:#f9a825}.visualProgress.pending span{width:22%;background:#b0bec5}@media(max-width:760px){.app{padding-inline:12px;padding-bottom:96px}.section{margin-bottom:14px}}
+.homeShell,
+.mobileDashboard {
+  width: min(100%, 760px);
+  margin: 0 auto 18px;
+  display: grid;
+  gap: 14px;
+  box-sizing: border-box;
+}
+
+.homeHeroMountain {
+  position: relative;
+  overflow: hidden;
+  border-radius: 26px;
+  padding: 18px;
+  min-height: 132px;
+  color: #ffffff;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(255,255,255,.35), transparent 24%),
+    linear-gradient(135deg, #0d47a1, #1976d2 58%, #64b5f6);
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  box-shadow: 0 14px 28px rgba(13, 71, 161, 0.22);
+}
+
+.homeHeroMountain::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  bottom: -18px;
+  height: 70px;
+  background:
+    linear-gradient(135deg, transparent 0 38%, rgba(255,255,255,.35) 38% 58%, transparent 58%),
+    linear-gradient(45deg, transparent 0 42%, rgba(255,255,255,.28) 42% 60%, transparent 60%);
+  opacity: .85;
+  pointer-events: none;
+}
+
+.mountainIcon {
+  width: 52px;
+  height: 52px;
+  border-radius: 18px;
+  background: rgba(255,255,255,.18);
+  display: grid;
+  place-items: center;
+  font-size: 30px;
+  z-index: 1;
+}
+
+.homeHeroText,
+.homeHeroMountain > div,
+.countdownPill {
+  z-index: 1;
+}
+
+.heroEyebrow {
+  color: rgba(255,255,255,.85);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.homeHeroMountain h2 {
+  margin: 4px 0 0;
+  font-size: clamp(23px, 4vw, 30px);
+}
+
+.homeHeroMountain p {
+  margin: 7px 0 0;
+  color: rgba(255,255,255,.88);
+  font-weight: 800;
+}
+
+.countdownPill {
+  background: rgba(255,255,255,.95);
+  color: #0d47a1;
+  border-radius: 20px;
+  padding: 11px 15px;
+  min-width: 78px;
+  text-align: center;
+  display: grid;
+  box-shadow: 0 10px 20px rgba(13, 71, 161, 0.18);
+}
+
+.countdownPill strong {
+  font-size: 27px;
+  line-height: 1;
+}
+
+.countdownPill span {
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.homeCard {
+  background: #ffffff;
+  border: 1px solid #dde6f0;
+  border-radius: 24px;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+  box-shadow: 0 10px 24px rgba(16, 32, 51, 0.06);
+  box-sizing: border-box;
+  text-align: right;
+}
+
+.homeCardTitle,
+.homeCardTitleButton {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  text-align: right;
+  width: 100%;
+}
+
+.homeCardTitleButton {
+  cursor: pointer;
+}
+
+.homeCard h3,
+.homeCardTitle h3,
+.homeCardTitleButton h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.homeCard small,
+.homeCardTitle small,
+.homeCardTitleButton small {
+  display: block;
+  margin-top: 4px;
+  color: #637083;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.statusBadge {
+  border-radius: 999px;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.statusBadge.ready { background: #e8f5e9; color: #2e7d32; }
+.statusBadge.progress { background: #fff8e1; color: #8a5b00; }
+.statusBadge.pending { background: #eef3f8; color: #455a64; }
+
+.homeVisualProgress,
+.visualProgress {
+  height: 10px;
+  background: #eef3f8;
+  border-radius: 999px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.homeVisualProgress span,
+.visualProgress span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.2s ease;
+}
+
+.homeVisualProgress.ready span,
+.visualProgress.ready span { background: #2e7d32; }
+.homeVisualProgress.progress span,
+.visualProgress.progress span { background: #f9a825; }
+.homeVisualProgress.pending span,
+.visualProgress.pending span { background: #b0bec5; }
+
+.homePrepRows,
+.upcomingEvents,
+.nextEvents,
+.todaySummary {
+  display: grid;
+  gap: 9px;
+}
+
+.homePrepRow,
+.upcomingEventButton {
+  border: 1px solid #edf2f7;
+  background: #fbfdff;
+  border-radius: 18px;
+  padding: 12px;
+  min-height: 58px;
+  color: #26384d;
+  text-align: right;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+}
+
+.homePrepRow .homeVisualProgress {
+  grid-column: 1 / -1;
+}
+
+.homePrepRow strong,
+.upcomingEventButton strong {
+  font-size: 15px;
+}
+
+.upcomingEventButton small {
+  display: block;
+  margin-top: 3px;
+  color: #637083;
+  font-size: 12px;
+}
+
+.rowIcon {
+  font-size: 22px;
+  display: inline-flex;
+  justify-content: center;
+}
+
+.compactArrow {
+  color: #1976d2;
+  font-size: 26px;
+  line-height: 1;
+}
+
+.miniStatusGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.miniStatusCard {
+  border: 1px solid #edf2f7;
+  background: #fbfdff;
+  border-radius: 18px;
+  padding: 13px;
+  min-height: 92px;
+  display: grid;
+  gap: 8px;
+  text-align: right;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.miniStatusIcon { font-size: 24px; }
+.miniStatusCard strong { font-size: 15px; }
+
+.todaySummary span {
+  border: 1px solid #edf2f7;
+  background: #fbfdff;
+  border-radius: 15px;
+  padding: 11px;
+  color: #26384d;
+  font-weight: 800;
+}
+
+.routeTabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+  background: #eef3f8;
+  padding: 5px;
+  border-radius: 999px;
+}
+
+.routeTabs button {
+  border: 0;
+  border-radius: 999px;
+  min-height: 44px;
+  background: transparent;
+  font-weight: 900;
+  color: #637083;
+  cursor: pointer;
+}
+
+.routeTabs button.active {
+  background: #fff;
+  color: #1976d2;
+  box-shadow: 0 6px 14px rgba(16, 32, 51, 0.08);
+}
+
+@media (max-width: 760px) {
+  .app { padding-inline: 12px; padding-bottom: 96px; }
+  .homeHeroMountain { grid-template-columns: 48px minmax(0, 1fr) auto; padding: 16px; }
+  .mountainIcon { width: 46px; height: 46px; font-size: 27px; }
+  .homeCard { padding: 14px; }
+}
+
+@media (max-width: 430px) {
+  .miniStatusGrid { grid-template-columns: 1fr; }
+  .homeHeroMountain { grid-template-columns: 44px minmax(0, 1fr); }
+  .countdownPill { grid-column: 1 / -1; width: fit-content; justify-self: end; }
+}
+
+.dayStepper {
+  background: #ffffff;
+  border: 1px solid #dde6f0;
+  border-radius: 22px;
+  padding: 12px;
+  display: grid;
+  grid-template-columns: 52px 1fr 52px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.compactDayStepper {
+  margin-bottom: 10px;
+}
+
+.dayStepper button {
+  border: 0;
+  border-radius: 16px;
+  min-height: 48px;
+  background: #e3f2fd;
+  color: #0d47a1;
+  font-size: 20px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.dayStepper button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.dayStepper div {
+  text-align: center;
+  display: grid;
+  gap: 2px;
+}
+
+.dayStepper strong {
+  font-size: 17px;
+}
+
+.dayStepper span {
+  color: #637083;
+  font-size: 13px;
+}

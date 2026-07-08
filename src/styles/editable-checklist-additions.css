@@ -55,3 +55,29 @@
     justify-content: space-between;
   }
 }
+
+/* ===== Sprint 29.4 v3 ===== */
+
+.addItemGrid.checklistAddForm{
+    display:flex !important;
+    flex-direction:column !important;
+    gap:12px !important;
+}
+
+.addItemGrid.checklistAddForm
+input:not([type="checkbox"]),
+.addItemGrid.checklistAddForm select,
+.addItemGrid.checklistAddForm .primaryButton{
+    width:100% !important;
+}
+
+.addItemGrid.checklistAddForm input[type="checkbox"]{
+    width:18px;
+    height:18px;
+    min-height:18px;
+}
+
+.listItem.editableListItem.unassignedItem{
+    background:#fff4f4 !important;
+    border:1px solid #ffcaca !important;
+}

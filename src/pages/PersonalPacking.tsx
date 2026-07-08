@@ -185,7 +185,7 @@ function PersonalPacking() {
 
       <div className="addItemCard">
         <h3>הוסף פריט אישי</h3>
-        <div className="addItemGrid personalAddGrid">
+        <div className="addItemGrid personalAddGrid checklistAddForm">
           <input value={newItemName} onChange={(event) => setNewItemName(event.target.value)} placeholder="שם הפריט, למשל כפפות" />
           <input value={newItemCategory} onChange={(event) => setNewItemCategory(event.target.value)} placeholder="קטגוריה, למשל לבוש" />
           <label className="requiredToggle">
