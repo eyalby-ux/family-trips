@@ -3,6 +3,7 @@ import { listenToChecklistItems } from "../../services/checklistService";
 import { listenToPreparationTask } from "../../services/preparationService";
 import { preparationParticipants, preparationTasks } from "../../data/preparationData";
 import { tripDays } from "../../data/tripData";
+import { getPreviewDayIndex } from "../../utils/devPreview";
 import type { AppDeepLink } from "../../data/navigationTargets";
 import type {
   PreparationTaskDefinition,
@@ -28,6 +29,12 @@ function diffDays(from: Date, to: Date) {
 }
 
 function getTripPhase() {
+  if (import.meta.env.DEV) {
+    const params = new URLSearchParams(window.location.search);
+    const previewDay = Number(params.get("previewDay"));
+    if (Number.isFinite(previewDay) && previewDay >= 1) return "during";
+  }
+
   const today = new Date();
   if (today < tripStartDate) return "before";
   if (today > tripEndDate) return "after";
@@ -169,7 +176,11 @@ function MobileDashboard({ onNavigate, onDeepLink }: MobileDashboardProps) {
 
   const phase = getTripPhase();
   const daysUntilTrip = Math.max(diffDays(new Date(), tripStartDate), 0);
-  const currentDay = useMemo(() => (phase === "during" ? tripDays[getCurrentTripDayIndex()] ?? null : null), [phase]);
+  const currentDay = useMemo(() => {
+    if (phase !== "during") return null;
+    const dayIndex = getPreviewDayIndex(getCurrentTripDayIndex(), tripDays.length);
+    return tripDays[dayIndex] ?? null;
+  }, [phase]);
 
   function openTravelHubSection(section: "flights" | "hotels" | "car", entityId?: string) {
     onDeepLink?.({ screen: "useful", travelHub: { section, entityId: entityId as never } });
