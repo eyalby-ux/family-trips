@@ -1,32 +1,24 @@
-# React + TypeScript + Vite
+# Family Trips — Alpha 0.1
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Installable static PWA prepared for VS Code, GitHub, Netlify, and Codex-assisted development.
 
-Currently, two official plugins are available:
+## Start
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Read `START_HERE.md`, then follow `docs/guides/INSTALLATION.md`.
 
-## React Compiler
+## Included
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- Empty first-run state.
+- Trip creation after the first accepted document or saved item.
+- PDF and image metadata intake.
+- Today, Timeline, Trip Center, and one Detail View per entity.
+- Basic item creation, editing, and deletion.
+- Editable Trip dates.
+- Conflict detection without silently moving item dates.
+- Local browser persistence.
+- Basic offline shell.
+- Installable PWA.
 
-## Expanding the Oxlint configuration
+## Main limitation
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
-
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Alpha 0.1 does not perform OCR or entity extraction. Uploaded file content is not persisted; only metadata is stored.
