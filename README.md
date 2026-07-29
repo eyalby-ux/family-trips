@@ -1,24 +1,5 @@
-# Family Trips — Alpha 0.1
+# Family Trips — Alpha 0.2
 
-Installable static PWA prepared for VS Code, GitHub, Netlify, and Codex-assisted development.
+Static installable PWA with Hebrew RTL product UI and English technical documentation.
 
-## Start
-
-Read `START_HERE.md`, then follow `docs/guides/INSTALLATION.md`.
-
-## Included
-
-- Empty first-run state.
-- Trip creation after the first accepted document or saved item.
-- PDF and image metadata intake.
-- Today, Timeline, Trip Center, and one Detail View per entity.
-- Basic item creation, editing, and deletion.
-- Editable Trip dates.
-- Conflict detection without silently moving item dates.
-- Local browser persistence.
-- Basic offline shell.
-- Installable PWA.
-
-## Main limitation
-
-Alpha 0.1 does not perform OCR or entity extraction. Uploaded file content is not persisted; only metadata is stored.
+Key additions: source-first item creation, dynamic forms, date modes, Today filtering, grouped Timeline, Calendar, Packing Lists, permanent document upload, improved Trip state logic, safer delete actions, and a new green mountain-and-water app icon.

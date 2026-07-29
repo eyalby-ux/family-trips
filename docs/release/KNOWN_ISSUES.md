@@ -1,15 +1,9 @@
-# Known Issues — Alpha 0.1
+# Known Issues — Alpha 0.2
 
-1. No OCR.
-2. No automatic extraction of flights, hotels, or reservations.
-3. Uploaded file content is not persisted.
-4. Only file metadata is stored.
-5. Data is local to the browser.
-6. Clearing site data removes the Trip.
-7. No cross-device synchronization.
-8. No authentication or permissions.
-9. No backend.
-10. No direct email, Drive, or Share Target import.
-11. No Search.
-12. No notifications.
-13. Offline behavior requires one successful online load first.
+1. No OCR or semantic document parsing.
+2. Uploaded file content is not persisted; metadata only.
+3. Map pin selection is external rather than embedded.
+4. One active Trip is supported in the UI.
+5. No backend, authentication, sync, email import, or notifications.
+6. Calendar does not navigate across months yet.
+7. Filename-based suggestions require user review.

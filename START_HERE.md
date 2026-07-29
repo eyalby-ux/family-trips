@@ -1,18 +1,23 @@
-# Start Here — Family Trips Alpha 0.1
+# Start Here — Family Trips Alpha 0.2
 
-Use this file as the single entry point for the release.
+Follow the complete Windows-only installation guide:
 
-## Recommended order
+```text
+docs/guides/INSTALLATION.md
+```
 
-1. Read `docs/guides/INSTALLATION.md`.
-2. Extract the complete ZIP into a permanent folder.
-3. Open the project root in VS Code.
-4. Run `npm run check`.
-5. Run `npm run dev`.
-6. Test locally.
-7. Push to GitHub.
-8. Deploy through Netlify.
-9. Complete `docs/qa/QA_CHECKLIST.md`.
-10. Give Codex `CODEX_INSTRUCTIONS.md` before repository changes.
+The guide includes:
 
-Do not open `index.html` directly. Start the local server with `npm run dev`.
+- Exact folder paths
+- VS Code setup
+- Node.js, npm, and Git checks
+- Local testing
+- Copying Alpha 0.2 into the existing Git repository
+- Git commit and push
+- GitHub Actions verification
+- Exact Netlify settings
+- Service Worker cache removal
+- PWA installation
+- Interactive QA session
+
+Do not open `index.html` directly from File Explorer.

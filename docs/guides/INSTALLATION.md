@@ -1,118 +1,233 @@
-# Full Installation Guide — Family Trips Alpha 0.1
+# Family Trips Alpha 0.2 — Complete Windows Installation Guide
 
-Follow every step in order.
+This guide is written for Windows only. Follow the steps in order.
 
-## 1. Install the required tools
+---
 
-Install:
+## 1. What you need before starting
 
-1. VS Code
-2. Node.js 18 or later
-3. Git
-4. Chrome or Edge
-5. A GitHub account
-6. A Netlify account
+Install these tools:
 
-After installing Node.js or Git, close and reopen VS Code.
+1. **Visual Studio Code**
+2. **Node.js 18 or later**
+3. **Git for Windows**
+4. **Google Chrome** or **Microsoft Edge**
+5. A **GitHub account**
+6. A **Netlify account**
 
-## 2. Save and extract the package
+After installing Node.js or Git, close every open VS Code and PowerShell window and reopen them.
 
-### Windows
+---
 
-Create:
+## 2. Create the working folders
 
-```text
-C:\Projects
-```
-
-Save the ZIP there and extract it so the final folder is:
+Open File Explorer and create:
 
 ```text
-C:\Projects\family-trips-alpha-0.1
+C:\Projects\FamilyTrips
 ```
 
-Confirm this file exists:
+You should end up with this folder:
 
 ```text
-C:\Projects\family-trips-alpha-0.1\package.json
+C:\Projects\FamilyTrips
 ```
 
-### macOS
+Do not save the project inside Downloads, Desktop, OneDrive, or inside the ZIP file.
 
-Create:
+---
+
+## 3. Save and extract the Alpha 0.2 ZIP
+
+1. Save the downloaded ZIP file inside:
+
+   ```text
+   C:\Projects\FamilyTrips
+   ```
+
+2. Right-click the ZIP file.
+3. Select **Extract All**.
+4. Extract it into:
+
+   ```text
+   C:\Projects\FamilyTrips
+   ```
+
+5. Confirm that the extracted project folder is:
+
+   ```text
+   C:\Projects\FamilyTrips\family-trips-alpha-0.2
+   ```
+
+6. Open that folder in File Explorer.
+7. Confirm that these files and folders exist directly inside it:
+
+   ```text
+   package.json
+   index.html
+   src
+   docs
+   tests
+   netlify.toml
+   manifest.webmanifest
+   service-worker.js
+   ```
+
+Important: `package.json` must be directly inside:
 
 ```text
-~/Projects
+C:\Projects\FamilyTrips\family-trips-alpha-0.2
 ```
 
-Extract the ZIP so the final folder is:
+If `package.json` is inside another nested folder, move the project one level up or open the correct inner folder.
 
-```text
-~/Projects/family-trips-alpha-0.1
-```
+---
 
-Confirm `package.json` is directly inside that folder.
-
-Do not work inside the ZIP. Extract all files first.
-
-## 3. Open the correct folder in VS Code
+## 4. Open the project in VS Code
 
 1. Open VS Code.
-2. Select `File → Open Folder`.
-3. Select `family-trips-alpha-0.1`.
-4. Confirm the Explorer shows:
-   - `index.html`
-   - `package.json`
-   - `src`
-   - `docs`
-   - `tests`
-   - `netlify.toml`
+2. Select:
+
+   ```text
+   File → Open Folder
+   ```
+
+3. Select:
+
+   ```text
+   C:\Projects\FamilyTrips\family-trips-alpha-0.2
+   ```
+
+4. Click **Select Folder**.
+5. In the Explorer panel on the left, confirm you can see:
+
+   ```text
+   package.json
+   index.html
+   src
+   docs
+   tests
+   netlify.toml
+   ```
 
 Do not open only the `src` folder.
 
-## 4. Open the VS Code terminal
+---
 
-Select:
+## 5. Open PowerShell inside VS Code
 
-```text
-Terminal → New Terminal
-```
+1. In VS Code select:
 
-Confirm the terminal path ends with `family-trips-alpha-0.1`.
+   ```text
+   Terminal → New Terminal
+   ```
 
-### Windows
+2. Confirm the prompt ends with:
+
+   ```text
+   C:\Projects\FamilyTrips\family-trips-alpha-0.2>
+   ```
+
+If it does not, run:
 
 ```powershell
-cd C:\Projects\family-trips-alpha-0.1
+cd C:\Projects\FamilyTrips\family-trips-alpha-0.2
 ```
 
-### macOS
+Confirm the folder by running:
 
-```bash
-cd ~/Projects/family-trips-alpha-0.1
+```powershell
+Get-Location
 ```
 
-## 5. Verify the tools
+The result must be:
 
-Run:
+```text
+C:\Projects\FamilyTrips\family-trips-alpha-0.2
+```
 
-```bash
+---
+
+## 6. Verify Node.js, npm, and Git
+
+Run each command separately:
+
+```powershell
 node --version
+```
+
+```powershell
 npm --version
+```
+
+```powershell
 git --version
 ```
 
-Node.js must be version 18 or later.
+Expected result:
 
-When a command is not recognized, install the missing tool, restart VS Code, and repeat this section.
+- Node.js: version 18 or later
+- npm: any valid version number
+- Git: any valid version number
 
-## 6. Run the quality gate
+Example:
+
+```text
+v24.18.0
+11.16.0
+git version 2.51.0.windows.1
+```
+
+### If `node` or `npm` is not recognized
+
+Confirm that this folder exists:
+
+```text
+C:\Program Files\nodejs
+```
+
+Then close all VS Code and PowerShell windows and reopen VS Code.
+
+### If PowerShell blocks `npm.ps1`
+
+Run:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+```
+
+Type:
+
+```text
+Y
+```
+
+Press Enter, close the terminal, open a new terminal, and run:
+
+```powershell
+npm --version
+```
+
+### If `git` is not recognized
+
+Install Git for Windows, then close and reopen VS Code.
+
+---
+
+## 7. Run the Alpha 0.2 quality gate
 
 From the project root run:
 
-```bash
+```powershell
 npm run check
 ```
+
+The command checks:
+
+- JavaScript syntax
+- Required release files
+- PWA manifest
+- Core smoke tests
 
 A successful result ends with:
 
@@ -120,35 +235,57 @@ A successful result ends with:
 Smoke tests passed.
 ```
 
-Do not deploy when this command fails.
+Do not continue when the command fails.
 
-## 7. Start the app locally
+Copy the full error output before making any changes.
+
+---
+
+## 8. Start Alpha 0.2 locally
 
 Run:
 
-```bash
+```powershell
 npm run dev
 ```
 
-On first use, `npx` may ask permission to install `serve`. Type `y` and press Enter.
+The first time, npm may display:
 
-Open:
+```text
+Need to install the following packages:
+serve
+Ok to proceed? (y)
+```
+
+Type:
+
+```text
+y
+```
+
+Press Enter.
+
+Then open this address in Chrome or Edge:
 
 ```text
 http://localhost:4173
 ```
 
-Keep the terminal open while the app is running.
+Keep the terminal open while testing.
 
-To stop the server, press:
+### Stop the server
+
+Press:
 
 ```text
 Ctrl + C
 ```
 
-When port 4173 is busy, run:
+### If port 4173 is already in use
 
-```bash
+Run:
+
+```powershell
 npx serve . -l 4174
 ```
 
@@ -158,177 +295,480 @@ Then open:
 http://localhost:4174
 ```
 
-## 8. Perform the first local test
+---
 
-1. Confirm the app opens with no Trip.
-2. Upload a PDF or image.
-3. Confirm a Trip is created only after intake is accepted.
-4. Open Trip Center and confirm the document appears.
-5. Select `+`.
-6. Create a dated item.
-7. Open the item from Today.
-8. Open the same item from Timeline.
-9. Open the same item from Trip Center.
-10. Open Trip Settings.
-11. Set start and end dates.
-12. Change the range so the item falls outside it.
-13. Confirm the item is marked as a conflict.
-14. Confirm the item date did not change.
-15. Refresh the page.
-16. Confirm the data remains.
+## 9. Perform a local verification before touching GitHub
 
-Use `docs/qa/QA_CHECKLIST.md` for the full test.
+Complete these checks:
 
-## 9. Create an empty GitHub repository
+1. Open the app.
+2. Confirm the app shows Alpha 0.2.
+3. Confirm the initial state is empty after local reset.
+4. Create a Trip from a document or item.
+5. Create at least one dated item.
+6. Open Today.
+7. Open Timeline.
+8. Open Trip Center.
+9. Open Packing Lists.
+10. Open Contacts.
+11. Open Calendar or date picker.
+12. Close and reopen the browser tab.
+13. Confirm the data remains.
+14. Run:
 
-1. Sign in to GitHub.
-2. Create a new repository.
-3. Recommended name: `family-trips`.
-4. Do not add a README, `.gitignore`, or license through GitHub.
-5. Create the empty repository.
-6. Copy its HTTPS URL.
+   ```powershell
+   npm run check
+   ```
 
-Example:
+Only continue after the checks pass.
+
+---
+
+## 10. Keep the existing Dolomites repository archived
+
+The existing GitHub repository is:
 
 ```text
-https://github.com/USERNAME/family-trips.git
+https://github.com/eyalby-ux/family-trips
 ```
 
-## 10. Push the project to GitHub
+The Dolomites version must remain archived in:
+
+```text
+archive/dolomites-prototype
+```
+
+Do not delete that branch.
+
+---
+
+## 11. Open the real GitHub repository folder
+
+The repository folder should be:
+
+```text
+C:\Projects\FamilyTrips\family-trips-repository
+```
+
+If the repository folder does not exist, create it by running:
+
+```powershell
+cd C:\Projects\FamilyTrips
+```
+
+```powershell
+git clone https://github.com/eyalby-ux/family-trips.git family-trips-repository
+```
+
+Then enter it:
+
+```powershell
+cd C:\Projects\FamilyTrips\family-trips-repository
+```
+
+Confirm the branch:
+
+```powershell
+git branch --show-current
+```
+
+Expected result:
+
+```text
+main
+```
+
+Confirm the repository is clean:
+
+```powershell
+git status
+```
+
+---
+
+## 12. Copy Alpha 0.2 into the GitHub repository
+
+Run this command from PowerShell:
+
+```powershell
+robocopy "C:\Projects\FamilyTrips\family-trips-alpha-0.2" "C:\Projects\FamilyTrips\family-trips-repository" /MIR /XD ".git" "node_modules"
+```
+
+Important:
+
+- `/MIR` replaces the old `main` contents with Alpha 0.2.
+- `.git` is excluded so the repository history remains intact.
+- `node_modules` is excluded.
+- Robocopy exit codes from `0` through `7` are normally acceptable.
+- A non-zero code does not automatically mean failure.
+
+After the copy completes, enter the repository folder:
+
+```powershell
+cd C:\Projects\FamilyTrips\family-trips-repository
+```
+
+Check the changes:
+
+```powershell
+git status
+```
+
+You should see old files marked as deleted or modified and Alpha 0.2 files as new or modified.
+
+---
+
+## 13. Verify Alpha 0.2 inside the repository
+
+Run:
+
+```powershell
+npm run check
+```
+
+The command must end with:
+
+```text
+Smoke tests passed.
+```
+
+Then run the local version from the repository folder:
+
+```powershell
+npm run dev
+```
+
+Open:
+
+```text
+http://localhost:4173
+```
+
+Confirm it is Alpha 0.2, not the Dolomites version.
+
+Stop the server with:
+
+```text
+Ctrl + C
+```
+
+---
+
+## 14. Commit Alpha 0.2 to GitHub
 
 Run each command separately:
 
-```bash
-git init
-git add .
-git commit -m "Family Trips Alpha 0.1"
-git branch -M main
-git remote add origin https://github.com/USERNAME/family-trips.git
-git push -u origin main
+```powershell
+git add -A
 ```
 
-Replace the example URL with your repository URL.
+Check what will be committed:
 
-When Git asks for identity:
-
-```bash
-git config --global user.name "YOUR NAME"
-git config --global user.email "YOUR_EMAIL@example.com"
+```powershell
+git status
 ```
 
-Then repeat the commit command.
+Commit:
 
-## 11. Verify GitHub Actions
+```powershell
+git commit -m "Release Family Trips Alpha 0.2"
+```
 
-1. Open the repository in GitHub.
-2. Select `Actions`.
-3. Open `Quality Gate`.
-4. Confirm the workflow is green.
+Push:
 
-## 12. Deploy with Netlify
+```powershell
+git push origin main
+```
 
-1. Sign in to Netlify.
-2. Select `Add new site → Import an existing project`.
-3. Choose GitHub.
-4. Authorize access.
-5. Select the `family-trips` repository.
-6. Use:
-   - Branch: `main`
-   - Base directory: empty
-   - Build command: empty
-   - Publish directory: `.`
-7. Select `Deploy`.
+After the push, open GitHub and confirm:
 
-The included `netlify.toml` contains the required static-site settings.
+1. The `main` branch contains Alpha 0.2 files.
+2. `package.json` contains version `0.2.0` or the expected Alpha 0.2 release metadata.
+3. The archive branch still exists.
+4. GitHub Actions starts.
 
-## 13. Install the PWA on a phone
+---
 
-### Android with Chrome
+## 15. Verify GitHub Actions
+
+1. Open the repository on GitHub.
+2. Open the **Actions** tab.
+3. Open the latest **Quality Gate** run.
+4. Confirm it is green.
+
+Do not deploy a failed commit.
+
+---
+
+## 16. Configure Netlify correctly
+
+Open the existing Netlify site.
+
+Go to:
+
+```text
+Site configuration → Build & deploy → Build settings
+```
+
+Use these exact settings:
+
+```text
+Branch to deploy: main
+Base directory: leave empty
+Build command: leave empty
+Publish directory: .
+```
+
+Important:
+
+- Build command must not contain `npm run build`.
+- Publish directory must not contain `dist`.
+- Publish directory must be exactly:
+
+  ```text
+  .
+  ```
+
+Save the settings.
+
+---
+
+## 17. Deploy Alpha 0.2 in Netlify
+
+1. Open the **Deploys** page.
+2. Select:
+
+   ```text
+   Trigger deploy → Deploy site
+   ```
+
+3. Wait for the deploy to finish.
+4. Confirm the log includes:
+
+   ```text
+   Preparing Git Reference refs/heads/main
+   ```
+
+5. Confirm the deploy is published successfully.
+
+---
+
+## 18. Remove the old PWA cache
+
+Because Alpha 0.1 and the Dolomites prototype used Service Workers, the browser may display an older version after a successful deployment.
+
+### First check
+
+Open the Netlify URL in an InPrivate window:
+
+```text
+Ctrl + Shift + N
+```
+
+If Alpha 0.2 appears there, the deployment is correct and the normal browser has old cached data.
+
+### Clear the normal browser cache
+
+In Chrome or Edge:
+
+1. Open the Netlify site.
+2. Press:
+
+   ```text
+   F12
+   ```
+
+3. Open **Application**.
+4. Open **Service Workers**.
+5. Click **Unregister**.
+6. Open **Storage**.
+7. Click **Clear site data**.
+8. Close Developer Tools.
+9. Reload the page with:
+
+   ```text
+   Ctrl + F5
+   ```
+
+Warning: clearing site data removes the locally stored Trip data for that browser.
+
+---
+
+## 19. Install Alpha 0.2 as a Windows PWA
+
+In Chrome or Edge:
 
 1. Open the Netlify URL.
-2. Open the browser menu.
-3. Select `Install app` or `Add to Home screen`.
-4. Confirm.
-5. Launch from the new icon.
+2. Confirm Alpha 0.2 is displayed.
+3. Click the install icon in the address bar, or open the browser menu.
+4. Select:
 
-### iPhone with Safari
+   ```text
+   Install Family Trips
+   ```
 
-1. Open the Netlify URL in Safari.
-2. Select Share.
-3. Select `Add to Home Screen`.
-4. Confirm.
-5. Launch from the new icon.
+5. Confirm installation.
+6. Launch the app from the Start menu or desktop shortcut.
 
-## 14. Test offline behavior
+If an older installed version exists:
 
-1. Open the deployed app online once.
-2. Close it.
-3. Enable airplane mode.
-4. Reopen the app.
-5. Confirm the shell and local data are available.
+1. Uninstall the old PWA.
+2. Clear site data.
+3. Open the new Netlify deployment.
+4. Install again.
 
-Uploaded file content is not available because Alpha 0.1 stores metadata only.
+---
 
-## 15. Continue development
+## 20. Run the interactive test session
 
-After every meaningful change:
+Open:
 
-```bash
-npm run check
-git add .
-git commit -m "Describe the change"
-git push
+```text
+docs\qa\INTERACTIVE_TEST_SESSION.md
 ```
 
-Netlify will deploy the new commit automatically.
+Start a new ChatGPT conversation and upload that file.
 
-## 16. Reset local data
+Use this instruction:
 
-Inside the app:
+```text
+Run the Alpha 0.2 interactive test session from this file.
+Give me one test at a time.
+```
 
-1. Open Trip Settings.
-2. Select Local Reset.
-3. Confirm.
+The session must show:
 
-This removes data from the current browser profile only.
+- Number of mandatory tests
+- Number of optional tests
+- Current progress
+- PASS / FAIL / BLOCKED / NOT TESTED
+- Release blockers
+- Final GO / NO-GO recommendation
 
-## Common problems
+---
 
-### `npm` is not recognized
+## 21. Commands for later Alpha 0.2 fixes
 
-Node.js is missing, or VS Code was not restarted after installation.
+Open the repository folder:
 
-### `package.json` cannot be found
+```powershell
+cd C:\Projects\FamilyTrips\family-trips-repository
+```
 
-The terminal is not in the project root.
+Before every push:
 
-### Blank page
+```powershell
+npm run check
+```
 
-- Run the app with `npm run dev`.
-- Do not open `index.html` directly.
-- Open browser Developer Tools and inspect the Console.
+Then:
 
-### Old version is displayed
+```powershell
+git add -A
+```
 
-In Chrome Developer Tools:
+```powershell
+git commit -m "Describe the Alpha 0.2 fix"
+```
 
-1. Open `Application`.
-2. Open `Service Workers`.
-3. Select `Unregister`.
-4. Open `Storage`.
-5. Select `Clear site data`.
-6. Reload.
+```powershell
+git push origin main
+```
 
-### GitHub rejects the push
+Netlify should deploy automatically.
 
-Inspect the remote:
+---
 
-```bash
+## 22. Common problems
+
+### Netlify runs `npm run build`
+
+Remove the Build command from the Netlify UI.
+
+### Netlify says `dist` does not exist
+
+Change Publish directory from `dist` to:
+
+```text
+.
+```
+
+### Netlify still shows Dolomites
+
+Check:
+
+```powershell
+git status
+```
+
+Then:
+
+```powershell
+git log -1 --oneline
+```
+
+Confirm the Alpha 0.2 commit is on `main`.
+
+Also clear the Service Worker and site data.
+
+### `npm run check` says the script is missing
+
+You are probably in the old Dolomites folder or the wrong directory.
+
+Run:
+
+```powershell
+Get-Location
+```
+
+Then verify `package.json` belongs to Alpha 0.2.
+
+### Git push uses `USERNAME`
+
+Check:
+
+```powershell
 git remote -v
 ```
 
-Update it:
+The remote must be:
 
-```bash
-git remote set-url origin https://github.com/USERNAME/family-trips.git
+```text
+https://github.com/eyalby-ux/family-trips.git
 ```
+
+Correct it with:
+
+```powershell
+git remote set-url origin https://github.com/eyalby-ux/family-trips.git
+```
+
+### PowerShell blocks npm
+
+Run:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+```
+
+Then close and reopen the terminal.
+
+---
+
+## 23. Final installation completion checklist
+
+- [ ] Alpha 0.2 ZIP extracted
+- [ ] Correct folder opened in VS Code
+- [ ] Node.js, npm, and Git verified
+- [ ] `npm run check` passed locally
+- [ ] Alpha 0.2 opened at `localhost`
+- [ ] Alpha 0.2 copied into the Git repository
+- [ ] `npm run check` passed inside the repository
+- [ ] Alpha 0.2 committed and pushed to `main`
+- [ ] GitHub Actions passed
+- [ ] Netlify Build command is empty
+- [ ] Netlify Publish directory is `.`
+- [ ] Netlify deployment succeeded
+- [ ] Old Service Worker cache cleared
+- [ ] Alpha 0.2 installed as a PWA
+- [ ] Interactive test session started

@@ -1,26 +1,17 @@
 {
-  "release": "Alpha 0.1",
-  "version": "0.1.0",
-  "date": "2026-07-26",
-  "status": "installable-pwa-alpha",
+  "release": "Alpha 0.2",
+  "version": "0.2.0",
+  "date": "2026-07-28",
+  "status": "installable-testing-alpha",
+  "technical_documentation_language": "English",
+  "product_ui_language": "Hebrew RTL",
   "entrypoint": "index.html",
   "quality_gate": "npm run check",
-  "manual_qa": "docs/qa/QA_CHECKLIST_HE.md",
-  "acceptance": "docs/qa/ACCEPTANCE_THAILAND.md",
-  "limitations": [
+  "interactive_test": "docs/qa/INTERACTIVE_TEST_SESSION.md",
+  "known_limitations": [
     "No OCR",
-    "No backend/sync",
-    "Uploaded file contents are not persisted"
-  ],
-  "package_language": "Hebrew installation, deployment, release and QA documentation",
-  "start_document": "START_HERE.md",
-  "installation": "docs/guides/INSTALLATION.md",
-  "commands": "docs/guides/COMMANDS.md",
-  "build_and_deployment": "docs/guides/BUILD_DEPLOY.md",
-  "rollback": "docs/guides/ROLLBACK.md",
-  "technical_documentation_language": "English",
-  "codex_instructions": "CODEX_INSTRUCTIONS.md",
-  "qa": "docs/qa/QA_CHECKLIST.md",
-  "release_notes": "docs/release/RELEASE_NOTES.md",
-  "known_issues": "docs/release/KNOWN_ISSUES.md"
+    "Metadata-only file persistence",
+    "External map picker only",
+    "Single active Trip UI"
+  ]
 }

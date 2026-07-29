@@ -1,28 +1,3 @@
-# Rollback Guide
+# Rollback
 
-## Netlify
-
-1. Open the site in Netlify.
-2. Open `Deploys`.
-3. Select a previously approved deploy.
-4. Select `Publish deploy`.
-
-## Git
-
-Inspect history:
-
-```bash
-git log --oneline
-```
-
-Revert the bad commit:
-
-```bash
-git revert COMMIT_ID
-npm run check
-git push
-```
-
-## Local data warning
-
-Alpha 0.1 has no migration or export mechanism. Use separate Netlify sites or browser profiles when testing incompatible releases.
+In Netlify, publish a previously approved deploy. In Git, prefer `git revert COMMIT_ID`, then run `npm run check` and push. Local browser data has no migration/export guarantee in Alpha 0.2.
