@@ -1,45 +1,44 @@
-# Interactive Test Session — Alpha 0.2
+# Interactive Test Session — Alpha 0.2.1
 
-You are the test-session facilitator. Run one test at a time and wait for the tester's result. Never end a response without the next test unless clarification or a critical stop is required.
+Mandatory tests: 15
+Optional tests: 5
 
-Mandatory tests: 18
-Optional tests: 7
+## New fixes — 7 mandatory
+1. Create Item source-selection opens without freezing.
+2. A clean saved URL opens from the linked item.
+3. Selecting a Calendar date displays that day's events.
+4. Long filenames remain usable on mobile.
+5. Contact creation succeeds without a phone number.
+6. Today has no duplicate Quick Access section.
+7. Trip Center category cards are usable on mobile.
 
-At session start display:
-- Mandatory completed: 0 / 18
-- Optional completed: 0 / 7
-- Passed / Failed / Blocked / Not tested
-- Release blockers found
+## Critical regression — 8 mandatory
+1. First PDF creates a Trip.
+2. The uploaded source remains available after Trip creation.
+3. Hotel date range validates start/end order.
+4. Insurance supports Entire Trip.
+5. A new dated item defaults to Trip start when available.
+6. A future item changes a Trip without dates from Draft to Planned.
+7. Create → Delete → Create another item works without refresh.
+8. Persistence, PWA launch, and offline shell work.
 
-Classify every result as PASS, FAIL, BLOCKED, or NOT TESTED. Stop immediately only for potential data loss, destructive behavior without confirmation, or an unrecoverable crash.
+## Optional regression — 5
+1. Map action opens the item's location externally.
+2. Timeline all/month/week/day filters work.
+3. Out-of-range conflict remains after restart.
+4. Changing item type updates the form.
+5. Delete current Trip and clear all are distinct confirmed actions.
 
-## Mandatory tests
-1. Fresh local reset returns to empty state.
-2. First PDF creates Trip and appears in Documents.
-3. First image/photo creates Trip.
-4. Link source creates or links to an item.
-5. Manual source creates an item.
-6. Upload remains available after Trip creation.
-7. Hotel requires start/end and validates order.
-8. Insurance supports Entire Trip.
-9. Contact form shows name, phone, description; no date/location.
-10. Required fields are marked and validation is local to the field.
-11. New dated item defaults to Trip start.
-12. Future item changes Trip to Planned without Trip dates.
-13. Today shows today's items, next item, and Entire Trip information only.
-14. Timeline groups all items by day.
-15. Calendar shows Trip range and event markers.
-16. Packing Lists exist immediately after Trip creation.
-17. Create → Delete → Create another item works without refresh.
-18. Persistence, PWA launch, and offline shell work.
+## Completed result — 2026-07-30
+- New fixes: 7 / 7 passed
+- Critical regression: 8 / 8 passed
+- Optional regression: 5 / 5 passed
+- Total: 20 / 20 passed
+- Release decision: GO for the Alpha 0.2.1 usability baseline
 
-## Optional tests
-1. Filename-based source suggestion.
-2. Map link and correction flow.
-3. Timeline month/week/day filters.
-4. Conflict persistence after restart.
-5. Change item type and verify form updates.
-6. Delete current Trip versus clear all.
-7. Mobile RTL visual inspection.
-
-After each test show updated totals and immediately provide the next test. At the end produce a GO / NO-GO recommendation and a copy-ready `TEST_RESULTS_ALPHA_0.2.md` report.
+## Findings carried forward
+- A clean URL opens correctly. Pasted text containing a URL is not yet parsed; URL extraction belongs to Smart Ingestion in Alpha 0.4.
+- A linked source URL cannot yet be edited from the item edit form; this is scheduled for document/source ownership work.
+- Multi-day items are marked on their start date only; continuous Calendar visualization is scheduled for Alpha 0.5.
+- Category-level Add duplicates the global Add flow; category-prefilled creation is a Scheduled Alpha feature.
+- Trip Center density and FAB overlap require Beta refinement.

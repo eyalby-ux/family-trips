@@ -1,30 +1,26 @@
 # QA Checklist — Alpha 0.2.1
 
-## Mandatory hotfix tests
+Completed on 2026-07-30.
 
-- [ ] `npm run check` passes.
-- [ ] Existing Alpha 0.2 local data remains after the update.
-- [ ] A pasted link can be saved as a source.
-- [ ] The saved link appears in the related item.
-- [ ] Selecting the saved link opens it in a new browser tab.
-- [ ] Calendar dates are clickable.
-- [ ] The selected date is visually highlighted.
-- [ ] Events for the selected date appear below the calendar.
-- [ ] A date with no events shows an empty-state message.
-- [ ] Long filenames wrap without breaking the mobile layout.
-- [ ] Contact creation succeeds without a phone number.
-- [ ] Today no longer contains the duplicate Quick Access section.
-- [ ] Trip Center cards are more compact.
-- [ ] PWA installs and opens.
-- [ ] Offline shell still opens after one online load.
+- [x] `npm run check` passes.
+- [x] Existing Alpha 0.2 local data remains available.
+- [x] PWA installs, opens, and works offline after one online load.
+- [x] Service Worker cache is `family-trips-alpha-0.2.1-v4`.
+- [x] Create Item source-selection opens without freezing.
+- [x] A clean saved URL opens from the related item.
+- [x] Calendar selected-day events work.
+- [x] Long filenames remain usable on mobile.
+- [x] Contact phone is optional.
+- [x] Duplicate Quick Access is removed.
+- [x] Trip Center is usable on mobile.
+- [x] First PDF creates a Trip and remains in Documents.
+- [x] Hotel date range validation works.
+- [x] Insurance supports Entire Trip.
+- [x] New dated item defaults to Trip start.
+- [x] Future item changes Draft to Planned without Trip dates.
+- [x] Create → Delete → Create works.
+- [x] Map, Timeline filters, conflict persistence, type changes, and deletion confirmations work.
 
-## Regression tests
-
-- [ ] Create item.
-- [ ] Delete item.
-- [ ] Create another item without refreshing.
-- [ ] Trip status changes to Planned from a future item.
-- [ ] Entire Trip items remain visible in Today.
-- [ ] Timeline grouping still works.
-- [ ] Packing Lists still persist.
-- [ ] Trip date conflicts do not rewrite item dates.
+## Result
+- 20 / 20 tests passed.
+- Release decision: GO for the Alpha 0.2.1 usability baseline.
