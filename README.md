@@ -15,3 +15,9 @@ The guide includes the backup branch, Robocopy command, quality gate, GitHub pus
 ## Release upgrade rule
 
 Every release after the first must include a complete Windows upgrade guide from the immediately previous version. A release is not considered ready without that guide.
+
+## Alpha 0.2.1 package v4 correction
+
+When upgrading from package v3, follow:
+
+`UPGRADE_0.2.1_V3_TO_V4_WINDOWS.md`

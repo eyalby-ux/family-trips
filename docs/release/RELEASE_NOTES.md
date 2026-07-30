@@ -28,3 +28,17 @@ Status: Stabilization hotfix for Alpha 0.2
 - Multi-user synchronization
 - Participant ownership
 - OCR and full Smart Ingestion
+
+## Package revision v4
+
+Critical correction:
+
+- Restored the missing `sourceStep()` function.
+- Fixed the freeze caused by pressing the global `+` button.
+- Added a quality-gate regression check for the Create Item source-selection flow.
+
+The blocking browser error was:
+
+```text
+Uncaught ReferenceError: sourceStep is not defined
+```

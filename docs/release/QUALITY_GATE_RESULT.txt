@@ -1,6 +1,6 @@
 Release: Family Trips Alpha 0.2.1
-Package revision: v3
-Mandatory upgrade-guide rule added to release instructions.
+Package revision: v4
+Critical fix: sourceStep restored; global + flow regression checked.
 Command: npm run check
 Exit code: 0
 

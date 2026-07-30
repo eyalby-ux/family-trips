@@ -3,6 +3,7 @@
 CODEX_INSTRUCTIONS.md
 README.md
 START_HERE.md
+UPGRADE_0.2.1_V3_TO_V4_WINDOWS.md
 UPGRADE_0.2_TO_0.2.1_WINDOWS.md
 assets/icons/favicon.png
 assets/icons/icon-192.png

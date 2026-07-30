@@ -20,5 +20,8 @@
     "Select Calendar date and display that day's events"
   ],
   "upgrade_from_0.2": "UPGRADE_0.2_TO_0.2.1_WINDOWS.md",
-  "upgrade_platform": "Windows"
+  "upgrade_platform": "Windows",
+  "package_revision": "v4",
+  "critical_fix": "Restore sourceStep and prevent Create Item freeze",
+  "upgrade_from_package_v3": "UPGRADE_0.2.1_V3_TO_V4_WINDOWS.md"
 }
