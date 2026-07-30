@@ -1,8 +1,8 @@
 {
-  "release": "Alpha 0.2",
-  "version": "0.2.0",
-  "date": "2026-07-28",
-  "status": "installable-testing-alpha",
+  "release": "Alpha 0.2.1",
+  "version": "0.2.1",
+  "date": "2026-07-30",
+  "status": "stabilization-hotfix",
   "technical_documentation_language": "English",
   "product_ui_language": "Hebrew RTL",
   "entrypoint": "index.html",
@@ -13,5 +13,12 @@
     "Metadata-only file persistence",
     "External map picker only",
     "Single active Trip UI"
-  ]
+  ],
+  "storage_compatibility": "Preserves Alpha 0.2 local-storage key",
+  "fixed_blockers": [
+    "Open saved link source from related item",
+    "Select Calendar date and display that day's events"
+  ],
+  "upgrade_from_0.2": "UPGRADE_0.2_TO_0.2.1_WINDOWS.md",
+  "upgrade_platform": "Windows"
 }

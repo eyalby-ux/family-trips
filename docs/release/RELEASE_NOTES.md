@@ -1,21 +1,30 @@
-# Release Notes — Alpha 0.2
+# Release Notes — Family Trips Alpha 0.2.1
 
-## Added
-- Source-first creation: file, photo, link, manual.
-- Sources linked to items.
-- Filename-based item suggestions for common document types.
-- Dynamic forms for hotels, insurance, contacts, participants, flights, restaurants, and other categories.
-- Single date, date range, entire trip, and no-date modes.
-- Trip-start default for new dated items.
-- Today filtering, grouped Timeline, and basic Calendar.
-- Packing Lists with Suggested defaults.
-- Permanent upload entry through the global add action and Documents.
-- Planned state inference from future items.
-- Separate delete-current-trip and clear-all-local-data actions.
-- New green mountain-and-water icon.
-- Interactive test-session file.
+Release date: 2026-07-30  
+Status: Stabilization hotfix for Alpha 0.2
 
-## Known partial implementations
-- Document understanding is filename-based, not OCR.
-- Map pinning uses an external map link; there is no embedded map picker.
-- Calendar is a basic month view; week/day editing remains limited.
+## Fixed release blockers
+
+- Saved link sources can now be opened directly from the related item.
+- Calendar dates are selectable and display the events for the selected day.
+
+## Additional fixes
+
+- Long filenames wrap correctly on mobile.
+- Full source names remain available through the source row title.
+- Contact phone number is optional.
+- Removed the duplicate Quick Access section from Today.
+- Reduced excessive vertical space in Trip Center category cards.
+
+## Compatibility
+
+- The existing Alpha 0.2 local-storage key is preserved.
+- Existing local Alpha 0.2 test data should remain available after deployment.
+- No architecture changes are included.
+
+## Out of scope
+
+- Accounts and shared Trips
+- Multi-user synchronization
+- Participant ownership
+- OCR and full Smart Ingestion

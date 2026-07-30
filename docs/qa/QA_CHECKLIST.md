@@ -1,20 +1,30 @@
-# QA Checklist — Alpha 0.2
+# QA Checklist — Alpha 0.2.1
 
-- [ ] Empty state works.
-- [ ] First PDF/image creates a Trip.
-- [ ] File/photo/link/manual creation paths work.
-- [ ] Sources remain linked to created items.
-- [ ] Hotel has start and end.
-- [ ] Insurance supports entire trip.
-- [ ] Contact has phone/description and no date/location.
-- [ ] Required fields are visibly marked.
-- [ ] Trip start is the default date for new items.
-- [ ] Future item makes Trip Planned without manual Trip dates.
-- [ ] Today excludes past and distant items.
-- [ ] Timeline is grouped by day and filters work.
-- [ ] Calendar shows Trip range and item dots.
-- [ ] Packing Lists are created with Suggested items.
-- [ ] Upload remains available after Trip creation.
-- [ ] Delete current Trip and clear all are separate.
-- [ ] PWA install and offline shell work.
-- [ ] Create → delete → create works without refresh.
+## Mandatory hotfix tests
+
+- [ ] `npm run check` passes.
+- [ ] Existing Alpha 0.2 local data remains after the update.
+- [ ] A pasted link can be saved as a source.
+- [ ] The saved link appears in the related item.
+- [ ] Selecting the saved link opens it in a new browser tab.
+- [ ] Calendar dates are clickable.
+- [ ] The selected date is visually highlighted.
+- [ ] Events for the selected date appear below the calendar.
+- [ ] A date with no events shows an empty-state message.
+- [ ] Long filenames wrap without breaking the mobile layout.
+- [ ] Contact creation succeeds without a phone number.
+- [ ] Today no longer contains the duplicate Quick Access section.
+- [ ] Trip Center cards are more compact.
+- [ ] PWA installs and opens.
+- [ ] Offline shell still opens after one online load.
+
+## Regression tests
+
+- [ ] Create item.
+- [ ] Delete item.
+- [ ] Create another item without refreshing.
+- [ ] Trip status changes to Planned from a future item.
+- [ ] Entire Trip items remain visible in Today.
+- [ ] Timeline grouping still works.
+- [ ] Packing Lists still persist.
+- [ ] Trip date conflicts do not rewrite item dates.

@@ -1,8 +1,8 @@
 {
   "name": "family-trips-alpha",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
-  "description": "Family Trips Alpha 0.2 installable static PWA",
+  "description": "Family Trips Alpha 0.2.1 stabilization hotfix",
   "scripts": {
     "dev": "npx serve . -l 4173",
     "test": "node tests/smoke.mjs",

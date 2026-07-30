@@ -3,6 +3,7 @@
 CODEX_INSTRUCTIONS.md
 README.md
 START_HERE.md
+UPGRADE_0.2_TO_0.2.1_WINDOWS.md
 assets/icons/favicon.png
 assets/icons/icon-192.png
 assets/icons/icon-512.png
@@ -10,7 +11,6 @@ assets/icons/icon.svg
 docs/architecture/ARCHITECTURE_SNAPSHOT.md
 docs/design/VISUAL_DIRECTION_ALPHA_0.2.md
 docs/guides/BUILD_DEPLOY.md
-docs/guides/INSTALLATION.md
 docs/guides/INSTALLATION_WINDOWS.md
 docs/guides/ROLLBACK.md
 docs/qa/ACCEPTANCE_THAILAND.md
@@ -21,6 +21,7 @@ docs/release/KNOWN_ISSUES.md
 docs/release/MANIFEST.json
 docs/release/QUALITY_GATE_RESULT.txt
 docs/release/RELEASE_NOTES.md
+docs/release/RELEASE_PACKAGE_RULES.md
 index.html
 manifest.webmanifest
 netlify.toml

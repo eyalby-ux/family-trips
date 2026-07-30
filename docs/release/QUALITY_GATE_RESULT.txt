@@ -1,14 +1,16 @@
-Release: Family Trips Alpha 0.2 v2
+Release: Family Trips Alpha 0.2.1
+Package revision: v3
+Mandatory upgrade-guide rule added to release instructions.
 Command: npm run check
 Exit code: 0
 
 STDOUT:
 
-> family-trips-alpha@0.2.0 check
+> family-trips-alpha@0.2.1 check
 > node --check src/app.js && node --check service-worker.js && npm test
 
 
-> family-trips-alpha@0.2.0 test
+> family-trips-alpha@0.2.1 test
 > node tests/smoke.mjs
 
 Smoke tests passed.
