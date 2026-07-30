@@ -1,0 +1,11 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Alpha 0.3 implementation placeholder.
+    // Keep production locked until Trip membership checks pass emulator tests.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
