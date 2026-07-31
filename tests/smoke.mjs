@@ -8,11 +8,27 @@ const required = [
 for (const file of required) if (!fs.existsSync(file)) throw new Error(`Missing ${file}`);
 
 const main = fs.readFileSync('src/main.js','utf8');
-for (const marker of ['signInWithPopup','signInWithRedirect','browserLocalPersistence','onAuthStateChanged','signOut']) {
+for (const marker of [
+  'signInWithPopup',
+  'signInWithRedirect',
+  'browserLocalPersistence',
+  'onAuthStateChanged',
+  'signOut'
+]) {
   if (!main.includes(marker)) throw new Error(`Missing auth marker: ${marker}`);
 }
 const config = fs.readFileSync('src/firebase.js','utf8');
-for (const marker of ['family-trips-9aef4','getAuth','getFirestore','getStorage']) {
+for (const marker of [
+  'VITE_FIREBASE_API_KEY',
+  'VITE_FIREBASE_AUTH_DOMAIN',
+  'VITE_FIREBASE_PROJECT_ID',
+  'VITE_FIREBASE_STORAGE_BUCKET',
+  'VITE_FIREBASE_MESSAGING_SENDER_ID',
+  'VITE_FIREBASE_APP_ID',
+  'getAuth',
+  'getFirestore',
+  'getStorage'
+]) {
   if (!config.includes(marker)) throw new Error(`Missing Firebase marker: ${marker}`);
 }
 const legacy = fs.readFileSync('src/legacy-app.js','utf8');
