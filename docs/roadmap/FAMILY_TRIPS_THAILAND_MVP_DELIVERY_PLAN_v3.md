@@ -625,3 +625,9 @@ The following roadmap assignments were confirmed by the Alpha 0.2 live test sess
 6. Implement Alpha 0.3 without adding unrelated features.
 7. Continue with Alpha 0.4 Smart Ingestion after Alpha 0.3 acceptance.
 7. Build versions sequentially until Alpha exit criteria are met.
+
+## 13. Version Package Execution Rule — Added for V4
+
+The Development Agent implements the complete approved version, updates code/tests/documents, performs automated checks, and produces one installable package. The Product Owner does not manually apply implementation patches or fill release records. Product Owner participation begins after package delivery: installation, real-device/user acceptance tests, trade-off approval, and GO / NO-GO.
+
+Every future version package must include this authoritative delivery plan under `docs/roadmap/`.

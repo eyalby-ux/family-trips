@@ -1,15 +1,15 @@
 {
-  "name": "family-trips-alpha",
-  "version": "0.3.0-foundation.1",
+  "name": "family-trips-v4",
+  "version": "0.4.0",
   "private": true,
-  "description": "Family Trips Alpha 0.3 Firebase and Vite foundation",
+  "description": "Family Trips V4 smart ingestion and item creation",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "test": "node tests/smoke.mjs",
-    "check": "node --check src/main.js && node --check src/firebase.js && node --check src/legacy-app.js && node --check public/service-worker.js && npm test && npm run build"
+    "test": "node tests/smoke.mjs && node tests/v4-ingestion.mjs",
+    "check": "node --check src/main.js && node --check src/firebase.js && node --check src/legacy-app.js && node --check src/ingestion.js && node --check src/v4-app.js && node --check public/service-worker.js && npm test && npm run build"
   },
   "dependencies": {
     "firebase": "^12.1.0"
