@@ -1,19 +1,22 @@
-Release: Family Trips Alpha 0.2.1
-Package revision: v4
-Critical fix: sourceStep restored; global + flow regression checked.
-Command: npm run check
-Exit code: 0
+Alpha 0.3 Foundation v2 package-generation checks
 
-STDOUT:
+Passed:
+- node --check src/main.js
+- node --check src/firebase.js
+- node --check src/legacy-app.js
+- node --check public/service-worker.js
+- node tests/smoke.mjs
 
-> family-trips-alpha@0.2.1 check
-> node --check src/app.js && node --check service-worker.js && npm test
+Documentation correction:
+- Replaced the stale Alpha 0.2 installation guide.
+- Removed obsolete Alpha 0.2 and Alpha 0.2.1 patch upgrade guides.
+- Updated build, rollback, QA, release notes, manifest, and file list for Alpha 0.3 Foundation.
 
+Not executed in the package-generation environment:
+- npm install
+- npm run build
+- Google OAuth live sign-in
+- Netlify deployment
+- Android PWA update
 
-> family-trips-alpha@0.2.1 test
-> node tests/smoke.mjs
-
-Smoke tests passed.
-
-STDERR:
-
+Complete the Windows upgrade guide before acceptance.

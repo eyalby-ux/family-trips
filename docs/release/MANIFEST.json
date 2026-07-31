@@ -1,27 +1,30 @@
 {
-  "release": "Alpha 0.2.1",
-  "version": "0.2.1",
+  "release": "Alpha 0.3 Foundation",
+  "version": "0.3.0-foundation",
   "date": "2026-07-30",
-  "status": "stabilization-hotfix",
+  "status": "interactive-verification-required",
+  "package_revision": "v2",
   "technical_documentation_language": "English",
   "product_ui_language": "Hebrew RTL",
   "entrypoint": "index.html",
+  "build_system": "Vite",
   "quality_gate": "npm run check",
+  "build_command": "npm run build",
+  "publish_directory": "dist",
   "interactive_test": "docs/qa/INTERACTIVE_TEST_SESSION.md",
-  "known_limitations": [
-    "No OCR",
-    "Metadata-only file persistence",
-    "External map picker only",
-    "Single active Trip UI"
-  ],
-  "storage_compatibility": "Preserves Alpha 0.2 local-storage key",
-  "fixed_blockers": [
-    "Open saved link source from related item",
-    "Select Calendar date and display that day's events"
-  ],
-  "upgrade_from_0.2": "UPGRADE_0.2_TO_0.2.1_WINDOWS.md",
+  "upgrade_from": "Alpha 0.2.1 v4",
+  "upgrade_guide": "UPGRADE_0.2.1_TO_0.3_FOUNDATION_WINDOWS.md",
   "upgrade_platform": "Windows",
-  "package_revision": "v4",
-  "critical_fix": "Restore sourceStep and prevent Create Item freeze",
-  "upgrade_from_package_v3": "UPGRADE_0.2.1_V3_TO_V4_WINDOWS.md"
+  "firebase_project_id": "family-trips-9aef4",
+  "authentication": "Google",
+  "firestore_rules": "deny-all",
+  "storage_rules": "deny-all",
+  "local_storage_compatibility": "Preserves family-trips-alpha-0.2",
+  "live_verification_required": [
+    "npm install and Vite build",
+    "Google Authentication",
+    "Netlify deployment",
+    "Android PWA update",
+    "Offline shell"
+  ]
 }

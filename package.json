@@ -1,17 +1,28 @@
 {
   "name": "family-trips-alpha",
-  "version": "0.2.1",
+  "version": "0.3.0-foundation.1",
   "private": true,
-  "description": "Family Trips Alpha 0.2.1 stabilization hotfix",
+  "description": "Family Trips Alpha 0.3 Firebase and Vite foundation",
+  "type": "module",
   "scripts": {
-    "dev": "npx serve . -l 4173",
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0",
     "test": "node tests/smoke.mjs",
-    "check": "node --check src/app.js && node --check service-worker.js && npm test"
-  },
-  "engines": {
-    "node": ">=18"
+    "check": "node --check src/main.js && node --check src/firebase.js && node --check src/legacy-app.js && node --check public/service-worker.js && npm test && npm run build"
   },
   "dependencies": {
-    "firebase": "^12.16.0"
+    "firebase": "^12.1.0"
+  },
+  "devDependencies": {
+    "vite": "^7.0.6"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "allowScripts": {
+    "@firebase/util": true,
+    "esbuild": true,
+    "protobufjs": true
   }
 }

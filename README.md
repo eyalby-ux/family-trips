@@ -1,23 +1,18 @@
-# Family Trips — Alpha 0.2
+# Family Trips — Alpha 0.3 Foundation
 
-Static installable PWA with Hebrew RTL product UI and English technical documentation.
+Windows-only release package for the Firebase Authentication and Vite foundation of the Thailand MVP.
 
-Key additions: source-first item creation, dynamic forms, date modes, Today filtering, grouped Timeline, Calendar, Packing Lists, permanent document upload, improved Trip state logic, safer delete actions, and a new green mountain-and-water app icon.
+## Begin here
 
-## Upgrade from Alpha 0.2
+Open:
 
-Follow:
+`START_HERE.md`
 
-`UPGRADE_0.2_TO_0.2.1_WINDOWS.md`
+That document provides the mandatory sequence from installation through production verification and release closure.
 
-The guide includes the backup branch, Robocopy command, quality gate, GitHub push, Netlify settings, PWA cache handling, data warning, verification, and rollback.
+## Important boundaries
 
-## Release upgrade rule
-
-Every release after the first must include a complete Windows upgrade guide from the immediately previous version. A release is not considered ready without that guide.
-
-## Alpha 0.2.1 package v4 correction
-
-When upgrading from package v3, follow:
-
-`UPGRADE_0.2.1_V3_TO_V4_WINDOWS.md`
+- Firestore and Storage remain deny-all.
+- This package verifies Firebase Authentication, not shared-trip data.
+- Do not change Netlify settings before `npm run check` and local preview pass.
+- The known file-name classification issue for `ELAL_flight_booking_screenshot.png` is scheduled for Alpha 0.4 Smart Ingestion and is not part of Alpha 0.3 Foundation acceptance.

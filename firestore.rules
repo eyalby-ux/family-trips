@@ -1,11 +1,6 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Alpha 0.3 implementation placeholder.
-    // Keep production locked until membership and invite rules pass emulator tests.
-    match /{document=**} {
-      allow read, write: if false;
-    }
+    match /{document=**} { allow read, write: if false; }
   }
 }

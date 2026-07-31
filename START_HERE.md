@@ -1,25 +1,78 @@
-# Start Here — Family Trips Alpha 0.2
+# Family Trips Alpha 0.3 Foundation — START HERE
 
-1. Open `docs/guides/INSTALLATION_WINDOWS.md`.
-2. Run `npm run check`.
-3. Run `npm run dev`.
-4. Complete `docs/qa/INTERACTIVE_TEST_SESSION.md`.
-5. Deploy to Netlify with an empty Build command and Publish directory `.`.
+This is the single entry point for a clean Windows installation, local testing, Firebase Authentication testing, Netlify deployment, production verification, and release closure.
 
-## Upgrading from Alpha 0.2
+Do not skip documents and do not change Netlify settings before the local quality gate passes.
 
-Use the Windows-only step-by-step guide:
+## Current release scope
 
-`UPGRADE_0.2_TO_0.2.1_WINDOWS.md`
+Alpha 0.3 Foundation includes:
 
-Do not replace repository files before creating the `archive/alpha-0.2` backup branch.
+- Vite build pipeline
+- Firebase initialization
+- Google sign-in and sign-out
+- Persistent authentication session
+- Existing Alpha 0.2.1 local application and local-storage compatibility
+- Netlify production build to `dist`
+- PWA and Service Worker foundation
 
-## Release upgrade rule
+Firestore and Firebase Storage remain deny-all in this Foundation package. Shared Trips, membership rules, cloud documents, and migration to Firestore are not part of this verification sequence.
 
-Every release after the first must include a complete Windows upgrade guide from the immediately previous version. A release is not considered ready without that guide.
+## Starting point
 
-## Alpha 0.2.1 package v4 correction
+Use the existing repository:
 
-When upgrading from package v3, follow:
+```text
+C:\Projects\FamilyTrips\family-trips-repository
+```
 
-`UPGRADE_0.2.1_V3_TO_V4_WINDOWS.md`
+Use the extracted release package:
+
+```text
+C:\Projects\FamilyTrips\family-trips-alpha-0.3-foundation-v3
+```
+
+## Document sequence
+
+Complete the documents in this exact order:
+
+1. `docs/guides/01_INSTALLATION_WINDOWS.md`
+2. `docs/guides/02_LOCAL_TESTING.md`
+3. `docs/guides/03_FIREBASE_AUTH_TESTING.md`
+4. `docs/guides/04_NETLIFY_DEPLOYMENT.md`
+5. `docs/guides/05_POST_DEPLOYMENT_TESTING.md`
+6. `docs/guides/06_RELEASE_CHECKLIST.md`
+
+Use `docs/guides/07_ROLLBACK.md` only if installation, deployment, or production verification fails and cannot be corrected safely.
+
+## Required evidence
+
+Keep the following evidence while working:
+
+- final output of `npm run check`
+- local preview URL and result
+- successful Google sign-in and sign-out
+- successful session persistence after refresh
+- Netlify deploy status
+- production URL verification
+- Android PWA verification
+- final Git commit SHA
+
+## Stop conditions
+
+Stop and do not continue when:
+
+- `git status` is not clean before the release files are copied
+- `robocopy` returns exit code 8 or higher
+- `npm install` fails
+- `npm run check` fails
+- Google sign-in fails locally
+- the Firebase project or authorized domain does not match the documented values
+- Netlify deploy fails
+- production behavior differs from local preview
+
+## Next document
+
+Open:
+
+`docs/guides/01_INSTALLATION_WINDOWS.md`

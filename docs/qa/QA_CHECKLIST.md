@@ -1,26 +1,44 @@
-# QA Checklist — Alpha 0.2.1
+# QA Checklist — Alpha 0.3 Foundation
 
-Completed on 2026-07-30.
+## Build and package
 
-- [x] `npm run check` passes.
-- [x] Existing Alpha 0.2 local data remains available.
-- [x] PWA installs, opens, and works offline after one online load.
-- [x] Service Worker cache is `family-trips-alpha-0.2.1-v4`.
-- [x] Create Item source-selection opens without freezing.
-- [x] A clean saved URL opens from the related item.
-- [x] Calendar selected-day events work.
-- [x] Long filenames remain usable on mobile.
-- [x] Contact phone is optional.
-- [x] Duplicate Quick Access is removed.
-- [x] Trip Center is usable on mobile.
-- [x] First PDF creates a Trip and remains in Documents.
-- [x] Hotel date range validation works.
-- [x] Insurance supports Entire Trip.
-- [x] New dated item defaults to Trip start.
-- [x] Future item changes Draft to Planned without Trip dates.
-- [x] Create → Delete → Create works.
-- [x] Map, Timeline filters, conflict persistence, type changes, and deletion confirmations work.
+- [ ] `npm install` completes.
+- [ ] `npm run check` completes without errors.
+- [ ] `npm run build` creates `dist`.
+- [ ] `npm run preview` serves the production build.
+- [ ] The current Windows upgrade guide is present.
+- [ ] No obsolete upgrade guides are included in the release package.
 
-## Result
-- 20 / 20 tests passed.
-- Release decision: GO for the Alpha 0.2.1 usability baseline.
+## Authentication
+
+- [ ] Signed-out users see the Google sign-in screen.
+- [ ] Google sign-in succeeds locally.
+- [ ] The authenticated account is shown.
+- [ ] Refresh preserves the session.
+- [ ] Sign-out returns to the sign-in screen.
+- [ ] Google sign-in succeeds on the Netlify domain.
+
+## Compatibility
+
+- [ ] Existing Alpha 0.2.1 local Trip data remains visible on the same browser profile.
+- [ ] Existing items, sources, and Packing Lists remain usable after sign-in.
+- [ ] The global Add flow still opens.
+- [ ] Calendar and Timeline still render.
+
+## PWA and deployment
+
+- [ ] Netlify uses `npm run build` and `dist`.
+- [ ] The production deploy loads without missing assets.
+- [ ] The Service Worker updates from Alpha 0.2.1.
+- [ ] Android PWA launches after update.
+- [ ] Offline shell opens after one online load.
+
+## Security boundary
+
+- [ ] Firestore rules remain deny-all.
+- [ ] Storage rules remain deny-all.
+- [ ] No service-account credentials or private secrets are included.
+
+## Acceptance
+
+The Foundation is accepted only after all mandatory live checks pass. Static smoke checks alone are not sufficient.

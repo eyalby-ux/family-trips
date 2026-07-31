@@ -1,11 +1,26 @@
-import fs from 'node:fs';const req=['START_HERE.md','CODEX_INSTRUCTIONS.md','index.html','src/app.js','src/styles.css','service-worker.js','manifest.webmanifest','netlify.toml','docs/qa/INTERACTIVE_TEST_SESSION.md','docs/qa/QA_CHECKLIST.md','docs/release/RELEASE_NOTES.md','docs/design/VISUAL_DIRECTION_ALPHA_0.2.md'];for(const f of req)if(!fs.existsSync(f))throw new Error(`Missing ${f}`);const a=fs.readFileSync('src/app.js','utf8');for(const t of ['Packing Lists','timelineMode','source-next','schedule===\'entire\'','delete-trip','clear-all','Calendar','Planned','calendar-date','פתיחת קישור','source-name'])if(!a.includes(t))throw new Error(`Missing capability marker: ${t}`);const m=JSON.parse(fs.readFileSync('manifest.webmanifest','utf8'));if(m.theme_color!=='#2f8f63'||m.display!=='standalone')throw new Error('Manifest mismatch');console.log('Smoke tests passed.');
+import fs from 'node:fs';
 
-if (!fs.existsSync('docs/release/RELEASE_PACKAGE_RULES.md') || !fs.existsSync('UPGRADE_0.2_TO_0.2.1_WINDOWS.md')) throw new Error('Missing mandatory release upgrade documentation');
+const required = [
+  'index.html','src/main.js','src/firebase.js','src/legacy-app.js','src/styles.css','src/foundation.css',
+  'public/service-worker.js','public/manifest.webmanifest','netlify.toml','firestore.rules','storage.rules',
+  'UPGRADE_0.2.1_TO_0.3_FOUNDATION_WINDOWS.md','docs/release/RELEASE_NOTES.md','docs/guides/INSTALLATION_WINDOWS.md'
+];
+for (const file of required) if (!fs.existsSync(file)) throw new Error(`Missing ${file}`);
 
-const appSource = fs.readFileSync('src/app.js', 'utf8');
-if (!/function\s+sourceStep\s*\(/.test(appSource)) {
-  throw new Error('Create Item source step is missing');
+const main = fs.readFileSync('src/main.js','utf8');
+for (const marker of ['signInWithPopup','signInWithRedirect','browserLocalPersistence','onAuthStateChanged','signOut']) {
+  if (!main.includes(marker)) throw new Error(`Missing auth marker: ${marker}`);
 }
-if (!appSource.includes("step:'source'") || !appSource.includes("data-action=\"source-next\"")) {
-  throw new Error('Create Item source-selection flow is incomplete');
+const config = fs.readFileSync('src/firebase.js','utf8');
+for (const marker of ['family-trips-9aef4','getAuth','getFirestore','getStorage']) {
+  if (!config.includes(marker)) throw new Error(`Missing Firebase marker: ${marker}`);
 }
+const legacy = fs.readFileSync('src/legacy-app.js','utf8');
+if (!/function\s+sourceStep\s*\(/.test(legacy)) throw new Error('Create Item source step is missing');
+const sw = fs.readFileSync('public/service-worker.js','utf8');
+if (!sw.includes('family-trips-alpha-0.3-foundation-v1')) throw new Error('Service Worker cache version mismatch');
+const manifest = JSON.parse(fs.readFileSync('public/manifest.webmanifest','utf8'));
+if (manifest.display !== 'standalone' || manifest.theme_color !== '#2f8f63') throw new Error('Manifest mismatch');
+const netlify = fs.readFileSync('netlify.toml','utf8');
+if (!netlify.includes('command = "npm run build"') || !netlify.includes('publish = "dist"')) throw new Error('Netlify build settings mismatch');
+console.log('Smoke tests passed.');
