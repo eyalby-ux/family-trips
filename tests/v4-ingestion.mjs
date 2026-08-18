@@ -29,3 +29,4 @@ assert.equal(validateSource({kind:'file',file:{type:'text/plain',size:10}}).ok,f
 assert.equal(validateSource({kind:'file',file:{type:'application/pdf',size:10}}).ok,true);
 
 console.log('V4 ingestion tests passed.');
+

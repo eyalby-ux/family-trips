@@ -29,3 +29,4 @@ The detailed operational steps are split into numbered documents so every docume
 Rollback:
 
 `docs/guides/07_ROLLBACK.md`
+

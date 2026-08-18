@@ -34,9 +34,11 @@ for (const marker of [
 const legacy = fs.readFileSync('src/legacy-app.js','utf8');
 if (!/function\s+sourceStep\s*\(/.test(legacy)) throw new Error('Create Item source step is missing');
 const sw = fs.readFileSync('public/service-worker.js','utf8');
-if (!sw.includes('family-trips-alpha-0.3-foundation-v1')) throw new Error('Service Worker cache version mismatch');
+if (!sw.includes('family-trips-alpha-0.6.3-shell-v1')) throw new Error('Service Worker cache version mismatch');
+if (!sw.includes('async function precache')) throw new Error('Production shell precache is missing');
 const manifest = JSON.parse(fs.readFileSync('public/manifest.webmanifest','utf8'));
 if (manifest.display !== 'standalone' || manifest.theme_color !== '#2f8f63') throw new Error('Manifest mismatch');
 const netlify = fs.readFileSync('netlify.toml','utf8');
 if (!netlify.includes('command = "npm run build"') || !netlify.includes('publish = "dist"')) throw new Error('Netlify build settings mismatch');
+if (!netlify.includes('directory = "netlify/functions"')) throw new Error('Netlify Functions directory is missing');
 console.log('Smoke tests passed.');

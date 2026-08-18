@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const sw=fs.readFileSync(new URL('../public/service-worker.js',import.meta.url),'utf8');
+const main=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
+assert(sw.includes("family-trips-alpha-0.6.3-shell-v1"));
+assert(sw.includes("event.request.mode === 'navigate'"));
+assert(sw.includes('self.registration.scope'));
+assert(sw.includes("cache.match(absolute('./index.html')"));
+assert(sw.includes('async function cachedShell()'));
+assert(sw.includes('await self.clients.claim()'));
+assert(main.includes('renderOfflineSession'));
+assert(main.includes("import('./v5-app.js')"));
+assert(main.includes('if (!navigator.onLine && hasLocalTrip())'));
+console.log('V5 offline shell tests passed.');

@@ -1,43 +1,7 @@
-# Release Notes — Family Trips Alpha 0.3 Foundation
+# FamilyTrips Alpha 0.6.3
 
-Release date: 2026-07-31
-Status: **GO — accepted technical baseline**
+Hotel-first Smart Import adds explicit source-only storage, paid analyze-and-propose, evidence-linked review, bounded PDF/image/public-URL processing, validated Hotel-name-first location matching and direct source attachment to an existing Hotel.
 
-## Included
+Server authorization is invite-only and owner-bound with a daily per-user quota. AI and Google Places credentials remain in Netlify Functions only. Protected/private URLs stop safely and no proposal changes structured data before explicit approval.
 
-- Vite development and production build pipeline.
-- Firebase SDK initialization.
-- Google sign-in, sign-out, and persistent Authentication session.
-- Existing Alpha 0.2.1 local application and local-storage compatibility.
-- Firestore and Storage initialized while production access remains deny-all.
-- Vite-compatible PWA assets and Service Worker.
-- Netlify build using `npm run build` and publish directory `dist`.
-- Firebase configuration through `VITE_FIREBASE_*`.
-- GitHub Quality Gate with `npm ci` and Node 24.
-- Windows-only installation, deployment, rollback, and verification documentation.
-
-## Corrections completed during verification
-
-- Rebuilt `package-lock.json` to remove invalid `postcss@8.5.25`.
-- Added `npm ci` to GitHub Actions.
-- Updated GitHub Actions to Node 24.
-- Moved Firebase configuration from source values to build-time environment variables.
-- Updated smoke tests for `VITE_FIREBASE_*`.
-- Added all seven Firebase environment variables in Netlify.
-- Completed a clean-cache Netlify deployment.
-
-## Verification
-
-Final executable session result: **16 / 16 tests passed**
-
-## Not included yet
-
-- Firestore user-profile writes.
-- Cloud Trip creation or local-data migration.
-- Owner/Editor membership and invites.
-- Participants, Document inbox, or shared Packing synchronization.
-- Production Firestore or Storage authorization rules.
-
-## Decision
-
-**GO — Alpha 0.3 Foundation is accepted as the technical baseline.**
+This is a Netlify environment-update correction candidate for fixed general QA. See `docs/versions/V6/RELEASE_NOTES_V4.md` and `EXECUTABLE_TEST_SESSION_V124.md` before any deployment decision.

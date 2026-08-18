@@ -1,0 +1,18 @@
+const LODGING=new Set(['bed_and_breakfast','budget_japanese_inn','camping_cabin','cottage','extended_stay_hotel','farmstay','guest_house','hostel','hotel','inn','japanese_inn','lodging','motel','private_guest_room','resort_hotel']);
+const FIELD_MASK='places.id,places.displayName,places.formattedAddress,places.addressComponents,places.location,places.primaryType,places.types,places.googleMapsUri';
+export async function validateHotelPlace(draft){
+  const propertyName=String(draft.propertyName||'').trim();if(!propertyName)return null;
+  const address=field(draft,'property_address','hotel_address','location');const countryCode=country(draft,address);if(!countryCode)return pending(propertyName,'country_not_evidence_grounded');
+  const key=Netlify.env.get('FAMILYTRIPS_GOOGLE_PLACES_API_KEY');if(!key)return pending(propertyName,'provider_not_configured');
+  const query=[propertyName,address].filter(Boolean).join(', ');const response=await fetch('https://places.googleapis.com/v1/places:searchText',{method:'POST',headers:{'content-type':'application/json','x-goog-api-key':key,'x-goog-fieldmask':FIELD_MASK},body:JSON.stringify({textQuery:query,languageCode:'en',regionCode:countryCode.toUpperCase(),pageSize:5}),signal:AbortSignal.timeout(20000)});
+  if(!response.ok)return pending(propertyName,`provider_http_${response.status}`);const payload=await response.json();const strong=(payload.places||[]).map(candidate=>evaluate(propertyName,countryCode,candidate)).filter(Boolean);
+  if(strong.length!==1)return pending(propertyName,strong.length>1?'ambiguous_multiple_strong_matches':'no_strong_match');
+  return {state:'validated',locationDisplayValue:propertyName,query,lookupCount:1,acceptedPlace:strong[0]};
+}
+function evaluate(propertyName,countryCode,candidate){const names=normalize(candidate?.displayName?.text),expected=normalize(propertyName),types=[candidate?.primaryType,...(candidate?.types||[])].map(normalize),countryValue=normalize((candidate?.addressComponents||[]).find(component=>component?.types?.includes('country'))?.shortText),lat=Number(candidate?.location?.latitude),lng=Number(candidate?.location?.longitude);if(!(names===expected||names.startsWith(`${expected} `))||!types.some(type=>LODGING.has(type))||countryValue!==normalize(countryCode)||!Number.isFinite(lat)||!Number.isFinite(lng)||lat < -90||lat>90||lng < -180||lng>180)return null;return {placeId:String(candidate.id||''),name:String(candidate?.displayName?.text||propertyName),latitude:lat,longitude:lng,primaryType:normalize(candidate?.primaryType),types,countryCode:countryValue,formattedAddress:String(candidate?.formattedAddress||''),googleMapsUri:String(candidate?.googleMapsUri||'')}}
+function pending(name,reason){return {state:'pending_place_validation',locationDisplayValue:name,lookupCount:reason==='provider_not_configured'||reason==='country_not_evidence_grounded'?0:1,acceptedPlace:null,reason}}
+function field(draft,...keys){for(const item of draft.fields||[])if(keys.includes(normalizeKey(item.key)))return String(item.normalizedValue||item.rawValue||'').trim();return ''}
+function country(draft,address){const explicit=field(draft,'country_code','property_country_code','country');if(/^[a-z]{2}$/i.test(explicit))return explicit.toLowerCase();const text=`${explicit} ${address}`.toLowerCase();if(/thailand|ประเทศไทย/.test(text))return 'th';if(/israel|ישראל/.test(text))return 'il';return ''}
+function normalize(value){return String(value||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim().replace(/\s+/g,' ')}
+function normalizeKey(value){return String(value||'').toLowerCase().replace(/[\s-]+/g,'_').replace(/_\d+$/,'')}
+
