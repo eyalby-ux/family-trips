@@ -30,7 +30,7 @@ assert(!app.includes("suggestion.status='rejected'"));
 assert(main.includes('offline-sign-out-note'));
 assert(main.includes('if (!navigator.onLine)'));
 assert(main.includes('await navigator.serviceWorker.ready'));
-assert(sw.includes("const CACHE = 'family-trips-alpha-0.6.3-shell-v1'"));
+assert(sw.includes("const CACHE = 'family-trips-alpha-0.6.4-shell-v1'"));
 assert(sw.indexOf('const shell = await cachedShell()') < sw.indexOf('const response = await fetch(request)'));
 assert(sw.includes('key.startsWith(CACHE_PREFIX) && key !== CACHE'));
 

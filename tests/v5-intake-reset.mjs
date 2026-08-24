@@ -14,7 +14,7 @@ assert(app.includes('function attachIngest(itemId)'));
 assert(app.includes('המקור המקורי נשמר ולא נוצר פריט'));
 assert(app.includes('צירוף בלבד — ללא AI'));
 assert(app.includes('צירוף וחילוץ מידע להצעה'));
-assert(manifest.includes('Family Trips Alpha 0.6.3'));
+assert(manifest.includes('Family Trips Alpha 0.6.4'));
 
 assert.equal(validateSource({kind:'file',file:{name:'booking.pdf',type:'application/pdf',size:1024}}).ok,true);
 assert.equal(validateSource({kind:'file',file:{name:'ticket.jpg',type:'image/jpeg',size:1024}}).ok,false);

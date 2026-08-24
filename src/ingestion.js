@@ -95,10 +95,18 @@ export function findPossibleDuplicates(suggestion,items=[],sources=[]){
     return sameType&&((sameProvider&&sameDate)||(sameTitle&&sameDate));
   });
 }
-export function suggestionToItem(suggestion,existing={}){
+export function suggestionToItem(suggestion,existing={},tripStartDate=''){
   const p=suggestion.proposed,sourceIds=suggestion.sourceIds?.length?suggestion.sourceIds:[suggestion.sourceId].filter(Boolean);
   const value=(key,fallback='')=>!isBlank(p[key])?clone(p[key]):!isBlank(existing[key])?clone(existing[key]):fallback;
-  return {...existing,id:existing.id||makeId('item'),type:value('type','document'),title:String(value('title','')).trim(),provider:String(value('provider','')).trim(),confirmationNumber:String(value('confirmationNumber','')).trim(),participants:value('participants',[]),location:String(value('location','')).trim(),website:String(value('website','')).trim(),phone:String(value('phone','')).trim(),schedule:value('schedule',ITEM_TYPES[p.type]?.schedule||'none'),startAt:value('startAt',''),endAt:value('endAt',''),notes:String(value('notes','')).trim(),details:{...(existing.details||{}),...(p.details||{})},dateMeta:{...(existing.dateMeta||{}),...(p.dateMeta||{})},fieldConfidence:{...(existing.fieldConfidence||{}),...(p.fieldConfidence||{})},warnings:[...(existing.warnings||[]),...(p.warnings||suggestion.warnings||[])],sourceIds:[...new Set([...(existing.sourceIds||[]),...sourceIds])],updatedAt:new Date().toISOString()};
+  const isNewItem=!existing.id;
+  const schedule=value('schedule',ITEM_TYPES[p.type]?.schedule||'none');
+  let startAt=value('startAt','');
+  let endAt=value('endAt','');
+  if(isNewItem&&!startAt&&tripStartDate&&!['none','entire'].includes(schedule)){
+    startAt=`${tripStartDate}T12:00`;
+    if(schedule==='range'&&!endAt)endAt=`${tripStartDate}T12:00`;
+  }
+  return {...existing,id:existing.id||makeId('item'),type:value('type','document'),title:String(value('title','')).trim(),provider:String(value('provider','')).trim(),confirmationNumber:String(value('confirmationNumber','')).trim(),participants:value('participants',[]),location:String(value('location','')).trim(),website:String(value('website','')).trim(),phone:String(value('phone','')).trim(),schedule,startAt,endAt,notes:String(value('notes','')).trim(),details:{...(existing.details||{}),...(p.details||{})},dateMeta:{...(existing.dateMeta||{}),...(p.dateMeta||{})},fieldConfidence:{...(existing.fieldConfidence||{}),...(p.fieldConfidence||{})},warnings:[...(existing.warnings||[]),...(p.warnings||suggestion.warnings||[])],sourceIds:[...new Set([...(existing.sourceIds||[]),...sourceIds])],updatedAt:new Date().toISOString()};
 }
 export function validateSource({kind,file,url}){
   if(kind==='link'){try{const parsed=new URL(url);if(!['http:','https:'].includes(parsed.protocol))throw new Error();return {ok:true}}catch{return {ok:false,error:'יש להזין קישור HTTP או HTTPS תקין'}}}

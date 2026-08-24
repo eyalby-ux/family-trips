@@ -12,7 +12,40 @@ export async function validateHotelPlace(draft){
 function evaluate(propertyName,countryCode,candidate){const names=normalize(candidate?.displayName?.text),expected=normalize(propertyName),types=[candidate?.primaryType,...(candidate?.types||[])].map(normalize),countryValue=normalize((candidate?.addressComponents||[]).find(component=>component?.types?.includes('country'))?.shortText),lat=Number(candidate?.location?.latitude),lng=Number(candidate?.location?.longitude);if(!(names===expected||names.startsWith(`${expected} `))||!types.some(type=>LODGING.has(type))||countryValue!==normalize(countryCode)||!Number.isFinite(lat)||!Number.isFinite(lng)||lat < -90||lat>90||lng < -180||lng>180)return null;return {placeId:String(candidate.id||''),name:String(candidate?.displayName?.text||propertyName),latitude:lat,longitude:lng,primaryType:normalize(candidate?.primaryType),types,countryCode:countryValue,formattedAddress:String(candidate?.formattedAddress||''),googleMapsUri:String(candidate?.googleMapsUri||'')}}
 function pending(name,reason){return {state:'pending_place_validation',locationDisplayValue:name,lookupCount:reason==='provider_not_configured'||reason==='country_not_evidence_grounded'?0:1,acceptedPlace:null,reason}}
 function field(draft,...keys){for(const item of draft.fields||[])if(keys.includes(normalizeKey(item.key)))return String(item.normalizedValue||item.rawValue||'').trim();return ''}
-function country(draft,address){const explicit=field(draft,'country_code','property_country_code','country');if(/^[a-z]{2}$/i.test(explicit))return explicit.toLowerCase();const text=`${explicit} ${address}`.toLowerCase();if(/thailand|ประเทศไทย/.test(text))return 'th';if(/israel|ישראל/.test(text))return 'il';return ''}
+export function country(draft,address){
+  const explicit=field(draft,'country_code','property_country_code','country');
+  if(/^[a-z]{2}$/i.test(explicit))return explicit.toLowerCase();
+  const explicitCode=countryNameToCode(explicit);if(explicitCode)return explicitCode;
+  return countryNameToCode(`${explicit} ${address}`);
+}
+function countryNameToCode(text){
+  const value=normalize(text);if(!value)return '';
+  for(const [name,code] of COUNTRY_NAME_ENTRIES)if(value===name||value.includes(` ${name} `)||value.startsWith(`${name} `)||value.endsWith(` ${name}`))return code;
+  return '';
+}
+const COUNTRY_NAMES={
+  afghanistan:'af',albania:'al',algeria:'dz',andorra:'ad',angola:'ao',argentina:'ar',armenia:'am',australia:'au',austria:'at',azerbaijan:'az',
+  bahamas:'bs',bahrain:'bh',bangladesh:'bd',barbados:'bb',belarus:'by',belgium:'be',belize:'bz',benin:'bj',bhutan:'bt',bolivia:'bo',
+  'bosnia and herzegovina':'ba',botswana:'bw',brazil:'br',brunei:'bn',bulgaria:'bg','burkina faso':'bf',burundi:'bi',cambodia:'kh',cameroon:'cm',canada:'ca',
+  chad:'td',chile:'cl',china:'cn',colombia:'co',congo:'cg','costa rica':'cr',croatia:'hr',cuba:'cu',cyprus:'cy',czechia:'cz','czech republic':'cz',
+  denmark:'dk',djibouti:'dj','dominican republic':'do',ecuador:'ec',egypt:'eg','el salvador':'sv',estonia:'ee',eswatini:'sz',ethiopia:'et',fiji:'fj',
+  finland:'fi',france:'fr',gabon:'ga',gambia:'gm',georgia:'ge',germany:'de',ghana:'gh',greece:'gr',greenland:'gl',guatemala:'gt',
+  guinea:'gn',guyana:'gy',haiti:'ht',honduras:'hn',hungary:'hu',iceland:'is',india:'in',indonesia:'id',iran:'ir',iraq:'iq',
+  ireland:'ie',israel:'il',italy:'it','ivory coast':'ci',jamaica:'jm',japan:'jp',jordan:'jo',kazakhstan:'kz',kenya:'ke',kuwait:'kw',
+  kyrgyzstan:'kg',laos:'la',latvia:'lv',lebanon:'lb',lesotho:'ls',liberia:'lr',libya:'ly',liechtenstein:'li',lithuania:'lt',luxembourg:'lu',
+  madagascar:'mg',malawi:'mw',malaysia:'my',maldives:'mv',mali:'ml',malta:'mt',mauritius:'mu',mexico:'mx',moldova:'md',monaco:'mc',
+  mongolia:'mn',montenegro:'me',morocco:'ma',mozambique:'mz',myanmar:'mm',namibia:'na',nepal:'np',netherlands:'nl','new zealand':'nz',nicaragua:'ni',
+  niger:'ne',nigeria:'ng','north korea':'kp','north macedonia':'mk',norway:'no',oman:'om',pakistan:'pk',panama:'pa','papua new guinea':'pg',paraguay:'py',
+  peru:'pe',philippines:'ph',poland:'pl',portugal:'pt',qatar:'qa',romania:'ro',russia:'ru',rwanda:'rw','saudi arabia':'sa',senegal:'sn',
+  serbia:'rs',seychelles:'sc',singapore:'sg',slovakia:'sk',slovenia:'si','south africa':'za','south korea':'kr',korea:'kr','south sudan':'ss',spain:'es',
+  'sri lanka':'lk',sudan:'sd',suriname:'sr',sweden:'se',switzerland:'ch',syria:'sy',taiwan:'tw',tajikistan:'tj',tanzania:'tz',thailand:'th',
+  togo:'tg','trinidad and tobago':'tt',tunisia:'tn',turkey:'tr',turkmenistan:'tm',uganda:'ug',ukraine:'ua','united arab emirates':'ae','emirates':'ae',
+  'united kingdom':'gb',uk:'gb','great britain':'gb',england:'gb',scotland:'gb',wales:'gb','united states':'us','united states of america':'us',usa:'us',america:'us',
+  uruguay:'uy',uzbekistan:'uz',venezuela:'ve',vietnam:'vn',yemen:'ye',zambia:'zm',zimbabwe:'zw',
+  'costa del sol':'es',barcelona:'es',madrid:'es',bangkok:'th',phuket:'th','ban ta khun':'th','khao sok':'th',eilat:'il','tel aviv':'il',jerusalem:'il',
+  'ประเทศไทย':'th','ישראל':'il','ספרד':'es','תאילנד':'th',
+};
+const COUNTRY_NAME_ENTRIES=Object.entries(COUNTRY_NAMES).sort((a,b)=>b[0].length-a[0].length).map(([name,code])=>[normalize(name),code]);
 function normalize(value){return String(value||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim().replace(/\s+/g,' ')}
 function normalizeKey(value){return String(value||'').toLowerCase().replace(/[\s-]+/g,'_').replace(/_\d+$/,'')}
 

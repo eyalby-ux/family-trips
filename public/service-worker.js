@@ -1,4 +1,4 @@
-const CACHE = 'family-trips-alpha-0.6.3-shell-v1';
+const CACHE = 'family-trips-alpha-0.6.4-shell-v1';
 const CACHE_PREFIX = 'family-trips-alpha-';
 const CORE = [
   './',

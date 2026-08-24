@@ -16,7 +16,7 @@ export async function analyzeHotelSource({trip,source,file,url}){
     submittedSource={kind:'url',url:String(url).trim(),name:String(source?.name||url)};
   }else{
     if(!file)throw new Error('יש לבחור PDF או תמונה.');
-    if(file.size>MAX_BINARY_BYTES)throw new Error('בגרסת 0.6.3 ניתן לנתח קובץ עד 4MB. אפשר לשמור אותו ללא ניתוח.');
+    if(file.size>MAX_BINARY_BYTES)throw new Error('בגרסת 0.6.4 ניתן לנתח קובץ עד 4MB. אפשר לשמור אותו ללא ניתוח.');
     submittedSource={
       kind:file.type==='application/pdf'?'pdf':'image',
       name:file.name,

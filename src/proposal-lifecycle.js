@@ -17,6 +17,10 @@ export function normalizeProposalLifecycle(suggestions = [], rejectedSuggestions
 
   for (const suggestion of suggestions) {
     if (suggestion?.status === 'rejected') archived.push(suggestion);
+    // Approved suggestions are fully represented by the item they created or updated;
+    // dropping them here (rather than relying on every display filter to hide them)
+    // guarantees an approved proposal can never resurface as pending on Home or Trip Center.
+    else if (suggestion?.status === 'approved') continue;
     else active.push(suggestion);
   }
   archived.push(...rejectedSuggestions.filter((suggestion) => suggestion?.status === 'rejected'));

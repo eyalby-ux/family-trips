@@ -1,14 +1,14 @@
 {
   "name": "family-trips-alpha-v6",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "private": true,
-  "description": "Family Trips Alpha 0.6.3 Hotel-first Smart Import deterministic Netlify environment reset",
+  "description": "Family Trips Alpha 0.6.4 Hotel-first Smart Import correction package",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "test": "node tests/smoke.mjs && node tests/v4-ingestion.mjs && node tests/v4-correction.mjs && node tests/v5-ingestion.mjs && node tests/v5-external-import.mjs && node tests/v5-operational.mjs && node tests/v5-correction.mjs && node tests/v5-offline.mjs && node tests/v5-stabilization.mjs && node tests/v5-intake-reset.mjs && node tests/v5-range-boundary.mjs && node tests/v6-smart-import.mjs",
+    "test": "node tests/smoke.mjs && node tests/v4-ingestion.mjs && node tests/v4-correction.mjs && node tests/v5-ingestion.mjs && node tests/v5-external-import.mjs && node tests/v5-operational.mjs && node tests/v5-correction.mjs && node tests/v5-offline.mjs && node tests/v5-stabilization.mjs && node tests/v5-intake-reset.mjs && node tests/v5-range-boundary.mjs && node tests/v6-smart-import.mjs && node tests/v6-correction.mjs",
     "check": "node --check src/main.js && node --check src/firebase.js && node --check src/legacy-app.js && node --check src/ingestion.js && node --check src/content-extraction.js && node --check src/external-import.js && node --check src/operational-data.js && node --check src/proposal-lifecycle.js && node --check src/smart-import-client.js && node --check src/smart-import-adapter.js && node --check src/v5-app.js && node --check public/service-worker.js && node --check netlify/functions/smart-import.mjs && npm test && npm run build"
   },
   "dependencies": {
