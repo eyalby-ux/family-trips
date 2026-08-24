@@ -164,7 +164,16 @@ function test_V6_F18_url_scheme_normalized(){
 
   const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
   assert.match(app,/url=normalizeUrlInput\(document\.querySelector\('#source-url'\)\?\.value\)/,'the Add → Link flow must normalize the entered URL before validating/saving it');
-  console.log('PASS: V6-F18 a bare-domain URL entered without an explicit scheme is normalized to https:// and accepted');
+
+  // The field itself must not be type="url": a browser's native URL constraint validation
+  // rejects a bare domain (e.g. shows a "Please enter a URL." tooltip) and blocks the click
+  // handler from ever running, so normalizeUrlInput() never gets a chance to execute — this
+  // is the exact path a real user hits, not just the underlying function in isolation.
+  const sourceUrlTag=app.match(/<input id="source-url"[^>]*>/)?.[0];
+  assert(sourceUrlTag,'the Add → Link URL field must exist');
+  assert(!/\btype="url"/.test(sourceUrlTag),'the URL field must not be type="url", or the browser blocks the value before app code (and normalizeUrlInput) ever runs');
+  assert.match(sourceUrlTag,/\btype="text"/,'the URL field must be a plain text field so the app\'s own normalization/validation runs on exactly what the user typed');
+  console.log('PASS: V6-F18 a bare-domain URL entered without an explicit scheme is normalized to https:// and accepted, and the field itself cannot block it via native browser validation');
 }
 test_V6_F18_url_scheme_normalized();
 
