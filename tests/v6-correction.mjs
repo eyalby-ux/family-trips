@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {smartImportResultToSuggestion,preserveTrustedFieldsOnMerge} from '../src/smart-import-adapter.js';
-import {suggestionToItem} from '../src/ingestion.js';
+import {normalizeUrlInput,suggestionToItem} from '../src/ingestion.js';
 import {backfillTripDates} from '../src/operational-data.js';
 import {normalizeProposalLifecycle} from '../src/proposal-lifecycle.js';
 import {country} from '../netlify/functions/_shared/place-validation.mjs';
@@ -151,5 +151,21 @@ const now=new Date('2027-01-20T12:00:00Z');
   assert.match(app,/action==='analyze-source'\)await analyzeSavedSource/);
   console.log('PASS: V6-F10 a save-only source keeps a later explicit Analyze action available');
 }
+
+// --- V6-F18: a bare-domain URL (no explicit https://) must be normalized, not rejected ---
+function test_V6_F18_url_scheme_normalized(){
+  assert.equal(normalizeUrlInput('www.phangan.co.il'),'https://www.phangan.co.il','a valid bare domain must be accepted with https:// prepended');
+  assert.equal(normalizeUrlInput('phangan.co.il/hotels/panvaree'),'https://phangan.co.il/hotels/panvaree','a bare domain with a path must also be normalized');
+  assert.equal(normalizeUrlInput('https://www.phangan.co.il'),'https://www.phangan.co.il','a URL that already has a scheme must be left unchanged');
+  assert.equal(normalizeUrlInput('http://www.phangan.co.il'),'http://www.phangan.co.il','an explicit http:// scheme must also be left unchanged');
+  assert.equal(normalizeUrlInput('not a url'),'not a url','text that is not a plausible domain must be left unchanged so normal validation still rejects it');
+  const normalized=normalizeUrlInput('www.phangan.co.il');
+  assert.doesNotThrow(()=>{const parsed=new URL(normalized);assert.equal(parsed.protocol,'https:')},'the normalized value must be accepted as a valid HTTPS URL, matching the client-side link validator');
+
+  const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
+  assert.match(app,/url=normalizeUrlInput\(document\.querySelector\('#source-url'\)\?\.value\)/,'the Add → Link flow must normalize the entered URL before validating/saving it');
+  console.log('PASS: V6-F18 a bare-domain URL entered without an explicit scheme is normalized to https:// and accepted');
+}
+test_V6_F18_url_scheme_normalized();
 
 console.log('ALL PASS: Alpha 0.6.4 correction package regression suite');

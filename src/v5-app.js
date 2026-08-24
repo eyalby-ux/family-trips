@@ -1,4 +1,4 @@
-import {ITEM_TYPES,TYPE_FIELDS,createSuggestions,findPossibleDuplicates,mapsUrl,suggestionToItem,validateSource} from './ingestion.js';
+import {ITEM_TYPES,TYPE_FIELDS,createSuggestions,findPossibleDuplicates,mapsUrl,normalizeUrlInput,suggestionToItem,validateSource} from './ingestion.js';
 import {extractSourceContent,sha256File} from './content-extraction.js';
 import {MultipartQrCollector,decodeExternalText,importBatchToApp} from './external-import.js';
 import {availableTimelineModes,backfillTripDates,currentOperational,isItemOutsideTrip,normalizeDateRange,normalizeOperationalState,packingDuplicate,periodBounds,quickAccessTasks,shiftCursor,uniqueRecordsById} from './operational-data.js';
@@ -151,7 +151,7 @@ async function runSmartAnalysis(source,file,targetItem=null){
 }
 async function smartIngest(){
   if(ingestBusy)return;
-  ensureTrip({name:'טיול חדש'});const kind=state.modal.source,mode=document.querySelector('input[name="processing-mode"]:checked')?.value||'analyze',file=kind==='link'?null:pendingSourceFile,url=document.querySelector('#source-url')?.value?.trim();
+  ensureTrip({name:'טיול חדש'});const kind=state.modal.source,mode=document.querySelector('input[name="processing-mode"]:checked')?.value||'analyze',file=kind==='link'?null:pendingSourceFile,url=normalizeUrlInput(document.querySelector('#source-url')?.value);
   try{validateSmartSource(kind,file,url)}catch(error){alert(error.message);return}
   ingestBusy=true;
   try{

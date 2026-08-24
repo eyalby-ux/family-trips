@@ -114,6 +114,16 @@ export function validateSource({kind,file,url}){
   if(!file)return {ok:false,error:'יש לבחור קובץ PDF'};const supported=file.type==='application/pdf'||String(file.name||'').toLowerCase().endsWith('.pdf');if(!supported)return {ok:false,error:'ב־0.5.6 אפשר לבדוק במסלול זה קובצי PDF בלבד'};if(file.size>15*1024*1024)return {ok:false,error:'הקובץ גדול מ־15MB'};return {ok:true};
 }
 export function mapsUrl(location=''){const value=String(location).trim();return value?`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(value)}`:''}
+const BARE_DOMAIN=/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}(?:[/?#][^\s]*)?$/i;
+// Per FAMILYTRIPS_EXTERNAL_INGESTION_MODEL_INSTRUCTIONS_V5.md 4.3: completing https:// for an
+// explicit, valid-looking domain is permitted. A URL that already has a scheme is left as-is;
+// anything that doesn't look like a bare domain is returned unchanged so normal validation
+// still rejects it.
+export function normalizeUrlInput(value){
+  const trimmed=String(value||'').trim();
+  if(!trimmed||/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed))return trimmed;
+  return BARE_DOMAIN.test(trimmed)?`https://${trimmed}`:trimmed;
+}
 function isSafeConfirmation(candidate,text,index){if(/^(SCREENSHOT|YITZHAK|IMAGE|PHOTO|BOOKING|RESERVATION)$/i.test(candidate))return false;if(new RegExp(`^[A-Z]{2}\\d{2,4}$`,'i').test(candidate))return false;const before=text.slice(Math.max(0,index-20),index).toLowerCase();return !/flight\s*(?:no|number)?\s*$/.test(before)}
 function contextLabel(text,index){return text.slice(Math.max(0,index-35),index).match(/(check[ -]?in|check[ -]?out|departure|arrival|start|end|יציאה|הגעה|כניסה|עזיבה)[^\n]{0,20}$/i)?.[1]||''}
 function stopAtNextLabel(value){return value.split(/\s+(?:check[ -]?in|check[ -]?out|phone|tel|booking|confirmation|arrival|departure)\s*[:#-]?/i)[0]}
