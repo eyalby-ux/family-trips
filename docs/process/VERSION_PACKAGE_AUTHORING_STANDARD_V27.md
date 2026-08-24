@@ -2,7 +2,7 @@
 
 Status: Mandatory project process  
 Version naming: `V1`, `V2`, `V3`, `V4`, and so on  
-Document revision: `V22`
+Document revision: `V27`
 
 ## Document change history
 
@@ -28,8 +28,13 @@ Document revision: `V22`
 | V18 | 2026-08-12 | Alpha 0.5.6 focused correction package | Recorded final 0.5.5 NO-GO handoff, the single-blocker `V5-F27` correction, mandatory preservation of passed 0.5.5 evidence, executable test session V112, exact no-build QA deployment evidence and the continued block on Alpha 0.6 until explicit 0.5.6 GO. |
 | V19 | 2026-08-14 | Alpha 0.6.0 Hotel-first Smart Import package | Recorded the accepted 0.5.6 Production handoff, passed V11/V13 measured entry gate, complete-runtime/function package, server-only configuration helper, invitation/quota boundary, executable test session V121 and exact no-build QA deployment requirement. |
 | V20 | 2026-08-15 | Alpha 0.6.1 fixed-QA correction package | Recorded `V6-F01`, required the 0.6.0 QA handoff on `version/V6`, added a dedicated fixed-QA deployment helper using `--alias qa --no-build`, prohibited per-version QA aliases, and advanced acceptance to V122 without changing Smart Import product scope. |
-| V22 | 2026-08-15 | Alpha 0.6.3 deterministic Netlify environment reset | Recorded `V6-F03` after the 0.6.2 existing-variable detector failed. Required complete-package replacement over 0.6.0, 0.6.1 or 0.6.2, deterministic removal and immediate recreation of the four QA-only variables, automatic retention of the Product Owner invitation, fixed-QA deployment and executable test session V124. |
 | V21 | 2026-08-15 | Alpha 0.6.2 Netlify environment correction | Recorded `V6-F02`; required complete-package replacement over 0.6.0 or 0.6.1, separate create/update paths for Netlify variables, automatic retention of the Product Owner invitation, fixed-QA deployment, and executable test session V123. |
+| V22 | 2026-08-15 | Alpha 0.6.3 deterministic Netlify environment reset | Recorded `V6-F03` after the 0.6.2 existing-variable detector failed. Required complete-package replacement over 0.6.0, 0.6.1 or 0.6.2, deterministic removal and immediate recreation of the four QA-only variables, automatic retention of the Product Owner invitation, fixed-QA deployment and executable test session V124. |
+| V23 | 2026-08-19 | Process improvement — regression-test traceability | Added the mandatory rule that a finding may be marked `Fixed` only when the package includes a named automated regression test tied to its finding ID (new section below). Triggered by `V4-F04` — closed in Alpha 0.5 without a permanent regression test — recurring as `V6-F06` in Alpha 0.6.3. Applied retroactively: closing `V6-F06` must also add the missing `V4-F04` regression test. Cross-referenced from the finding-register and responsibility-split sections. No other process, scope, or product rule changed. |
+| V24 | 2026-08-23 | Process improvement — mandatory non-benchmark wild-card test | Added the mandatory rule that every executable acceptance session must include at least one real, non-canonical "wild-card" source document as a first-class numbered test, not informal supplementary evidence (new section below). Triggered by the Alpha 0.6.3 session itself: a non-canonical Panan Krabi Resort booking, tested informally outside the numbered Test 1–12 sequence, surfaced `V6-F08` and `V6-F13` — defects the frozen H-001–H-005 canonical benchmark set did not catch. Cross-referenced from the acceptance-session-completion section and the complete-lifecycle step that runs the acceptance session. No other process, scope, or product rule changed. |
+| V25 | 2026-08-23 | Process improvement — current-state/history split for bloated living documents | Added a new mandatory rule ("Current-state / history split for a bloated living document" below) requiring any living reference document that mixes current-state content with completed historical narrative, or exceeds approximately 20 revisions, to be split into a `_CURRENT_STATE_` document (updated in place) and an append-only `_HISTORY_` document, with the retired original replaced by a short pointer stub. Applied immediately to the two worst offenders: `ARCHITECTURE_SNAPSHOT_V21.md` was split into `ARCHITECTURE_CURRENT_STATE_V1.md` and `ARCHITECTURE_DECISION_HISTORY_V1.md` (stub: `ARCHITECTURE_SNAPSHOT_V22.md`); `FAMILY_TRIPS_THAILAND_MVP_DELIVERY_PLAN_V72.md` (internal revision V79) was split into `MVP_DELIVERY_PLAN_CURRENT_STATE_V1.md` and `MVP_DELIVERY_HISTORY_V1.md` (stub: `FAMILY_TRIPS_THAILAND_MVP_DELIVERY_PLAN_V80.md`). No architecture rule, MVP scope item, or historical fact was altered in either split. This revision also corrects an oversight from V23/V24: superseded revisions of this very document (`V22.md`, `V23.md`, `V24.md`) were left in the project directory instead of being retired, in violation of the one-current-file-per-lineage rule below; they are removed as part of this revision, leaving only this V25 file. |
+| V26 | 2026-08-24 | Alpha 0.6.4 focused correction package | Recorded Product Owner approval, following the Alpha 0.6.3 acceptance-session NO-GO (`EXECUTABLE_TEST_SESSION_V124.md`, revision V142) and the completed finding-assignment gate, of a fourth focused correction candidate: `0.6.4`, scoped to twelve assigned findings (`V6-F04`, `V6-F05`, `V6-F06`, `V6-F07`, `V6-F08`, `V6-F09`, `V6-F10`, `V6-F11`, `V6-F12`, `V6-F13`, `V6-F15`, `V6-F17`). Added the `0.6.4` candidate definition to the "For V6" version-naming list, mirroring the 0.6.1–0.6.3 pattern: complete-runtime/Functions package replacing any of the 0.6.0–0.6.3 QA handoffs, fixed `qa` alias, `--no-build` deployment of the untouched built artifact, retained Product Owner invitation. Carries forward the retroactive `V4-F04` regression test as a closure condition on `V6-F06` per the V23 rule, and the `V6-F09` H-001 source-accuracy open question as an implementation/documentation verification step. Also records that two findings (`V6-F14`, `V6-F16`) were deferred to Beta 0.8 rather than included in `0.6.4`, and that Flight/boarding-pass Smart Import — newly approved scope — is sequenced as a separate `0.6.5` candidate rather than bundled into `0.6.4`, per the Product Owner's risk-based decision; Activity Smart Import remains blocked pending the Activities Trip-item type and is out of scope for both `0.6.4` and `0.6.5`. No other process rule changed. |
+| V27 | 2026-08-24 | Alpha 0.6.4 session preparation; correction of V26 finding descriptions; repo sync | Corrected three mislabeled finding descriptions introduced in `V26` (`V6-F04`, `V6-F05`, `V6-F07`) against the verbatim finding text in `EXECUTABLE_TEST_SESSION_V124.md` — no finding's assignment, target version, or severity was affected, only in-line description text. Recorded that the `0.6.4` correction-package scope was written up in full detail as `FAMILY_TRIPS_ALPHA_0_6_4_CORRECTION_SCOPE_V1.md` and its executable test session prepared as `EXECUTABLE_TEST_SESSION_V143.md`. This revision also restores this document as the single current copy inside the FamilyTrips repository itself: the repository's own `docs/process/VERSION_PACKAGE_AUTHORING_STANDARD_V22.md` had fallen four revisions behind (missing the V23 mandatory-regression-test rule, the V24 mandatory wild-card-document rule, the V25 current-state/history split rule, and the V26 `0.6.4` candidate definition) because Alpha 0.5 and 0.6 development happened directly against the local working tree and was never synchronized back into the repository's own process documentation. `V22.md` is retired and replaced by this `V27.md` file, per the one-current-file-per-lineage rule below. |
 
 ## Controlled-document revision rule
 
@@ -42,6 +47,7 @@ Every controlled project document must contain a `Document revision` in the form
 - When one work stage changes several controlled documents, every touched document increments its own revision by one and receives its own history row.
 - The filename revision and the internal `Document revision` must always match; for example, revision `V9` is stored as `<DOCUMENT_NAME>_V9.md`.
 - Updating the filename must preserve the existing Library file identity and version history. Do not create duplicate copies or use ambiguous suffixes such as `(1)` or `(2)`.
+- Only one current file may exist per document lineage at any time. When a revision replaces the previous one, the previous file is removed once the new one is in place — never left sitting alongside it. The one exception is a deliberate current-state/history split (see below), which retires the original behind an explicit stub rather than a plain increment.
 - Formatting-only changes that alter the stored file still count as a document change and require the next revision, unless they are part of the same uncommitted edit as the content change already recorded.
 - A package may not be delivered when a changed controlled document's filename, internal revision and latest change-history row do not all show the same new `Vx`.
 
@@ -52,7 +58,7 @@ The development phase is performed by ChatGPT / the Development Agent without st
 ChatGPT / Development Agent must:
 
 - implement the approved version scope;
-- update code, tests, release documents, and the authoritative delivery plan;
+- update code, tests, release documents, and the authoritative delivery plan, including one named automated regression test for every finding the package marks `Fixed` (see "Mandatory regression test per closed finding" below);
 - run every automated or tool-accessible check;
 - create one installable version package;
 - provide one installer and one rollback path;
@@ -71,6 +77,7 @@ The user must not manually edit code, apply patches, fill release records, or pa
 
 An installed candidate is tested to the end of its approved executable acceptance session before a new correction package is planned or created.
 
+- Every session includes the mandatory non-benchmark wild-card document test as a numbered test in the session sequence, not informal supplementary evidence (see "Mandatory wild-card document per acceptance session" below).
 - Findings discovered during testing are recorded immediately, but discovery alone does not assign them to a correction release.
 - While the acceptance session is still open, the target is recorded explicitly as `TBD after acceptance completion`, together with the candidate versions under consideration.
 - The remaining tests continue so that the correction decision is based on the complete finding set and regression picture.
@@ -86,24 +93,18 @@ At the end of the acceptance session, every open finding is assigned to one of:
 
 The assignment must consider severity, data-loss risk, release-blocker status, architecture fit, implementation breadth, and whether the finding is required to complete the tested version's approved scope.
 
-## Complete lifecycle
+## Mandatory wild-card document per acceptance session
 
-1. verify `main` and the accepted previous version;
-2. verify environment and quality gate;
-3. create the version branch;
-4. Development Agent implements the complete approved scope;
-5. Development Agent updates tests and documents;
-6. Development Agent builds the installation package;
-7. Product Owner installs the completed package;
-8. ChatGPT runs the executable acceptance session, one user test at a time;
-9. record every finding immediately, using `TBD after acceptance completion` until assignment is approved;
-10. complete the acceptance session and short regression unless a documented safety stop applies;
-11. classify and assign every finding to an explicit target version or disposition;
-12. update the version documents and authoritative delivery plan;
-13. create a correction package only if the approved assignment requires one;
-14. deploy and close;
-15. merge or PR back to `main`;
-16. update the authoritative delivery plan with final evidence and status.
+Every executable acceptance test session must include at least one real, non-canonical "wild-card" source document — a genuine document the Product Owner actually has, not part of the frozen canonical benchmark set (`H-001`–`H-005` for Hotel-first Smart Import, and the equivalent frozen set for any later category) and not synthesized or crafted to probe a specific known gap. This is run as a first-class numbered test with its own PASS/FAIL entry in the session's test results log — not gathered informally outside the numbered sequence and folded into another finding's evidence after the fact.
+
+This rule exists because the canonical benchmark set is the same fixed handful of documents used repeatedly to build and validate Smart Import, so a clean pass across it demonstrates fit to that set, not generalization to real, unseen input. The Alpha 0.6.3 session already proved the point: a non-canonical Panan Krabi Resort booking, tested informally outside the Test 1–12 sequence and recorded only as supplementary evidence, surfaced two defects — `V6-F08` (detected check-in/check-out times not persisted) and `V6-F13` (an internally resolved evidence conflict not surfaced as `needs_review`) — that the canonical H-001–H-005 set never exposed. Because that testing happened off the books, its absence from the formal record was accidental rather than a designed control; this rule makes it a designed one.
+
+- The wild-card document must be real, not previously used as a benchmark or wild-card case in any prior accepted session for this category. Reusing the same wild-card document across sessions turns it into a de facto benchmark and defeats the purpose; each session should draw a fresh one where a fresh one exists.
+- It is tested with the same review-before-apply discipline, evidence requirements, and PASS criteria as every canonical benchmark test in the session.
+- Findings discovered against the wild-card document follow the same mandatory finding register as any other finding: recorded immediately, target `TBD after acceptance completion` while the session is open, assigned at session close.
+- If no suitable wild-card document exists for a given release's scope (for example, a category with no real documents yet in hand), the session records this explicitly with rationale in its change history. Silent omission is not permitted — an absent wild-card test must be a visible, justified decision, not an accidental gap.
+- The document used, and any finding IDs it produced, are recorded in the session's change history so that later sessions can verify a fresh document was drawn rather than the same one being re-tested.
+- This rule adds one mandatory test to each session; it does not replace or reduce the canonical benchmark tests, and it does not change how findings are discovered, assigned, or prioritized under the sections above.
 
 ## Mandatory finding register
 
@@ -118,7 +119,7 @@ During acceptance, the version lifecycle documents and the authoritative deliver
 - assignment status: `TBD`, `Assigned`, `Fixed`, `Deferred`, or `Accepted`;
 - rationale and retest requirement.
 
-The register is updated at four points: discovery, target assignment, implementation, and verification. A finding may remain `TBD` only while the current acceptance session is open. It must have an explicit target or disposition before a new implementation package is created.
+The register is updated at four points: discovery, target assignment, implementation, and verification. A finding may remain `TBD` only while the current acceptance session is open. It must have an explicit target or disposition before a new implementation package is created. A status of `Fixed` may not be recorded until the finding's named regression test exists and passes; see "Mandatory regression test per closed finding" below.
 
 ### Final V4 / Alpha 0.4 acceptance register
 
@@ -139,15 +140,46 @@ This synchronized snapshot records the final Alpha 0.4 evidence. Alpha 0.4.4 foc
 
 Final disposition approved by the Product Owner on 2026-08-03: 0.4.4 is NO-GO and must not be promoted; 0.4.3 remains Production. V4-F04, V4-F11, V4-F12 and V4-F13 are assigned to Alpha 0.5. No further Alpha 0.4 user tests remain.
 
+## Mandatory regression test per closed finding
+
+A finding may be marked `Fixed` in the register only when the package includes an automated regression test that fails if the defect recurs. This rule exists because `V4-F04` was marked `Fixed` in Alpha 0.5 without a permanent test, and the same defect later reappeared, undetected by any automated check, as `V6-F06` in Alpha 0.6.3. The finding register tracked its status correctly; nothing in the codebase would have caught it coming back. This rule closes that gap.
+
+- The test's name or identifier must reference the finding ID exactly, in the project's test framework's convention — for example `test_V4_F04_new_item_defaults_to_trip_start` or an equivalent traceable form. A generic or unrelated test name does not satisfy this rule.
+- The test asserts the specific expected behavior recorded in the finding register (observed behavior vs. expected behavior), not merely that the surrounding code runs without error.
+- A finding may not be recorded as `Fixed` in the register, and a correction package may not close it, while its regression test is missing, disabled, commented out, or skipped.
+- The regression test is added to the permanent automated test suite, not to a one-off or manual test script; it must run on every subsequent package, not only the package that closes the finding.
+- If a `Fixed` finding regresses later, its reopening must reference why the existing regression test did not catch the recurrence — for example, the test was too narrow, was accidentally removed, or the regression is in a code path the original test did not cover — before a new correction is authored. The corrected test replaces or supplements the original; a regression is never re-closed without strengthening or restoring its test.
+- This requirement is retroactive for findings already marked `Fixed` without an associated test. `V4-F04` is the known case: the package that closes `V6-F06` must also add the missing `V4-F04` regression test, covering both the original defect and its recurrence, before either finding is recorded as `Fixed`.
+- This rule adds a permanent, automated check; it does not replace Product Owner acceptance testing, and it does not change how findings are discovered, assigned, or prioritized under the sections above.
+
+## Complete lifecycle
+
+1. verify `main` and the accepted previous version;
+2. verify environment and quality gate;
+3. create the version branch;
+4. Development Agent implements the complete approved scope;
+5. Development Agent updates tests and documents, including one named regression test per finding the package marks `Fixed`;
+6. Development Agent builds the installation package;
+7. Product Owner installs the completed package;
+8. ChatGPT runs the executable acceptance session, one user test at a time, including the mandatory non-benchmark wild-card document test (see "Mandatory wild-card document per acceptance session");
+9. record every finding immediately, using `TBD after acceptance completion` until assignment is approved;
+10. complete the acceptance session and short regression unless a documented safety stop applies;
+11. classify and assign every finding to an explicit target version or disposition;
+12. update the version documents and authoritative delivery plan;
+13. create a correction package only if the approved assignment requires one;
+14. deploy and close;
+15. merge or PR back to `main`;
+16. update the authoritative delivery plan with final evidence and status.
+
 ## Package content
 
 Every package contains:
 
 - changed application files;
-- automated tests;
+- automated tests, including one named regression test per finding closed in this package (see "Mandatory regression test per closed finding");
 - the current revision of `docs/process/VERSION_PACKAGE_AUTHORING_STANDARD_Vx.md`;
 - `docs/versions/<VERSION>/` lifecycle documents;
-- the approved delivery plan under `docs/roadmap/`;
+- the approved delivery plan under `docs/roadmap/` — its current-state document if the plan has undergone a current-state/history split (see below);
 - a single installation script;
 - a rollback script;
 - an executable test session.
@@ -207,14 +239,33 @@ For V6:
 - the helper must remove each of the four Alpha 0.6 QA variables with `--force` and immediately recreate it with Functions scope and only `deploy-preview`/`branch-deploy`; it must not depend on parsing `env:list` output or deploy during configuration;
 - the Product Owner email is mandatory in the active invitation allowlist and additional invitees are merged rather than replacing it;
 - acceptance uses `EXECUTABLE_TEST_SESSION_V124.md`, the fixed `qa` alias and the untouched built artifact; Production remains blocked until explicit Product Owner GO.
+- fourth focused correction package: `FAMILY_TRIPS_ALPHA_0_6_4_CORRECTION.zip`;
+- correction candidate version: `0.6.4`; approved by the Product Owner on 2026-08-24 following the Alpha 0.6.3 acceptance-session NO-GO and completed finding-assignment gate;
+- installer accepts the 0.6.0, 0.6.1, 0.6.2 or installed 0.6.3 QA handoff on `version/V6` because it replaces the complete runtime and Functions; preserves a timestamped external rollback backup; retains the fixed `qa` alias and `--no-build` deployment of the untouched built artifact; automatically retains the Product Owner invitation; Production remains blocked until explicit Product Owner GO;
+- scope: twelve assigned findings — `V6-F04` (dates detected by extraction but not persisted to structured date fields), `V6-F05` (selecting a PDF via Add requires three attempts before the file is accepted), `V6-F06` (Trip-start-date default not applied after Trip dates are set — recurrence of `V4-F04`), `V6-F07` (an already-approved proposal still shown as pending on Home), `V6-F08` (detected check-in/check-out times, and itinerary/room confirmation numbers, not persisted to structured fields), `V6-F09` (website/URL not recognized at all, phone only partially recognized — including the open H-001 accuracy question carried forward as a verification step), `V6-F10` (no later explicit-analysis action available after Save-only), `V6-F11` (no analysis-progress indication, plus a false "no document selected" error while analysis is running), `V6-F12` (booking number, supplier and phone shown with evidence but not pre-filled into the confirmation form), `V6-F13` (an internally resolved evidence conflict not surfaced as `needs_review`), `V6-F15` (Attach-and-extract blanks a previously-saved trusted date — data-loss-risk finding), and `V6-F17` (place validation rejects a country already evidenced by a full extracted address);
+- excluded scope: `V6-F14` and `V6-F16` (deferred to Beta 0.8 as visual/interaction refinements — notes-field scope-down and unifying the two-button Photo/PDF add-document selector); Flight/boarding-pass Smart Import (approved new scope, sequenced separately as candidate `0.6.5` per the Product Owner's risk-based decision, not bundled into `0.6.4`); Activity Smart Import (blocked — Activities do not yet exist as a Trip item type; out of scope for both `0.6.4` and `0.6.5`);
+- mandatory closure condition: the package that closes `V6-F06` must also add the retroactive `V4-F04` regression test required by the V23 rule (see "Mandatory regression test per closed finding"), covering both the original defect and its recurrence, before either finding is recorded as `Fixed`;
+- full per-finding fix specifications, root-cause groupings and acceptance criteria are in `docs/versions/V6/FAMILY_TRIPS_ALPHA_0_6_4_CORRECTION_SCOPE_V1.md`;
+- this candidate does not require an `UPGRADE_<prev>_TO_<new>_WINDOWS.md` guide under `CODEX_INSTRUCTIONS.md`'s Mandatory Upgrade Guide Rule — see that document's scope carve-out, added alongside this revision;
+- acceptance uses a new executable test session, prepared as `EXECUTABLE_TEST_SESSION_V143.md`, focused on the twelve assigned findings plus a short regression covering the confirmed-working areas from `EXECUTABLE_TEST_SESSION_V124.md`; Production remains blocked until explicit Product Owner GO.
 
 When a rejected patch candidate remains installed in the local test repository, the next-version installer must not force the Product Owner to edit files or manually reconstruct the accepted baseline. It may support that state only when it can prove that all candidate-modified runtime files are replaced by the new payload, takes a complete rollback backup first, preserves the recorded Production baseline, and states that the rejected candidate remains NO-GO.
 
 ## Source of truth
 
-The approved delivery plan is the only scope and roadmap source. It must be included in every future release package.
+The approved delivery plan is the only scope and roadmap source. It must be included in every future release package. Where the delivery plan has undergone a current-state/history split, "the approved delivery plan" means its current-state document; the history document is background reference only.
 
 The version lifecycle documents hold detailed execution evidence. The delivery plan holds the authoritative target-version assignment. When either changes, the other must be updated in the same work stage so that no finding has conflicting destinations.
+
+## Current-state / history split for a bloated living document
+
+A controlled reference document that accumulates both current-truth content (rules, scope, status) and narrative history (checkpoints, evidence, past decisions) in the same file eventually becomes too large to safely read or edit, and its embedded history can silently drift out of sync with what is actually true now. `ARCHITECTURE_SNAPSHOT_V21.md` (21 revisions) and `FAMILY_TRIPS_THAILAND_MVP_DELIVERY_PLAN_V72.md` (79 revisions) both reached this state before being split on 2026-08-23; this rule prevents the next living document from getting there unnoticed.
+
+- A living reference document must be split into two documents once it mixes forward-looking/current-state content with completed historical narrative and its revision count exceeds approximately 20 — whichever condition is reached first: a `_CURRENT_STATE_` document holding only what is true or planned right now, updated in place going forward; and a `_HISTORY_` document holding the append-only historical record — completed scope, checkpoints, evidence, superseded decisions — which is never rewritten, only appended to.
+- The current-state document is the one referenced by "Package content," `docs/roadmap/`, and day-to-day work. The history document is background reference, consulted only when the reason behind a current rule or the detail of a past checkpoint is in question.
+- When a document is split, the retired original is replaced by a short stub at the next revision number that explains the split and points to both successor documents. It is never left in place unremarked and never silently deleted without a stub, since another document, package, or person may still reference its filename.
+- Splitting a document is itself a process action: it requires its own changelog rows (one for each new/successor document, one for the retiring stub) and must not alter any rule, scope item, or historical fact in the process — content moves, but nothing is reworded, summarized, or dropped.
+- This is the one exception to the plain one-current-file replacement rule above: a split retires the original behind a stub rather than deleting it outright, because a structural split is a bigger change than an ordinary revision and deserves a discoverable trail.
 
 ## Closure
 

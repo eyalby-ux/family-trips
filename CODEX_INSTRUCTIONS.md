@@ -8,6 +8,8 @@ Every release after the first release must include a complete upgrade guide from
 
 A release is not complete and must not be described as ready until this guide exists and has been verified.
 
+Scope carve-out: This requirement applies to version-to-version releases (e.g. 0.2 → 0.2.1, 0.5.6 → 0.6.0) where the release introduces new functionality or migrates data/config in a way a user upgrading from the prior version needs to know about. It does NOT apply to a focused correction package that stays on the same minor version branch and replaces the complete runtime build (e.g. 0.6.1 → 0.6.2 → 0.6.3 → 0.6.4), since these are QA correction cycles, not version upgrades — the user always receives the full rebuilt application, not an incremental patch. Precedent: 0.4.1–0.4.4, 0.5.1–0.5.6, and 0.6.1–0.6.3 all followed this pattern without an upgrade guide, and no findings were raised against that precedent during acceptance testing.
+
 The guide must be written for Windows only unless the Product Owner explicitly requests another platform.
 
 It must include:
