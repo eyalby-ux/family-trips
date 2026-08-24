@@ -162,6 +162,12 @@ function test_V6_F18_url_scheme_normalized(){
   const normalized=normalizeUrlInput('www.phangan.co.il');
   assert.doesNotThrow(()=>{const parsed=new URL(normalized);assert.equal(parsed.protocol,'https:')},'the normalized value must be accepted as a valid HTTPS URL, matching the client-side link validator');
 
+  // Node's URL class implements the same WHATWG parser browsers use for type="url" constraint
+  // validation. Proving it throws on the raw bare domain is the actual mechanism that produced
+  // the "Please enter a URL." tooltip and blocked app code from ever running on a type="url"
+  // field — this is why the field itself must not be that type, not just a style preference.
+  assert.throws(()=>new URL('www.phangan.co.il'),'a bare domain is not a valid absolute URL to the WHATWG parser, which is exactly why a native type="url" field would have rejected it before any JS ran');
+
   const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
   assert.match(app,/url=normalizeUrlInput\(document\.querySelector\('#source-url'\)\?\.value\)/,'the Add → Link flow must normalize the entered URL before validating/saving it');
 
@@ -176,5 +182,43 @@ function test_V6_F18_url_scheme_normalized(){
   console.log('PASS: V6-F18 a bare-domain URL entered without an explicit scheme is normalized to https:// and accepted, and the field itself cannot block it via native browser validation');
 }
 test_V6_F18_url_scheme_normalized();
+
+// --- Native-validation audit: the website field (V6-F09) shares V6-F18's exact bug class ---
+// It sits inside real <form> elements (suggestion-form/manual-form/edit-item-form), so a
+// type="url" mismatch would block the browser's own submit event entirely, before the app's
+// preventDefault()-guarded handler ever runs — an even more certain block than the modal
+// button case V6-F18 fixed.
+function test_website_field_avoids_native_url_gate(){
+  const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
+  const websiteTag=app.match(/<input type="[^"]*"[^>]*name="website"[^>]*>/)?.[0];
+  assert(websiteTag,'the website field must exist in proposalFields');
+  assert(!/type="url"/.test(websiteTag),'the website field must not be type="url", or a bare-domain website (e.g. from a V6-F09 extraction) blocks form submission natively');
+  assert.match(websiteTag,/type="text"/,'the website field must be a plain text field so the app\'s own normalization runs');
+  const normalizeCalls=[...app.matchAll(/website:normalizeUrlInput\(data\.get\('website'\)\)/g)];
+  assert.equal(normalizeCalls.length,2,'both the suggestion-review submit handler and the manual/edit-item submit handler must normalize the website value on save');
+  console.log('PASS: website field (populated by V6-F09) avoids the same native type="url" gate as V6-F18 and normalizes its value on save');
+}
+test_website_field_avoids_native_url_gate();
+
+// --- Native-validation audit: startAt/endAt (V6-F04/F08/F06) are type="datetime-local" ---
+// A datetime-local field silently sanitizes an unparseable-or-nonexistent value to EMPTY, with
+// no tooltip and no error — unlike type="url" it doesn't block a click, it just makes a
+// captured date vanish from the review form without warning. dateTime() must reject a
+// shape-valid but nonexistent calendar date (e.g. 2027-02-30) before it ever reaches the field.
+function test_smart_import_rejects_invalid_calendar_date(){
+  const source={id:'source-cal',name:'cal.pdf',fingerprint:'cal'};
+  const badResult={attemptId:'a',usage:{},estimatedVariableCostUsd:0,latencyMs:1,draft:{proposalState:'proposed',meaningfulTitle:'Cal Hotel',propertyName:'Cal Hotel',fields:[
+    {key:'check_in_date',label:'Check-in',rawValue:'2027-02-30',normalizedValue:'2027-02-30',evidence:'Page 1',certainty:'exact'},
+  ],importantNotes:[],warnings:[],unresolved:[],explicitlyAbsent:[]},placeValidation:null};
+  const badSuggestion=smartImportResultToSuggestion(badResult,source);
+  assert.equal(badSuggestion.proposed.startAt,'','a shape-valid but nonexistent calendar date must not reach the datetime-local field, where the browser would silently blank it with no warning — reproducing V6-F04\'s symptom through a different mechanism');
+
+  const goodResult=JSON.parse(JSON.stringify(badResult));
+  goodResult.draft.fields[0].rawValue=goodResult.draft.fields[0].normalizedValue='2027-02-28';
+  const goodSuggestion=smartImportResultToSuggestion(goodResult,source);
+  assert.equal(goodSuggestion.proposed.startAt,'2027-02-28T12:00','a genuinely valid date must still persist normally');
+  console.log('PASS: a shape-valid but nonexistent calendar date is rejected before it can reach the datetime-local field and be silently blanked');
+}
+test_smart_import_rejects_invalid_calendar_date();
 
 console.log('ALL PASS: Alpha 0.6.4 correction package regression suite');
