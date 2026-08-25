@@ -1,4 +1,8 @@
-const CACHE = 'family-trips-alpha-0.6.4-shell-v1';
+// The CACHE placeholder below is resolved at build time by scripts/inject-build-version.mjs
+// from package.json's version plus the current git commit SHA, so every build gets a distinct
+// cache name automatically. Do not hand-edit the resolved value in dist/ — edit the
+// version/commit instead.
+const CACHE = 'family-trips-alpha-__BUILD_VERSION__-shell';
 const CACHE_PREFIX = 'family-trips-alpha-';
 const CORE = [
   './',

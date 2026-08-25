@@ -34,7 +34,7 @@ for (const marker of [
 const legacy = fs.readFileSync('src/legacy-app.js','utf8');
 if (!/function\s+sourceStep\s*\(/.test(legacy)) throw new Error('Create Item source step is missing');
 const sw = fs.readFileSync('public/service-worker.js','utf8');
-if (!sw.includes('family-trips-alpha-0.6.4-shell-v1')) throw new Error('Service Worker cache version mismatch');
+if (!sw.includes("const CACHE = 'family-trips-alpha-__BUILD_VERSION__-shell';")) throw new Error('Service Worker cache placeholder missing');
 if (!sw.includes('async function precache')) throw new Error('Production shell precache is missing');
 const manifest = JSON.parse(fs.readFileSync('public/manifest.webmanifest','utf8'));
 if (manifest.display !== 'standalone' || manifest.theme_color !== '#2f8f63') throw new Error('Manifest mismatch');

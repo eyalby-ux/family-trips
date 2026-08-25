@@ -4,6 +4,7 @@ import {smartImportResultToSuggestion,preserveTrustedFieldsOnMerge} from '../src
 import {normalizeUrlInput,suggestionToItem} from '../src/ingestion.js';
 import {backfillTripDates} from '../src/operational-data.js';
 import {normalizeProposalLifecycle} from '../src/proposal-lifecycle.js';
+import {PLACEHOLDER,injectServiceWorkerVersion,resolveBuildVersion} from '../scripts/inject-build-version.mjs';
 import {country} from '../netlify/functions/_shared/place-validation.mjs';
 
 const source={id:'source-1',name:'panvaree.pdf',fingerprint:'abc'};
@@ -220,5 +221,38 @@ function test_smart_import_rejects_invalid_calendar_date(){
   console.log('PASS: a shape-valid but nonexistent calendar date is rejected before it can reach the datetime-local field and be silently blanked');
 }
 test_smart_import_rejects_invalid_calendar_date();
+
+// --- Incident: service-worker cache version was never bumped across three V6-F18/audit fix
+// commits (all shipped byte-identical service-worker.js), so a browser that had already
+// registered the service worker from any earlier 0.6.4 deploy never detected an update and
+// kept serving a precached shell/bundle from before those fixes existed — no amount of
+// redeploying reached it. Manually bumping a -vN suffix relies on someone remembering to do it
+// every single release, which is exactly what failed. The cache name is now a build-time
+// template resolved automatically from package.json's version plus the git commit SHA
+// (scripts/inject-build-version.mjs), so every build gets a distinct cache name with no manual
+// step to forget.
+function test_service_worker_cache_auto_busts_every_build(){
+  const sw=fs.readFileSync(new URL('../public/service-worker.js',import.meta.url),'utf8');
+  assert(!sw.includes('family-trips-alpha-0.6.4-shell-v1'),'the stale 0.6.4-shell-v1 cache name (shipped unchanged across the V6-F18/website/date fix deploys, silently hiding all of them from already-registered browsers) must never return');
+  assert(!/shell-v\d+'/.test(sw),'the cache name must not go back to a manually-numbered -vN suffix — that convention is exactly what produced the incident');
+  assert.match(sw,/const CACHE = 'family-trips-alpha-__BUILD_VERSION__-shell';/,'the source template must declare the placeholder CACHE constant that inject-build-version.mjs resolves at build time, not a hardcoded literal');
+
+  const pkg=JSON.parse(fs.readFileSync(new URL('../package.json',import.meta.url),'utf8'));
+  assert.match(pkg.scripts.build,/node scripts\/inject-build-version\.mjs/,'the build script must run the injector after vite build so every dist/ output gets cache-busted automatically');
+
+  // Exercise the actual resolution logic the build uses, without depending on a real build
+  // having already run or on git being available in this environment.
+  assert.equal(resolveBuildVersion('0.6.4','a1b2c3d4'),'0.6.4-a1b2c3d4','version and commit SHA must combine into one distinct build identifier');
+  assert.equal(resolveBuildVersion('0.6.4',''),'0.6.4','a missing SHA (e.g. no git available) must still fall back to the version alone rather than crash the build');
+
+  const resolved=injectServiceWorkerVersion(sw,resolveBuildVersion(pkg.version,'a1b2c3d4'));
+  assert(!resolved.includes(PLACEHOLDER),'the placeholder must be fully resolved in the built output');
+  assert.match(resolved,new RegExp(`const CACHE = 'family-trips-alpha-${pkg.version}-a1b2c3d4-shell';`),'the resolved cache name must embed both the current package.json version and the commit SHA');
+
+  assert.throws(()=>injectServiceWorkerVersion('const CACHE = \'no-placeholder-here\';','1.0.0-abcd1234'),'if the placeholder is ever accidentally removed from the template, the build must fail loudly rather than silently ship an unbusted cache again');
+
+  console.log('PASS: the service worker cache name is derived automatically from package.json version + git SHA on every build, with no manual step to forget');
+}
+test_service_worker_cache_auto_busts_every_build();
 
 console.log('ALL PASS: Alpha 0.6.4 correction package regression suite');
