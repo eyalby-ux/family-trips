@@ -1,7 +1,7 @@
 import {ITEM_TYPES,TYPE_FIELDS,buildItemFormValues,createSuggestions,findPossibleDuplicates,manualCreateDefaults,mapsUrl,normalizeUrlInput,suggestionToItem,validateSource} from './ingestion.js';
 import {extractSourceContent,sha256File} from './content-extraction.js';
 import {MultipartQrCollector,decodeExternalText,importBatchToApp} from './external-import.js';
-import {availableTimelineModes,backfillTripDates,currentOperational,isItemOutsideTrip,normalizeDateRange,normalizeOperationalState,packingDuplicate,periodBounds,quickAccessTasks,shiftCursor,sortItemsByStartAt,uniqueRecordsById} from './operational-data.js';
+import {availableTimelineModes,backfillTripDates,currentOperational,isItemOutsideTrip,normalizeDateRange,normalizeOperationalState,packingDuplicate,periodBounds,quickAccessTasks,sanitizeTripDates,shiftCursor,sortItemsByStartAt,uniqueRecordsById} from './operational-data.js';
 import {normalizeProposalLifecycle,rejectProposal} from './proposal-lifecycle.js';
 import {analyzeHotelSource} from './smart-import-client.js';
 import {saveOnlySource,smartImportResultToSuggestion,preserveTrustedFieldsOnMerge} from './smart-import-adapter.js';
@@ -29,7 +29,7 @@ function warningText(value){return typeof value==='string'?value:value?.message|
 function dateOnly(value){return value?String(value).slice(0,10):''}
 function today(){return new Date().toISOString().slice(0,10)}
 function fmt(value,withTime=true){if(!value)return 'ללא תאריך';const date=new Date(value.length===10?`${value}T12:00:00`:value);return new Intl.DateTimeFormat('he-IL',withTime?{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}:{day:'numeric',month:'short',year:'numeric'}).format(date)}
-function ensureTrip(seed={}){if(!state.trip)state.trip={id:uid('trip'),name:seed.name||'הטיול המשפחתי שלי',startDate:seed.startDate||'',endDate:seed.endDate||'',createdAt:new Date().toISOString()};if(!state.packing.length)state.packing=defaultPacking();normalizeOperationalState(state)}
+function ensureTrip(seed={}){if(!state.trip){const dates=sanitizeTripDates(seed);state.trip={id:uid('trip'),name:seed.name||'הטיול המשפחתי שלי',startDate:dates.startDate,endDate:dates.endDate,createdAt:new Date().toISOString()}}if(!state.packing.length)state.packing=defaultPacking();normalizeOperationalState(state)}
 function defaultPacking(){return [{id:uid('pl'),name:'מסמכים וכסף',owner:'shared',items:['דרכונים','ביטוח נסיעות','כרטיסי אשראי'].map(name=>({id:uid('pi'),name,done:false,suggested:true,owner:'shared'}))}]}
 function route(view,options={}){stopCamera();if(view==='timeline'&&state.view!=='timeline'){state.timelineMode='all';state.timelineCursor=state.trip?.startDate||today();state.calendarDate=null}state.view=view;state.category=options.category||null;state.itemId=options.itemId||null;state.suggestionId=options.suggestionId||null;render();scrollTo(0,0)}
 function notify(text){state.toast=text;render();setTimeout(()=>{if(state.toast===text){state.toast=null;render()}},2600)}

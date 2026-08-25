@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {smartImportResultToSuggestion,preserveTrustedFieldsOnMerge} from '../src/smart-import-adapter.js';
 import {buildItemFormValues,manualCreateDefaults,normalizeUrlInput,suggestionToItem} from '../src/ingestion.js';
-import {backfillTripDates,sortItemsByStartAt} from '../src/operational-data.js';
+import {backfillTripDates,isValidCalendarDate,sanitizeTripDates,sortItemsByStartAt} from '../src/operational-data.js';
 import {normalizeProposalLifecycle} from '../src/proposal-lifecycle.js';
 import {PLACEHOLDER,injectServiceWorkerVersion,resolveBuildVersion} from '../scripts/inject-build-version.mjs';
 import {country} from '../netlify/functions/_shared/place-validation.mjs';
@@ -356,5 +356,52 @@ function test_V6_F23_manual_create_flow_defaults_to_trip_start_end_to_end(){
   console.log('PASS: V6-F23 the manual create-item flow (form pre-fill + submit), exercised end-to-end through the same functions the UI calls, correctly defaults to the Trip start date');
 }
 test_V6_F23_manual_create_flow_defaults_to_trip_start_end_to_end();
+
+// --- V6-F23 defensive fix (a): manual item creation must never produce an empty/malformed
+// datetime-local value, even if the Trip's own startDate is missing or malformed. ---
+function test_V6_F23_manual_create_defaults_fallback_on_malformed_trip_date(){
+  const knownToday='2027-03-15';
+
+  const malformed=manualCreateDefaults({startDate:'2027-01-17T00:00:00Z'},knownToday);
+  assert.equal(malformed.startAt,`${knownToday}T12:00`,'a malformed trip.startDate (e.g. a full ISO datetime that slipped in via an unvalidated import) must fall back to today, not produce a garbage concatenated value');
+  assert(isValidCalendarDate(malformed.startAt.slice(0,10)),'the produced default must always be a real, well-formed calendar date');
+
+  const missing=manualCreateDefaults({startDate:''},knownToday);
+  assert.equal(missing.startAt,`${knownToday}T12:00`,'a missing trip.startDate must also fall back to today rather than leaving the field blank');
+
+  const noTripAtAll=manualCreateDefaults(null,knownToday);
+  assert.equal(noTripAtAll.startAt,`${knownToday}T12:00`,'creating an item before any Trip exists must still produce a valid default, not crash on trip being null');
+
+  const valid=manualCreateDefaults({startDate:'2027-06-01'},knownToday);
+  assert.equal(valid.startAt,'2027-06-01T12:00','a genuinely valid trip.startDate must still be used in preference to today');
+
+  console.log('PASS: V6-F23(a) manual item creation falls back to today when the Trip start date is missing or malformed, and never produces an empty/invalid value');
+}
+test_V6_F23_manual_create_defaults_fallback_on_malformed_trip_date();
+
+// --- V6-F23 defensive fix (b): a Trip's start/end dates must be validated before storage,
+// whatever their origin -- including an externally-supplied tripContext.startDate from a
+// QR/JSON import, which was previously stored completely unvalidated. ---
+function test_V6_F23_import_rejects_malformed_trip_context_date(){
+  const malformed=sanitizeTripDates({startDate:'17/01/2027',endDate:'2027-01-17T00:00:00Z'});
+  assert.equal(malformed.startDate,'','a malformed tripContext.startDate (wrong format) must be rejected to blank, not stored as-is');
+  assert.equal(malformed.endDate,'','a malformed tripContext.endDate (a full ISO datetime instead of a plain date) must also be rejected');
+
+  const nonexistent=sanitizeTripDates({startDate:'2027-02-30',endDate:'2027-06-10'});
+  assert.equal(nonexistent.startDate,'','a shape-valid but nonexistent calendar date (Feb 30) must be rejected, matching the same isValidCalendarDate() rule used for Smart Import dates (V6-F19)');
+  assert.equal(nonexistent.endDate,'2027-06-10','a genuinely valid endDate alongside an invalid startDate must still be kept — validation is per-field, not all-or-nothing');
+
+  const valid=sanitizeTripDates({startDate:'2027-06-01',endDate:'2027-06-10'});
+  assert.deepEqual(valid,{startDate:'2027-06-01',endDate:'2027-06-10'},'genuinely valid dates must pass through unchanged');
+
+  const missing=sanitizeTripDates({});
+  assert.deepEqual(missing,{startDate:'',endDate:''},'no dates supplied at all must remain blank — Trip dates stay optional, per the frozen architecture — not be defaulted to today at the Trip level');
+
+  const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
+  assert.match(app,/const dates=sanitizeTripDates\(seed\)/,'ensureTrip() must route every Trip creation (manual, and importBatch()\'s QR/JSON tripContext) through sanitizeTripDates() before storing');
+
+  console.log('PASS: V6-F23(b) a Trip\'s start/end dates are validated before storage, so an externally-imported tripContext.startDate can no longer be stored malformed');
+}
+test_V6_F23_import_rejects_malformed_trip_context_date();
 
 console.log('ALL PASS: Alpha 0.6.4 correction package regression suite');

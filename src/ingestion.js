@@ -1,4 +1,4 @@
-import {normalizeDateRange} from './operational-data.js';
+import {isValidCalendarDate,normalizeDateRange,today} from './operational-data.js';
 
 export const ITEM_TYPES = {
   flight:{label:'טיסה',icon:'✈️',schedule:'single'},hotel:{label:'מלון',icon:'🏨',schedule:'range'},car:{label:'רכב שכור',icon:'🚗',schedule:'range'},activity:{label:'אטרקציה',icon:'🎟️',schedule:'single'},restaurant:{label:'מסעדה',icon:'🍽️',schedule:'single'},insurance:{label:'ביטוח',icon:'🛡️',schedule:'entire'},link:{label:'קישור',icon:'🔗',schedule:'none'},document:{label:'מסמך',icon:'📄',schedule:'none'},contact:{label:'איש קשר',icon:'☎️',schedule:'none'},participant:{label:'משתתף',icon:'👨‍👩‍👧‍👦',schedule:'none'},
@@ -112,8 +112,12 @@ export function suggestionToItem(suggestion,existing={},tripStartDate=''){
 }
 // The date/time defaults shown in the manual "create new item" form the moment it opens
 // (V6-F06/V4-F04 also apply here, via the rendered form's own pre-filled value= attribute).
-export function manualCreateDefaults(trip){
-  const startAt=trip?.startDate?`${trip.startDate}T12:00`:'';
+// A missing OR malformed Trip start date (V6-F23: e.g. a non-canonical value that slipped in
+// unvalidated through an external import) falls back to today rather than producing a blank or
+// invalid datetime-local value -- a new item should always get a sensible starting date.
+export function manualCreateDefaults(trip,todayValue=today()){
+  const base=isValidCalendarDate(trip?.startDate)?trip.startDate:todayValue;
+  const startAt=`${base}T12:00`;
   return {startAt,endAt:startAt};
 }
 // Builds the item field values from the manual-create / edit-item form's own FormData, exactly

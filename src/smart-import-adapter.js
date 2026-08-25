@@ -1,3 +1,5 @@
+import {isValidCalendarDate} from './operational-data.js';
+
 const FIELD_MAP={
   property_name:'title',hotel_name:'title',booking_number:'confirmationNumber',booking_number_primary:'confirmationNumber',confirmation_number:'confirmationNumber',
   official_website:'website',website:'website',property_phone:'phone',property_phone_1:'phone',phone:'phone',
@@ -107,19 +109,12 @@ function parseTimeValue(raw){
   if(match)return `${match[1].padStart(2,'0')}:${match[2]}`;
   return '';
 }
-function dateTime(date,time){const clean=String(date).slice(0,10);if(!isValidCalendarDate(clean))return '';const clock=parseTimeValue(time)||'12:00';return `${clean}T${clock}`}
 // A shape match (\d{4}-\d{2}-\d{2}) is not enough: <input type="datetime-local"> silently
 // sanitizes an unparseable-or-nonexistent date (e.g. 2027-02-30) to an EMPTY field with no
 // warning, which would look exactly like V6-F04's original "date not persisted" bug through a
 // different mechanism. Reject anything that isn't a real calendar date before it ever reaches
 // the field, so a bad extraction surfaces as blank-and-reviewable rather than silently vanishing.
-function isValidCalendarDate(value){
-  const match=String(value||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if(!match)return false;
-  const [,y,m,d]=match.map(Number);
-  const date=new Date(Date.UTC(y,m-1,d));
-  return date.getUTCFullYear()===y&&date.getUTCMonth()===m-1&&date.getUTCDate()===d;
-}
+function dateTime(date,time){const clean=String(date).slice(0,10);if(!isValidCalendarDate(clean))return '';const clock=parseTimeValue(time)||'12:00';return `${clean}T${clock}`}
 function normalizedEqual(left,right){return String(left||'').trim().toLowerCase()===String(right||'').trim().toLowerCase()}
 function isBlank(value){return value==null||value===''||(Array.isArray(value)&&!value.length)}
 function clone(value){return Array.isArray(value)||typeof value==='object'?JSON.parse(JSON.stringify(value)):value}

@@ -128,5 +128,29 @@ export function isItemOutsideTrip(item,trip){
   return boundaries.some(date=>date<trip.startDate||date>trip.endDate);
 }
 
-function today(){return new Date().toISOString().slice(0,10)}
+export function today(){return new Date().toISOString().slice(0,10)}
 function dateKey(date){return date.toISOString().slice(0,10)}
+
+// A shape match (\d{4}-\d{2}-\d{2}) is not enough: a datetime-local/date input silently
+// sanitizes an unparseable-or-nonexistent date (e.g. 2027-02-30) to an EMPTY field with no
+// warning. Shared by the Smart Import date pipeline (V6-F19) and Trip-date handling (V6-F23) so
+// neither path can hand a browser date field a value it will silently blank.
+export function isValidCalendarDate(value){
+  const match=String(value||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if(!match)return false;
+  const [,y,m,d]=match.map(Number);
+  const date=new Date(Date.UTC(y,m-1,d));
+  return date.getUTCFullYear()===y&&date.getUTCMonth()===m-1&&date.getUTCDate()===d;
+}
+
+// Validates a Trip's start/end dates before they are ever stored, whatever their origin --
+// the native date picker (always well-formed already), or an externally-supplied
+// tripContext.startDate/endDate from a QR/JSON import, which was previously stored completely
+// unvalidated (V6-F23). A malformed value is rejected to blank rather than stored as-is; Trip
+// dates remain optional per the frozen architecture, so blank is always a safe fallback here.
+export function sanitizeTripDates(seed={}){
+  return {
+    startDate:isValidCalendarDate(seed.startDate)?seed.startDate:'',
+    endDate:isValidCalendarDate(seed.endDate)?seed.endDate:'',
+  };
+}
