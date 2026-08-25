@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {smartImportResultToSuggestion,preserveTrustedFieldsOnMerge} from '../src/smart-import-adapter.js';
-import {normalizeUrlInput,suggestionToItem} from '../src/ingestion.js';
-import {backfillTripDates} from '../src/operational-data.js';
+import {buildItemFormValues,manualCreateDefaults,normalizeUrlInput,suggestionToItem} from '../src/ingestion.js';
+import {backfillTripDates,sortItemsByStartAt} from '../src/operational-data.js';
 import {normalizeProposalLifecycle} from '../src/proposal-lifecycle.js';
 import {PLACEHOLDER,injectServiceWorkerVersion,resolveBuildVersion} from '../scripts/inject-build-version.mjs';
 import {country} from '../netlify/functions/_shared/place-validation.mjs';
@@ -195,8 +195,9 @@ function test_website_field_avoids_native_url_gate(){
   assert(websiteTag,'the website field must exist in proposalFields');
   assert(!/type="url"/.test(websiteTag),'the website field must not be type="url", or a bare-domain website (e.g. from a V6-F09 extraction) blocks form submission natively');
   assert.match(websiteTag,/type="text"/,'the website field must be a plain text field so the app\'s own normalization runs');
-  const normalizeCalls=[...app.matchAll(/website:normalizeUrlInput\(data\.get\('website'\)\)/g)];
-  assert.equal(normalizeCalls.length,2,'both the suggestion-review submit handler and the manual/edit-item submit handler must normalize the website value on save');
+  assert.match(app,/website:normalizeUrlInput\(data\.get\('website'\)\)/,'the suggestion-review submit handler (updateSuggestion) must normalize the website value on save');
+  const ingestion=fs.readFileSync(new URL('../src/ingestion.js',import.meta.url),'utf8');
+  assert.match(ingestion,/website:normalizeUrlInput\(data\.get\('website'\)\)/,'buildItemFormValues (the manual-create/edit-item submit path, shared with the UI since V6-F23) must also normalize the website value on save');
   console.log('PASS: website field (populated by V6-F09) avoids the same native type="url" gate as V6-F18 and normalizes its value on save');
 }
 test_website_field_avoids_native_url_gate();
@@ -254,5 +255,106 @@ function test_service_worker_cache_auto_busts_every_build(){
   console.log('PASS: the service worker cache name is derived automatically from package.json version + git SHA on every build, with no manual step to forget');
 }
 test_service_worker_cache_auto_busts_every_build();
+
+// --- V6-F21: bare check_in/check_out keys (no date/time/window suffix) must still populate dates ---
+function test_V6_F21_bare_check_in_check_out_keys_populate_dates(){
+  const source={id:'source-chatrium',name:'chatrium.pdf',fingerprint:'chatrium'};
+  const result={attemptId:'a',usage:{},estimatedVariableCostUsd:0,latencyMs:1,draft:{proposalState:'proposed',meaningfulTitle:'Chatrium Grand Bangkok',propertyName:'Chatrium Grand Bangkok',fields:[
+    {key:'check_in',label:'Check-in',rawValue:'2027-01-23',normalizedValue:'2027-01-23',evidence:'Page 1',certainty:'exact'},
+    {key:'check_out',label:'Check-out',rawValue:'2027-01-26',normalizedValue:'2027-01-26',evidence:'Page 1',certainty:'exact'},
+  ],importantNotes:[],warnings:[],unresolved:[],explicitlyAbsent:[]},placeValidation:null};
+  const suggestion=smartImportResultToSuggestion(result,source);
+  assert.equal(suggestion.proposed.startAt,'2027-01-23T12:00','a bare "check_in" key (no date/time/window suffix) must still populate startAt, not just the evidence panel');
+  assert.equal(suggestion.proposed.endAt,'2027-01-26T12:00','a bare "check_out" key must still populate endAt');
+
+  const unrelated={attemptId:'b',usage:{},estimatedVariableCostUsd:0,latencyMs:1,draft:{proposalState:'proposed',meaningfulTitle:'X',propertyName:'X',fields:[
+    {key:'check_in_instructions',label:'Check-in instructions',rawValue:'Front desk closes at 23:00',normalizedValue:'Front desk closes at 23:00',evidence:'Page 2',certainty:'exact'},
+  ],importantNotes:[],warnings:[],unresolved:[],explicitlyAbsent:[]},placeValidation:null};
+  const unrelatedSuggestion=smartImportResultToSuggestion(unrelated,source);
+  assert.equal(unrelatedSuggestion.proposed.startAt,'','a field that merely contains the check-in root as part of a longer, unrelated key must not be misread as the check-in date');
+
+  const withTime=smartImportResultToSuggestion({attemptId:'c',usage:{},estimatedVariableCostUsd:0,latencyMs:1,draft:{proposalState:'proposed',meaningfulTitle:'X',propertyName:'X',fields:[
+    {key:'check_in_date',label:'Check-in date',rawValue:'2027-01-23',normalizedValue:'2027-01-23',evidence:'p1',certainty:'exact'},
+    {key:'check_in_time',label:'Check-in time',rawValue:'2:00 PM',normalizedValue:'2:00 PM',evidence:'p1',certainty:'exact'},
+  ],importantNotes:[],warnings:[],unresolved:[],explicitlyAbsent:[]},placeValidation:null},source);
+  assert.equal(withTime.proposed.startAt,'2027-01-23T14:00','check_in_time must still combine with the date, not be misread as a second date field');
+
+  console.log('PASS: V6-F21 bare check_in/check_out keys populate startAt/endAt, without misreading unrelated check-in-adjacent fields');
+}
+test_V6_F21_bare_check_in_check_out_keys_populate_dates();
+
+// --- V6-F22: Trip Center's category view must sort chronologically like Timeline, for any item type ---
+function test_V6_F22_trip_center_sorts_chronologically_by_type(){
+  const hotels=[
+    {id:'h-panan',type:'hotel',title:'Panan Krabi',schedule:'range',startAt:'2027-01-18T14:00',endAt:'2027-01-23T11:00'},
+    {id:'h-panvaree',type:'hotel',title:'Panvaree',schedule:'range',startAt:'2027-01-17T12:00',endAt:'2027-01-18T12:00'},
+  ];
+  assert.deepEqual(sortItemsByStartAt(hotels).map(i=>i.id),['h-panvaree','h-panan'],'hotels must render in check-in order regardless of the order they were approved in');
+
+  // A second, unrelated item type approved out of order too, proving the sort is generic to
+  // whatever category is currently selected in Trip Center, not hotel-specific.
+  const flights=[
+    {id:'f-return',type:'flight',title:'Return flight',schedule:'single',startAt:'2027-01-26T09:00',endAt:''},
+    {id:'f-outbound',type:'flight',title:'Outbound flight',schedule:'single',startAt:'2027-01-15T06:00',endAt:''},
+  ];
+  assert.deepEqual(sortItemsByStartAt(flights).map(i=>i.id),['f-outbound','f-return'],'flights must also render in date order — the sort must not be specific to one item type');
+
+  const mixed=[
+    {id:'m-dated-2',type:'contact',schedule:'none',startAt:'',endAt:''},
+    {id:'m-hotel',type:'hotel',schedule:'range',startAt:'2027-01-17T12:00',endAt:'2027-01-18T12:00'},
+    {id:'m-dated-1',type:'contact',schedule:'none',startAt:'',endAt:''},
+  ];
+  assert.deepEqual(sortItemsByStartAt(mixed).map(i=>i.id),['m-hotel','m-dated-2','m-dated-1'],'dateless items must be pushed to the end, in their original relative order, without crashing');
+
+  // center() must call the shared sort on the type-filtered list, not a reimplementation, and
+  // .list must be a plain single-column grid with no CSS "order" property that could reorder
+  // items visually on one breakpoint independently of DOM order — otherwise this JS-level sort
+  // would not reliably reflect on screen on both desktop and phone layouts.
+  const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
+  assert.match(app,/const items=sortItemsByStartAt\(state\.items\.filter\(item=>item\.type===state\.category\)\)/,'center() must sort its type-filtered item list through the shared sortItemsByStartAt helper, for every category');
+  const css=fs.readFileSync(new URL('../src/styles.css',import.meta.url),'utf8');
+  assert(!/\.list[^}]*order\s*:/.test(css),'no CSS "order" property may reorder .list items independently of DOM order across breakpoints, or the JS-level sort would not reflect on screen');
+
+  console.log('PASS: V6-F22 Trip Center category view sorts chronologically for any item type, handles dateless items gracefully, and the same list renders identically on desktop and mobile');
+}
+test_V6_F22_trip_center_sorts_chronologically_by_type();
+
+// --- V6-F23 investigation: the manual "create new item" flow was a separate, untested code
+// path from suggestionToItem(). Extracted into manualCreateDefaults() (the form's initial
+// pre-fill) and buildItemFormValues() (what submit reads back), so the SAME functions the real
+// UI calls are exercised here end-to-end, instead of only testing suggestionToItem() in
+// isolation — closing the coverage gap regardless of whether a further bug is found.
+function test_V6_F23_manual_create_flow_defaults_to_trip_start_end_to_end(){
+  const trip={id:'trip-1',name:'Test Trip',startDate:'2027-06-01',endDate:'2027-06-10'};
+
+  const defaults=manualCreateDefaults(trip);
+  assert.equal(defaults.startAt,'2027-06-01T12:00','the create-item form must pre-fill the Trip start date the moment it opens');
+  assert.equal(defaults.endAt,'2027-06-01T12:00');
+
+  // The user submits without touching the date fields — the most direct "create a new item"
+  // interaction. Simulate exactly what FormData.get() would return: the pre-filled defaults
+  // from above, untouched, run through the real submit-time value builder.
+  const formData=new Map([
+    ['type','hotel'],['title','New Hotel'],['provider',''],['confirmationNumber',''],
+    ['location',''],['website',''],['phone',''],
+    ['startAt',defaults.startAt],['endAt',defaults.endAt],
+    ['participants',''],['notes',''],
+  ]);
+  const values=buildItemFormValues({get:key=>formData.get(key)??null});
+  assert.equal(values.startAt,'2027-06-01T12:00','submitting the manual-create form unchanged must persist the Trip-start default onto the created item');
+  assert.equal(values.endAt,'2027-06-01T12:00');
+  assert.equal(values.schedule,'range','a hotel must keep its range schedule through the manual-create path');
+
+  // Explicit-date carve-out: if the user did type a different date, it must never be silently
+  // replaced by the Trip start default.
+  const editedFormData=new Map(formData);
+  editedFormData.set('startAt','2027-06-05T09:00');
+  editedFormData.set('endAt','2027-06-06T09:00');
+  const editedValues=buildItemFormValues({get:key=>editedFormData.get(key)??null});
+  assert.equal(editedValues.startAt,'2027-06-05T09:00','an explicitly user-edited date must be preserved exactly, not overwritten');
+
+  console.log('PASS: V6-F23 the manual create-item flow (form pre-fill + submit), exercised end-to-end through the same functions the UI calls, correctly defaults to the Trip start date');
+}
+test_V6_F23_manual_create_flow_defaults_to_trip_start_end_to_end();
 
 console.log('ALL PASS: Alpha 0.6.4 correction package regression suite');

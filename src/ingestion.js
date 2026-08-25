@@ -1,3 +1,5 @@
+import {normalizeDateRange} from './operational-data.js';
+
 export const ITEM_TYPES = {
   flight:{label:'טיסה',icon:'✈️',schedule:'single'},hotel:{label:'מלון',icon:'🏨',schedule:'range'},car:{label:'רכב שכור',icon:'🚗',schedule:'range'},activity:{label:'אטרקציה',icon:'🎟️',schedule:'single'},restaurant:{label:'מסעדה',icon:'🍽️',schedule:'single'},insurance:{label:'ביטוח',icon:'🛡️',schedule:'entire'},link:{label:'קישור',icon:'🔗',schedule:'none'},document:{label:'מסמך',icon:'📄',schedule:'none'},contact:{label:'איש קשר',icon:'☎️',schedule:'none'},participant:{label:'משתתף',icon:'👨‍👩‍👧‍👦',schedule:'none'},
 };
@@ -107,6 +109,20 @@ export function suggestionToItem(suggestion,existing={},tripStartDate=''){
     if(schedule==='range'&&!endAt)endAt=`${tripStartDate}T12:00`;
   }
   return {...existing,id:existing.id||makeId('item'),type:value('type','document'),title:String(value('title','')).trim(),provider:String(value('provider','')).trim(),confirmationNumber:String(value('confirmationNumber','')).trim(),participants:value('participants',[]),location:String(value('location','')).trim(),website:String(value('website','')).trim(),phone:String(value('phone','')).trim(),schedule,startAt,endAt,notes:String(value('notes','')).trim(),details:{...(existing.details||{}),...(p.details||{})},dateMeta:{...(existing.dateMeta||{}),...(p.dateMeta||{})},fieldConfidence:{...(existing.fieldConfidence||{}),...(p.fieldConfidence||{})},warnings:[...(existing.warnings||[]),...(p.warnings||suggestion.warnings||[])],sourceIds:[...new Set([...(existing.sourceIds||[]),...sourceIds])],updatedAt:new Date().toISOString()};
+}
+// The date/time defaults shown in the manual "create new item" form the moment it opens
+// (V6-F06/V4-F04 also apply here, via the rendered form's own pre-filled value= attribute).
+export function manualCreateDefaults(trip){
+  const startAt=trip?.startDate?`${trip.startDate}T12:00`:'';
+  return {startAt,endAt:startAt};
+}
+// Builds the item field values from the manual-create / edit-item form's own FormData, exactly
+// as the real submit handler does -- extracted so both the UI and a regression test call the
+// same function (V6-F23: the previous regression tests only covered suggestionToItem(), a
+// completely different code path from manual item creation, which never called it at all).
+export function buildItemFormValues(data){
+  const type=String(data.get('type')),range=normalizeDateRange(data.get('startAt'),data.get('endAt'));
+  return {type,title:String(data.get('title')||'').trim(),provider:String(data.get('provider')||'').trim(),confirmationNumber:String(data.get('confirmationNumber')||'').trim(),location:String(data.get('location')||'').trim(),website:normalizeUrlInput(data.get('website')),phone:String(data.get('phone')||'').trim(),startAt:range.start,endAt:range.end,participants:String(data.get('participants')||'').split(',').map(x=>x.trim()).filter(Boolean),notes:String(data.get('notes')||'').trim(),schedule:ITEM_TYPES[type]?.schedule||'none',updatedAt:new Date().toISOString()};
 }
 export function validateSource({kind,file,url}){
   if(kind==='link'){try{const parsed=new URL(url);if(!['http:','https:'].includes(parsed.protocol))throw new Error();return {ok:true}}catch{return {ok:false,error:'יש להזין קישור HTTP או HTTPS תקין'}}}

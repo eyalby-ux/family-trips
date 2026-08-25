@@ -78,10 +78,23 @@ function classifyFieldKey(key){
   if(/phone|\btel\b|telephone|contact_number/.test(key))return 'phone';
   if(/supplier|provider|operator|chain|platform|booked_via|booked_through/.test(key))return 'provider';
   if(/(booking|confirmation|reservation|itinerary|room)[a-z_]*(number|id|code|ref)/.test(key))return 'confirmationNumber';
-  if(/(check[_ ]?in|arrival)[a-z_]*date/.test(key))return 'startDate';
-  if(/(check[_ ]?out|departure)[a-z_]*date/.test(key))return 'endDate';
-  if(/(check[_ ]?in|arrival)[a-z_]*(time|window)/.test(key))return 'startTime';
-  if(/(check[_ ]?out|departure)[a-z_]*(time|window)/.test(key))return 'endTime';
+  const start=dateTimeKind(key,/check[_ ]?in|arrival/);
+  if(start)return start==='time'?'startTime':'startDate';
+  const end=dateTimeKind(key,/check[_ ]?out|departure/);
+  if(end)return end==='time'?'endTime':'endDate';
+  return null;
+}
+// Matches a check-in/check-out (or arrival/departure) root only when what follows it is empty
+// (a bare "check_in"/"check_out" key, as real sources commonly label these columns — V6-F21)
+// or itself looks like a date/day/time/window suffix. Matching "the root appears anywhere in
+// the key" would misclassify an unrelated field like "check_in_instructions" or
+// "check_out_policy" as the check-in/check-out date.
+function dateTimeKind(key,rootPattern){
+  const match=new RegExp(rootPattern).exec(key);
+  if(!match)return null;
+  const rest=key.slice(match.index+match[0].length).replace(/^[_ ]+/,'');
+  if(rest===''||/^(date|day)(?:[_ ]|$)/.test(rest))return 'date';
+  if(/^(time|window)(?:[_ ]|$)/.test(rest))return 'time';
   return null;
 }
 function certainty(value){return value==='exact'?'high':value==='needs_review'?'medium':'low'}

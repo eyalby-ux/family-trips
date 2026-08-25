@@ -77,6 +77,19 @@ export function packingDuplicate(packing,name,excludeId=''){
   return packing.flatMap(list=>list.items||[]).some(item=>item.id!==excludeId&&String(item.name||'').trim().toLocaleLowerCase('he')===normalized);
 }
 
+// Chronological order for a list of items, matching Timeline's own sort. Items without a
+// startAt (e.g. schedule 'none'/'entire') are not dropped -- they are kept in a stable position
+// at the end, since Array.prototype.sort is a stable sort and the comparator never reorders two
+// dateless items relative to each other.
+export function sortItemsByStartAt(items){
+  return [...items].sort((a,b)=>{
+    if(!a.startAt&&!b.startAt)return 0;
+    if(!a.startAt)return 1;
+    if(!b.startAt)return -1;
+    return a.startAt.localeCompare(b.startAt);
+  });
+}
+
 export function uniqueRecordsById(candidates,limit=Infinity){
   const seen=new Set(),records=[];
   for(const candidate of candidates||[]){
