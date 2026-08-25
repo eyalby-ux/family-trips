@@ -23,6 +23,17 @@ export function injectServiceWorkerVersion(source, buildVersion) {
   return source.replaceAll(PLACEHOLDER, buildVersion);
 }
 
+// index.html's <title> and <meta name="description"> (V6-F24): plain package.json version only
+// (no commit SHA) -- this is a human-facing label, not a cache-busting key.
+export const APP_VERSION_PLACEHOLDER = '__APP_VERSION__';
+
+export function injectIndexHtmlVersion(source, appVersion) {
+  if (!String(source).includes(APP_VERSION_PLACEHOLDER)) {
+    throw new Error(`index.html is missing the ${APP_VERSION_PLACEHOLDER} placeholder; the tab title/description can no longer stay in sync with the shipped version automatically.`);
+  }
+  return source.replaceAll(APP_VERSION_PLACEHOLDER, appVersion);
+}
+
 function readShortSha(root) {
   try {
     return execSync('git rev-parse --short=8 HEAD', { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
@@ -39,6 +50,11 @@ function main() {
   const resolved = injectServiceWorkerVersion(fs.readFileSync(swPath, 'utf8'), buildVersion);
   fs.writeFileSync(swPath, resolved);
   console.log(`Service worker cache-busted to ${buildVersion}`);
+
+  const indexPath = `${root}/dist/index.html`;
+  const resolvedIndex = injectIndexHtmlVersion(fs.readFileSync(indexPath, 'utf8'), pkg.version);
+  fs.writeFileSync(indexPath, resolvedIndex);
+  console.log(`index.html title/description synced to Alpha ${pkg.version}`);
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {

@@ -4,7 +4,7 @@ import {smartImportResultToSuggestion,preserveTrustedFieldsOnMerge} from '../src
 import {buildItemFormValues,manualCreateDefaults,normalizeUrlInput,suggestionToItem} from '../src/ingestion.js';
 import {backfillTripDates,isValidCalendarDate,sanitizeTripDates,sortItemsByStartAt} from '../src/operational-data.js';
 import {normalizeProposalLifecycle} from '../src/proposal-lifecycle.js';
-import {PLACEHOLDER,injectServiceWorkerVersion,resolveBuildVersion} from '../scripts/inject-build-version.mjs';
+import {APP_VERSION_PLACEHOLDER,PLACEHOLDER,injectIndexHtmlVersion,injectServiceWorkerVersion,resolveBuildVersion} from '../scripts/inject-build-version.mjs';
 import {country} from '../netlify/functions/_shared/place-validation.mjs';
 
 const source={id:'source-1',name:'panvaree.pdf',fingerprint:'abc'};
@@ -403,5 +403,29 @@ function test_V6_F23_import_rejects_malformed_trip_context_date(){
   console.log('PASS: V6-F23(b) a Trip\'s start/end dates are validated before storage, so an externally-imported tripContext.startDate can no longer be stored malformed');
 }
 test_V6_F23_import_rejects_malformed_trip_context_date();
+
+// --- V6-F24: index.html's <title>/<meta description> must never drift from the shipped
+// version again -- resolved automatically at build time from package.json, the same pattern
+// established for the service worker's cache name (V6-F19/F23's lesson: a hand-maintained
+// version string is exactly what drifts). ---
+function test_V6_F24_index_html_version_synced_to_package_json(){
+  const source=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
+  assert.match(source,new RegExp(`<title>Family Trips · Alpha ${APP_VERSION_PLACEHOLDER.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}</title>`),'index.html must hold the version placeholder in <title>, not a hardcoded literal that can go stale');
+  assert.match(source,new RegExp(`<meta name="description" content="Family Trips Alpha ${APP_VERSION_PLACEHOLDER.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}">`),'index.html must hold the version placeholder in <meta name="description">, not a hardcoded literal');
+  assert(!/0\.5\.6|0\.6\.[0-3]\b/.test(source),'index.html must not contain a hardcoded stale version number');
+
+  const pkg=JSON.parse(fs.readFileSync(new URL('../package.json',import.meta.url),'utf8'));
+  const resolved=injectIndexHtmlVersion(source,pkg.version);
+  assert(!resolved.includes(APP_VERSION_PLACEHOLDER),'the placeholder must be fully resolved in the built output');
+  assert.match(resolved,new RegExp(`<title>Family Trips · Alpha ${pkg.version}</title>`),'the resolved title must reflect the current package.json version');
+  assert.match(resolved,new RegExp(`<meta name="description" content="Family Trips Alpha ${pkg.version}">`),'the resolved description must reflect the current package.json version');
+
+  assert.throws(()=>injectIndexHtmlVersion('<title>no placeholder</title>','1.0.0'),'if the placeholder is ever accidentally removed from index.html, the build must fail loudly rather than silently shipping a stale title again');
+
+  assert.match(pkg.scripts.build,/node scripts\/inject-build-version\.mjs/,'the build script must run the injector, which now also resolves index.html');
+
+  console.log('PASS: V6-F24 index.html\'s title/description are resolved from package.json at build time and can no longer drift from the shipped version');
+}
+test_V6_F24_index_html_version_synced_to_package_json();
 
 console.log('ALL PASS: Alpha 0.6.4 correction package regression suite');
