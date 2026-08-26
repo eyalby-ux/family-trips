@@ -138,7 +138,7 @@ const now=new Date('2027-01-20T12:00:00Z');
 {
   const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
   assert.match(app,/function processingIndicator\(message\)/,'a visible processing/progress indicator must be rendered during analysis');
-  assert.match(app,/function smartImportPanel\(source\)\{if\(ingestBusy\)return processingIndicator/,'the Add panel must show the progress indicator instead of the Continue button while busy');
+  assert.match(app,/function smartImportPanel\(source\)\{\s*\n\s*if\(ingestBusy\)return processingIndicator/,'the Add panel must show the progress indicator instead of the Continue button while busy');
   assert.match(app,/if\(ingestBusy\)return;/,'a second Continue invocation while analysis is in progress must be a no-op, never a false "no document selected" error');
   console.log('PASS: V6-F11 a progress indicator is shown during analysis and a duplicate Continue click cannot produce a false "no document selected" error');
 }

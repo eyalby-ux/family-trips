@@ -7,7 +7,7 @@ const main=fs.readFileSync('src/main.js','utf8');
 const styles=fs.readFileSync('src/styles.css','utf8');
 const netlify=fs.readFileSync('netlify.toml','utf8');
 
-assert(main.includes('<p class="auth-kicker">Alpha 0.6.4</p>'));
+assert(main.includes('<p class="auth-kicker">Alpha 0.6.5</p>'));
 assert(!main.includes('V4 — Smart Ingestion'));
 
 const flight={id:'flight-1',type:'flight'};

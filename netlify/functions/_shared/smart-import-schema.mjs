@@ -2,3 +2,41 @@ export const hotelImportSchema={type:'object',additionalProperties:false,propert
 
 export const systemPrompt=`You are the bounded FamilyTrips Hotel Smart Import extractor. Return only evidence-backed structured data from the supplied source. Preserve every readable travel-relevant value and every operational instruction. Do not fabricate, silently correct, infer from general knowledge, or use values from another source. Use the exact property name as a meaningful title when present; never use a filename, URL host, generic type or opaque identifier. Keep identifiers, dates, people, prices, phone numbers, addresses and time windows separate. Recipient or guest addresses are not property locations. Put every other readable value in fields and put arrival, departure, check-in, check-out, access, transfer, cancellation, payment, warning, safety and preparation instructions in importantNotes as well. Exclude full payment-card numbers and security codes. Passports, identity documents and visas are unsupported. External enrichment is forbidden in this model call. If content is partial, ambiguous or unreadable, expose it as needs_review. This is a review proposal and never a final write.`;
 
+const baggageItemSchema={type:'object',additionalProperties:false,properties:{bagType:{type:'string',enum:['carry_on','checked','trolley']},weight:{type:'string'},included:{type:'string',enum:['included','not_included','unknown']}},required:['bagType','weight','included']};
+const passengerDetailSchema={type:'object',additionalProperties:false,properties:{passengerName:{type:'string'},seat:{type:'string'},mealRequest:{type:'string'},baggage:{type:'array',items:baggageItemSchema},certainty:{type:'string',enum:['exact','needs_review','unreadable']}},required:['passengerName','seat','mealRequest','baggage','certainty']};
+const flightSegmentSchema={type:'object',additionalProperties:false,properties:{
+  status:{type:'string',enum:['confirmed','void','unreadable']},
+  flightNumber:{type:'string'},
+  operatingCarrier:{type:'string'},marketingCarrier:{type:'string'},
+  departureAirportCode:{type:'string'},departureAirportName:{type:'string'},departureTerminal:{type:'string'},
+  arrivalAirportCode:{type:'string'},arrivalAirportName:{type:'string'},arrivalTerminal:{type:'string'},
+  departureDate:{type:'string'},departureTime:{type:'string'},
+  arrivalDate:{type:'string'},arrivalTime:{type:'string'},
+  aircraftType:{type:'string'},classOfService:{type:'string'},fareBasis:{type:'string'},duration:{type:'string'},
+  gate:{type:'string'},gateOpensTime:{type:'string'},gateClosesTime:{type:'string'},boardingSequenceNumber:{type:'string'},
+  passengerDetails:{type:'array',items:passengerDetailSchema},
+  evidence:{type:'string'},certainty:{type:'string',enum:['exact','needs_review','unreadable']},
+},required:['status','flightNumber','operatingCarrier','marketingCarrier','departureAirportCode','departureAirportName','departureTerminal','arrivalAirportCode','arrivalAirportName','arrivalTerminal','departureDate','departureTime','arrivalDate','arrivalTime','aircraftType','classOfService','fareBasis','duration','gate','gateOpensTime','gateClosesTime','boardingSequenceNumber','passengerDetails','evidence','certainty']};
+
+export const flightImportSchema={type:'object',additionalProperties:false,properties:{
+  acquisitionState:{type:'string',enum:['acquired','partial','access_required','unreadable','failed']},
+  bookingReference:{type:'string'},
+  passengers:{type:'array',items:{type:'object',additionalProperties:false,properties:{name:{type:'string'},eTicketNumber:{type:'string'},certainty:{type:'string',enum:['exact','needs_review','unreadable']}},required:['name','eTicketNumber','certainty']}},
+  segments:{type:'array',items:flightSegmentSchema},
+  unresolved:{type:'array',items:{type:'string'}},
+  explicitlyAbsent:{type:'array',items:{type:'string'}},
+  warnings:{type:'array',items:{type:'string'}},
+},required:['acquisitionState','bookingReference','passengers','segments','unresolved','explicitlyAbsent','warnings']};
+
+export const flightSystemPrompt=`You are the bounded FamilyTrips Flight Smart Import extractor. Return only evidence-backed structured data from the supplied source. Do not fabricate, silently correct, infer from general knowledge, or use values from another source; leave a string field empty ("") when the source genuinely does not show it, rather than guessing. This is a review proposal and never a final write.
+
+A source may show one or more flight segments (legs). Return every real segment as its own entry in segments, in the order they appear. A segment that is explicitly marked VOID, cancelled, or has no readable flight number, departure airport, arrival airport, departure date/time or arrival date/time at all must be returned with status "void" and its other fields left empty — never invent values to fill it in, and never omit it from the array (the caller decides whether to keep or skip it).
+
+An arrival date that is calendar-earlier than the departure date is normal for a long westbound flight crossing the International Date Line or many timezones (e.g. departs at 14:30 on the 8th, lands at 22:20 on the 7th, local times). Report the local departure and arrival date/time exactly as shown; never "correct" an arrival date to be on or after the departure date.
+
+flightNumber is the operating flight code as printed (e.g. "TG 246", "LY084"). Report operatingCarrier and marketingCarrier separately; if the source does not distinguish them (no codeshare), put the single airline name in both. departureAirportCode/arrivalAirportCode are IATA codes when shown. departureTerminal/arrivalTerminal, gate, gateOpensTime, gateClosesTime and boardingSequenceNumber are frequently absent (a booking confirmation issued long before travel will not show them, and a boarding pass may show a blank gate before assignment) — leave them empty rather than guessing; a literal "-" or blank cell in the source also means empty, not a real value.
+
+List every passenger the source names in the top-level passengers array with their e-ticket number if shown. For every segment, list one entry per passenger in passengerDetails with that passenger's seat, meal request and full baggage allowance for that segment — every bag type shown (carry-on, checked, trolley) with its weight and whether it is included, exactly as marked (a checkmark/"V" means included, an "X" means not included). Never collapse multiple passengers into one entry, and never report only the primary/first passenger when others are named. A field's value belongs to the specific named passenger it is printed under or beside — never attach one passenger's baggage, meal or seat to a different passenger.
+
+If content is partial, ambiguous, obscured or unreadable, set certainty to "needs_review" or "unreadable" on exactly the field or entry affected rather than guessing a value or omitting it silently.`;
+

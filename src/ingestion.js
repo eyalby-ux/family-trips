@@ -1,3 +1,4 @@
+import {isSameFlightForDedup,mergeFlightPassengers} from './flight-import-adapter.js';
 import {isValidCalendarDate,normalizeDateRange,today} from './operational-data.js';
 
 export const ITEM_TYPES = {
@@ -92,7 +93,12 @@ export function findPossibleDuplicates(suggestion,items=[],sources=[]){
     if(linkedItems.length)return linkedItems;
   }
   return items.filter(item=>{
-    if(p.confirmationNumber&&item.confirmationNumber&&normalized(p.confirmationNumber)===normalized(item.confirmationNumber))return p.type===item.type;
+    if(p.confirmationNumber&&item.confirmationNumber&&normalized(p.confirmationNumber)===normalized(item.confirmationNumber)){
+      // A shared booking reference alone is not enough for flights: one PNR commonly covers
+      // several distinct flights (e.g. outbound + return), which must stay separate items.
+      if(p.type==='flight'||item.type==='flight')return isSameFlightForDedup(p,item);
+      return p.type===item.type;
+    }
     const sameType=p.type===item.type,sameProvider=normalized(p.provider)&&normalized(p.provider)===normalized(item.provider),sameTitle=normalized(p.title)&&normalized(p.title)===normalized(item.title),sameDate=dateOnly(p.startAt)&&dateOnly(p.startAt)===dateOnly(item.startAt);
     return sameType&&((sameProvider&&sameDate)||(sameTitle&&sameDate));
   });
@@ -108,7 +114,13 @@ export function suggestionToItem(suggestion,existing={},tripStartDate=''){
     startAt=`${tripStartDate}T12:00`;
     if(schedule==='range'&&!endAt)endAt=`${tripStartDate}T12:00`;
   }
-  return {...existing,id:existing.id||makeId('item'),type:value('type','document'),title:String(value('title','')).trim(),provider:String(value('provider','')).trim(),confirmationNumber:String(value('confirmationNumber','')).trim(),participants:value('participants',[]),location:String(value('location','')).trim(),website:String(value('website','')).trim(),phone:String(value('phone','')).trim(),schedule,startAt,endAt,notes:String(value('notes','')).trim(),details:{...(existing.details||{}),...(p.details||{})},dateMeta:{...(existing.dateMeta||{}),...(p.dateMeta||{})},fieldConfidence:{...(existing.fieldConfidence||{}),...(p.fieldConfidence||{})},warnings:[...(existing.warnings||[]),...(p.warnings||suggestion.warnings||[])],sourceIds:[...new Set([...(existing.sourceIds||[]),...sourceIds])],updatedAt:new Date().toISOString()};
+  // A flight's per-passenger detail is an array, not a flat field: a plain object spread would
+  // let a newer, narrower suggestion (e.g. one passenger's individual e-ticket) silently drop
+  // every OTHER passenger already on the item. Merge element-wise instead, keyed by e-ticket/name.
+  const details=value('type','')==='flight'&&Array.isArray(p.details?.passengers)&&Array.isArray(existing.details?.passengers)
+    ?{...(existing.details||{}),...(p.details||{}),passengers:mergeFlightPassengers(existing.details.passengers,p.details.passengers)}
+    :{...(existing.details||{}),...(p.details||{})};
+  return {...existing,id:existing.id||makeId('item'),type:value('type','document'),title:String(value('title','')).trim(),provider:String(value('provider','')).trim(),confirmationNumber:String(value('confirmationNumber','')).trim(),participants:value('participants',[]),location:String(value('location','')).trim(),website:String(value('website','')).trim(),phone:String(value('phone','')).trim(),schedule,startAt,endAt,notes:String(value('notes','')).trim(),details,dateMeta:{...(existing.dateMeta||{}),...(p.dateMeta||{})},fieldConfidence:{...(existing.fieldConfidence||{}),...(p.fieldConfidence||{})},warnings:[...(existing.warnings||[]),...(p.warnings||suggestion.warnings||[])],sourceIds:[...new Set([...(existing.sourceIds||[]),...sourceIds])],updatedAt:new Date().toISOString()};
 }
 // The date/time defaults shown in the manual "create new item" form the moment it opens
 // (V6-F06/V4-F04 also apply here, via the rendered form's own pre-filled value= attribute).

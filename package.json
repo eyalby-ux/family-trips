@@ -1,15 +1,15 @@
 {
   "name": "family-trips-alpha-v6",
-  "version": "0.6.4",
+  "version": "0.6.5",
   "private": true,
-  "description": "Family Trips Alpha 0.6.4 Hotel-first Smart Import correction package",
+  "description": "Family Trips Alpha 0.6.5 Flight Smart Import",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build && node scripts/inject-build-version.mjs",
     "preview": "vite preview --host 0.0.0.0",
-    "test": "node tests/smoke.mjs && node tests/v4-ingestion.mjs && node tests/v4-correction.mjs && node tests/v5-ingestion.mjs && node tests/v5-external-import.mjs && node tests/v5-operational.mjs && node tests/v5-correction.mjs && node tests/v5-offline.mjs && node tests/v5-stabilization.mjs && node tests/v5-intake-reset.mjs && node tests/v5-range-boundary.mjs && node tests/v6-smart-import.mjs && node tests/v6-correction.mjs",
-    "check": "node --check src/main.js && node --check src/firebase.js && node --check src/legacy-app.js && node --check src/ingestion.js && node --check src/content-extraction.js && node --check src/external-import.js && node --check src/operational-data.js && node --check src/proposal-lifecycle.js && node --check src/smart-import-client.js && node --check src/smart-import-adapter.js && node --check src/v5-app.js && node --check public/service-worker.js && node --check scripts/inject-build-version.mjs && node --check netlify/functions/smart-import.mjs && npm test && npm run build"
+    "test": "node tests/smoke.mjs && node tests/v4-ingestion.mjs && node tests/v4-correction.mjs && node tests/v5-ingestion.mjs && node tests/v5-external-import.mjs && node tests/v5-operational.mjs && node tests/v5-correction.mjs && node tests/v5-offline.mjs && node tests/v5-stabilization.mjs && node tests/v5-intake-reset.mjs && node tests/v5-range-boundary.mjs && node tests/v6-smart-import.mjs && node tests/v6-correction.mjs && node tests/v6-5-flight-import.mjs",
+    "check": "node --check src/main.js && node --check src/firebase.js && node --check src/legacy-app.js && node --check src/ingestion.js && node --check src/content-extraction.js && node --check src/external-import.js && node --check src/operational-data.js && node --check src/proposal-lifecycle.js && node --check src/smart-import-client.js && node --check src/smart-import-adapter.js && node --check src/flight-import-adapter.js && node --check src/v5-app.js && node --check public/service-worker.js && node --check scripts/inject-build-version.mjs && node --check netlify/functions/smart-import.mjs && node --check netlify/functions/_shared/smart-import-schema.mjs && npm test && npm run build"
   },
   "dependencies": {
     "@netlify/blobs": "10.7.13",

@@ -4,6 +4,16 @@ const ENDPOINT='/api/familytrips-smart-import';
 const MAX_BINARY_BYTES=4*1024*1024;
 
 export async function analyzeHotelSource({trip,source,file,url}){
+  return analyzeSource({operation:'analyze_hotel',trip,source,file,url,allowUrl:true});
+}
+
+// Flight Smart Import (0.6.5): no public-URL source is in scope, so it is rejected here with a
+// clear message before ever reaching the server (which also rejects it independently).
+export async function analyzeFlightSource({trip,source,file}){
+  return analyzeSource({operation:'analyze_flight',trip,source,file,url:'',allowUrl:false});
+}
+
+async function analyzeSource({operation,trip,source,file,url,allowUrl}){
   const user=auth.currentUser;
   if(!user)throw new Error('נדרשת התחברות פעילה כדי לנתח מקור.');
   if(!navigator.onLine)throw new Error('ניתוח חכם דורש חיבור לאינטרנט. המקור נשמר מקומית וניתן לנסות שוב.');
@@ -13,10 +23,11 @@ export async function analyzeHotelSource({trip,source,file,url}){
   await request(token,{operation:'register_trip',tripId});
   let submittedSource;
   if(url){
+    if(!allowUrl)throw new Error('קישור ציבורי אינו נתמך עבור סוג מקור זה.');
     submittedSource={kind:'url',url:String(url).trim(),name:String(source?.name||url)};
   }else{
     if(!file)throw new Error('יש לבחור PDF או תמונה.');
-    if(file.size>MAX_BINARY_BYTES)throw new Error('בגרסת 0.6.4 ניתן לנתח קובץ עד 4MB. אפשר לשמור אותו ללא ניתוח.');
+    if(file.size>MAX_BINARY_BYTES)throw new Error('בגרסת 0.6.5 ניתן לנתח קובץ עד 4MB. אפשר לשמור אותו ללא ניתוח.');
     submittedSource={
       kind:file.type==='application/pdf'?'pdf':'image',
       name:file.name,
@@ -25,7 +36,7 @@ export async function analyzeHotelSource({trip,source,file,url}){
       dataBase64:await fileToBase64(file)
     };
   }
-  return request(token,{operation:'analyze_hotel',tripId,source:submittedSource});
+  return request(token,{operation,tripId,source:submittedSource});
 }
 
 async function request(token,body){
