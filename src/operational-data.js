@@ -117,8 +117,16 @@ export function quickAccessTasks(tasks,when=today(),limit=3){
   }).slice(0,limit).map(entry=>entry.task);
 }
 
-export function normalizeDateRange(start,end){
+// V6-F26: forcing end=start whenever end-before-start was detected assumed that ordering is
+// always an error (true for a Hotel checkout or a Car return). It is NOT true for a Flight:
+// arrival can be calendar-earlier than departure in local time (International Date Line/
+// timezone crossing, e.g. FL-002), and even a same-day flight's arrival clock-time is routinely
+// "less than" its departure clock-time. Forcing them equal there silently destroyed the real
+// arrival date/time. Pass allowEndBeforeStart:true for any schedule where that ordering is
+// legitimate instead of an input mistake.
+export function normalizeDateRange(start,end,{allowEndBeforeStart=false}={}){
   const normalizedStart=String(start||''),normalizedEnd=String(end||'');
+  if(allowEndBeforeStart)return {start:normalizedStart,end:normalizedEnd};
   return {start:normalizedStart,end:normalizedStart&&normalizedEnd&&normalizedEnd<normalizedStart?normalizedStart:normalizedEnd};
 }
 
@@ -141,6 +149,44 @@ export function isValidCalendarDate(value){
   const [,y,m,d]=match.map(Number);
   const date=new Date(Date.UTC(y,m-1,d));
   return date.getUTCFullYear()===y&&date.getUTCMonth()===m-1&&date.getUTCDate()===d;
+}
+
+// Recognizes a 12-hour time with AM/PM (checked first, since a bare 24-hour regex would
+// otherwise greedily match just the leading digits of e.g. "2:00 PM" as 02:00). Shared by the
+// Hotel and Flight Smart Import pipelines so both parse the same set of real-world time formats
+// instead of each maintaining its own narrower copy.
+export function parseTimeValue(raw){
+  const value=String(raw||'');
+  let match=value.match(/\b(1[0-2]|0?[1-9]):([0-5]\d)\s*([AaPp])\.?[Mm]\.?/);
+  if(match){let hour=Number(match[1])%12;if(/p/i.test(match[3]))hour+=12;return `${String(hour).padStart(2,'0')}:${match[2]}`}
+  match=value.match(/\b([01]?\d|2[0-3]):([0-5]\d)\b/);
+  if(match)return `${match[1].padStart(2,'0')}:${match[2]}`;
+  return '';
+}
+
+const MONTH_ABBREVIATIONS={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+// The Flight schema asks the model for a plain date string but does not force a wire format, so
+// a source's own display convention (a spelled month, as literally printed on the THAI e-tickets
+// -- "Sat, 23 Jan 2027" -- or a numeric day-first date) can come back unconverted. Accepting only
+// strict YYYY-MM-DD then silently produced an empty date for every one of those sources
+// (V6-F25/F27/F28): the raw text was correct and visible in the evidence panel, but nothing
+// downstream could parse it into the field. This tries the common alternatives before giving up.
+export function normalizeFlightDateString(raw){
+  const value=String(raw||'').trim();
+  if(!value)return '';
+  let match=value.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if(match&&isValidCalendarDate(`${match[1]}-${match[2]}-${match[3]}`))return `${match[1]}-${match[2]}-${match[3]}`;
+  match=value.match(/(\d{1,2})[a-z]{0,2}\s+([A-Za-z]{3,9})\.?,?\s+(\d{4})/);
+  if(match){
+    const month=MONTH_ABBREVIATIONS[match[2].toLowerCase().slice(0,3)];
+    if(month){const candidate=`${match[3]}-${String(month).padStart(2,'0')}-${match[1].padStart(2,'0')}`;if(isValidCalendarDate(candidate))return candidate}
+  }
+  match=value.match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{4})$/);
+  if(match){
+    const day=Number(match[1]),month=Number(match[2]);
+    if(month>=1&&month<=12){const candidate=`${match[3]}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;if(isValidCalendarDate(candidate))return candidate}
+  }
+  return '';
 }
 
 // Validates a Trip's start/end dates before they are ever stored, whatever their origin --

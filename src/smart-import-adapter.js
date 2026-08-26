@@ -1,4 +1,4 @@
-import {isValidCalendarDate} from './operational-data.js';
+import {isValidCalendarDate,parseTimeValue} from './operational-data.js';
 
 const FIELD_MAP={
   property_name:'title',hotel_name:'title',booking_number:'confirmationNumber',booking_number_primary:'confirmationNumber',confirmation_number:'confirmationNumber',
@@ -101,14 +101,6 @@ function dateTimeKind(key,rootPattern){
 }
 function certainty(value){return value==='exact'?'high':value==='needs_review'?'medium':'low'}
 function findTime(draft,...keys){for(const field of draft.fields||[])if(keys.includes(canonicalFieldKey(field.key)))return parseTimeValue(String(field.normalizedValue||field.rawValue||'').trim());return ''}
-function parseTimeValue(raw){
-  const value=String(raw||'');
-  let match=value.match(/\b(1[0-2]|0?[1-9]):([0-5]\d)\s*([AaPp])\.?[Mm]\.?/);
-  if(match){let hour=Number(match[1])%12;if(/p/i.test(match[3]))hour+=12;return `${String(hour).padStart(2,'0')}:${match[2]}`}
-  match=value.match(/\b([01]?\d|2[0-3]):([0-5]\d)\b/);
-  if(match)return `${match[1].padStart(2,'0')}:${match[2]}`;
-  return '';
-}
 // A shape match (\d{4}-\d{2}-\d{2}) is not enough: <input type="datetime-local"> silently
 // sanitizes an unparseable-or-nonexistent date (e.g. 2027-02-30) to an EMPTY field with no
 // warning, which would look exactly like V6-F04's original "date not persisted" bug through a

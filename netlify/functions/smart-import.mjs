@@ -5,7 +5,7 @@ import OpenAI from 'openai';
 import {convert} from 'html-to-text';
 import {authorize,httpError} from './_shared/smart-import-auth.mjs';
 import {consumeDailyQuota,registerOrVerifyTrip,writeAudit} from './_shared/smart-import-quota.mjs';
-import {flightImportSchema,flightSystemPrompt,hotelImportSchema,systemPrompt} from './_shared/smart-import-schema.mjs';
+import {classificationSystemPrompt,flightImportSchema,flightSystemPrompt,hotelImportSchema,sourceClassificationSchema,systemPrompt} from './_shared/smart-import-schema.mjs';
 import {validateHotelPlace} from './_shared/place-validation.mjs';
 
 const MODEL='gpt-5.6-luna';const MAX_BINARY_BYTES=4*1024*1024;const MAX_PAGE_BYTES=1024*1024;
@@ -23,12 +23,34 @@ export default async function handler(request){
     const user=await authorize(request);const body=await request.json();const tripId=String(body.tripId||'').trim();if(!tripId)throw httpError(400,'invalid_trip','tripId is required.');
     audit={...audit,userEmailHash:user.emailHash,tripId};
     if(body.operation==='register_trip'){await registerOrVerifyTrip(tripId,user);return json({registered:true},200)}
+    const client=new OpenAI();
+    // "analyze_source": the Add flow no longer asks the user Hotel vs. Flight -- one small
+    // classification call determines it from content, then the matching category's existing
+    // extraction call runs exactly as it always has (analyze_hotel/analyze_flight stay
+    // available directly for attach-and-extract, where the target item's own type already
+    // makes classification unnecessary).
+    if(body.operation==='analyze_source'){
+      await registerOrVerifyTrip(tripId,user);const quota=await consumeDailyQuota(user);const prepared=await prepareSource(body.source,true);audit={...audit,sourceKind:prepared.kind,sourceSize:prepared.sourceSize};
+      const classifyResponse=await client.responses.create({model:MODEL,store:false,reasoning:{effort:'low',context:'current_turn'},safety_identifier:user.emailHash,max_output_tokens:200,input:[{role:'system',content:classificationSystemPrompt},{role:'user',content:[...prepared.content,{type:'input_text',text:'Classify this document.'}]}],text:{format:{type:'json_schema',name:'familytrips_source_classification',strict:true,schema:sourceClassificationSchema}}});
+      const classification=JSON.parse(classifyResponse.output_text);
+      const category=classification.category==='flight'?'flight':classification.category==='hotel'?'hotel':null;
+      if(!category){const latencyMs=Date.now()-started;audit={...audit,status:'completed',model:classifyResponse.model||MODEL,latencyMs};await writeAudit(audit);return json({attemptId:audit.attemptId,state:'no_match',category:'unrecognized',latencyMs,quota:{remaining:Math.max(0,quota.limit-quota.count),limit:quota.limit}},200)}
+      const operation=OPERATIONS[category==='flight'?'analyze_flight':'analyze_hotel'];
+      const result=await runExtraction(operation,prepared,user);
+      const latencyMs=Date.now()-started;audit={...audit,status:'completed',model:result.response.model||MODEL,latencyMs,estimatedVariableCostUsd:result.cost};await writeAudit(audit);
+      return json({attemptId:audit.attemptId,state:'proposal_ready',category,draft:result.draft,placeValidation:result.placeValidation,usage:result.usage,estimatedVariableCostUsd:result.cost,latencyMs,quota:{remaining:Math.max(0,quota.limit-quota.count),limit:quota.limit}},200);
+    }
     const operation=OPERATIONS[body.operation];if(!operation)throw httpError(400,'invalid_operation','Unsupported operation.');
     await registerOrVerifyTrip(tripId,user);const quota=await consumeDailyQuota(user);const prepared=await prepareSource(body.source,operation.allowUrl);audit={...audit,sourceKind:prepared.kind,sourceSize:prepared.sourceSize};
-    const client=new OpenAI();const response=await client.responses.create({model:MODEL,store:false,reasoning:{effort:'low',context:'current_turn'},safety_identifier:user.emailHash,max_output_tokens:8000,input:[{role:'system',content:operation.systemPrompt},{role:'user',content:[...prepared.content,{type:'input_text',text:operation.instruction}]}],text:{format:{type:'json_schema',name:operation.schemaName,strict:true,schema:operation.schema}}});
-    const draft=JSON.parse(response.output_text);const placeValidation=operation.validatePlace?await validateHotelPlace(draft):null;const usage=normalizeUsage(response.usage);const cost=estimateCost(usage);const latencyMs=Date.now()-started;audit={...audit,status:'completed',model:response.model||MODEL,latencyMs,estimatedVariableCostUsd:cost};await writeAudit(audit);
-    return json({attemptId:audit.attemptId,state:'proposal_ready',draft,placeValidation,usage,estimatedVariableCostUsd:cost,latencyMs,quota:{remaining:Math.max(0,quota.limit-quota.count),limit:quota.limit}},200);
+    const result=await runExtraction(operation,prepared,user);
+    const latencyMs=Date.now()-started;audit={...audit,status:'completed',model:result.response.model||MODEL,latencyMs,estimatedVariableCostUsd:result.cost};await writeAudit(audit);
+    return json({attemptId:audit.attemptId,state:'proposal_ready',draft:result.draft,placeValidation:result.placeValidation,usage:result.usage,estimatedVariableCostUsd:result.cost,latencyMs,quota:{remaining:Math.max(0,quota.limit-quota.count),limit:quota.limit}},200);
   }catch(error){audit={...audit,status:error.code||'failed',latencyMs:Date.now()-started};if(audit.userEmailHash)await writeAudit(audit).catch(()=>{});console.error('FamilyTrips Smart Import failed',{code:error?.code||'',message:String(error?.message||error)});return json({error:error?.code||'smart_import_failed',message:safeMessage(error)},Number(error?.status)||500)}
+}
+async function runExtraction(operation,prepared,user){
+  const client=new OpenAI();const response=await client.responses.create({model:MODEL,store:false,reasoning:{effort:'low',context:'current_turn'},safety_identifier:user.emailHash,max_output_tokens:8000,input:[{role:'system',content:operation.systemPrompt},{role:'user',content:[...prepared.content,{type:'input_text',text:operation.instruction}]}],text:{format:{type:'json_schema',name:operation.schemaName,strict:true,schema:operation.schema}}});
+  const draft=JSON.parse(response.output_text);const placeValidation=operation.validatePlace?await validateHotelPlace(draft):null;const usage=normalizeUsage(response.usage);const cost=estimateCost(usage);
+  return {response,draft,placeValidation,usage,cost};
 }
 export const config={path:'/api/familytrips-smart-import',method:'POST'};
 

@@ -4,16 +4,23 @@ const ENDPOINT='/api/familytrips-smart-import';
 const MAX_BINARY_BYTES=4*1024*1024;
 
 export async function analyzeHotelSource({trip,source,file,url}){
-  return analyzeSource({operation:'analyze_hotel',trip,source,file,url,allowUrl:true});
+  return runSource({operation:'analyze_hotel',trip,source,file,url,allowUrl:true});
+}
+
+// Add no longer asks Hotel vs. Flight up front (removed alongside this) -- the server
+// classifies from content first, then runs the matching extraction; result.category tells the
+// caller which adapter to route the draft through.
+export async function analyzeSource({trip,source,file}){
+  return runSource({operation:'analyze_source',trip,source,file,url:'',allowUrl:true});
 }
 
 // Flight Smart Import (0.6.5): no public-URL source is in scope, so it is rejected here with a
 // clear message before ever reaching the server (which also rejects it independently).
 export async function analyzeFlightSource({trip,source,file}){
-  return analyzeSource({operation:'analyze_flight',trip,source,file,url:'',allowUrl:false});
+  return runSource({operation:'analyze_flight',trip,source,file,url:'',allowUrl:false});
 }
 
-async function analyzeSource({operation,trip,source,file,url,allowUrl}){
+async function runSource({operation,trip,source,file,url,allowUrl}){
   const user=auth.currentUser;
   if(!user)throw new Error('נדרשת התחברות פעילה כדי לנתח מקור.');
   if(!navigator.onLine)throw new Error('ניתוח חכם דורש חיבור לאינטרנט. המקור נשמר מקומית וניתן לנסות שוב.');

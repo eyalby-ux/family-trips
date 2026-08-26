@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {smartImportFlightResultToSuggestions,isFlightSegmentUsable,mergeFlightPassengers,isSameFlightForDedup} from '../src/flight-import-adapter.js';
+import {smartImportFlightResultToSuggestions,isFlightSegmentUsable,isSameFlightNumberAndDate,mergeFlightPassengers,isSameFlightForDedup} from '../src/flight-import-adapter.js';
 import {findPossibleDuplicates,suggestionToItem} from '../src/ingestion.js';
+import {normalizeDateRange,normalizeFlightDateString} from '../src/operational-data.js';
 import {flightImportSchema,flightSystemPrompt} from '../netlify/functions/_shared/smart-import-schema.mjs';
 
 // Every fixture below is a hand-verified transcription of the real FL-00x benchmark document at
@@ -262,5 +263,181 @@ test_no_omission_blockers_flagged_when_missing();
 test_evidence_visible_for_every_proposed_value();
 test_flight_schema_and_prompt_shape();
 test_no_public_flight_url_source();
+
+// ===============================================================================================
+// Live-QA fix pass: V6-F25-V6-F30, found testing all 8 real documents against the live model
+// (the fixtures above use hand-verified extraction shapes and therefore could not catch these --
+// they are exactly the class of bug a fixture-only suite structurally cannot see).
+// ===============================================================================================
+
+// --- V6-F26 (data-corruption, highest priority): normalizeDateRange's force-equalize silently
+// destroyed a Flight's legitimate arrival date/time whenever it was "before" departure --
+// FL-002's genuine timezone-crossing case, and routinely even a same-day flight whose arrival
+// clock-time is numerically smaller than its departure clock-time. ---
+function test_V6_F26_flight_end_before_start_not_force_equalized(){
+  const timezoneCrossing=normalizeDateRange('2027-01-08T14:30','2027-01-07T22:20',{allowEndBeforeStart:true});
+  assert.equal(timezoneCrossing.end,'2027-01-07T22:20','a Flight\'s arrival date/time earlier than departure must be preserved exactly, not forced to equal the departure value');
+
+  const sameDayLateNight=normalizeDateRange('2027-01-26T22:45','2027-01-26T16:30',{allowEndBeforeStart:true});
+  assert.equal(sameDayLateNight.end,'2027-01-26T16:30','a same-day flight whose arrival clock-time is numerically earlier than departure must also be preserved, not just the date-crossing case');
+
+  // The old, unconditional behavior must still protect a Hotel checkout from a real input
+  // mistake -- allowEndBeforeStart defaults to false, so nothing about Hotel/Car changes.
+  const hotelMistake=normalizeDateRange('2027-06-10T12:00','2027-06-05T12:00');
+  assert.equal(hotelMistake.end,'2027-06-10T12:00','without allowEndBeforeStart, end-before-start must still be corrected -- this is a real error for a Hotel checkout, unlike a Flight');
+
+  const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
+  const ingestionSrc=fs.readFileSync(new URL('../src/ingestion.js',import.meta.url),'utf8');
+  assert.match(app,/normalizeDateRange\(data\.get\('startAt'\),data\.get\('endAt'\),\{allowEndBeforeStart:type==='flight'\}\)/,'the suggestion-review submit handler must pass allowEndBeforeStart for a flight');
+  assert.match(ingestionSrc,/normalizeDateRange\(data\.get\('startAt'\),data\.get\('endAt'\),\{allowEndBeforeStart:type==='flight'\}\)/,'the manual-create/edit-item submit path must also pass allowEndBeforeStart for a flight');
+  assert.match(app,/isFlight=form\?\.elements\?\.namedItem\('type'\)\?\.value==='flight'/,'the live startAt->endAt clamp while typing must also recognize a flight form and not force-equalize it');
+
+  console.log('PASS: V6-F26 a Flight\'s legitimate end-before-start dates are never force-equalized, while Hotel/Car end-before-start is still corrected');
+}
+test_V6_F26_flight_end_before_start_not_force_equalized();
+
+// --- V6-F25/F27/F28: departureDate/arrivalDate is a free-text field in the schema, not
+// constrained to a wire format -- a source's own display convention (THAI's "Sat, 23 Jan 2027",
+// a day-first numeric date) came back unconverted and was silently rejected by a strict
+// YYYY-MM-DD check, going blank even though the raw text was correct and visible in the
+// evidence panel the whole time. ---
+function test_V6_F25_F27_F28_non_canonical_date_formats_normalized(){
+  assert.equal(normalizeFlightDateString('Sat, 23 Jan 2027'),'2027-01-23','the exact THAI e-ticket date format (FL-004/005/006) must normalize to canonical form, not go blank');
+  assert.equal(normalizeFlightDateString('23 Jan 2027'),'2027-01-23');
+  assert.equal(normalizeFlightDateString('26/01/2027'),'2027-01-26','a day-first numeric date must also normalize');
+  assert.equal(normalizeFlightDateString('2027-01-23'),'2027-01-23','an already-canonical date must pass through unchanged');
+  assert.equal(normalizeFlightDateString('not a date'),'','text that genuinely isn\'t a date must still be rejected, not guessed');
+  assert.equal(normalizeFlightDateString('2027-13-40'),'','a shape-valid but impossible date must still be rejected');
+
+  const source={id:'src-thai-format',name:'thai',fingerprint:'thai'};
+  const result=draftResult({bookingReference:'EV7JXO',segments:[segment({flightNumber:'TG 246',operatingCarrier:'Thai Airways International',marketingCarrier:'Thai Airways International',departureAirportCode:'KBV',arrivalAirportCode:'BKK',departureDate:'Sat, 23 Jan 2027',departureTime:'12:45',arrivalDate:'Sat, 23 Jan 2027',arrivalTime:'14:10',evidence:'THAI e-ticket, unconverted source date format'})]});
+  const [suggestion]=smartImportFlightResultToSuggestions(result,source);
+  assert.equal(suggestion.proposed.startAt,'2027-01-23T12:45','the date must reach the saved field even when the raw extraction used the source\'s own display format instead of YYYY-MM-DD');
+  assert.equal(suggestion.proposed.endAt,'2027-01-23T14:10');
+
+  assert.match(flightSystemPrompt,/YYYY-MM-DD/,'the prompt must explicitly require the canonical date format, not leave it to the model\'s own convention');
+  console.log('PASS: V6-F25/F27/F28 a non-canonical source date format (e.g. "Sat, 23 Jan 2027") is normalized instead of silently producing a blank date');
+}
+test_V6_F25_F27_F28_non_canonical_date_formats_normalized();
+
+// --- V6-F25: a passenger present in the top-level roster under one name presentation but in
+// this segment's passengerDetails under another (a source literally printed "KOHAN PAOLA MRS
+// (ADT)", last-name-first with a title) was not matched -- the seat the source clearly showed
+// silently never reached that passenger. ---
+function test_V6_F25_passenger_name_order_and_title_mismatch_still_matches(){
+  const source={id:'src-name-mismatch',name:'name-mismatch',fingerprint:'nm'};
+  const result=draftResult({
+    passengers:[{name:'Paola Kohan',eTicketNumber:'',certainty:'exact'}],
+    segments:[segment({flightNumber:'LY084',operatingCarrier:'EL AL',marketingCarrier:'EL AL',departureAirportCode:'TLV',arrivalAirportCode:'BKK',departureDate:'2027-01-26',departureTime:'22:45',arrivalDate:'2027-01-26',arrivalTime:'16:30',evidence:'EL AL app',
+      passengerDetails:[{passengerName:'KOHAN PAOLA MRS (ADT)',seat:'43H',mealRequest:'',baggage:[],certainty:'exact'}],
+    })],
+  });
+  const [suggestion]=smartImportFlightResultToSuggestions(result,source);
+  assert.equal(suggestion.proposed.details.passengers.length,1);
+  assert.equal(suggestion.proposed.details.passengers[0].seat,'43H','the seat must be matched to the passenger despite the last-name-first, title-suffixed presentation in passengerDetails differing from the top-level roster\'s "Paola Kohan"');
+  console.log('PASS: V6-F25 a passenger is matched across a first/last-name-order and title-suffix mismatch, so seat/meal/baggage are never silently lost');
+}
+test_V6_F25_passenger_name_order_and_title_mismatch_still_matches();
+
+// --- V6-F25: the compact list-row date format now shows the year for a date outside the
+// current year (a Flight is routinely booked far enough ahead to cross one), instead of always
+// omitting it. ---
+function test_V6_F25_year_shown_for_out_of_current_year_dates(){
+  const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
+  assert.match(app,/showYear=date\.getFullYear\(\)!==new Date\(\)\.getFullYear\(\)/,'the compact date format must show the year whenever the date is not in the current year');
+  console.log('PASS: V6-F25 the compact date display includes the year for a date outside the current year');
+}
+test_V6_F25_year_shown_for_out_of_current_year_dates();
+
+// --- V6-F29: FL-008 (a clean, fully legible boarding pass) produced a false "no valid flight
+// segment" alert. A boarding pass normally shows no arrival date/time at all -- the old prompt
+// wording ("has no readable A, B, C, D or E at all") could be misread as "missing even one of
+// these" rather than "missing every one of these", over-voiding a segment that is actually fine.
+// isFlightSegmentUsable() itself was already correct (any one blocker present is enough); this
+// closes the prompt-wording gap that could cause the model to mark such a segment void anyway. ---
+function test_V6_F29_partial_segment_not_treated_as_void(){
+  const boardingPassLikeSegment=segment({flightNumber:'LY2373',operatingCarrier:'EL AL',marketingCarrier:'EL AL',departureAirportCode:'TLV',arrivalAirportCode:'BER',departureDate:'2025-09-16',departureTime:'17:30',arrivalDate:'',arrivalTime:'',status:'confirmed'});
+  assert.equal(isFlightSegmentUsable(boardingPassLikeSegment),true,'a segment with 4 of 5 no-omission-blockers present (everything but arrival date/time, normal for a boarding pass) must be usable, not void');
+
+  assert.doesNotMatch(flightSystemPrompt,/has no readable flight number, departure airport, arrival airport, departure date\/time or arrival date\/time at all must be returned/,'the old, ambiguous VOID wording ("no readable A, B, C, D or E at all") must be gone');
+  assert.match(flightSystemPrompt,/NONE of/,'the prompt must explicitly say ALL five fields must be missing before a segment is void');
+  assert.match(flightSystemPrompt,/boarding pass, which normally shows no arrival date\/time/,'the prompt must give the boarding-pass case as an explicit example of a segment that is confirmed despite a missing field, not void');
+  console.log('PASS: V6-F29 a segment missing only some fields (e.g. a boarding pass\' arrival date/time) is never treated as void');
+}
+test_V6_F29_partial_segment_not_treated_as_void();
+
+// --- V6-F30: FL-003's two segments matched real flights already represented by the FL-001/
+// FL-002 items, but no PNR is shown on any of these three EL AL sources -- reconciliation must
+// not depend on one. Flight-number formatting also differs across sources ("LY084" vs "LY84"). ---
+function test_V6_F30_cross_source_dedup_without_shared_pnr(){
+  const existingFromFL001={id:'item-fl001',type:'flight',title:'LY084 TLV → BKK',confirmationNumber:'',provider:'EL AL',startAt:'2027-01-26T22:45',endAt:'2027-01-26T16:30',details:{flightNumber:'LY084'}};
+  const proposedFromFL003Leg2={type:'flight',title:'LY84 TLV → BKK',confirmationNumber:'',provider:'EL AL',startAt:'2027-01-26T22:45',endAt:'2027-01-26T16:30',details:{flightNumber:'LY84'}};
+
+  assert.equal(isSameFlightNumberAndDate(proposedFromFL003Leg2,existingFromFL001),true,'"LY84" and "LY084" (a leading-zero formatting difference between sources) on the same date must be recognized as the same flight');
+  assert.equal(findPossibleDuplicates({proposed:proposedFromFL003Leg2,sourceId:'src-fl003'},[existingFromFL001],[]).length,1,'findPossibleDuplicates must catch this without either source ever having a booking reference');
+
+  const genuinelyDifferentFlight={id:'item-other',type:'flight',title:'LY200 TLV → LHR',confirmationNumber:'',provider:'EL AL',startAt:'2027-01-26T09:00',endAt:'2027-01-26T13:00',details:{flightNumber:'LY200'}};
+  assert.equal(isSameFlightNumberAndDate(proposedFromFL003Leg2,genuinelyDifferentFlight),false,'a different flight number on the same date must not be conflated as a duplicate');
+
+  console.log('PASS: V6-F30 cross-source reconciliation matches on flight number (leading-zero-tolerant) + date even with no shared PNR on either source');
+}
+test_V6_F30_cross_source_dedup_without_shared_pnr();
+
+// --- Regression guard: PNR-based matching (FL-004/FL-005/FL-006) must keep working exactly as
+// before -- this fallback is additive, not a replacement. ---
+function test_V6_F30_pnr_based_matching_still_works_unchanged(){
+  const item={id:'item-pnr',type:'flight',confirmationNumber:'EV7JXO',provider:'Thai Airways International',startAt:'2027-01-23T12:45',endAt:'2027-01-23T14:10',details:{flightNumber:'TG246'}};
+  const companion={proposed:{type:'flight',confirmationNumber:'EV7JXO',provider:'Thai Airways International',startAt:'2027-01-23T12:45',endAt:'2027-01-23T14:10',details:{flightNumber:'TG 246'}},sourceId:'src-fl005'};
+  assert.equal(findPossibleDuplicates(companion,[item],[]).length,1,'PNR-based dedup for the FL-004/005/006 companion set must still work unchanged after adding the flight-number/date fallback');
+  console.log('PASS: PNR-based dedup/merge (FL-004/FL-005/FL-006) is unaffected by the new fallback');
+}
+test_V6_F30_pnr_based_matching_still_works_unchanged();
+
+// --- UX change: the manual Hotel/Flight picker is gone; the app auto-detects category from
+// content via one classification call, then routes to the matching extraction -- the same
+// pattern already used to distinguish VOID vs. real segments. ---
+function test_ux_category_picker_removed_and_auto_detected(){
+  const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
+  assert.doesNotMatch(app,/SMART_IMPORT_CATEGORIES/,'the manual category-picker fieldset must be fully removed from the Add flow');
+  assert.doesNotMatch(app,/name="smart-category"/,'no smart-category radio input may remain in the rendered form');
+  assert.match(app,/await analyzeSource\(\{trip:state\.trip,source,file\}\)/,'a brand-new source (no target item yet) must go through the auto-detecting analyzeSource, not a pre-chosen category');
+  assert.match(app,/category===\s*'unrecognized'/,'an unrecognized document must be handled with a clear message, not a raw/false "no valid flight segment" error');
+
+  const client=fs.readFileSync(new URL('../src/smart-import-client.js',import.meta.url),'utf8');
+  assert.match(client,/operation:'analyze_source'/,'the client must call the new analyze_source operation for auto-detection');
+
+  const server=fs.readFileSync(new URL('../netlify/functions/smart-import.mjs',import.meta.url),'utf8');
+  assert.match(server,/body\.operation==='analyze_source'/,'the server must handle analyze_source: classify first, then run the matching extraction');
+  assert.match(server,/classificationSystemPrompt/,'the server must use a dedicated classification prompt before extraction');
+
+  console.log('PASS: the manual Hotel/Flight picker is removed; category is auto-detected from content via one classification call before extraction, the same pattern as VOID-segment detection');
+}
+test_ux_category_picker_removed_and_auto_detected();
+
+// --- UX change: attach-and-extract on an EXISTING item still calls the category-specific
+// analyze function directly (the item's own type is already certain), avoiding a pointless
+// extra classification call -- this must not regress alongside the create-flow auto-detect. ---
+function test_ux_attach_and_extract_still_uses_known_category(){
+  const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
+  assert.match(app,/targetItem\.type==='flight'\?analyzeFlightSource\(\{trip:state\.trip,source,file\}\):analyzeHotelSource\(\{trip:state\.trip,source,file\}\)/,'attach-and-extract must still call the known-category analyze function directly, not re-classify a source whose target item type is already known');
+  console.log('PASS: attach-and-extract still uses the already-known target item category directly, without an unnecessary classification call');
+}
+test_ux_attach_and_extract_still_uses_known_category();
+
+// --- UX change: PDF/Picture merged into one "Document" option; camera/gallery/file choice is
+// left to the OS via a broad-accept file input with no forced capture attribute. JSON stays its
+// own separate top-level option (a different, non-AI, schema-validated code path). ---
+function test_ux_document_option_merges_pdf_and_photo(){
+  const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
+  assert.match(app,/choices=\[\['manual','[^']*'\],\['document','[^']*'\],\['link','[^']*'\],\['json','[^']*'\],\['qr','[^']*'\]\]/,'the top-level Add options must be exactly Manual / Document / Link / QR / JSON, in that order -- PDF and Picture are no longer separate options there (attachmentModal, a different screen for adding a document to an existing item, intentionally keeps its own separate file/photo tabs and is out of this change\'s scope)');
+
+  const documentInputMatch=app.match(/<input id="source-file" type="file" accept="application\/pdf,\.pdf,image\/png,image\/jpeg,image\/webp">/);
+  assert(documentInputMatch,'the Document option must accept both PDF and image mime types in one input');
+  assert(!/capture="environment"/.test(documentInputMatch[0]),'the Document input must not force a capture attribute -- letting the OS present its native camera/gallery/file choice is what "choose camera, gallery, or file as before" means here');
+
+  assert.match(app,/kind==='document'&&!isPdf&&!isImage/,'validateSmartSource must accept a Document source as either a PDF or an image');
+  console.log('PASS: PDF and Picture are merged into one Document option (camera/gallery/file left to the OS), JSON remains its own separate top-level option');
+}
+test_ux_document_option_merges_pdf_and_photo();
 
 console.log('ALL PASS: Alpha 0.6.5 Flight Smart Import regression suite (8/8 benchmark cases)');

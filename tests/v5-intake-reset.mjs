@@ -6,7 +6,7 @@ const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
 const styles=fs.readFileSync(new URL('../src/styles.css',import.meta.url),'utf8');
 const manifest=fs.readFileSync(new URL('../public/manifest.webmanifest',import.meta.url),'utf8');
 
-assert(app.includes("choices=[['manual','✍️ ידני'],['file','📄 PDF'],['photo','📷 תמונה'],['link','🔗 קישור'],['json','⬆️ JSON'],['qr','▦ QR']]"));
+assert(app.includes("choices=[['manual','✍️ ידני'],['document','📎 מסמך'],['link','🔗 קישור'],['json','⬆️ JSON'],['qr','▦ QR']]"));
 assert(app.includes('ניתוח והצעת פריט'));
 assert(app.includes('שמירת המקור בלבד — ללא AI'));
 assert(app.includes('function smartIngest()'));

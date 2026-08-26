@@ -1,4 +1,4 @@
-import {isSameFlightForDedup,mergeFlightPassengers} from './flight-import-adapter.js';
+import {isSameFlightForDedup,isSameFlightNumberAndDate,mergeFlightPassengers} from './flight-import-adapter.js';
 import {isValidCalendarDate,normalizeDateRange,today} from './operational-data.js';
 
 export const ITEM_TYPES = {
@@ -93,6 +93,9 @@ export function findPossibleDuplicates(suggestion,items=[],sources=[]){
     if(linkedItems.length)return linkedItems;
   }
   return items.filter(item=>{
+    // V6-F30: reconcile the same real flight across sources even with no shared PNR at all
+    // (e.g. a personal itinerary screenshot next to a summary view of the same flight).
+    if(isSameFlightNumberAndDate(p,item))return true;
     if(p.confirmationNumber&&item.confirmationNumber&&normalized(p.confirmationNumber)===normalized(item.confirmationNumber)){
       // A shared booking reference alone is not enough for flights: one PNR commonly covers
       // several distinct flights (e.g. outbound + return), which must stay separate items.
@@ -137,7 +140,7 @@ export function manualCreateDefaults(trip,todayValue=today()){
 // same function (V6-F23: the previous regression tests only covered suggestionToItem(), a
 // completely different code path from manual item creation, which never called it at all).
 export function buildItemFormValues(data){
-  const type=String(data.get('type')),range=normalizeDateRange(data.get('startAt'),data.get('endAt'));
+  const type=String(data.get('type')),range=normalizeDateRange(data.get('startAt'),data.get('endAt'),{allowEndBeforeStart:type==='flight'});
   return {type,title:String(data.get('title')||'').trim(),provider:String(data.get('provider')||'').trim(),confirmationNumber:String(data.get('confirmationNumber')||'').trim(),location:String(data.get('location')||'').trim(),website:normalizeUrlInput(data.get('website')),phone:String(data.get('phone')||'').trim(),startAt:range.start,endAt:range.end,participants:String(data.get('participants')||'').split(',').map(x=>x.trim()).filter(Boolean),notes:String(data.get('notes')||'').trim(),schedule:ITEM_TYPES[type]?.schedule||'none',updatedAt:new Date().toISOString()};
 }
 export function validateSource({kind,file,url}){

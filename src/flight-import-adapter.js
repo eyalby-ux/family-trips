@@ -1,4 +1,4 @@
-import {isValidCalendarDate} from './operational-data.js';
+import {isValidCalendarDate,normalizeFlightDateString,parseTimeValue} from './operational-data.js';
 
 // Flight Smart Import (0.6.5). Mirrors the Hotel Smart Import architecture (immutable source
 // identity, processing attempts, field evidence, review-before-apply, explicit approval) but a
@@ -142,12 +142,36 @@ export function isSameFlightForDedup(proposed,item){
   return sameFlightNumber||sameDate;
 }
 
+// V6-F30: two sources describing the same real flight don't always share a booking reference at
+// all (e.g. a personal itinerary screenshot with no PNR shown, versus a summary view of the same
+// flight) -- reconciling them must not depend on one. Flight number, compared with airline-code
+// formatting differences ignored (e.g. "LY084" vs "LY84"), plus the same calendar date is enough
+// on its own; no PNR match is required for this fallback.
+export function isSameFlightNumberAndDate(proposed,item){
+  if(proposed.type!=='flight'||item.type!=='flight')return false;
+  const flightA=normalizeFlightNumber(proposed.details?.flightNumber),flightB=normalizeFlightNumber(item.details?.flightNumber);
+  if(!flightA||flightA!==flightB)return false;
+  return Boolean(dateOnly(proposed.startAt)&&dateOnly(proposed.startAt)===dateOnly(item.startAt));
+}
+function normalizeFlightNumber(value){
+  const raw=String(value||'').toUpperCase().replace(/\s+/g,'');
+  const match=raw.match(/^([A-Z]{1,3})0*(\d+)$/);
+  return match?`${match[1]}${match[2]}`:raw;
+}
+
+// V6-F25: matched purely on the exact normalized name, a passenger present in the top-level
+// roster under one presentation ("Paola Kohan") but in this segment's passengerDetails under
+// another (a source literally printed "KOHAN PAOLA MRS (ADT)", last-name-first with a title) was
+// simply not found -- the seat/meal/baggage the source clearly showed silently never made it
+// onto that passenger. Falls back to a sorted-word, title-stripped key when the exact name
+// doesn't match.
 function buildSegmentPassengers(passengerRoster,segment){
   const details=Array.isArray(segment.passengerDetails)?segment.passengerDetails:[];
-  const byName=new Map(details.map(detail=>[normalized(detail.passengerName),detail]));
+  const byExactName=new Map(details.map(detail=>[normalized(detail.passengerName),detail]));
+  const byMatchKey=new Map(details.map(detail=>[passengerMatchKey(detail.passengerName),detail]));
   const roster=passengerRoster.length?passengerRoster:details.map(detail=>({name:detail.passengerName,eTicketNumber:'',certainty:detail.certainty}));
   return roster.map(passenger=>{
-    const detail=byName.get(normalized(passenger.name))||{};
+    const detail=byExactName.get(normalized(passenger.name))||byMatchKey.get(passengerMatchKey(passenger.name))||{};
     return {
       name:String(passenger.name||'').trim(),
       eTicketNumber:String(passenger.eTicketNumber||'').trim(),
@@ -191,12 +215,18 @@ function buildEvidenceFields(segment,passengers,bookingReference){
 function bagLabel(type){return {carry_on:'כבודת יד',checked:'מזוודה',trolley:'טרולי'}[type]||type||'כבודה'}
 function certainty(value){return value==='exact'?'high':value==='needs_review'?'medium':'low'}
 function normalized(value){return String(value||'').trim().toLowerCase().replace(/\s+/g,' ')}
+function passengerMatchKey(name){return normalized(name).replace(/\b(mr|mrs|miss|ms|mstr|dr)\b/g,'').replace(/\(\s*(adt|chd|inf)\s*\)/g,'').split(/\s+/).filter(Boolean).sort().join(' ')}
 function dateOnly(value){return String(value||'').slice(0,10)}
 function passengerKey(passenger){const ticket=String(passenger?.eTicketNumber||'').replace(/\s+/g,'');return ticket?`ticket:${ticket}`:`name:${normalized(passenger?.name)}`}
+// V6-F25/F27/F28: the model isn't forced to a wire date format, so a source's own display
+// convention (spelled month, day-first numeric) can come back unconverted -- normalizeFlightDateString
+// tries those before giving up, instead of requiring strict YYYY-MM-DD and silently going blank.
+// Time reuses the same AM/PM-aware parser as Hotel (V6-F08/F21) instead of a bare 24-hour-only
+// check, which would misread e.g. "10:45 PM" as 10:45 rather than rejecting or converting it.
 function dateTime(date,time){
-  const clean=String(date||'').slice(0,10);
+  const clean=isValidCalendarDate(String(date||'').slice(0,10))?String(date).slice(0,10):normalizeFlightDateString(date);
   if(!isValidCalendarDate(clean))return '';
-  const clock=/^([01]\d|2[0-3]):([0-5]\d)/.test(String(time||''))?String(time).slice(0,5):'';
+  const clock=parseTimeValue(time);
   return clock?`${clean}T${clock}`:'';
 }
 function id(prefix){return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`}
