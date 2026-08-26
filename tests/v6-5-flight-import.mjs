@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {smartImportFlightResultToSuggestions,isFlightSegmentUsable,isSameFlightNumberAndDate,mergeFlightPassengers,isSameFlightForDedup} from '../src/flight-import-adapter.js';
 import {findPossibleDuplicates,suggestionToItem} from '../src/ingestion.js';
-import {normalizeDateRange,normalizeFlightDateString} from '../src/operational-data.js';
+import {currentOperational,isItemOutsideTrip,normalizeDateRange,normalizeFlightDateString} from '../src/operational-data.js';
+import {preserveTrustedFieldsOnMerge} from '../src/smart-import-adapter.js';
 import {flightImportSchema,flightSystemPrompt} from '../netlify/functions/_shared/smart-import-schema.mjs';
 
 // Every fixture below is a hand-verified transcription of the real FL-00x benchmark document at
@@ -441,3 +442,121 @@ function test_ux_document_option_merges_pdf_and_photo(){
 test_ux_document_option_merges_pdf_and_photo();
 
 console.log('ALL PASS: Alpha 0.6.5 Flight Smart Import regression suite (8/8 benchmark cases)');
+
+// ===============================================================================================
+// Second live-QA fix pass: V6-F31/F32/F33, plus a small Today-page addition. Found retesting all
+// 8 real documents against the live model on top of the first fix pass -- again the exact class
+// of bug a fixture-only suite structurally cannot catch on its own (a live-model misreading, and
+// a merge-path regression the first pass's own fix exposed).
+// ===============================================================================================
+
+// --- V6-F32 (highest priority): on a two-leg EL AL itinerary screenshot (and even a standalone
+// one), departure/arrival airport AND their paired date/time came back fully transposed at
+// extraction -- the segment's own evidence text asserted the wrong direction, so this is a
+// live-model misreading, not an adapter/mapping bug (dateTime() just passes through whatever
+// departureDate/arrivalDate the model returned -- see flight-import-adapter.js). The only lever
+// available for a live-model failure like this is the prompt; this locks in that the specific
+// guidance requested is present. ---
+function test_V6_F32_prompt_guards_against_transposed_direction(){
+  assert.match(flightSystemPrompt,/own explicit departure\/arrival labels/i,'the prompt must tell the model to determine direction from each flight\'s own explicit labels, not screen position');
+  assert.match(flightSystemPrompt,/right-to-left \(Hebrew\) app layout/i,'the prompt must explicitly call out that an RTL layout does not place departure before arrival in left-to-right visual order -- the specific failure mode reported for the EL AL app');
+  assert.match(flightSystemPrompt,/never combine an airport or date\/time that visually belongs to one leg with a value that belongs to a different leg/i,'the prompt must explicitly forbid mixing a value from one leg into another leg\'s departure/arrival group');
+  assert.match(flightSystemPrompt,/do not assume the first leg shown on the screen is the earlier-departing one/i,'the prompt must warn against inferring a two-leg itinerary\'s leg order from screen position');
+  assert.match(flightSystemPrompt,/re-verify that its departureAirportCode\/departureDate\/departureTime were read from beside that segment's own departure label/i,'the prompt must ask the model to self-check its own departure/arrival assignment before finalizing a segment');
+  console.log('PASS: V6-F32 the prompt explicitly guards against the reported transposed-direction failure mode (RTL layout, multi-leg itinerary, cross-leg value mixing)');
+}
+test_V6_F32_prompt_guards_against_transposed_direction();
+
+// --- V6-F33 (regression from V6-F30's new cross-source dedup fallback): merging a new suggestion
+// into an already-approved item let a conflicting non-blank new value silently become the item's
+// primary value -- confirmed live when V6-F32-reversed FL-003 segments merged into the correct
+// FL-001/FL-002 items and flipped their displayed direction/dates. Reusing
+// preserveTrustedFieldsOnMerge (already used for attach-and-extract) at the general duplicate-
+// merge callsite keeps the existing item's value primary on conflict and records the new value as
+// a reviewable candidate instead. ---
+function test_V6_F33_merge_preserves_existing_trusted_values_on_conflict(){
+  const existingItem={id:'item-fl001',type:'flight',title:'LY084 TLV → BKK',provider:'EL AL',confirmationNumber:'',location:'TLV → BKK',startAt:'2027-01-26T22:45',endAt:'2027-01-26T16:30',details:{flightNumber:'LY084',passengers:[{name:'Paola Kohan',eTicketNumber:'',seat:'43H',mealRequest:'',baggage:[]}]},warnings:[]};
+  // A conflicting re-read of the SAME flight (reproducing the reversed direction/dates V6-F32
+  // could previously produce) -- V6-F33 is about protecting the merge regardless of why a
+  // conflicting value showed up.
+  const conflictingSuggestion={proposed:{type:'flight',title:'LY084 BKK → TLV',provider:'EL AL',confirmationNumber:'',location:'BKK → TLV',startAt:'2027-01-26T16:30',endAt:'2027-01-26T22:45',details:{flightNumber:'LY084',passengers:[]},warnings:[]},warnings:[]};
+
+  const protectedSuggestion=preserveTrustedFieldsOnMerge(conflictingSuggestion,existingItem);
+  const merged=suggestionToItem(protectedSuggestion,existingItem);
+
+  assert.equal(merged.location,'TLV → BKK','the existing item\'s correct route must remain primary, not be silently replaced by a conflicting new value');
+  assert.equal(merged.startAt,'2027-01-26T22:45','the existing item\'s correct departure time must remain primary on conflict');
+  assert.equal(merged.endAt,'2027-01-26T16:30','the existing item\'s correct arrival time must remain primary on conflict');
+  assert(merged.details.mergeCandidates,'a conflicting new value must be recorded as a reviewable candidate, not silently discarded');
+  assert.equal(merged.details.mergeCandidates.location,'BKK → TLV');
+  assert(merged.warnings.some(w=>w.includes('location')),'the conflict must be surfaced as a visible warning on the merged item');
+  assert.equal(merged.details.passengers.length,1,'a conflicting merge must still preserve passengers already on the item, unrelated to the scalar-field conflict');
+
+  const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
+  assert.match(app,/const protectedSuggestion=preserveTrustedFieldsOnMerge\(suggestion,target\)/,'the general duplicate-merge path in approveSuggestion (not just attach-and-extract) must also run new suggestions through preserveTrustedFieldsOnMerge before merging into an already-approved item');
+  assert.match(app,/item\.warnings\?\.length/,'the item detail view must render item.warnings so a flagged merge conflict is actually visible to the user afterwards, not just stored');
+
+  console.log('PASS: V6-F33 merging into an already-approved item preserves its existing values as primary on conflict and flags the new value for review, instead of silently overwriting');
+}
+test_V6_F33_merge_preserves_existing_trusted_values_on_conflict();
+
+// --- Regression guard: a genuinely blank existing field must still be filled from a merged
+// suggestion -- V6-F33's conflict protection must not turn into "existing always wins outright". ---
+function test_V6_F33_merge_still_fills_genuinely_blank_existing_fields(){
+  const existingItem={id:'item-fl008',type:'flight',title:'LY2373',provider:'EL AL',confirmationNumber:'',location:'TLV → BER',startAt:'2025-09-16T17:30',endAt:'',details:{flightNumber:'LY2373',passengers:[]},warnings:[]};
+  const companionSuggestion={proposed:{type:'flight',title:'LY2373',provider:'EL AL',confirmationNumber:'ABC999',location:'TLV → BER',startAt:'2025-09-16T17:30',endAt:'',details:{flightNumber:'LY2373',passengers:[]},warnings:[]},warnings:[]};
+
+  const protectedSuggestion=preserveTrustedFieldsOnMerge(companionSuggestion,existingItem);
+  const merged=suggestionToItem(protectedSuggestion,existingItem);
+
+  assert.equal(merged.confirmationNumber,'ABC999','a PNR genuinely absent from the existing item must still be filled from a companion source, not blocked by the new conflict protection');
+  assert(!merged.details.mergeCandidates,'a field that was genuinely blank on the existing item is a fill, not a conflict, and must not be flagged as one');
+  console.log('PASS: V6-F33 the conflict protection still lets a genuinely blank existing field be filled from a merged suggestion, matching the pre-existing blank-preserving merge behavior');
+}
+test_V6_F33_merge_still_fills_genuinely_blank_existing_fields();
+
+// --- V6-F31 (low priority): the landing banner's fallback subtitle was a hand-maintained literal
+// ("Alpha 0.6.3 · Hotel Smart Import") that had already drifted -- wired to the same build-
+// version source already used for the tab title/description (V6-F24's __APP_VERSION__
+// injection), read back via document.title so it cannot drift independently again, and updated
+// to mention Flight support too. ---
+function test_V6_F31_landing_banner_synced_to_build_version_and_mentions_flight(){
+  const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
+  assert.doesNotMatch(app,/:'Alpha 0\.6\.3 · Hotel Smart Import'\}/,'the hardcoded stale "Alpha 0.6.3" literal must be gone from the landing banner\'s live template (a code comment may still mention it historically)');
+  assert.match(app,/function appVersionLabel\(\)\{const match=String\(document\.title\|\|''\)\.match\(\/Alpha\\s\+/,'the banner\'s version label must be derived from document.title (the same source __APP_VERSION__ resolves into at build time), not a second hardcoded literal');
+  assert.match(app,/\$\{appVersionLabel\(\)\} · Hotel \+ Flight Smart Import/,'the fallback subtitle must use the derived version label and mention Flight support, not just Hotel');
+  console.log('PASS: V6-F31 the landing banner\'s version label is derived from the same build-version source as the tab title, and now mentions Flight support');
+}
+test_V6_F31_landing_banner_synced_to_build_version_and_mentions_flight();
+
+// --- Small addition: Today surfaces out-of-Trip-range items (the existing "מחוץ לטווח" badge,
+// see isItemOutsideTrip/conflict()) instead of the empty state, but ONLY when Today has no other
+// relevant item to show at all -- a Today with genuinely relevant content must never have an
+// out-of-range item mixed in. ---
+function test_today_out_of_range_fallback_wiring(){
+  const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
+  assert.match(app,/const outOfRange=shown\.length\?\[\]:sortItemsByStartAt\(state\.items\.filter\(item=>isItemOutsideTrip\(item,state\.trip\)\)\)/,'Today must compute the out-of-range fallback list only when shown is empty, from items flagged by the same isItemOutsideTrip used for the Trip Center/Timeline badge');
+  assert.match(app,/const todayList=shown\.length\?shown\.map\(itemRow\)\.join\(''\):outOfRange\.length\?outOfRange\.map\(itemRow\)\.join\(''\):/,'Today must render the real shown items first, only falling back to out-of-range items (reusing itemRow, which already renders the "מחוץ לטווח" badge) when shown is empty, and only then falling back further to the empty-state message');
+  console.log('PASS: Today\'s out-of-range fallback is wired to show only when there is nothing else relevant, reusing the existing out-of-range badge/row rendering');
+}
+test_today_out_of_range_fallback_wiring();
+
+function test_today_out_of_range_fallback_data(){
+  const trip={startDate:'2027-01-20',endDate:'2027-01-30'};
+  const outOfRangeItem={id:'i1',type:'flight',schedule:'single',startAt:'2025-09-16T17:30',endAt:''};
+  const inRangeUpcoming={id:'i2',type:'hotel',schedule:'range',startAt:'2027-01-22T12:00',endAt:'2027-01-24T12:00'};
+
+  assert.equal(isItemOutsideTrip(outOfRangeItem,trip),true,'sanity: this fixture (FL-008\'s real 2025 boarding-pass date shape) is genuinely outside the Trip range');
+
+  const opNothingRelevant=currentOperational([outOfRangeItem],'2027-06-01');
+  assert.equal(opNothingRelevant.todayItems.length,0);
+  assert.equal(opNothingRelevant.next,undefined,'with only an out-of-range item and no other items, there is genuinely nothing relevant for Today to find on its own -- this is exactly when the fallback should trigger');
+
+  const opWithRealUpcoming=currentOperational([outOfRangeItem,inRangeUpcoming],'2027-01-01');
+  assert.equal(opWithRealUpcoming.next.id,'i2','a genuinely relevant upcoming item must still be found normally, unaffected by an out-of-range item also being present');
+
+  console.log('PASS: the underlying Today data supports falling back to an out-of-range item only when nothing else is relevant, never displacing real upcoming content');
+}
+test_today_out_of_range_fallback_data();
+
+console.log('ALL PASS: Alpha 0.6.5 Flight Smart Import second fix pass (V6-F31/F32/F33 + Today out-of-range fallback)');
