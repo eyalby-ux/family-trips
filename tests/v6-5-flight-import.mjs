@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {smartImportFlightResultToSuggestions,isFlightSegmentUsable,isSameFlightNumberAndDate,mergeFlightPassengers,isSameFlightForDedup} from '../src/flight-import-adapter.js';
+import {smartImportFlightResultToSuggestions,isFlightSegmentUsable,isSameFlightNumberAndDate,isSameFlightAcrossDirectionCandidates,mergeFlightPassengers,mergeFlightDetails,clearResolvedDirectionWarning,isSameFlightForDedup} from '../src/flight-import-adapter.js';
 import {findPossibleDuplicates,suggestionToItem} from '../src/ingestion.js';
 import {currentOperational,isItemOutsideTrip,normalizeDateRange,normalizeFlightDateString} from '../src/operational-data.js';
 import {preserveTrustedFieldsOnMerge} from '../src/smart-import-adapter.js';
@@ -430,7 +430,7 @@ test_ux_attach_and_extract_still_uses_known_category();
 // own separate top-level option (a different, non-AI, schema-validated code path). ---
 function test_ux_document_option_merges_pdf_and_photo(){
   const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
-  assert.match(app,/choices=\[\['manual','[^']*'\],\['document','[^']*'\],\['link','[^']*'\],\['json','[^']*'\],\['qr','[^']*'\]\]/,'the top-level Add options must be exactly Manual / Document / Link / QR / JSON, in that order -- PDF and Picture are no longer separate options there (attachmentModal, a different screen for adding a document to an existing item, intentionally keeps its own separate file/photo tabs and is out of this change\'s scope)');
+  assert.match(app,/choices=\[\['manual','[^']*'\],\['document','[^']*'\],\['link','[^']*'\],\['json','[^']*'\],\['qr','[^']*'\]\]/,'the top-level Add options must be exactly Manual / Document / Link / QR / JSON, in that order -- PDF and Picture are no longer separate options there (attachmentModal, the per-item "add document" screen, got the same merge separately in fix pass 4 / V6-F38, see test_V6_F38_attachment_modal_merges_pdf_and_photo)');
 
   const documentInputMatch=app.match(/<input id="source-file" type="file" accept="application\/pdf,\.pdf,image\/png,image\/jpeg,image\/webp">/);
   assert(documentInputMatch,'the Document option must accept both PDF and image mime types in one input');
@@ -701,14 +701,31 @@ console.log('ALL PASS: Alpha 0.6.5 Flight Smart Import second fix pass (V6-F31/F
 // and will be retested separately now that it is.
 // ===============================================================================================
 
-// --- Duplicate-matching re-verification (item #3): FL-003 wasn't consolidating with FL-001/
-// FL-002 only because which date got labeled departure vs. arrival was flipping between
-// extraction attempts (the old V6-F32 guessing behavior) -- the V6-F30 flight-number+date
-// fallback matcher itself was never broken. This confirms consolidation self-resolves once a
-// direction pick stabilizes the dates, with NO change to findPossibleDuplicates/
-// isSameFlightNumberAndDate themselves (both untouched in this pass). ---
-function test_duplicate_consolidation_self_resolves_once_direction_is_picked(){
-  const existingFromFL001={id:'item-fl001',type:'flight',title:'LY084 TLV → BKK',confirmationNumber:'',provider:'EL AL',startAt:'2027-01-26T22:45',endAt:'2027-01-26T16:30',details:{flightNumber:'LY084'}};
+// ===============================================================================================
+// Fourth fix pass: V6-F35 (resolved-direction warnings not clearing), V6-F36 (duplicate/merge
+// screen had no way to resolve direction ambiguity -- fixed by candidate-aware dedup matching +
+// inheriting the trusted item's already-resolved direction, no picker needed there), V6-F37
+// (Hotel-specific wording on a Flight screen), V6-F38 (per-item attachment modal not updated to
+// the merged Document option), and V6-F39 (the most important: a manually-resolved direction,
+// and any field populated as a result like seat, silently reverted when a new source was
+// attached -- the remaining scope of V6-F33, applied to the whole flight-details merge, not only
+// direction). The QA daily Smart Import quota was also raised separately (Netlify branch-deploy
+// context env var, not a code change -- see the chat report).
+// ===============================================================================================
+
+// --- Duplicate-matching re-verification (item #3, superseded by V6-F36 in fix pass 4): FL-003
+// wasn't consolidating with FL-001/FL-002 for two compounding reasons. The one identified at the
+// end of fix pass 3 -- which date got labeled departure vs. arrival flipping between extraction
+// attempts -- would have self-resolved once a pick stabilized the dates, with the existing V6-F30
+// flight-number+date matcher unchanged. But retesting found a second, deeper reason: an
+// AMBIGUOUS suggestion has a blank primary startAt (nothing to guess into it), so
+// isSameFlightNumberAndDate never even got a chance to fire until AFTER a pick -- meaning
+// duplicateModal never appeared unprompted, with no picker on that screen to make a pick
+// there either (V6-F36). isSameFlightAcrossDirectionCandidates closes that gap: it matches an
+// ambiguous suggestion straight away, before any pick, using its two candidate dates instead of
+// one committed date. ---
+function test_V6_F36_ambiguous_suggestion_matches_and_inherits_trusted_direction_without_a_pick(){
+  const existingFromFL001={id:'item-fl001',type:'flight',title:'LY084 TLV → BKK',confirmationNumber:'',provider:'EL AL',location:'TLV → BKK',startAt:'2027-01-26T22:45',endAt:'2027-01-26T16:30',details:{flightNumber:'LY084',operatingCarrier:'EL AL',marketingCarrier:'EL AL',departureAirport:{code:'TLV',name:'Tel Aviv',terminal:''},arrivalAirport:{code:'BKK',name:'Bangkok',terminal:''},aircraftType:'787 Dreamliner',classOfService:'',fareBasis:'',duration:'11h 15m',gate:'',gateOpensAt:'',gateClosesAt:'',boardingSequenceNumber:'',passengers:[{name:'Paola Kohan',eTicketNumber:'',seat:'43H',mealRequest:'',baggage:[]}]},warnings:[]};
 
   const source={id:'src-fl003-leg2',name:'FL-003',fingerprint:'fl003'};
   const result=draftResult({segments:[segment({
@@ -722,17 +739,143 @@ function test_duplicate_consolidation_self_resolves_once_direction_is_picked(){
   })]});
   const [suggestion]=smartImportFlightResultToSuggestions(result,source);
 
-  assert.equal(findPossibleDuplicates(suggestion,[existingFromFL001],[]).length,0,'before a direction is picked there is no stable date to match against yet -- correctly NOT a false-positive duplicate');
+  assert.equal(isSameFlightAcrossDirectionCandidates(suggestion.proposed,existingFromFL001),true,'the same flight number with a shared date on either candidate must match, with no pick required first');
+  assert.equal(findPossibleDuplicates(suggestion,[existingFromFL001],[]).length,1,'findPossibleDuplicates must catch this BEFORE any direction pick -- this is the actual root cause of FL-003 not consolidating, not a merge-logic gap');
 
-  // Simulate the Product Owner picking the correct candidate, exactly as pickFlightDirection()
-  // does in the UI (v5-app.js) -- reproduced here at the data level since that function lives in
-  // a browser-only module this suite doesn't execute.
-  const candidate=suggestion.proposed.details.directionCandidates[0];
-  const picked={...suggestion,proposed:{...suggestion.proposed,location:candidate.label,startAt:candidate.startAt,endAt:candidate.endAt}};
-  assert.equal(findPossibleDuplicates(picked,[existingFromFL001],[]).length,1,'once the direction pick stabilizes the date, the EXISTING V6-F30 flight-number+date fallback matcher fires with no changes of its own -- self-resolving, exactly as expected');
+  const genuinelyDifferentFlight={id:'item-other',type:'flight',startAt:'2027-01-26T09:00',endAt:'2027-01-26T13:00',details:{flightNumber:'LY200'}};
+  assert.equal(isSameFlightAcrossDirectionCandidates(suggestion.proposed,genuinelyDifferentFlight),false,'a different flight number must not match even if a date happens to coincide');
 
-  console.log('PASS: duplicate consolidation (V6-F30\'s flight-number+date fallback) self-resolves once a direction pick stabilizes the dates -- confirmed with no change to the merge/dedup logic itself');
+  // "Or better: have it inherit the direction already resolved on the matching trusted item" --
+  // reproduces the exact merge pipeline approveSuggestion's merge branch runs (v5-app.js):
+  // preserveTrustedFieldsOnMerge fills the still-blank location/startAt/endAt from the trusted
+  // target, mergeFlightDetails does the same for the nested departureAirport/arrivalAirport, and
+  // no separate direction-picker UI is needed on the duplicate screen at all.
+  const protectedSuggestion=preserveTrustedFieldsOnMerge(suggestion,existingFromFL001);
+  const merged=suggestionToItem(protectedSuggestion,existingFromFL001);
+  assert.equal(merged.location,'TLV → BKK','the ambiguous new source must inherit the existing item\'s already-resolved direction, not stay blank or get a picker of its own');
+  assert.equal(merged.startAt,'2027-01-26T22:45');
+  assert.equal(merged.endAt,'2027-01-26T16:30');
+  assert.equal(merged.details.departureAirport.code,'TLV');
+  assert.equal(merged.details.arrivalAirport.code,'BKK');
+
+  console.log('PASS: V6-F36 an ambiguous suggestion is matched as a duplicate of an already-resolved item via its candidate dates (no pick required), and inherits that item\'s trusted direction on merge instead of needing its own picker');
 }
-test_duplicate_consolidation_self_resolves_once_direction_is_picked();
+test_V6_F36_ambiguous_suggestion_matches_and_inherits_trusted_direction_without_a_pick();
+
+// --- V6-F35: a direction-ambiguity warning must clear once resolved -- whether by an explicit
+// Product Owner pick, or by the V6-F36 inheritance above -- and this must work for BOTH the
+// app's own Hebrew label and a model-authored English warning (retesting found phrasing like
+// "Direction ambiguity prevents assigning..." in draft.warnings/unresolved, which the old
+// Hebrew-only substring filter missed entirely). An unrelated warning must never be touched. ---
+function test_V6_F35_direction_warnings_clear_without_touching_unrelated_ones(){
+  const warnings=[
+    'דורש בדיקה — כיוון הטיסה (דורש בחירה): TLV → BKK / BKK → TLV (EL AL app)',
+    'Direction ambiguity prevents assigning departure and arrival with confidence for this segment.',
+    'Departure and arrival direction for this flight are not explicitly indicated in the source.',
+    'דורש בדיקה — חברת תפעול: ISRAIR (unclear logo)',
+    'שדות חובה חסרים במקור: gate',
+  ];
+  const cleared=clearResolvedDirectionWarning(warnings);
+  assert.equal(cleared.length,2,'only the three direction-related warnings must be removed');
+  assert(cleared.includes('דורש בדיקה — חברת תפעול: ISRAIR (unclear logo)'),'an unrelated carrier warning must be left exactly as-is');
+  assert(cleared.includes('שדות חובה חסרים במקור: gate'),'an unrelated missing-field warning must be left exactly as-is');
+
+  const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
+  assert.match(app,/warnings:clearResolvedDirectionWarning\(suggestion\.proposed\.warnings\)/,'pickFlightDirection (the suggestion-review AND attach-and-extract review screens share this same function) must use the broadened filter, so the suggestion review screen itself looks clean immediately after a pick');
+  const ingestionSrc=fs.readFileSync(new URL('../src/ingestion.js',import.meta.url),'utf8');
+  assert.match(ingestionSrc,/directionNowResolved=value\('type',''\)==='flight'&&Boolean\(p\.details\?\.directionCandidates\?\.length\)&&Boolean\(location\)/,'suggestionToItem itself must detect a now-resolved direction (regardless of which merge path led to it) and clear the stale warning before it reaches the merged item -- this is what actually fixes the item-level warning reappearing, not just the pre-approval suggestion display');
+  assert.match(ingestionSrc,/directionNowResolved\?clearResolvedDirectionWarning\(incomingWarnings\):incomingWarnings/,'the clearing must only apply when the direction is actually resolved, otherwise a genuinely still-ambiguous merge must keep showing its warning');
+
+  console.log('PASS: V6-F35 a resolved direction-ambiguity warning clears in both Hebrew and English phrasing, in both the pick and the merge-inherit path, without touching an unrelated warning');
+}
+test_V6_F35_direction_warnings_clear_without_touching_unrelated_ones();
+
+// --- V6-F37: the update-confirmation screen hardcoded Hotel-specific copy ("המלון הקיים לא
+// ישתנה", "אישור ועדכון המלון") regardless of the suggestion's actual type, so a Flight update
+// review incorrectly talked about a hotel. ---
+function test_V6_F37_flight_update_wording_is_not_hotel_specific(){
+  const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
+  assert.doesNotMatch(app,/isUpdate\?'המלון הקיים לא ישתנה עד לאישור מפורש\.'/,'the old hardcoded Hotel-only notice ternary must be gone from the live template');
+  assert.doesNotMatch(app,/isUpdate\?'אישור ועדכון המלון'/,'the old hardcoded Hotel-only approve-button ternary must be gone from the live template');
+  assert.match(app,/function existingItemUnchangedNotice\(type\)\{/,'a type-aware helper must supply the update-notice copy');
+  assert.match(app,/flight:'הטיסה הקיימת לא תשתנה עד לאישור מפורש\.'/,'the Flight-specific phrasing must exist (with correct Hebrew gender agreement -- טיסה is feminine)');
+  assert.match(app,/isUpdate\?`אישור ועדכון ה\$\{ITEM_TYPES\[p\.type\]\?\.label\|\|'פריט'\}`/,'the approve button must build its label from the suggestion\'s own type, not assume hotel');
+  console.log('PASS: V6-F37 the update-confirmation screen\'s copy is type-aware and no longer references "hotel" for a Flight update');
+}
+test_V6_F37_flight_update_wording_is_not_hotel_specific();
+
+// --- V6-F38: the per-item "add document" modal (attachmentModal) didn't get the PDF/Picture ->
+// Document merge that the global Add flow got earlier -- applying the same merge there too. ---
+function test_V6_F38_attachment_modal_merges_pdf_and_photo(){
+  const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
+  const attachmentModalStart=app.indexOf('function attachmentModal(');
+  const attachmentModalSrc=app.slice(attachmentModalStart,app.indexOf('\n',app.indexOf('data-action="attach-ingest"',attachmentModalStart))+1);
+  assert.doesNotMatch(attachmentModalSrc,/source-choice/,'the separate PDF/תמונה tab toggle must be gone from attachmentModal');
+  assert.doesNotMatch(attachmentModalSrc,/📄 PDF/,'no separate PDF tab label may remain in attachmentModal');
+  assert.doesNotMatch(attachmentModalSrc,/📷 תמונה/,'no separate תמונה (Picture) tab label may remain in attachmentModal');
+  assert.match(attachmentModalSrc,/<input id="source-file" type="file" accept="application\/pdf,\.pdf,image\/png,image\/jpeg,image\/webp">/,'attachmentModal must use the same single broad-accept Document input as the Add screen');
+  assert.doesNotMatch(attachmentModalSrc,/capture="environment"/,'attachmentModal must not force a capture attribute -- letting the OS present its native camera/gallery/file choice');
+  assert.match(app,/state\.modal=\{type:'attachment',itemId:button\.dataset\.id,source:'document'\}/,'opening the attachment modal must default its source kind to \'document\', matching the merged Add-screen option');
+  console.log('PASS: V6-F38 the per-item attachment modal merges PDF/Picture into one Document option, matching the global Add flow');
+}
+test_V6_F38_attachment_modal_merges_pdf_and_photo();
+
+// --- V6-F39 (the most important item, remaining scope of V6-F33): a manually-resolved flight
+// direction is a trusted value exactly like a manually-entered title or date -- attaching a new,
+// still-ambiguous companion source must not silently revert it. Confirmed live: attaching FL-003
+// to the already-resolved FL-001 item (BKK -> TLV, seat 43H) reverted the direction to
+// unresolved and lost the seat. Root cause: suggestionToItem's flight-details merge did a plain
+// object spread for everything except passengers, so a new source's own blank
+// departureAirport/arrivalAirport (and any other blank detail) silently overwrote the existing,
+// already-resolved ones. mergeFlightDetails fixes this generically, not just for direction. ---
+function test_V6_F39_resolved_direction_and_seat_survive_attaching_a_new_companion_source(){
+  const existingItem={id:'item-fl001',type:'flight',title:'LY084',provider:'EL AL',confirmationNumber:'',location:'BKK → TLV',startAt:'2027-01-26T16:30',endAt:'2027-01-26T22:45',details:{flightNumber:'LY084',operatingCarrier:'EL AL',marketingCarrier:'EL AL',departureAirport:{code:'BKK',name:'Bangkok',terminal:''},arrivalAirport:{code:'TLV',name:'Tel Aviv',terminal:''},aircraftType:'737-900',classOfService:'Economy',fareBasis:'',duration:'11h 15m',gate:'',gateOpensAt:'',gateClosesAt:'',boardingSequenceNumber:'',passengers:[{name:'Paola Kohan',eTicketNumber:'',seat:'43H',mealRequest:'',baggage:[]}]},warnings:[]};
+
+  const source={id:'src-fl003',name:'FL-003',fingerprint:'fl003'};
+  const result=draftResult({segments:[segment({
+    flightNumber:'LY84',operatingCarrier:'EL AL',marketingCarrier:'EL AL',
+    directionAmbiguous:true,
+    directionCandidates:[
+      {departureAirportCode:'TLV',departureAirportName:'Tel Aviv',arrivalAirportCode:'BKK',arrivalAirportName:'Bangkok',departureDate:'2027-01-26',departureTime:'22:45',arrivalDate:'2027-01-26',arrivalTime:'16:30'},
+      {departureAirportCode:'BKK',departureAirportName:'Bangkok',arrivalAirportCode:'TLV',arrivalAirportName:'Tel Aviv',departureDate:'2027-01-26',departureTime:'16:30',arrivalDate:'2027-01-26',arrivalTime:'22:45'},
+    ],
+    evidence:'itinerary summary leg 2 -- no passenger info shown at all on this view',
+  })]});
+  const [suggestion]=smartImportFlightResultToSuggestions(result,source);
+
+  // Reproduces the exact two-step attach-and-extract pipeline: preserveTrustedFieldsOnMerge runs
+  // first (in runSmartAnalysis), suggestionToItem runs at final approval (in approveSuggestion).
+  const protectedSuggestion=preserveTrustedFieldsOnMerge(suggestion,existingItem);
+  const merged=suggestionToItem(protectedSuggestion,existingItem);
+
+  assert.equal(merged.location,'BKK → TLV','the manually-resolved direction must survive attaching a new, still-ambiguous companion source');
+  assert.equal(merged.startAt,'2027-01-26T16:30');
+  assert.equal(merged.endAt,'2027-01-26T22:45');
+  assert.equal(merged.details.departureAirport.code,'BKK','the resolved departure airport must not be reverted to blank by the new source\'s own (still-ambiguous) departureAirport');
+  assert.equal(merged.details.arrivalAirport.code,'TLV');
+  assert.equal(merged.details.aircraftType,'737-900','an existing detail the new source didn\'t also report must not be silently wiped -- the same underlying merge bug, not limited to direction');
+  assert.equal(merged.details.passengers.find(p=>p.name==='Paola Kohan').seat,'43H','the seat populated earlier must survive attaching a companion source with no passenger info at all for this leg');
+  assert(!merged.warnings.some(w=>/כיוון|direction/i.test(w)),'the stale "pick one" ambiguity warning from the new source\'s own unresolved extraction must not reappear on an item whose direction is actually already resolved');
+
+  console.log('PASS: V6-F39 a manually-resolved flight direction (and dependent fields like seat/aircraft) survives attaching a new companion source, instead of being silently reverted to unresolved');
+}
+test_V6_F39_resolved_direction_and_seat_survive_attaching_a_new_companion_source();
+
+// --- Regression guard: mergeFlightDetails must still be a "fill gaps, don't block fills" merge,
+// not "existing always wins outright" -- a genuinely blank existing detail must still be filled
+// from a companion source (matching the pre-existing FL-004/005/006 fareBasis behavior). ---
+function test_mergeFlightDetails_still_fills_genuinely_blank_existing_fields(){
+  const existing={flightNumber:'TG246',operatingCarrier:'Thai Airways',marketingCarrier:'Thai Airways',aircraftType:'Airbus A320',classOfService:'',fareBasis:'',duration:'1h 25m',gate:'',gateOpensAt:'',gateClosesAt:'',boardingSequenceNumber:'',departureAirport:{code:'KBV',name:'',terminal:''},arrivalAirport:{code:'',name:'',terminal:''},passengers:[]};
+  const incoming={flightNumber:'TG246',operatingCarrier:'Thai Airways',marketingCarrier:'Thai Airways',aircraftType:'',classOfService:'Economy(Q)',fareBasis:'QLOFX',duration:'1h 25m',gate:'',gateOpensAt:'',gateClosesAt:'',boardingSequenceNumber:'',departureAirport:{code:'',name:'',terminal:''},arrivalAirport:{code:'BKK',name:'Bangkok Suvarnabhumi International Airport',terminal:''},passengers:[]};
+  const merged=mergeFlightDetails(existing,incoming);
+  assert.equal(merged.classOfService,'Economy(Q)','a genuinely blank existing field must still be filled from the new source');
+  assert.equal(merged.fareBasis,'QLOFX');
+  assert.equal(merged.aircraftType,'Airbus A320','an existing non-blank field must not be blanked by the new source\'s own blank value');
+  assert.equal(merged.departureAirport.code,'KBV','an existing non-blank airport must survive even though the SAME key is present-but-blank on the new source');
+  assert.equal(merged.arrivalAirport.code,'BKK','a genuinely blank existing airport must still be filled from the new source');
+  console.log('PASS: mergeFlightDetails fills genuine gaps from a companion source without letting a blank existing field block the fill, mirroring preserveTrustedFieldsOnMerge\'s existing semantics');
+}
+test_mergeFlightDetails_still_fills_genuinely_blank_existing_fields();
 
 console.log('ALL PASS: Alpha 0.6.5 Flight Smart Import third fix pass (V6-F34 + revised V6-F32 needs-review direction pick, dedup re-verified)');
+console.log('ALL PASS: Alpha 0.6.5 Flight Smart Import fourth fix pass (V6-F35/F36/F37/F38/F39)');

@@ -1,4 +1,4 @@
-import {isSameFlightForDedup,isSameFlightNumberAndDate,mergeFlightPassengers} from './flight-import-adapter.js';
+import {clearResolvedDirectionWarning,isSameFlightAcrossDirectionCandidates,isSameFlightForDedup,isSameFlightNumberAndDate,mergeFlightDetails} from './flight-import-adapter.js';
 import {isValidCalendarDate,normalizeDateRange,today} from './operational-data.js';
 
 export const ITEM_TYPES = {
@@ -96,6 +96,10 @@ export function findPossibleDuplicates(suggestion,items=[],sources=[]){
     // V6-F30: reconcile the same real flight across sources even with no shared PNR at all
     // (e.g. a personal itinerary screenshot next to a summary view of the same flight).
     if(isSameFlightNumberAndDate(p,item))return true;
+    // V6-F36: a still direction-ambiguous suggestion has no primary startAt yet for
+    // isSameFlightNumberAndDate to compare -- match it against an already-resolved item via its
+    // candidate readings instead, so consolidation doesn't have to wait for a pick first.
+    if(isSameFlightAcrossDirectionCandidates(p,item))return true;
     if(p.confirmationNumber&&item.confirmationNumber&&normalized(p.confirmationNumber)===normalized(item.confirmationNumber)){
       // A shared booking reference alone is not enough for flights: one PNR commonly covers
       // several distinct flights (e.g. outbound + return), which must stay separate items.
@@ -117,13 +121,25 @@ export function suggestionToItem(suggestion,existing={},tripStartDate=''){
     startAt=`${tripStartDate}T12:00`;
     if(schedule==='range'&&!endAt)endAt=`${tripStartDate}T12:00`;
   }
-  // A flight's per-passenger detail is an array, not a flat field: a plain object spread would
-  // let a newer, narrower suggestion (e.g. one passenger's individual e-ticket) silently drop
-  // every OTHER passenger already on the item. Merge element-wise instead, keyed by e-ticket/name.
-  const details=value('type','')==='flight'&&Array.isArray(p.details?.passengers)&&Array.isArray(existing.details?.passengers)
-    ?{...(existing.details||{}),...(p.details||{}),passengers:mergeFlightPassengers(existing.details.passengers,p.details.passengers)}
+  // A flight's nested details (per-passenger array, departure/arrival airport objects, and every
+  // other detail scalar) need field-aware merging, not a plain object spread -- a plain spread
+  // would let a newer, narrower suggestion (e.g. one passenger's individual e-ticket, or a still
+  // direction-ambiguous companion source) silently drop every OTHER passenger, or wipe an
+  // already-resolved direction/aircraft/class value back to blank (V6-F39). mergeFlightDetails
+  // preserves existing non-blank values and only fills genuine gaps.
+  const details=value('type','')==='flight'&&existing.details&&p.details
+    ?mergeFlightDetails(existing.details,p.details)
     :{...(existing.details||{}),...(p.details||{})};
-  return {...existing,id:existing.id||makeId('item'),type:value('type','document'),title:String(value('title','')).trim(),provider:String(value('provider','')).trim(),confirmationNumber:String(value('confirmationNumber','')).trim(),participants:value('participants',[]),location:String(value('location','')).trim(),website:String(value('website','')).trim(),phone:String(value('phone','')).trim(),schedule,startAt,endAt,notes:String(value('notes','')).trim(),details,dateMeta:{...(existing.dateMeta||{}),...(p.dateMeta||{})},fieldConfidence:{...(existing.fieldConfidence||{}),...(p.fieldConfidence||{})},warnings:[...(existing.warnings||[]),...(p.warnings||suggestion.warnings||[])],sourceIds:[...new Set([...(existing.sourceIds||[]),...sourceIds])],updatedAt:new Date().toISOString()};
+  const location=String(value('location','')).trim();
+  // V6-F35/V6-F39 (fix pass 4): once a flight's direction is resolved -- location ends up
+  // non-blank here, whether via an explicit Product Owner pick or by inheriting an already-
+  // trusted item's value during this very merge (preserveTrustedFieldsOnMerge/mergeFlightDetails)
+  // -- a stale "pick one" ambiguity warning carried in from an ambiguous companion suggestion's
+  // own unresolved extraction attempt must not be dragged onto the item. Checked here, once, so
+  // every merge path (general duplicate-merge, attach-and-extract) gets this for free.
+  const directionNowResolved=value('type','')==='flight'&&Boolean(p.details?.directionCandidates?.length)&&Boolean(location);
+  const incomingWarnings=p.warnings||suggestion.warnings||[];
+  return {...existing,id:existing.id||makeId('item'),type:value('type','document'),title:String(value('title','')).trim(),provider:String(value('provider','')).trim(),confirmationNumber:String(value('confirmationNumber','')).trim(),participants:value('participants',[]),location,website:String(value('website','')).trim(),phone:String(value('phone','')).trim(),schedule,startAt,endAt,notes:String(value('notes','')).trim(),details,dateMeta:{...(existing.dateMeta||{}),...(p.dateMeta||{})},fieldConfidence:{...(existing.fieldConfidence||{}),...(p.fieldConfidence||{})},warnings:[...(existing.warnings||[]),...(directionNowResolved?clearResolvedDirectionWarning(incomingWarnings):incomingWarnings)],sourceIds:[...new Set([...(existing.sourceIds||[]),...sourceIds])],updatedAt:new Date().toISOString()};
 }
 // The date/time defaults shown in the manual "create new item" form the moment it opens
 // (V6-F06/V4-F04 also apply here, via the rendered form's own pre-filled value= attribute).

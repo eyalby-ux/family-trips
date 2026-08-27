@@ -161,6 +161,66 @@ export function mergeFlightPassengers(existingPassengers,newPassengers){
   return [...merged.values()];
 }
 
+// V6-F39 (fix pass 4, remaining scope of V6-F33): a plain object spread in suggestionToItem let
+// ANY nested flight detail -- departureAirport/arrivalAirport (a manually-resolved direction),
+// aircraftType, classOfService, fareBasis, duration, gate/boarding fields -- from a newly
+// attached companion source silently overwrite an existing, already-resolved value whenever the
+// new source didn't also report it (a blank string, or a blank {code:'',name:'',terminal:''}
+// object, still "wins" in a shallow spread, since the key IS present with a value, just an empty
+// one). Confirmed live: attaching FL-003 (still direction-ambiguous on its own) to the already-
+// resolved FL-001 item reverted its manually-picked direction straight back to blank. Passengers
+// already had their own protected merge (mergeFlightPassengers); this extends the same
+// "existing wins unless genuinely blank" rule to every other nested detail, mirroring what
+// preserveTrustedFieldsOnMerge already does for the top-level scalar fields.
+const FLIGHT_DETAIL_SCALAR_KEYS=['flightNumber','operatingCarrier','marketingCarrier','aircraftType','classOfService','fareBasis','duration','gate','gateOpensAt','gateClosesAt','boardingSequenceNumber'];
+const FLIGHT_DETAIL_AIRPORT_KEYS=['departureAirport','arrivalAirport'];
+export function mergeFlightDetails(existingDetails,newDetails){
+  const existing=existingDetails||{},incoming=newDetails||{};
+  const merged={...existing,...incoming};
+  for(const key of FLIGHT_DETAIL_SCALAR_KEYS){
+    if(!String(incoming[key]||'').trim()&&String(existing[key]||'').trim())merged[key]=existing[key];
+  }
+  for(const key of FLIGHT_DETAIL_AIRPORT_KEYS){
+    const incomingAirport=incoming[key]||{},existingAirport=existing[key]||{};
+    const incomingHasValue=String(incomingAirport.code||'').trim()||String(incomingAirport.name||'').trim();
+    const existingHasValue=String(existingAirport.code||'').trim()||String(existingAirport.name||'').trim();
+    merged[key]=!incomingHasValue&&existingHasValue?existingAirport:incomingAirport;
+  }
+  merged.passengers=mergeFlightPassengers(existing.passengers,incoming.passengers);
+  return merged;
+}
+
+// Fix pass 4: once a flight suggestion's direction is resolved -- either by an explicit Product
+// Owner pick (pickFlightDirection) or by inheriting an already-trusted item's direction during a
+// merge (V6-F36/V6-F39) -- the "pick one" ambiguity warning from BEFORE it was resolved is stale
+// and must not linger (V6-F35), whether on the suggestion itself or on the item it gets merged
+// into. Matches both the app's own Hebrew label ("כיוון הטיסה") and a plain-English model-authored
+// warning (e.g. "Direction ambiguity prevents assigning...") since draft.warnings/unresolved are
+// free text the model can phrase either way.
+export function clearResolvedDirectionWarning(warnings){
+  return (warnings||[]).filter(warning=>!/כיוון|direction/i.test(String(warning||'')));
+}
+
+// V6-F36: an ambiguous flight suggestion has a blank primary startAt (see
+// smartImportFlightResultToSuggestions), so the plain isSameFlightNumberAndDate() never fires for
+// it even when it is genuinely the same real flight as an existing, already-resolved item -- this
+// is the actual reason FL-003 wasn't offered as a duplicate/merge candidate against FL-001/FL-002
+// until after a direction was manually picked. Matching flight number against EITHER of the two
+// candidate readings' dates (both readings share the same two underlying date values, just with
+// their start/end roles swapped) finds the match regardless of whether a pick has happened yet;
+// preserveTrustedFieldsOnMerge + mergeFlightDetails then inherit the target's already-resolved
+// direction automatically once merged, so no separate picker is needed on the duplicate screen.
+export function isSameFlightAcrossDirectionCandidates(proposed,item){
+  if(proposed.type!=='flight'||item.type!=='flight')return false;
+  const flightA=normalizeFlightNumber(proposed.details?.flightNumber),flightB=normalizeFlightNumber(item.details?.flightNumber);
+  if(!flightA||flightA!==flightB)return false;
+  const candidates=proposed.details?.directionCandidates;
+  if(!Array.isArray(candidates)||!candidates.length)return false;
+  const itemDates=[dateOnly(item.startAt),dateOnly(item.endAt)].filter(Boolean);
+  if(!itemDates.length)return false;
+  return candidates.some(candidate=>[dateOnly(candidate.startAt),dateOnly(candidate.endAt)].filter(Boolean).some(date=>itemDates.includes(date)));
+}
+
 // Two suggestions describe the same flight only when they share both the booking reference AND
 // the specific segment (flight number, or failing that the same date) -- a shared PNR alone is
 // not enough, since one booking commonly covers multiple distinct flights (e.g. an outbound and
