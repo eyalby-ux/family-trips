@@ -1082,3 +1082,75 @@ function test_V6_F35_fix_pass_6_arrival_airport_not_coupled_to_arrival_time_cert
 test_V6_F35_fix_pass_6_arrival_airport_not_coupled_to_arrival_time_certainty();
 
 console.log('ALL PASS: Alpha 0.6.5 Flight Smart Import sixth fix pass (V6-F35, root-caused and fixed against the real FL-007 file\'s structure)');
+
+// ===============================================================================================
+// Seventh fix pass: two issues found retesting the sixth fix pass against the real FL-007 file.
+// (1) V6-F35 held on the arrival side but not the departure side -- a symmetric gap in the
+// dedup, not a new bug in the reconciliation itself. (2) V6-F44 -- the baggage matrix disappeared
+// entirely on this build. Traced to the fix pass 6 PROMPT change (the adapter code touched in
+// that pass has zero code path through passengers/baggage -- confirmed by re-reading the diff),
+// since nothing else changed. This session has no live OpenAI API access, so the live-model
+// behavior itself could not be re-run here; the fix narrows/reaffirms the prompt and locks in
+// (via test) that the adapter's own handling of a nameless baggage row was, and remains, correct.
+// ===============================================================================================
+
+// --- V6-F35 (reopened a third time): the value-token dedup only fires when the free text quotes
+// the bad value ("23:75"). An obscured/unreadable field has no value to quote at all ("Flight #2
+// departure time is partially obscured...") -- confirmed this is exactly the departure-side
+// warning that stayed displayed after a live correction. FIELD_TOPIC_HINTS adds a second,
+// symmetric matching signal (the field's own English topic phrase) for this case. ---
+function test_V6_F35_fix_pass_7_departure_side_freetext_warning_deduped_symmetrically(){
+  const source={id:'src-fl007-departure-obscured',name:'FL-007_wildcard_VOID_plus_ISRAIR_baggage_matrix.png',fingerprint:'fl007dep'};
+  const result=draftResult({
+    bookingReference:'1172207',
+    warnings:['Flight #2 departure time is partially obscured by the zoom control overlay and could not be fully confirmed.'],
+    segments:[
+      segment({status:'void'}),
+      segment({flightNumber:'6H568',operatingCarrier:'ISRAIR',marketingCarrier:'ISRAIR',departureAirportCode:'ATH',departureAirportName:'Athens',arrivalAirportCode:'TLV',arrivalAirportName:'Tel Aviv',departureDate:'2025-08-25',departureTime:'',arrivalDate:'2025-08-25',arrivalTime:'19:04',certainty:'needs_review',arrivalCertainty:'exact',evidence:'ISRAIR e-ticket, Flight #2 row'}),
+    ],
+  });
+  const [suggestion]=smartImportFlightResultToSuggestions(result,source);
+  assert(!suggestion.warnings.some(w=>w.includes('partially obscured')),'the redundant free-text departure-side warning must be deduped just like the arrival-side one');
+  assert(suggestion.warnings.some(w=>w.includes('מועד יציאה')),'the structured, clearable departure-time warning must still be present');
+
+  const corrected=reconcileStaleNeedsReview({...suggestion.proposed,startAt:'2025-08-25T21:30'},new Set(['startAt']));
+  assert.equal(corrected.details.needsReviewFields.length,0,'the departure-time needs-review entry must clear once corrected -- confirming this now works symmetrically with the already-confirmed arrival-side fix');
+  assert(!corrected.warnings.some(w=>w.includes('מועד יציאה')),'no warning about departure time may remain after the correction');
+
+  console.log('PASS: V6-F35 (fix pass 7) the departure-side free-text warning (no quotable bad value, only a topic description) is deduped symmetrically with the arrival-side case, and clears on correction');
+}
+test_V6_F35_fix_pass_7_departure_side_freetext_warning_deduped_symmetrically();
+
+// --- V6-F44: the baggage-inclusion matrix disappeared entirely on the build that introduced the
+// fix pass 6 prompt/warning-dedup change. Re-reading that change's diff confirms the adapter code
+// touched has NO code path through buildSegmentPassengers/baggage at all -- the dedup filter only
+// ever reads/filters proposed.warnings, never proposed.details.passengers. This test locks in
+// that the adapter itself has always correctly preserved a baggage row with no legible passenger
+// name (the exact scenario the live regression describes); the prompt is also strengthened to
+// explicitly guard against a live model reading fix pass 6's "don't restate a warning" instruction
+// as license to omit baggage/seat/meal data. ---
+function test_V6_F44_baggage_preserved_when_no_passenger_name_is_legible(){
+  const source={id:'src-fl007-no-name',name:'FL-007_wildcard_VOID_plus_ISRAIR_baggage_matrix.png',fingerprint:'fl007noname'};
+  const result=draftResult({
+    bookingReference:'1172207',
+    segments:[segment({flightNumber:'6H568',operatingCarrier:'ISRAIR',marketingCarrier:'ISRAIR',departureAirportCode:'ATH',departureAirportName:'Athens',arrivalAirportCode:'TLV',arrivalAirportName:'Tel Aviv',departureDate:'2025-08-25',departureTime:'21:30',arrivalDate:'2025-08-25',arrivalTime:'19:04',evidence:'ISRAIR baggage matrix',
+      passengerDetails:[{passengerName:'',seat:'',mealRequest:'',certainty:'exact',baggage:[{bagType:'carry_on',weight:'3 kg',included:'included'},{bagType:'checked',weight:'23 kg',included:'not_included'},{bagType:'trolley',weight:'10 kg',included:'included'}]}],
+    })],
+  });
+  const [suggestion]=smartImportFlightResultToSuggestions(result,source);
+  const passengers=suggestion.proposed.details.passengers;
+  assert.equal(passengers.length,1,'a baggage row with no legible passenger name must still produce one passenger entry, not be dropped');
+  assert.equal(passengers[0].name,'','the name genuinely isn\'t legible and must stay blank, not be fabricated');
+  assert.equal(passengers[0].baggage.length,3,'all three baggage entries must survive even with no passenger name');
+  assert.equal(passengers[0].baggage.find(b=>b.bagType==='checked').included,'not_included','the checked bag\'s not-included marking must be preserved exactly');
+  const bagFields=suggestion.proposed.details.smartImportFields.filter(f=>f.key.includes(':bag:'));
+  assert.equal(bagFields.length,3,'each baggage entry must still be individually evidenced in the evidence panel, even with a blank passenger name');
+
+  assert.match(flightSystemPrompt,/still report a passengerDetails entry for that row with passengerName left empty/,'the prompt must explicitly instruct the model to keep reporting baggage/seat/meal when no passenger name is legible, not omit the whole entry');
+  assert.match(flightSystemPrompt,/it never means extracting less/,'the fix-pass-6 "don\'t restate a warning" instruction must be explicitly scoped so a model can never read it as license to omit substantive data like baggage');
+
+  console.log('PASS: V6-F44 baggage/seat/meal data survives with no legible passenger name at the adapter level (confirmed unaffected by the fix pass 6 warning-dedup code, which never touches passengers/baggage), and the prompt now explicitly guards against a model reading the dedup instruction as license to omit it');
+}
+test_V6_F44_baggage_preserved_when_no_passenger_name_is_legible();
+
+console.log('ALL PASS: Alpha 0.6.5 Flight Smart Import seventh fix pass (V6-F35 departure-side symmetry, V6-F44 baggage regression)');

@@ -15,6 +15,23 @@ const NO_OMISSION_BLOCKERS=['flightNumber','departureAirportCode','arrivalAirpor
 // says so precisely.
 const DIRECTION_DEPENDENT_BLOCKERS=['departureAirportCode','arrivalAirportCode','departureDate','arrivalDate'];
 
+// V6-F35 (fix pass 7): a free-text draft.warnings/unresolved sentence about a field with no
+// specific value to quote (a genuinely obscured/unreadable field, as opposed to an invalid-but-
+// legible one like "23:75") has nothing for the value-token dedup below to match against. These
+// are the field's own recognizable English topic phrases, used as a second, symmetric dedup
+// signal -- kept short and specific (not just "departure"/"arrival" alone) to avoid over-matching
+// an unrelated sentence that happens to mention the same side of the flight for a different reason.
+const FIELD_TOPIC_HINTS={
+  departureDateTime:['departure time','departure date'],
+  arrivalDateTime:['arrival time','arrival date'],
+  departureAirport:['departure airport'],
+  arrivalAirport:['arrival airport'],
+  departureTerminal:['departure terminal'],
+  arrivalTerminal:['arrival terminal'],
+  flightNumber:['flight number'],
+  bookingReference:['booking reference','booking number','pnr'],
+};
+
 export function smartImportFlightResultToSuggestions(result,source,now=new Date()){
   const draft=result?.draft||{};
   const passengerRoster=Array.isArray(draft.passengers)?draft.passengers:[];
@@ -59,10 +76,21 @@ export function smartImportFlightResultToSuggestions(result,source,now=new Date(
     // is generic to any needs-review field's value, not special-cased to arrival time, so it
     // generalizes to any multi-segment/VOID+real-flight source with the same free-text-duplicate
     // pattern, not just FL-007's specific layout.
+    // V6-F35 (reopened a third time, fix pass 7): the value-token match above only fires when the
+    // free text actually QUOTES the bad value ("23:75") -- retesting the real FL-007 file found
+    // the symmetric departure-side case doesn't: an obscured/unreadable field has no specific
+    // value to quote at all ("Flight #2 departure time is partially obscured..."), so there is no
+    // token to match against even though the field (departureDateTime) is correctly flagged
+    // needs_review and its OWN structured warning IS clearable. FIELD_TOPIC_HINTS adds a second,
+    // symmetric signal: the field's own English topic phrase appearing in the free text, for
+    // exactly this "can't quote a value, only describe the field" case.
     const rawDraftWarnings=[...(draft.warnings||[]),...(draft.unresolved||[]).map(value=>`דורש בדיקה: ${value}`)];
     const draftWarnings=rawDraftWarnings.filter(warning=>!smartImportFields.some(field=>{
-      if(field.certainty==='exact'||!field.rawValue)return false;
-      return field.rawValue.split(/\s+/).some(token=>token.length>=4&&String(warning).includes(token));
+      if(field.certainty==='exact')return false;
+      const text=String(warning);
+      const valueMatch=Boolean(field.rawValue)&&field.rawValue.split(/\s+/).some(token=>token.length>=4&&text.includes(token));
+      const topicMatch=(FIELD_TOPIC_HINTS[field.key]||[]).some(hint=>text.toLowerCase().includes(hint));
+      return valueMatch||topicMatch;
     }));
     const warnings=[...draftWarnings,...needsReviewWarnings,...skippedWarning];
 
