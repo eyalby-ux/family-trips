@@ -12,7 +12,7 @@ import {flightImportSchema,flightSystemPrompt} from '../netlify/functions/_share
 // produce for that exact source, so these tests exercise the adapter/mapping pipeline
 // end-to-end against all 8 real cases. They cannot exercise the live model itself (no API
 // access from this environment) -- see the chat report for what still needs a live QA pass.
-const BLANK_SEGMENT_FIELDS={status:'confirmed',flightNumber:'',operatingCarrier:'',marketingCarrier:'',departureAirportCode:'',departureAirportName:'',departureTerminal:'',arrivalAirportCode:'',arrivalAirportName:'',arrivalTerminal:'',departureDate:'',departureTime:'',arrivalDate:'',arrivalTime:'',aircraftType:'',classOfService:'',fareBasis:'',duration:'',gate:'',gateOpensTime:'',gateClosesTime:'',boardingSequenceNumber:'',passengerDetails:[],evidence:'',certainty:'exact'};
+const BLANK_SEGMENT_FIELDS={status:'confirmed',flightNumber:'',operatingCarrier:'',marketingCarrier:'',departureAirportCode:'',departureAirportName:'',departureTerminal:'',arrivalAirportCode:'',arrivalAirportName:'',arrivalTerminal:'',departureDate:'',departureTime:'',arrivalDate:'',arrivalTime:'',directionAmbiguous:false,directionCandidates:[],aircraftType:'',classOfService:'',fareBasis:'',duration:'',gate:'',gateOpensTime:'',gateClosesTime:'',boardingSequenceNumber:'',passengerDetails:[],evidence:'',certainty:'exact'};
 function segment(overrides){return {...BLANK_SEGMENT_FIELDS,...overrides}}
 function draftResult(draft,attemptId='attempt'){return {attemptId,usage:{},estimatedVariableCostUsd:0,latencyMs:1,draft:{bookingReference:'',passengers:[],segments:[],unresolved:[],explicitlyAbsent:[],warnings:[],acquisitionState:'acquired',...draft}}}
 
@@ -457,15 +457,147 @@ console.log('ALL PASS: Alpha 0.6.5 Flight Smart Import regression suite (8/8 ben
 // departureDate/arrivalDate the model returned -- see flight-import-adapter.js). The only lever
 // available for a live-model failure like this is the prompt; this locks in that the specific
 // guidance requested is present. ---
+// Fix pass 3 revised this: two days of live retesting showed the same unchanged FL-002 source
+// producing three different outcomes (correct, confidently wrong with a hallucinated "explicit
+// label" claim, and a refusal) across separate runs, and a filename-bias hypothesis was tested
+// and ruled out -- this source genuinely has no explicit direction signal, so no amount of prompt
+// wording can make the model "correctly guess" it deterministically. The fix pass 2 prompt's
+// self-check instruction ("re-verify... not swapped") assumed a correct guess was achievable and
+// has been removed; it is superseded by directionAmbiguous/directionCandidates below, which asks
+// the model to surface genuine ambiguity instead of resolving it one way or another.
 function test_V6_F32_prompt_guards_against_transposed_direction(){
   assert.match(flightSystemPrompt,/own explicit departure\/arrival labels/i,'the prompt must tell the model to determine direction from each flight\'s own explicit labels, not screen position');
   assert.match(flightSystemPrompt,/right-to-left \(Hebrew\) app layout/i,'the prompt must explicitly call out that an RTL layout does not place departure before arrival in left-to-right visual order -- the specific failure mode reported for the EL AL app');
   assert.match(flightSystemPrompt,/never combine an airport or date\/time that visually belongs to one leg with a value that belongs to a different leg/i,'the prompt must explicitly forbid mixing a value from one leg into another leg\'s departure/arrival group');
   assert.match(flightSystemPrompt,/do not assume the first leg shown on the screen is the earlier-departing one/i,'the prompt must warn against inferring a two-leg itinerary\'s leg order from screen position');
-  assert.match(flightSystemPrompt,/re-verify that its departureAirportCode\/departureDate\/departureTime were read from beside that segment's own departure label/i,'the prompt must ask the model to self-check its own departure/arrival assignment before finalizing a segment');
-  console.log('PASS: V6-F32 the prompt explicitly guards against the reported transposed-direction failure mode (RTL layout, multi-leg itinerary, cross-leg value mixing)');
+  assert.doesNotMatch(flightSystemPrompt,/re-verify that its departureAirportCode/i,'fix pass 3: the fix-pass-2 self-check instruction assumed a single correct guess was achievable and is now superseded by directionAmbiguous -- retesting showed it doesn\'t make the guess deterministic, so it should no longer be asked for');
+  console.log('PASS: V6-F32 the prompt still guards against transposed direction where it IS determinable (RTL layout, multi-leg itinerary, cross-leg value mixing), and no longer asks for an unachievable deterministic self-check');
 }
 test_V6_F32_prompt_guards_against_transposed_direction();
+
+// --- Revised V6-F32 strategy (fix pass 3): a genuinely ambiguous source must never get a single
+// guessed direction (or a refusal to populate) written into it -- the model instead reports
+// directionAmbiguous + both candidate readings, and the app presents them to the Product Owner
+// as a pickable needs-review item (the frozen source-relative completeness/evidence contract:
+// unreadable/ambiguous/conflicting values stay visible as unresolved/needs-review, never
+// silently guessed or dropped). ---
+function test_V6_F32_ambiguous_source_produces_needs_review_direction_candidates(){
+  const source={id:'src-fl002-ambiguous',name:'FL-002',fingerprint:'fl002amb'};
+  const result=draftResult({
+    segments:[segment({
+      flightNumber:'LY087',operatingCarrier:'EL AL',marketingCarrier:'EL AL',
+      directionAmbiguous:true,
+      directionCandidates:[
+        {departureAirportCode:'TLV',departureAirportName:'Tel Aviv',arrivalAirportCode:'HKT',arrivalAirportName:'Phuket',departureDate:'2027-01-08',departureTime:'14:30',arrivalDate:'2027-01-07',arrivalTime:'22:20'},
+        {departureAirportCode:'HKT',departureAirportName:'Phuket',arrivalAirportCode:'TLV',arrivalAirportName:'Tel Aviv',departureDate:'2027-01-07',departureTime:'22:20',arrivalDate:'2027-01-08',arrivalTime:'14:30'},
+      ],
+      duration:'11h 10m',evidence:'EL AL app, my trips -- no explicit departure/arrival label on this screen',
+    })],
+  });
+  const [suggestion]=smartImportFlightResultToSuggestions(result,source);
+  assert(suggestion,'an ambiguous-but-otherwise-real segment must still produce a suggestion, not be dropped');
+  assert.equal(suggestion.proposed.location,'','the route must stay blank rather than writing in a guessed direction');
+  assert.equal(suggestion.proposed.startAt,'','startAt must stay blank rather than writing in one guessed candidate\'s date/time');
+  assert.equal(suggestion.proposed.endAt,'');
+  const candidates=suggestion.proposed.details.directionCandidates;
+  assert.equal(candidates.length,2,'both candidate readings must be exposed for the Product Owner to pick between');
+  assert.equal(candidates[0].label,'TLV → HKT');
+  assert.equal(candidates[0].startAt,'2027-01-08T14:30');
+  assert.equal(candidates[0].endAt,'2027-01-07T22:20');
+  assert.equal(candidates[1].label,'HKT → TLV');
+  assert.equal(candidates[1].startAt,'2027-01-07T22:20');
+  assert.equal(candidates[1].endAt,'2027-01-08T14:30');
+  assert(suggestion.warnings.some(w=>w.includes('כיוון הטיסה')),'a visible warning must invite the Product Owner to resolve the direction, not silently leave it blank with no explanation');
+  assert(!suggestion.warnings.some(w=>w.includes('שדות חובה חסרים')&&w.includes('departureAirportCode')),'the direction-dependent fields must not ALSO be reported as "missing from the source" -- the data is present, just ambiguous, and the direction warning already says so');
+  assert.equal(isFlightSegmentUsable(result.draft.segments[0]),true,'an ambiguous segment with real candidate data must still count as a usable segment, not be dropped as empty');
+
+  assert.equal(flightImportSchema.properties.segments.items.properties.directionAmbiguous.type,'boolean','the schema must let the model flag genuine direction ambiguity');
+  assert(flightImportSchema.properties.segments.items.properties.directionCandidates,'the schema must let the model report both candidate readings for an ambiguous segment');
+  assert(flightImportSchema.properties.segments.items.required.includes('directionAmbiguous'));
+  assert(flightImportSchema.properties.segments.items.required.includes('directionCandidates'));
+  assert.match(flightSystemPrompt,/set directionAmbiguous to true/,'the prompt must instruct the model to use the ambiguity flag instead of guessing');
+  assert.match(flightSystemPrompt,/populate directionCandidates with exactly the two readings/,'the prompt must instruct the model to report both candidate readings, not one guessed reading');
+  assert.match(flightSystemPrompt,/instead of asserting a single guessed direction or refusing to populate the segment/,'the prompt must explicitly rule out both a guess and a refusal, which is exactly the non-deterministic behavior retesting found');
+
+  console.log('PASS: revised V6-F32 an ambiguous source produces a needs-review item with both candidate readings instead of a guess, and the schema/prompt support it');
+}
+test_V6_F32_ambiguous_source_produces_needs_review_direction_candidates();
+
+// --- V6-F34: direction ambiguity (or any other coarse segment-level read-quality note) must
+// never withhold or downgrade a field that has no logical dependency on it. Live retesting found
+// seat/baggage coming back blank on an ambiguous-direction segment with evidence citing
+// "direction not explicit" as the reason, even though seat/baggage have no relationship to
+// departure/arrival direction at all. ---
+function test_V6_F34_unrelated_fields_populate_despite_direction_ambiguity(){
+  const source={id:'src-fl001-ambiguous',name:'FL-001',fingerprint:'fl001amb'};
+  const result=draftResult({
+    passengers:[{name:'Paola Kohan',eTicketNumber:'',certainty:'exact'}],
+    segments:[segment({
+      flightNumber:'LY084',operatingCarrier:'EL AL',marketingCarrier:'EL AL',aircraftType:'737-900',classOfService:'Economy',duration:'11h 15m',
+      directionAmbiguous:true,
+      directionCandidates:[
+        {departureAirportCode:'TLV',departureAirportName:'Tel Aviv',arrivalAirportCode:'BKK',arrivalAirportName:'Bangkok',departureDate:'2027-01-26',departureTime:'22:45',arrivalDate:'2027-01-26',arrivalTime:'16:30'},
+        {departureAirportCode:'BKK',departureAirportName:'Bangkok',arrivalAirportCode:'TLV',arrivalAirportName:'Tel Aviv',departureDate:'2027-01-26',departureTime:'16:30',arrivalDate:'2027-01-26',arrivalTime:'22:45'},
+      ],
+      passengerDetails:[{passengerName:'Paola Kohan',seat:'43H',mealRequest:'',baggage:[{bagType:'checked',weight:'23 kg',included:'included'}],certainty:'exact'}],
+      evidence:'EL AL app, my trips',
+    })],
+  });
+  const [suggestion]=smartImportFlightResultToSuggestions(result,source);
+  assert.equal(suggestion.proposed.details.flightNumber,'LY084','flightNumber has no dependency on direction and must still populate');
+  assert.equal(suggestion.proposed.details.aircraftType,'737-900');
+  assert.equal(suggestion.proposed.details.classOfService,'Economy');
+  assert.equal(suggestion.proposed.details.duration,'11h 15m');
+  assert.equal(suggestion.proposed.details.passengers[0].seat,'43H','seat has no dependency on direction and must still populate, even though direction itself is ambiguous on this same segment');
+  assert.equal(suggestion.proposed.details.passengers[0].baggage[0].weight,'23 kg','baggage has no dependency on direction and must still populate');
+  assert.equal(suggestion.proposed.participants[0],'Paola Kohan');
+
+  const flightNumberField=suggestion.proposed.details.smartImportFields.find(f=>f.key==='flightNumber');
+  assert.equal(flightNumberField.certainty,'exact','flightNumber\'s own evidence certainty must not be downgraded just because a DIFFERENT field on the same segment (direction) is ambiguous');
+  const seatField=suggestion.proposed.details.smartImportFields.find(f=>f.key.endsWith(':seat'));
+  assert.equal(seatField.certainty,'exact','seat\'s own evidence certainty must not be downgraded by an unrelated field\'s ambiguity either');
+
+  console.log('PASS: V6-F34 fields with no logical dependency on direction (flightNumber, aircraft, class, duration, seat, baggage) populate normally on a segment whose direction is ambiguous');
+}
+test_V6_F34_unrelated_fields_populate_despite_direction_ambiguity();
+
+// --- V6-F34: the underlying design flaw was a single shared segment.certainty fallback that
+// every field's evidence-certainty inherited when not given its own -- so ANY coarse read-quality
+// note (not just direction, now handled separately) could make an unrelated, fully-present value
+// look suspect. Only the fields that are genuinely tied to departure/arrival geography and timing
+// legitimately inherit it (FL-007's "times obscured by UI overlay" case); everything else needs
+// the WHOLE segment marked unreadable before its certainty gets pulled down. ---
+function test_V6_F34_coarse_segment_certainty_no_longer_downgrades_unrelated_fields(){
+  const source={id:'src-coarse-certainty',name:'coarse',fingerprint:'coarse'};
+  const result=draftResult({
+    segments:[segment({
+      flightNumber:'6H568',operatingCarrier:'ISRAIR',marketingCarrier:'ISRAIR',
+      departureAirportCode:'ATH',arrivalAirportCode:'TLV',departureDate:'2025-08-25',departureTime:'',arrivalDate:'2025-08-25',arrivalTime:'',
+      certainty:'needs_review',evidence:'times obscured by UI overlay, unrelated to flight number/aircraft which are clearly printed',
+    })],
+  });
+  const [suggestion]=smartImportFlightResultToSuggestions(result,source);
+  const fields=suggestion.proposed.details.smartImportFields;
+  assert.equal(fields.find(f=>f.key==='flightNumber').certainty,'exact','flightNumber must default to exact certainty even when the segment carries a coarse needs_review, since obscured TIMES have no bearing on how legible the flight number is');
+  assert.equal(fields.find(f=>f.key==='departureAirport').certainty,'needs_review','a field genuinely tied to the segment\'s geography/timing legibility must still inherit the coarse certainty when it IS relevant (this is FL-007\'s real case, not a regression to fix)');
+  console.log('PASS: V6-F34 a coarse segment-level read-quality note only downgrades the fields it is actually about, not every field on the segment');
+}
+test_V6_F34_coarse_segment_certainty_no_longer_downgrades_unrelated_fields();
+
+// --- UI wiring: the review screen must let the Product Owner pick between the two candidate
+// readings, and picking one must actually update the suggestion (location/startAt/endAt, and the
+// departure/arrival airport shown in the flight summary) rather than only being cosmetic. ---
+function test_direction_pick_ui_wiring(){
+  const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
+  assert.match(app,/function directionPickerPanel\(suggestionId,p\)\{/,'a dedicated panel must render the candidate readings for the Product Owner to pick between');
+  assert.match(app,/p\.type==='flight'\?directionPickerPanel\(suggestion\.id,p\):''/,'the direction picker must be rendered in the suggestion review screen for a flight suggestion');
+  assert.match(app,/data-action="pick-direction"/,'each candidate must be a clickable/selectable control wired through the existing data-action click-delegation pattern');
+  assert.match(app,/action==='pick-direction'\)\{pickFlightDirection\(suggestionById\(button\.dataset\.id\),Number\(button\.dataset\.index\)\);render\(\)\}/,'picking a candidate must call pickFlightDirection and re-render so the change is immediately visible');
+  assert.match(app,/function pickFlightDirection\(suggestion,index\)\{/,'pickFlightDirection must exist to apply the chosen candidate to the suggestion');
+  assert.match(app,/location:candidate\.label,startAt:candidate\.startAt,endAt:candidate\.endAt/,'picking a candidate must update location/startAt/endAt together as one linked group, matching how the candidate itself was built');
+  console.log('PASS: the direction picker is wired into the suggestion review screen and picking a candidate updates the suggestion in place');
+}
+test_direction_pick_ui_wiring();
 
 // --- V6-F33 (regression from V6-F30's new cross-source dedup fallback): merging a new suggestion
 // into an already-approved item let a conflicting non-blank new value silently become the item's
@@ -560,3 +692,47 @@ function test_today_out_of_range_fallback_data(){
 test_today_out_of_range_fallback_data();
 
 console.log('ALL PASS: Alpha 0.6.5 Flight Smart Import second fix pass (V6-F31/F32/F33 + Today out-of-range fallback)');
+
+// ===============================================================================================
+// Third fix pass: V6-F34, plus the revised V6-F32 strategy (needs-review direction pick instead
+// of a guess), plus a re-verification (not a code change) that duplicate consolidation
+// self-resolves once direction/dates are stable. V6-F33 is explicitly out of scope for this pass
+// per the report -- it could not be independently confirmed while direction was still unstable,
+// and will be retested separately now that it is.
+// ===============================================================================================
+
+// --- Duplicate-matching re-verification (item #3): FL-003 wasn't consolidating with FL-001/
+// FL-002 only because which date got labeled departure vs. arrival was flipping between
+// extraction attempts (the old V6-F32 guessing behavior) -- the V6-F30 flight-number+date
+// fallback matcher itself was never broken. This confirms consolidation self-resolves once a
+// direction pick stabilizes the dates, with NO change to findPossibleDuplicates/
+// isSameFlightNumberAndDate themselves (both untouched in this pass). ---
+function test_duplicate_consolidation_self_resolves_once_direction_is_picked(){
+  const existingFromFL001={id:'item-fl001',type:'flight',title:'LY084 TLV → BKK',confirmationNumber:'',provider:'EL AL',startAt:'2027-01-26T22:45',endAt:'2027-01-26T16:30',details:{flightNumber:'LY084'}};
+
+  const source={id:'src-fl003-leg2',name:'FL-003',fingerprint:'fl003'};
+  const result=draftResult({segments:[segment({
+    flightNumber:'LY84',operatingCarrier:'EL AL',marketingCarrier:'EL AL',
+    directionAmbiguous:true,
+    directionCandidates:[
+      {departureAirportCode:'TLV',departureAirportName:'Tel Aviv',arrivalAirportCode:'BKK',arrivalAirportName:'Bangkok',departureDate:'2027-01-26',departureTime:'22:45',arrivalDate:'2027-01-26',arrivalTime:'16:30'},
+      {departureAirportCode:'BKK',departureAirportName:'Bangkok',arrivalAirportCode:'TLV',arrivalAirportName:'Tel Aviv',departureDate:'2027-01-26',departureTime:'16:30',arrivalDate:'2027-01-26',arrivalTime:'22:45'},
+    ],
+    evidence:'itinerary summary, leg 2',
+  })]});
+  const [suggestion]=smartImportFlightResultToSuggestions(result,source);
+
+  assert.equal(findPossibleDuplicates(suggestion,[existingFromFL001],[]).length,0,'before a direction is picked there is no stable date to match against yet -- correctly NOT a false-positive duplicate');
+
+  // Simulate the Product Owner picking the correct candidate, exactly as pickFlightDirection()
+  // does in the UI (v5-app.js) -- reproduced here at the data level since that function lives in
+  // a browser-only module this suite doesn't execute.
+  const candidate=suggestion.proposed.details.directionCandidates[0];
+  const picked={...suggestion,proposed:{...suggestion.proposed,location:candidate.label,startAt:candidate.startAt,endAt:candidate.endAt}};
+  assert.equal(findPossibleDuplicates(picked,[existingFromFL001],[]).length,1,'once the direction pick stabilizes the date, the EXISTING V6-F30 flight-number+date fallback matcher fires with no changes of its own -- self-resolving, exactly as expected');
+
+  console.log('PASS: duplicate consolidation (V6-F30\'s flight-number+date fallback) self-resolves once a direction pick stabilizes the dates -- confirmed with no change to the merge/dedup logic itself');
+}
+test_duplicate_consolidation_self_resolves_once_direction_is_picked();
+
+console.log('ALL PASS: Alpha 0.6.5 Flight Smart Import third fix pass (V6-F34 + revised V6-F32 needs-review direction pick, dedup re-verified)');

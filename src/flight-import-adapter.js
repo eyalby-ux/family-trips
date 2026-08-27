@@ -8,6 +8,12 @@ import {isValidCalendarDate,normalizeFlightDateString,parseTimeValue} from './op
 // Fields that must never be silently dropped when present in the source. A segment that has
 // NONE of these is not a real, usable segment (see isFlightSegmentUsable).
 const NO_OMISSION_BLOCKERS=['flightNumber','departureAirportCode','arrivalAirportCode','departureDate','arrivalDate'];
+// The subset of the above that depends on knowing which airport is departure vs. arrival -- left
+// blank on a directionAmbiguous segment (see buildDirectionCandidates) on purpose, so they must
+// not also be reported as "missing from the source" (V6-F34/revised V6-F32, fix pass 3): the data
+// is present, just not committed to a slot, and the directionAmbiguity evidence field already
+// says so precisely.
+const DIRECTION_DEPENDENT_BLOCKERS=['departureAirportCode','arrivalAirportCode','departureDate','arrivalDate'];
 
 export function smartImportFlightResultToSuggestions(result,source,now=new Date()){
   const draft=result?.draft||{};
@@ -19,7 +25,9 @@ export function smartImportFlightResultToSuggestions(result,source,now=new Date(
 
   return usable.map((segment,index)=>{
     const passengers=buildSegmentPassengers(passengerRoster,segment);
-    const smartImportFields=buildEvidenceFields(segment,passengers,draft.bookingReference);
+    const directionAmbiguous=Boolean(segment.directionAmbiguous)&&Array.isArray(segment.directionCandidates)&&segment.directionCandidates.length>0;
+    const directionCandidates=directionAmbiguous?buildDirectionCandidates(segment.directionCandidates):[];
+    const smartImportFields=buildEvidenceFields(segment,passengers,draft.bookingReference,directionCandidates);
     const needsReviewFields=smartImportFields.filter(field=>field.certainty!=='exact').map(field=>({key:field.key,label:field.label,value:field.rawValue,evidence:field.evidence}));
 
     const fieldConfidence={};
@@ -32,7 +40,7 @@ export function smartImportFlightResultToSuggestions(result,source,now=new Date(
     const title=[flightNumber,route].filter(Boolean).join(' ')||route||'טיסה';
     const provider=String(segment.marketingCarrier||segment.operatingCarrier||'').trim();
 
-    const missingBlockers=NO_OMISSION_BLOCKERS.filter(key=>!String(segment[key]||'').trim());
+    const missingBlockers=NO_OMISSION_BLOCKERS.filter(key=>!String(segment[key]||'').trim()&&!(directionAmbiguous&&DIRECTION_DEPENDENT_BLOCKERS.includes(key)));
     const needsReviewWarnings=needsReviewFields.map(field=>`דורש בדיקה — ${field.label}: ${field.value} (${field.evidence||'ללא הפניה למקור'})`);
     const skippedWarning=index===0&&skippedCount>0?[`מקור זה כלל ${skippedCount} מקטע/י טיסה שאינם תקינים (VOID או ללא נתונים); הם לא נוספו כפריטים.`]:[];
     const warnings=[...(draft.warnings||[]),...(draft.unresolved||[]).map(value=>`דורש בדיקה: ${value}`),...needsReviewWarnings,...skippedWarning];
@@ -74,6 +82,7 @@ export function smartImportFlightResultToSuggestions(result,source,now=new Date(
       warnings,
     };
     if(needsReviewFields.length)proposed.details.needsReviewFields=needsReviewFields;
+    if(directionCandidates.length)proposed.details.directionCandidates=directionCandidates;
     if(missingBlockers.length)proposed.warnings=[...proposed.warnings,`שדות חובה חסרים במקור: ${missingBlockers.join(', ')}`];
 
     return {
@@ -99,10 +108,33 @@ export function smartImportFlightResultToSuggestions(result,source,now=new Date(
 // A segment that is explicitly VOID, or has none of the no-omission-blocker fields at all, is
 // not a real flight and must never become an item -- it is silently excluded from the returned
 // suggestions (a warning on the first real suggestion from the same source notes how many were
-// skipped, so the skip is visible rather than a silent gap).
+// skipped, so the skip is visible rather than a silent gap). A directionAmbiguous segment (fix
+// pass 3) leaves the direction-dependent blockers blank ON PURPOSE -- the same data is present
+// via directionCandidates instead, so it counts as usable even though those specific fields
+// are empty on the segment itself.
 export function isFlightSegmentUsable(segment){
   if(!segment||segment.status==='void')return false;
+  if(segment.directionAmbiguous&&Array.isArray(segment.directionCandidates)&&segment.directionCandidates.length)return true;
   return NO_OMISSION_BLOCKERS.some(key=>String(segment[key]||'').trim());
+}
+
+// Builds the two full candidate readings for a directionAmbiguous segment, each with its own
+// computed startAt/endAt (via the same dateTime() used for the primary fields) -- this is the
+// data the Product Owner picks between in review, instead of the app (or the model) guessing one
+// (revised V6-F32, fix pass 3: retesting showed the same unchanged source producing a different
+// guess -- sometimes wrong, sometimes a refusal -- on separate attempts, so no guess is trustworthy).
+function buildDirectionCandidates(rawCandidates){
+  return rawCandidates.map(candidate=>{
+    const departureCode=String(candidate.departureAirportCode||candidate.departureAirportName||'').trim();
+    const arrivalCode=String(candidate.arrivalAirportCode||candidate.arrivalAirportName||'').trim();
+    return {
+      label:[departureCode,arrivalCode].filter(Boolean).join(' → ')||'טיסה',
+      departureAirport:{code:String(candidate.departureAirportCode||'').trim(),name:String(candidate.departureAirportName||'').trim(),terminal:''},
+      arrivalAirport:{code:String(candidate.arrivalAirportCode||'').trim(),name:String(candidate.arrivalAirportName||'').trim(),terminal:''},
+      startAt:dateTime(candidate.departureDate,candidate.departureTime),
+      endAt:dateTime(candidate.arrivalDate,candidate.arrivalTime),
+    };
+  });
 }
 
 // Enriches an existing item's per-passenger detail with a newer suggestion's passengers,
@@ -182,10 +214,28 @@ function buildSegmentPassengers(passengerRoster,segment){
   });
 }
 
-function buildEvidenceFields(segment,passengers,bookingReference){
+// V6-F34 (fix pass 3): these are the only fields whose read quality is genuinely tied to the
+// segment's overall departure/arrival-geography-and-timing legibility (a blurry or overlay-
+// obscured region, per FL-007's needs_review case) -- they legitimately inherit segment.certainty
+// as their evidence-certainty fallback. Every other field (flightNumber, carriers, aircraft,
+// fare/class, duration, gate/boarding, and every passenger's seat/meal/baggage) has no logical
+// dependency on that read quality, or on direction ambiguity (now its own separate
+// directionAmbiguous flag, never segment.certainty) -- these default to 'exact' regardless,
+// unless the WHOLE segment is unreadable. Before this, a single coarse segment.certainty
+// downgrade cascaded into every field's evidence via one shared fallback, which is exactly the
+// class of bug that let an unrelated concern (direction, or anything else) make a fully correct,
+// present value look suspect for no logical reason.
+const SEGMENT_QUALITY_SENSITIVE_KEYS=['departureAirport','departureTerminal','arrivalAirport','arrivalTerminal','departureDateTime','arrivalDateTime'];
+
+function buildEvidenceFields(segment,passengers,bookingReference,directionCandidates=[]){
   const fields=[];
-  const push=(key,label,rawValue,certainty)=>{if(String(rawValue||'').trim())fields.push({key,label,rawValue:String(rawValue).trim(),evidence:segment.evidence||'',certainty:certainty||segment.certainty||'exact'})};
+  const push=(key,label,rawValue,certainty)=>{
+    if(!String(rawValue||'').trim())return;
+    const fallback=(SEGMENT_QUALITY_SENSITIVE_KEYS.includes(key)||segment.certainty==='unreadable')?(segment.certainty||'exact'):'exact';
+    fields.push({key,label,rawValue:String(rawValue).trim(),evidence:segment.evidence||'',certainty:certainty||fallback});
+  };
   push('bookingReference','אסמכתא/PNR',bookingReference,'exact');
+  if(directionCandidates.length)push('directionAmbiguity','כיוון הטיסה (דורש בחירה)',directionCandidates.map(candidate=>candidate.label).join(' / '),'needs_review');
   push('flightNumber','מספר טיסה',segment.flightNumber);
   push('operatingCarrier','חברת תפעול',segment.operatingCarrier);
   if(normalized(segment.marketingCarrier)&&normalized(segment.marketingCarrier)!==normalized(segment.operatingCarrier))push('marketingCarrier','חברת שיווק',segment.marketingCarrier);
