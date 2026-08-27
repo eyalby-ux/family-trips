@@ -37,7 +37,12 @@ const flightSegmentSchema={type:'object',additionalProperties:false,properties:{
   gate:{type:'string'},gateOpensTime:{type:'string'},gateClosesTime:{type:'string'},boardingSequenceNumber:{type:'string'},
   passengerDetails:{type:'array',items:passengerDetailSchema},
   evidence:{type:'string'},certainty:{type:'string',enum:['exact','needs_review','unreadable']},
-},required:['status','flightNumber','operatingCarrier','marketingCarrier','departureAirportCode','departureAirportName','departureTerminal','arrivalAirportCode','arrivalAirportName','arrivalTerminal','departureDate','departureTime','arrivalDate','arrivalTime','directionAmbiguous','directionCandidates','aircraftType','classOfService','fareBasis','duration','gate','gateOpensTime','gateClosesTime','boardingSequenceNumber','passengerDetails','evidence','certainty']};
+  // V6-F43 (fix pass 5): a problem with only the arrival airport/terminal/date/time (e.g. an
+  // invalid minute value like "23:75") must not downgrade the departure side too -- certainty
+  // above now governs departure + every field with no endpoint at all, and arrivalCertainty
+  // governs the arrival side independently. See flightSystemPrompt for exactly when to differ.
+  arrivalCertainty:{type:'string',enum:['exact','needs_review','unreadable']},
+},required:['status','flightNumber','operatingCarrier','marketingCarrier','departureAirportCode','departureAirportName','departureTerminal','arrivalAirportCode','arrivalAirportName','arrivalTerminal','departureDate','departureTime','arrivalDate','arrivalTime','directionAmbiguous','directionCandidates','aircraftType','classOfService','fareBasis','duration','gate','gateOpensTime','gateClosesTime','boardingSequenceNumber','passengerDetails','evidence','certainty','arrivalCertainty']};
 
 export const flightImportSchema={type:'object',additionalProperties:false,properties:{
   acquisitionState:{type:'string',enum:['acquired','partial','access_required','unreadable','failed']},
@@ -65,5 +70,7 @@ flightNumber is the operating flight code as printed (e.g. "TG 246", "LY084"). R
 
 List every passenger the source names in the top-level passengers array with their e-ticket number if shown. For every segment, list one entry per passenger in passengerDetails with that passenger's seat, meal request and full baggage allowance for that segment — every bag type shown (carry-on, checked, trolley) with its weight and whether it is included, exactly as marked (a checkmark/"V" means included, an "X" means not included). Never collapse multiple passengers into one entry, and never report only the primary/first passenger when others are named. A field's value belongs to the specific named passenger it is printed under or beside — never attach one passenger's baggage, meal or seat to a different passenger.
 
-If content is partial, ambiguous, obscured or unreadable, set certainty to "needs_review" or "unreadable" on exactly the field or entry affected rather than guessing a value or omitting it silently.`;
+If content is partial, ambiguous, obscured or unreadable, set certainty to "needs_review" or "unreadable" on exactly the field or entry affected rather than guessing a value or omitting it silently.
+
+certainty describes your confidence in the segment overall AND specifically its departure-side fields (flightNumber, operatingCarrier, marketingCarrier, departureAirportCode/Name/Terminal, departureDate, departureTime, aircraftType, classOfService, fareBasis, duration, gate, gateOpensTime, gateClosesTime, boardingSequenceNumber). arrivalCertainty describes your confidence in the arrival-side fields specifically (arrivalAirportCode/Name/Terminal, arrivalDate, arrivalTime) -- set it independently of certainty. A segment can have an exact departure and a needs_review or unreadable arrival, or the reverse; report each side's own confidence rather than letting a problem with one side pull down the other. For example, if the source's arrival time is not a valid clock time (e.g. a minute value outside 00-59, such as "23:75") but everything else on the segment reads clearly, report the arrival time exactly as printed, set arrivalCertainty to "needs_review", and leave certainty as "exact" -- do not lower certainty (the departure-side confidence) over a problem that is only about arrival. evidence should describe WHERE in the source a value was found (e.g. "boarding pass, top section"), not restate a specific problem with one value -- a location citation, not a diagnosis.`;
 

@@ -141,6 +141,35 @@ export function suggestionToItem(suggestion,existing={},tripStartDate=''){
   const incomingWarnings=p.warnings||suggestion.warnings||[];
   return {...existing,id:existing.id||makeId('item'),type:value('type','document'),title:String(value('title','')).trim(),provider:String(value('provider','')).trim(),confirmationNumber:String(value('confirmationNumber','')).trim(),participants:value('participants',[]),location,website:String(value('website','')).trim(),phone:String(value('phone','')).trim(),schedule,startAt,endAt,notes:String(value('notes','')).trim(),details,dateMeta:{...(existing.dateMeta||{}),...(p.dateMeta||{})},fieldConfidence:{...(existing.fieldConfidence||{}),...(p.fieldConfidence||{})},warnings:[...(existing.warnings||[]),...(directionNowResolved?clearResolvedDirectionWarning(incomingWarnings):incomingWarnings)],sourceIds:[...new Set([...(existing.sourceIds||[]),...sourceIds])],updatedAt:new Date().toISOString()};
 }
+// V6-F35 (reopened, fix pass 5): the fix-pass-4 version of this only cleared a stale warning when
+// a direction was resolved via the picker. Retesting FL-007 found the same class of bug on a
+// plain manual edit: the Product Owner corrected an invalid arrival date/time directly in the
+// review form, and the warning about the ORIGINAL (now-overwritten) value stayed displayed --
+// this is a general "stale evidence" problem, not a direction-only one. A needs-review flag is
+// tied to a specific field's value at the moment it was generated; once that field's actual
+// value changes -- by a picker selection, a manual form edit, or a merge -- the flag no longer
+// describes the current state and must clear. changedFields is the set of proposed-field names
+// the caller knows it just overwrote (e.g. {'startAt','endAt'} for a direction pick or a manual
+// date edit); any needsReviewFields entry mapped to one of those names is treated as resolved.
+const NEEDS_REVIEW_FIELD_MAP={
+  departureDateTime:['startAt'],arrivalDateTime:['endAt'],
+  departureAirport:['location'],arrivalAirport:['location'],departureTerminal:['location'],arrivalTerminal:['location'],
+  directionAmbiguity:['location','startAt','endAt'],
+  bookingReference:['confirmationNumber'],
+};
+export function reconcileStaleNeedsReview(proposed,changedFields){
+  const needsReviewFields=proposed.details?.needsReviewFields;
+  if(!Array.isArray(needsReviewFields)||!needsReviewFields.length||!changedFields||!changedFields.size)return proposed;
+  const stillPending=[],resolvedLabels=[];
+  for(const field of needsReviewFields){
+    const mapped=NEEDS_REVIEW_FIELD_MAP[field.key]||[];
+    if(mapped.some(name=>changedFields.has(name)))resolvedLabels.push(field.label);
+    else stillPending.push(field);
+  }
+  if(!resolvedLabels.length)return proposed;
+  const warnings=(proposed.warnings||[]).filter(warning=>!resolvedLabels.some(label=>String(warning).includes(label)));
+  return {...proposed,details:{...proposed.details,needsReviewFields:stillPending},warnings};
+}
 // The date/time defaults shown in the manual "create new item" form the moment it opens
 // (V6-F06/V4-F04 also apply here, via the rendered form's own pre-filled value= attribute).
 // A missing OR malformed Trip start date (V6-F23: e.g. a non-canonical value that slipped in

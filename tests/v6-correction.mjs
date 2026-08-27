@@ -146,7 +146,7 @@ const now=new Date('2027-01-20T12:00:00Z');
 // --- V6-F10: a save-only source must retain a later explicit "Analyze" action ---
 {
   const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
-  assert.match(app,/canAnalyze=source\.kind!=='link'&&\['saved_only','failed'\]\.includes\(source\.processingState\)/,'a saved-only (or failed) source must expose a later explicit analyze action');
+  assert.match(app,/canAnalyze=!analyzing&&source\.kind!=='link'&&\['saved_only','failed'\]\.includes\(source\.processingState\)/,'a saved-only (or failed), not-already-analyzing source must expose a later explicit analyze action');
   assert.match(app,/data-action="analyze-source"/,'the Analyze action must be wired into the source row');
   assert.match(app,/async function analyzeSavedSource\(id\)\{/,'analyzing a saved source must run analysis on the already-saved source without requiring re-upload');
   assert.match(app,/action==='analyze-source'\)await analyzeSavedSource/);

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {smartImportFlightResultToSuggestions,isFlightSegmentUsable,isSameFlightNumberAndDate,isSameFlightAcrossDirectionCandidates,mergeFlightPassengers,mergeFlightDetails,clearResolvedDirectionWarning,isSameFlightForDedup} from '../src/flight-import-adapter.js';
-import {findPossibleDuplicates,suggestionToItem} from '../src/ingestion.js';
+import {findPossibleDuplicates,reconcileStaleNeedsReview,suggestionToItem} from '../src/ingestion.js';
 import {currentOperational,isItemOutsideTrip,normalizeDateRange,normalizeFlightDateString} from '../src/operational-data.js';
 import {preserveTrustedFieldsOnMerge} from '../src/smart-import-adapter.js';
 import {flightImportSchema,flightSystemPrompt} from '../netlify/functions/_shared/smart-import-schema.mjs';
@@ -12,7 +12,7 @@ import {flightImportSchema,flightSystemPrompt} from '../netlify/functions/_share
 // produce for that exact source, so these tests exercise the adapter/mapping pipeline
 // end-to-end against all 8 real cases. They cannot exercise the live model itself (no API
 // access from this environment) -- see the chat report for what still needs a live QA pass.
-const BLANK_SEGMENT_FIELDS={status:'confirmed',flightNumber:'',operatingCarrier:'',marketingCarrier:'',departureAirportCode:'',departureAirportName:'',departureTerminal:'',arrivalAirportCode:'',arrivalAirportName:'',arrivalTerminal:'',departureDate:'',departureTime:'',arrivalDate:'',arrivalTime:'',directionAmbiguous:false,directionCandidates:[],aircraftType:'',classOfService:'',fareBasis:'',duration:'',gate:'',gateOpensTime:'',gateClosesTime:'',boardingSequenceNumber:'',passengerDetails:[],evidence:'',certainty:'exact'};
+const BLANK_SEGMENT_FIELDS={status:'confirmed',flightNumber:'',operatingCarrier:'',marketingCarrier:'',departureAirportCode:'',departureAirportName:'',departureTerminal:'',arrivalAirportCode:'',arrivalAirportName:'',arrivalTerminal:'',departureDate:'',departureTime:'',arrivalDate:'',arrivalTime:'',directionAmbiguous:false,directionCandidates:[],aircraftType:'',classOfService:'',fareBasis:'',duration:'',gate:'',gateOpensTime:'',gateClosesTime:'',boardingSequenceNumber:'',passengerDetails:[],evidence:'',certainty:'exact',arrivalCertainty:'exact'};
 function segment(overrides){return {...BLANK_SEGMENT_FIELDS,...overrides}}
 function draftResult(draft,attemptId='attempt'){return {attemptId,usage:{},estimatedVariableCostUsd:0,latencyMs:1,draft:{bookingReference:'',passengers:[],segments:[],unresolved:[],explicitlyAbsent:[],warnings:[],acquisitionState:'acquired',...draft}}}
 
@@ -172,7 +172,7 @@ function test_FL007_void_segment_skipped_and_wildcard_captured(){
     passengers:[],
     segments:[
       voidSegment,
-      segment({flightNumber:'6H568',operatingCarrier:'ISRAIR',marketingCarrier:'ISRAIR',departureAirportCode:'ATH',departureAirportName:'Athens',arrivalAirportCode:'TLV',arrivalAirportName:'Tel Aviv',departureDate:'2025-08-25',departureTime:'',arrivalDate:'2025-08-25',arrivalTime:'',certainty:'needs_review',evidence:'ISRAIR baggage matrix, times obscured by UI overlay',
+      segment({flightNumber:'6H568',operatingCarrier:'ISRAIR',marketingCarrier:'ISRAIR',departureAirportCode:'ATH',departureAirportName:'Athens',arrivalAirportCode:'TLV',arrivalAirportName:'Tel Aviv',departureDate:'2025-08-25',departureTime:'',arrivalDate:'2025-08-25',arrivalTime:'',certainty:'needs_review',arrivalCertainty:'needs_review',evidence:'ISRAIR baggage matrix, times obscured by UI overlay',
         passengerDetails:[{passengerName:'',seat:'',mealRequest:'',certainty:'needs_review',baggage:[{bagType:'carry_on',weight:'3 kg',included:'included'},{bagType:'checked',weight:'23 kg',included:'not_included'},{bagType:'trolley',weight:'10 kg',included:'included'}]}],
       }),
     ],
@@ -781,7 +781,7 @@ function test_V6_F35_direction_warnings_clear_without_touching_unrelated_ones(){
   assert(cleared.includes('שדות חובה חסרים במקור: gate'),'an unrelated missing-field warning must be left exactly as-is');
 
   const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
-  assert.match(app,/warnings:clearResolvedDirectionWarning\(suggestion\.proposed\.warnings\)/,'pickFlightDirection (the suggestion-review AND attach-and-extract review screens share this same function) must use the broadened filter, so the suggestion review screen itself looks clean immediately after a pick');
+  assert.match(app,/warnings:clearResolvedDirectionWarning\(reconciled\.warnings\)/,'pickFlightDirection (the suggestion-review AND attach-and-extract review screens share this same function) must use the broadened filter as a catch-all after the general reconciliation, so the suggestion review screen itself looks clean immediately after a pick (fix pass 5 layered reconcileStaleNeedsReview in front of this -- see test_V6_F35_reopened_manual_edit_clears_stale_needs_review)');
   const ingestionSrc=fs.readFileSync(new URL('../src/ingestion.js',import.meta.url),'utf8');
   assert.match(ingestionSrc,/directionNowResolved=value\('type',''\)==='flight'&&Boolean\(p\.details\?\.directionCandidates\?\.length\)&&Boolean\(location\)/,'suggestionToItem itself must detect a now-resolved direction (regardless of which merge path led to it) and clear the stale warning before it reaches the merged item -- this is what actually fixes the item-level warning reappearing, not just the pre-approval suggestion display');
   assert.match(ingestionSrc,/directionNowResolved\?clearResolvedDirectionWarning\(incomingWarnings\):incomingWarnings/,'the clearing must only apply when the direction is actually resolved, otherwise a genuinely still-ambiguous merge must keep showing its warning');
@@ -879,3 +879,122 @@ test_mergeFlightDetails_still_fills_genuinely_blank_existing_fields();
 
 console.log('ALL PASS: Alpha 0.6.5 Flight Smart Import third fix pass (V6-F34 + revised V6-F32 needs-review direction pick, dedup re-verified)');
 console.log('ALL PASS: Alpha 0.6.5 Flight Smart Import fourth fix pass (V6-F35/F36/F37/F38/F39)');
+
+// ===============================================================================================
+// Fifth fix pass: V6-F35 reopened (the fix-pass-4 version only covered a direction pick; a manual
+// form edit needed the same treatment), V6-F43 (an invalid-value warning misattributed onto
+// unrelated fields -- the same class of bug as V6-F34, one endpoint further), V6-F41 (map search
+// resolving to the wrong airport), V6-F42 (no loading indicator on retry), and V6-F40 (no
+// build-specific identifier visible in the UI). Full retest of the fourth fix pass confirmed
+// V6-F36-V6-F39 all fixed; these five came out of that same retest.
+// ===============================================================================================
+
+// --- V6-F35 (reopened): a needs-review flag is tied to a specific field's value at the moment it
+// was generated -- once that field's actual value changes, by ANY of a picker selection, a
+// manual form edit, or a merge, the flag and its warning are stale and must clear. The fix-pass-4
+// version only handled the picker case via a narrow "כיוון"/"direction" text filter; retesting
+// FL-007 found a manual arrival-date/time correction leaving its warning displayed. ---
+function test_V6_F35_reopened_manual_edit_clears_stale_needs_review(){
+  const proposed={
+    type:'flight',startAt:'2025-08-25T21:30',endAt:'',location:'ATH → TLV',confirmationNumber:'',
+    details:{needsReviewFields:[{key:'arrivalDateTime',label:'מועד נחיתה',value:'2025-08-25 23:75',evidence:'ISRAIR boarding pass'}]},
+    warnings:['דורש בדיקה — מועד נחיתה: 2025-08-25 23:75 (ISRAIR boarding pass)','דורש בדיקה — חברת תפעול: ISRAIR (unclear logo)'],
+  };
+  // The Product Owner manually corrects the arrival date/time in the review form -- endAt
+  // changed, so the stale warning about the ORIGINAL (invalid) value must clear.
+  const corrected={...proposed,endAt:'2025-08-25T23:15'};
+  const reconciled=reconcileStaleNeedsReview(corrected,new Set(['endAt']));
+  assert.equal(reconciled.details.needsReviewFields.length,0,'the resolved needsReviewFields entry must be dropped once its mapped field (endAt) changes');
+  assert.equal(reconciled.warnings.length,1,'only the warning about the now-corrected field must clear');
+  assert(reconciled.warnings[0].includes('חברת תפעול'),'an unrelated warning (about a different field entirely) must survive untouched');
+
+  const untouched=reconcileStaleNeedsReview(proposed,new Set(['location']));
+  assert.equal(untouched.details.needsReviewFields.length,1,'a needs-review flag whose mapped field was NOT part of this edit must remain -- this is reconciliation, not a blanket clear-all');
+
+  const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
+  assert.match(app,/const changedFields=new Set\(\['title','provider','confirmationNumber','location','website','phone','startAt','endAt','notes'\]\.filter\(key=>String\(before\[key\]\|\|''\)!==String\(next\[key\]\|\|''\)\)\)/,'updateSuggestion (the manual-edit submit handler) must compute which fields actually changed');
+  assert.match(app,/suggestion\.proposed=reconcileStaleNeedsReview\(\{\.\.\.before,\.\.\.next\},changedFields\)/,'updateSuggestion must route the edit through the general reconciliation, not just overwrite the fields');
+  assert.match(app,/const reconciled=reconcileStaleNeedsReview\(updated,new Set\(\['location','startAt','endAt'\]\)\)/,'pickFlightDirection must use the SAME general mechanism as a manual edit, not a separate direction-only path');
+
+  console.log('PASS: V6-F35 (reopened) a manual field edit clears the needs-review flag/warning tied to that specific field, general to any flagged field -- not scoped to direction, and shared with the picker path');
+}
+test_V6_F35_reopened_manual_edit_clears_stale_needs_review();
+
+// --- V6-F43: an invalid value (arrival time "23:75", not a valid minute) correctly stayed
+// unfabricated (blank), but the warning explaining it was duplicated onto departureDateTime too,
+// because certainty used to be one shared segment-wide flag covering both departure and arrival
+// fields. Splitting it into certainty (departure + general) and arrivalCertainty (arrival-only,
+// independent) scopes the resulting warning to only the field it is actually about -- the same
+// class of fix as V6-F34, one endpoint further. ---
+function test_V6_F43_invalid_value_warning_scoped_to_its_own_field(){
+  const source={id:'src-fl007-invalid-arrival',name:'FL-007',fingerprint:'fl007b'};
+  const result=draftResult({
+    bookingReference:'1172207',
+    segments:[segment({flightNumber:'6H568',operatingCarrier:'ISRAIR',marketingCarrier:'ISRAIR',departureAirportCode:'ATH',departureAirportName:'Athens',arrivalAirportCode:'TLV',arrivalAirportName:'Tel Aviv',departureDate:'2025-08-25',departureTime:'21:30',arrivalDate:'2025-08-25',arrivalTime:'23:75',certainty:'exact',arrivalCertainty:'needs_review',evidence:'ISRAIR boarding pass'})],
+  });
+  const [suggestion]=smartImportFlightResultToSuggestions(result,source);
+  assert.equal(suggestion.proposed.startAt,'2025-08-25T21:30','the valid departure date/time must populate normally');
+  assert.equal(suggestion.proposed.endAt,'','an invalid arrival minute value (23:75) must not be fabricated into a value -- correctly left blank, as already confirmed working');
+
+  const fields=suggestion.proposed.details.smartImportFields;
+  const departureField=fields.find(f=>f.key==='departureDateTime'),arrivalField=fields.find(f=>f.key==='arrivalDateTime');
+  assert.equal(departureField.certainty,'exact','the departure date/time is genuinely fine and must not inherit a warning about a problem that is only about arrival');
+  assert.equal(arrivalField.certainty,'needs_review','the arrival date/time is the one genuinely affected field and must correctly stay flagged');
+
+  assert(!suggestion.warnings.some(w=>w.includes('מועד יציאה')),'no warning may be generated for the departure date/time -- it was never actually a needs-review field');
+  assert(suggestion.warnings.some(w=>w.includes('מועד נחיתה')),'a warning must still be generated for the arrival date/time, which is genuinely affected');
+
+  assert.equal(flightImportSchema.properties.segments.items.properties.arrivalCertainty.type,'string','the schema must support an arrival-specific certainty independent of the segment-wide one');
+  assert(flightImportSchema.properties.segments.items.required.includes('arrivalCertainty'));
+  assert.match(flightSystemPrompt,/arrivalCertainty describes your confidence in the arrival-side fields specifically/,'the prompt must explain when to use arrivalCertainty instead of certainty');
+  assert.match(flightSystemPrompt,/do not lower certainty \(the departure-side confidence\) over a problem that is only about arrival/,'the prompt must explicitly warn against letting an arrival-only problem pull down departure certainty');
+
+  console.log('PASS: V6-F43 an invalid-value warning is scoped to the field it is actually about (arrival), and no longer misattributed onto the departure date/time');
+}
+test_V6_F43_invalid_value_warning_scoped_to_its_own_field();
+
+// --- V6-F41: a Flight's item.location is a route string ("BKK → TLV"), which Google Maps
+// resolved ambiguously as a search query (observed landing on the arrival airport instead of the
+// departure one). Search the departure airport specifically. ---
+function test_V6_F41_map_search_wiring(){
+  const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
+  assert.match(app,/function mapSearchLocation\(item\)\{/,'a dedicated helper must decide the map-search query');
+  assert.match(app,/if\(item\.type==='flight'\)return item\.details\?\.departureAirport\?\.code\|\|item\.details\?\.departureAirport\?\.name\|\|item\.location/,'a Flight must search its DEPARTURE airport specifically, not the raw combined route string');
+  assert.match(app,/mapsUrl\(mapSearchLocation\(item\)\)/,'the detail view\'s map-search link must use the new helper instead of the raw item.location');
+  console.log('PASS: V6-F41 the map-search action uses a Flight\'s departure airport specifically, not the ambiguous combined route string');
+}
+test_V6_F41_map_search_wiring();
+
+// --- V6-F42: retrying a failed analysis from the document list already sets
+// source.processingState to 'processing' and re-renders immediately (runSmartAnalysis), but
+// nothing in that row reflected it -- it looked stuck until it suddenly completed. ---
+function test_V6_F42_retry_analysis_shows_loading_indicator(){
+  const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
+  assert.match(app,/const analyzing=source\.processingState==='processing'/,'sourceRow must detect an in-flight (re)analysis');
+  assert.match(app,/analyzing\?'<span class="badge blue">מנתח…<\/span>':''/,'sourceRow must render a visible loading indicator while an analysis (initial or retry) is in progress');
+  assert.match(app,/const canAnalyze=!analyzing&&/,'the retry button itself must not remain clickable while an analysis is already in flight');
+  console.log('PASS: V6-F42 retrying a failed analysis now shows a loading indicator instead of looking stuck');
+}
+test_V6_F42_retry_analysis_shows_loading_indicator();
+
+// --- V6-F40: the tab title/landing banner only ever showed the Alpha version, which does not
+// change between fix passes -- there was no visual way to confirm exactly which build is
+// deployed without checking the network tab. A build-specific identifier (the same
+// package.json-version+git-SHA already embedded in the service worker's cache name) is now also
+// embedded in index.html and surfaced in Settings. ---
+function test_V6_F40_build_specific_identifier_visible(){
+  const indexHtml=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
+  assert.match(indexHtml,/<meta name="build-version" content="__BUILD_VERSION__">/,'index.html must carry a build-version meta tag using the same __BUILD_VERSION__ placeholder already resolved for the service worker\'s cache name');
+
+  const injectScript=fs.readFileSync(new URL('../scripts/inject-build-version.mjs',import.meta.url),'utf8');
+  assert.match(injectScript,/resolvedIndex = injectServiceWorkerVersion\(resolvedIndex, buildVersion\)/,'the build script must also resolve __BUILD_VERSION__ inside index.html, not only inside service-worker.js');
+
+  const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
+  assert.match(app,/function buildVersionLabel\(\)\{return document\.querySelector\('meta\[name="build-version"\]'\)\?\.content\|\|''\}/,'a helper must read the build-version meta tag back out at runtime');
+  assert.match(app,/בנייה \$\{esc\(buildVersionLabel\(\)\)\}/,'Settings must surface the build-specific identifier somewhere checkable, per V6-F40 (it does not need to be prominent)');
+
+  console.log('PASS: V6-F40 a build-specific identifier (package.json version + git SHA) is embedded at build time and surfaced in Settings for QA to check');
+}
+test_V6_F40_build_specific_identifier_visible();
+
+console.log('ALL PASS: Alpha 0.6.5 Flight Smart Import fifth fix pass (V6-F35 reopened, V6-F40/F41/F42/F43)');

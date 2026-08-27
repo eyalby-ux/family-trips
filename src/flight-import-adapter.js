@@ -275,23 +275,27 @@ function buildSegmentPassengers(passengerRoster,segment){
 }
 
 // V6-F34 (fix pass 3): these are the only fields whose read quality is genuinely tied to the
-// segment's overall departure/arrival-geography-and-timing legibility (a blurry or overlay-
-// obscured region, per FL-007's needs_review case) -- they legitimately inherit segment.certainty
-// as their evidence-certainty fallback. Every other field (flightNumber, carriers, aircraft,
+// segment's departure/arrival-geography-and-timing legibility (a blurry or overlay-obscured
+// region, per FL-007's needs_review case) -- they legitimately inherit a certainty fallback
+// instead of defaulting to 'exact'. Every other field (flightNumber, carriers, aircraft,
 // fare/class, duration, gate/boarding, and every passenger's seat/meal/baggage) has no logical
-// dependency on that read quality, or on direction ambiguity (now its own separate
-// directionAmbiguous flag, never segment.certainty) -- these default to 'exact' regardless,
-// unless the WHOLE segment is unreadable. Before this, a single coarse segment.certainty
-// downgrade cascaded into every field's evidence via one shared fallback, which is exactly the
-// class of bug that let an unrelated concern (direction, or anything else) make a fully correct,
-// present value look suspect for no logical reason.
-const SEGMENT_QUALITY_SENSITIVE_KEYS=['departureAirport','departureTerminal','arrivalAirport','arrivalTerminal','departureDateTime','arrivalDateTime'];
+// dependency on either side's read quality, or on direction ambiguity (its own separate
+// directionAmbiguous flag) -- these default to 'exact' regardless.
+// V6-F43 (fix pass 5): DEPARTURE_QUALITY_SENSITIVE_KEYS falls back to segment.certainty and
+// ARRIVAL_QUALITY_SENSITIVE_KEYS falls back to the independent segment.arrivalCertainty -- a
+// problem with only the arrival side (e.g. an invalid arrival minute value like "23:75") used to
+// share ONE segment-wide certainty with the departure side, so it also downgraded (and, via the
+// shared evidence text below, misattributed its explanation onto) departureDateTime and other
+// departure fields that were perfectly fine on their own.
+const DEPARTURE_QUALITY_SENSITIVE_KEYS=['departureAirport','departureTerminal','departureDateTime'];
+const ARRIVAL_QUALITY_SENSITIVE_KEYS=['arrivalAirport','arrivalTerminal','arrivalDateTime'];
 
 function buildEvidenceFields(segment,passengers,bookingReference,directionCandidates=[]){
   const fields=[];
   const push=(key,label,rawValue,certainty)=>{
     if(!String(rawValue||'').trim())return;
-    const fallback=(SEGMENT_QUALITY_SENSITIVE_KEYS.includes(key)||segment.certainty==='unreadable')?(segment.certainty||'exact'):'exact';
+    const endpointCertainty=ARRIVAL_QUALITY_SENSITIVE_KEYS.includes(key)?(segment.arrivalCertainty||'exact'):DEPARTURE_QUALITY_SENSITIVE_KEYS.includes(key)?(segment.certainty||'exact'):null;
+    const fallback=endpointCertainty||(segment.certainty==='unreadable'?segment.certainty:'exact');
     fields.push({key,label,rawValue:String(rawValue).trim(),evidence:segment.evidence||'',certainty:certainty||fallback});
   };
   push('bookingReference','אסמכתא/PNR',bookingReference,'exact');

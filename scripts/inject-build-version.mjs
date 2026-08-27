@@ -52,9 +52,15 @@ function main() {
   console.log(`Service worker cache-busted to ${buildVersion}`);
 
   const indexPath = `${root}/dist/index.html`;
-  const resolvedIndex = injectIndexHtmlVersion(fs.readFileSync(indexPath, 'utf8'), pkg.version);
+  // V6-F40: index.html also carries a <meta name="build-version"> with the same
+  // package.json-version+git-SHA string as the service worker's cache name (not just the plain
+  // Alpha version), so a build-specific identifier is checkable from the running app itself
+  // (Settings) without opening the network tab. Reuses injectServiceWorkerVersion since it's the
+  // same placeholder/value pair, just resolved into a second file.
+  let resolvedIndex = injectIndexHtmlVersion(fs.readFileSync(indexPath, 'utf8'), pkg.version);
+  resolvedIndex = injectServiceWorkerVersion(resolvedIndex, buildVersion);
   fs.writeFileSync(indexPath, resolvedIndex);
-  console.log(`index.html title/description synced to Alpha ${pkg.version}`);
+  console.log(`index.html title/description synced to Alpha ${pkg.version}, build meta synced to ${buildVersion}`);
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {

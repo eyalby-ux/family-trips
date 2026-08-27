@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#2f8f63">
   <meta name="description" content="Family Trips Alpha __APP_VERSION__">
+  <!-- V6-F40: the same package.json version + git SHA already embedded in the service worker's
+       cache name, so QA can confirm exactly which build is live (via Settings) without checking
+       the network tab -- the Alpha version alone doesn't change between fix passes. -->
+  <meta name="build-version" content="__BUILD_VERSION__">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/assets/icons/favicon.png">
   <link rel="apple-touch-icon" href="/assets/icons/icon-192.png">
