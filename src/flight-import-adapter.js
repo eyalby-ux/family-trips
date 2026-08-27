@@ -43,7 +43,28 @@ export function smartImportFlightResultToSuggestions(result,source,now=new Date(
     const missingBlockers=NO_OMISSION_BLOCKERS.filter(key=>!String(segment[key]||'').trim()&&!(directionAmbiguous&&DIRECTION_DEPENDENT_BLOCKERS.includes(key)));
     const needsReviewWarnings=needsReviewFields.map(field=>`דורש בדיקה — ${field.label}: ${field.value} (${field.evidence||'ללא הפניה למקור'})`);
     const skippedWarning=index===0&&skippedCount>0?[`מקור זה כלל ${skippedCount} מקטע/י טיסה שאינם תקינים (VOID או ללא נתונים); הם לא נוספו כפריטים.`]:[];
-    const warnings=[...(draft.warnings||[]),...(draft.unresolved||[]).map(value=>`דורש בדיקה: ${value}`),...needsReviewWarnings,...skippedWarning];
+    // V6-F35 (reopened again, fix pass 6): retested against the ACTUAL FL-007 file (not the
+    // simplified single-segment fixture the earlier regression test used), a free-text
+    // draft.warnings/unresolved sentence -- e.g. "Flight #2 arrival time is printed as 23:75,
+    // not a valid minute value" -- has no key of its own, so no field-mapping table could ever
+    // make reconcileStaleNeedsReview clear it once the Product Owner fixed the value: there is
+    // nothing to map FROM. Rather than trying to parse arbitrary prose back to a field, drop a
+    // draft-level warning at creation time when it just restates a value that is ALREADY
+    // represented (and clearable) through the structured needsReviewFields mechanism. Matched by
+    // token, not by the field's full (often date+time combined) rawValue: a model-authored
+    // sentence realistically quotes just the specific bad token ("23:75"), not the joined
+    // "2025-08-25 23:75" string our own rawValue happens to be. A token must be at least 4
+    // characters to count, to avoid a short, coincidentally-shared substring (e.g. a 3-letter
+    // airport code appearing in an unrelated general note) causing a false-positive dedup. This
+    // is generic to any needs-review field's value, not special-cased to arrival time, so it
+    // generalizes to any multi-segment/VOID+real-flight source with the same free-text-duplicate
+    // pattern, not just FL-007's specific layout.
+    const rawDraftWarnings=[...(draft.warnings||[]),...(draft.unresolved||[]).map(value=>`דורש בדיקה: ${value}`)];
+    const draftWarnings=rawDraftWarnings.filter(warning=>!smartImportFields.some(field=>{
+      if(field.certainty==='exact'||!field.rawValue)return false;
+      return field.rawValue.split(/\s+/).some(token=>token.length>=4&&String(warning).includes(token));
+    }));
+    const warnings=[...draftWarnings,...needsReviewWarnings,...skippedWarning];
 
     const proposed={
       type:'flight',
@@ -281,21 +302,28 @@ function buildSegmentPassengers(passengerRoster,segment){
 // fare/class, duration, gate/boarding, and every passenger's seat/meal/baggage) has no logical
 // dependency on either side's read quality, or on direction ambiguity (its own separate
 // directionAmbiguous flag) -- these default to 'exact' regardless.
-// V6-F43 (fix pass 5): DEPARTURE_QUALITY_SENSITIVE_KEYS falls back to segment.certainty and
-// ARRIVAL_QUALITY_SENSITIVE_KEYS falls back to the independent segment.arrivalCertainty -- a
-// problem with only the arrival side (e.g. an invalid arrival minute value like "23:75") used to
-// share ONE segment-wide certainty with the departure side, so it also downgraded (and, via the
-// shared evidence text below, misattributed its explanation onto) departureDateTime and other
-// departure fields that were perfectly fine on their own.
-const DEPARTURE_QUALITY_SENSITIVE_KEYS=['departureAirport','departureTerminal','departureDateTime'];
-const ARRIVAL_QUALITY_SENSITIVE_KEYS=['arrivalAirport','arrivalTerminal','arrivalDateTime'];
-
+// V6-F43 (fix pass 5): certainty governs departure + general, arrivalCertainty governs arrival
+// independently -- a problem with only the arrival side no longer downgrades the departure side.
+// V6-F35 (reopened again, fix pass 6): retesting against the real FL-007 file found the SAME
+// class of over-coupling one level deeper -- an arrival-TIME-only problem (an invalid minute
+// value) still dragged arrivalAirport's certainty down too, since both shared one arrivalCertainty
+// flag, leaving the airport's needs-review entry stuck even after the Product Owner fixed the
+// time (editing endAt has no reason to touch location, so a field-mapping-based reconciliation
+// correctly left it alone -- the actual bug was that the airport should never have been
+// downgraded by a time-only problem in the first place). Across every real fixture handled so far,
+// certainty/arrivalCertainty problems have only ever genuinely been about date/time legibility --
+// an airport code/name has never itself been the uncertain part. So only *DateTime keys inherit
+// the certainty/arrivalCertainty fallback directly; airport/terminal fields only inherit it at
+// the 'unreadable' tier (the whole region is illegible, not just a specific value looking wrong).
 function buildEvidenceFields(segment,passengers,bookingReference,directionCandidates=[]){
   const fields=[];
   const push=(key,label,rawValue,certainty)=>{
     if(!String(rawValue||'').trim())return;
-    const endpointCertainty=ARRIVAL_QUALITY_SENSITIVE_KEYS.includes(key)?(segment.arrivalCertainty||'exact'):DEPARTURE_QUALITY_SENSITIVE_KEYS.includes(key)?(segment.certainty||'exact'):null;
-    const fallback=endpointCertainty||(segment.certainty==='unreadable'?segment.certainty:'exact');
+    let fallback='exact';
+    if(key==='departureDateTime')fallback=segment.certainty||'exact';
+    else if(key==='arrivalDateTime')fallback=segment.arrivalCertainty||'exact';
+    else if((key==='departureAirport'||key==='departureTerminal')&&segment.certainty==='unreadable')fallback='unreadable';
+    else if((key==='arrivalAirport'||key==='arrivalTerminal')&&segment.arrivalCertainty==='unreadable')fallback='unreadable';
     fields.push({key,label,rawValue:String(rawValue).trim(),evidence:segment.evidence||'',certainty:certainty||fallback});
   };
   push('bookingReference','אסמכתא/PNR',bookingReference,'exact');

@@ -564,9 +564,11 @@ test_V6_F34_unrelated_fields_populate_despite_direction_ambiguity();
 // --- V6-F34: the underlying design flaw was a single shared segment.certainty fallback that
 // every field's evidence-certainty inherited when not given its own -- so ANY coarse read-quality
 // note (not just direction, now handled separately) could make an unrelated, fully-present value
-// look suspect. Only the fields that are genuinely tied to departure/arrival geography and timing
-// legitimately inherit it (FL-007's "times obscured by UI overlay" case); everything else needs
-// the WHOLE segment marked unreadable before its certainty gets pulled down. ---
+// look suspect. Only departureDateTime is genuinely tied to certainty's read-quality concern
+// (FL-007's "times obscured by UI overlay" case); everything else, INCLUDING departureAirport
+// (further refined in fix pass 6 -- see V6-F35 root cause #2: airport identity is a separate
+// concern from date/time validity, even on the same side), needs the WHOLE segment marked
+// unreadable before its certainty gets pulled down. ---
 function test_V6_F34_coarse_segment_certainty_no_longer_downgrades_unrelated_fields(){
   const source={id:'src-coarse-certainty',name:'coarse',fingerprint:'coarse'};
   const result=draftResult({
@@ -579,8 +581,9 @@ function test_V6_F34_coarse_segment_certainty_no_longer_downgrades_unrelated_fie
   const [suggestion]=smartImportFlightResultToSuggestions(result,source);
   const fields=suggestion.proposed.details.smartImportFields;
   assert.equal(fields.find(f=>f.key==='flightNumber').certainty,'exact','flightNumber must default to exact certainty even when the segment carries a coarse needs_review, since obscured TIMES have no bearing on how legible the flight number is');
-  assert.equal(fields.find(f=>f.key==='departureAirport').certainty,'needs_review','a field genuinely tied to the segment\'s geography/timing legibility must still inherit the coarse certainty when it IS relevant (this is FL-007\'s real case, not a regression to fix)');
-  console.log('PASS: V6-F34 a coarse segment-level read-quality note only downgrades the fields it is actually about, not every field on the segment');
+  assert.equal(fields.find(f=>f.key==='departureDateTime').certainty,'needs_review','the field genuinely tied to the segment\'s date/time legibility must still inherit the coarse certainty when it IS relevant (this is FL-007\'s real case, not a regression to fix)');
+  assert.equal(fields.find(f=>f.key==='departureAirport').certainty,'exact','airport identity is a separate concern from date/time legibility, even on the same (departure) side -- fix pass 6 refined this further after V6-F35\'s root cause #2');
+  console.log('PASS: V6-F34 a coarse segment-level read-quality note only downgrades the field it is actually about (date/time), not every field on the segment -- including not the airport on the same side');
 }
 test_V6_F34_coarse_segment_certainty_no_longer_downgrades_unrelated_fields();
 
@@ -946,7 +949,7 @@ function test_V6_F43_invalid_value_warning_scoped_to_its_own_field(){
 
   assert.equal(flightImportSchema.properties.segments.items.properties.arrivalCertainty.type,'string','the schema must support an arrival-specific certainty independent of the segment-wide one');
   assert(flightImportSchema.properties.segments.items.required.includes('arrivalCertainty'));
-  assert.match(flightSystemPrompt,/arrivalCertainty describes your confidence in the arrival-side fields specifically/,'the prompt must explain when to use arrivalCertainty instead of certainty');
+  assert.match(flightSystemPrompt,/arrivalCertainty describes your confidence in the arrival date\/time specifically/,'the prompt must explain when to use arrivalCertainty instead of certainty');
   assert.match(flightSystemPrompt,/do not lower certainty \(the departure-side confidence\) over a problem that is only about arrival/,'the prompt must explicitly warn against letting an arrival-only problem pull down departure certainty');
 
   console.log('PASS: V6-F43 an invalid-value warning is scoped to the field it is actually about (arrival), and no longer misattributed onto the departure date/time');
@@ -998,3 +1001,84 @@ function test_V6_F40_build_specific_identifier_visible(){
 test_V6_F40_build_specific_identifier_visible();
 
 console.log('ALL PASS: Alpha 0.6.5 Flight Smart Import fifth fix pass (V6-F35 reopened, V6-F40/F41/F42/F43)');
+
+// ===============================================================================================
+// Sixth fix pass: V6-F35, reopened a second time. Live retest against the ACTUAL
+// tests/fixtures/flight_benchmark/FL-007_wildcard_VOID_plus_ISRAIR_baggage_matrix.png file (read
+// directly for this pass, not a synthetic simplification) found the fix-pass-5 version of
+// reconcileStaleNeedsReview still didn't clear the stale warning after a manual arrival-time
+// correction. Root cause traced to TWO real bugs the earlier, oversimplified single-warning
+// fixture never exercised -- see the two tests below.
+// ===============================================================================================
+
+// --- Root cause #1: the actual warning text the Product Owner saw ("Flight #2 arrival time is
+// printed as 23:75, not a valid minute value") is natural-language prose that the model wrote
+// into draft.warnings/unresolved -- a field with NO key of its own. reconcileStaleNeedsReview
+// only ever looks at needsReviewFields entries (which DO have a key); a free-text warning was
+// never reachable by field-mapping no matter how the mapping table was tuned, because there was
+// nothing to map FROM. The general fix is to stop emitting the redundant free-text copy at
+// creation time when it just restates a value the structured mechanism already covers (and can
+// already clear). ---
+function test_V6_F35_fix_pass_6_freetext_draft_warning_deduped_against_structured_field(){
+  const source={id:'src-fl007-real-shape',name:'FL-007_wildcard_VOID_plus_ISRAIR_baggage_matrix.png',fingerprint:'fl007real'};
+  const result=draftResult({
+    bookingReference:'1172207',
+    // The exact free-text pattern reported live -- quoting just the bad token ("23:75"), not our
+    // internal combined "date time" rawValue string.
+    warnings:['Flight #2 arrival time is printed as 23:75, which is not a valid minute value (00-59) -- reported exactly as shown, not corrected.'],
+    segments:[
+      segment({status:'void'}), // Flight #1, exactly as in the real file
+      segment({flightNumber:'6H568',operatingCarrier:'ISRAIR',marketingCarrier:'ISRAIR',departureAirportCode:'ATH',departureAirportName:'Athens',arrivalAirportCode:'TLV',arrivalAirportName:'Tel Aviv',departureDate:'2025-08-25',departureTime:'21:30',arrivalDate:'2025-08-25',arrivalTime:'23:75',certainty:'exact',arrivalCertainty:'needs_review',evidence:'ISRAIR e-ticket, Flight #2 row',
+        passengerDetails:[{passengerName:'',seat:'',mealRequest:'',certainty:'exact',baggage:[{bagType:'carry_on',weight:'3 kg',included:'included'},{bagType:'checked',weight:'23 kg',included:'not_included'},{bagType:'trolley',weight:'10 kg',included:'included'}]}],
+      }),
+    ],
+  });
+  const [suggestion]=smartImportFlightResultToSuggestions(result,source);
+
+  // Matched on the free-text sentence's own distinctive wording -- NOT on "23:75" alone, since
+  // the legitimate structured warning below also cites "23:75" (that's the point: the real value
+  // survives via the clearable structured copy, only the redundant free-text one must go).
+  assert(!suggestion.warnings.some(w=>w.includes('not a valid minute value')),'the redundant free-text warning restating an already-flagged field\'s value must not be surfaced as a second, unclearable copy');
+  assert(suggestion.warnings.some(w=>w.includes('מועד נחיתה')),'the structured, clearable arrival-time warning must still be present -- nothing about the real problem is lost, only the un-clearable duplicate');
+
+  const corrected=reconcileStaleNeedsReview({...suggestion.proposed,endAt:'2025-08-25T19:04'},new Set(['endAt']));
+  assert.equal(corrected.details.needsReviewFields.length,0,'the arrival-time needs-review entry must clear once the Product Owner corrects it (the value from the live retest: 25 Aug 2025, 19:04), even on this multi-segment (VOID + real flight) source shape');
+  assert(!corrected.warnings.some(w=>w.includes('מועד נחיתה')),'no warning about arrival time may remain after the correction');
+
+  console.log('PASS: V6-F35 (fix pass 6, root cause #1) a free-text draft-level warning that restates an already-flagged field\'s value is deduped at creation time, so only the clearable structured warning remains');
+}
+test_V6_F35_fix_pass_6_freetext_draft_warning_deduped_against_structured_field();
+
+// --- Root cause #2: "the שדה נחיתה (arrival airport) needs-review entry also remained
+// displayed" after the arrival-time-only correction. Not a reconciliation bug -- reconcileStaleNeedsReview
+// correctly left it alone, because the Product Owner only edited endAt (arrival time), not
+// location (arrival airport). The REAL bug was one level upstream: arrivalCertainty was one
+// shared flag covering BOTH the arrival airport's identity AND the arrival time's validity, so an
+// arrival-time-only problem (an invalid minute value) also pulled the airport's certainty down
+// with it, even though the airport code/name was clearly legible on its own. Fixed by tying
+// certainty/arrivalCertainty's "needs_review" tier to date/time specifically; airport/terminal
+// fields now only inherit a downgrade at the stronger "unreadable" tier (the whole region is
+// illegible), which is the only case where an airport code genuinely becomes uncertain too. ---
+function test_V6_F35_fix_pass_6_arrival_airport_not_coupled_to_arrival_time_certainty(){
+  const source={id:'src-fl007-airport-decouple',name:'FL-007',fingerprint:'fl007c'};
+  const result=draftResult({
+    bookingReference:'1172207',
+    segments:[segment({flightNumber:'6H568',operatingCarrier:'ISRAIR',marketingCarrier:'ISRAIR',departureAirportCode:'ATH',departureAirportName:'Athens',arrivalAirportCode:'TLV',arrivalAirportName:'Tel Aviv',departureDate:'2025-08-25',departureTime:'21:30',arrivalDate:'2025-08-25',arrivalTime:'23:75',certainty:'exact',arrivalCertainty:'needs_review',evidence:'ISRAIR e-ticket'})],
+  });
+  const [suggestion]=smartImportFlightResultToSuggestions(result,source);
+  const fields=suggestion.proposed.details.smartImportFields;
+  assert.equal(fields.find(f=>f.key==='arrivalDateTime').certainty,'needs_review','the arrival date/time itself must still correctly stay flagged');
+  assert.equal(fields.find(f=>f.key==='arrivalAirport').certainty,'exact','the arrival airport is a separate concern from arrival time validity (a clearly-legible airport code) and must not be dragged into needs_review by a time-only problem');
+  assert(!suggestion.proposed.details.needsReviewFields.some(f=>f.key==='arrivalAirport'),'the arrival airport must not appear in needsReviewFields at all when only the time is the actual problem');
+
+  // A genuinely illegible whole region (the stronger 'unreadable' tier) must still correctly take
+  // the airport down with it -- this is the one case airport/terminal legitimately inherits.
+  const obscured=draftResult({segments:[segment({flightNumber:'6H568',departureAirportCode:'ATH',arrivalAirportCode:'TLV',departureDate:'2025-08-25',arrivalDate:'2025-08-25',certainty:'exact',arrivalCertainty:'unreadable',evidence:'ISRAIR e-ticket, arrival block fully obscured'})]});
+  const [obscuredSuggestion]=smartImportFlightResultToSuggestions(obscured,{id:'src-fl007-unreadable',name:'FL-007',fingerprint:'fl007d'});
+  assert.equal(obscuredSuggestion.proposed.details.smartImportFields.find(f=>f.key==='arrivalAirport').certainty,'unreadable','when the whole arrival region is genuinely illegible (not just one value being invalid), the airport correctly inherits that too');
+
+  console.log('PASS: V6-F35 (fix pass 6, root cause #2) an arrival-time-only problem no longer leaves the arrival airport stuck flagged as needs-review; a genuinely illegible whole region still correctly flags the airport too');
+}
+test_V6_F35_fix_pass_6_arrival_airport_not_coupled_to_arrival_time_certainty();
+
+console.log('ALL PASS: Alpha 0.6.5 Flight Smart Import sixth fix pass (V6-F35, root-caused and fixed against the real FL-007 file\'s structure)');
