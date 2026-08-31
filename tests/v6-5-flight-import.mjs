@@ -420,7 +420,10 @@ test_ux_category_picker_removed_and_auto_detected();
 // extra classification call -- this must not regress alongside the create-flow auto-detect. ---
 function test_ux_attach_and_extract_still_uses_known_category(){
   const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
-  assert.match(app,/targetItem\.type==='flight'\?analyzeFlightSource\(\{trip:state\.trip,source,file\}\):analyzeHotelSource\(\{trip:state\.trip,source,file\}\)/,'attach-and-extract must still call the known-category analyze function directly, not re-classify a source whose target item type is already known');
+  // 0.6.6 added a third branch (Attraction/Event) alongside Flight/Hotel, same principle: the
+  // target item's own type is already certain, so attach-and-extract still calls the matching
+  // analyze function directly rather than re-classifying.
+  assert.match(app,/targetItem\.type==='flight'\?analyzeFlightSource\(\{trip:state\.trip,source,file\}\):targetItem\.type==='activity'\?analyzeActivitySource\(\{trip:state\.trip,source,file\}\):analyzeHotelSource\(\{trip:state\.trip,source,file\}\)/,'attach-and-extract must still call the known-category analyze function directly, not re-classify a source whose target item type is already known');
   console.log('PASS: attach-and-extract still uses the already-known target item category directly, without an unnecessary classification call');
 }
 test_ux_attach_and_extract_still_uses_known_category();

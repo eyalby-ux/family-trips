@@ -1,3 +1,5 @@
+> **Superseded.** Per `VERSION_PACKAGE_AUTHORING_STANDARD_V29.md`'s "Current-state / history split" rule, this document's current-truth content and live status now live in `MVP_DELIVERY_PLAN_CURRENT_STATE_V1.md` (updated in place going forward, currently at internal revision `V53`). The full narrative history through this V72 revision belongs in a companion `MVP_DELIVERY_HISTORY_V1.md`, which the 0.6.6 implementation package does not have the source content to author (only the already-split current-state document was handed to the Development Agent) — this file is left in place, unedited below, as the authoritative historical record until that split is completed by whoever holds the full narrative. Do not treat this file as the current roadmap or finding register; read `MVP_DELIVERY_PLAN_CURRENT_STATE_V1.md` for that.
+
 # Family Trips — Thailand MVP Delivery Plan
 
 **Document revision:** `V72`  

@@ -67,7 +67,11 @@ const now=new Date('2027-01-20T12:00:00Z');
   ],importantNotes:[],warnings:[],unresolved:[],explicitlyAbsent:[]},placeValidation:null};
   const suggestion=smartImportResultToSuggestion(result,source,now);
   assert.equal(suggestion.proposed.details.needsReviewFields.length,1,'the internally flagged field must be recorded for review');
-  assert.equal(suggestion.proposed.details.needsReviewFields[0].key,'check_in_date');
+  // V6-F49: keyed by the RESOLVED proposed-field name ('startDate', which NEEDS_REVIEW_FIELD_MAP
+  // maps to startAt) rather than the raw model-authored canonical key ('check_in_date', which the
+  // map has no entry for) -- otherwise a manual edit of the check-in date could never clear this
+  // exact warning. See tests/v6-49-51-correction.mjs for the full regression coverage.
+  assert.equal(suggestion.proposed.details.needsReviewFields[0].key,'startDate');
   assert(suggestion.warnings.some(w=>w.includes('דורש בדיקה')&&w.includes('2027-03-28')),'the conflicting value must be visible in the review-form warning list');
   assert(suggestion.warnings.some(w=>w.includes('דורש בדיקה')),'a needs_review proposal state must also surface a general warning');
   const item=suggestionToItem(suggestion,{});

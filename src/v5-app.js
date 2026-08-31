@@ -1,11 +1,12 @@
-import {ITEM_TYPES,TYPE_FIELDS,buildItemFormValues,createSuggestions,findPossibleDuplicates,manualCreateDefaults,mapsUrl,normalizeUrlInput,reconcileStaleNeedsReview,suggestionToItem,validateSource} from './ingestion.js';
+import {ITEM_TYPES,TYPE_FIELDS,buildItemFormValues,createSuggestions,findPossibleDuplicates,manualCreateDefaults,mapsUrl,normalizeUrlInput,reconcileStaleNeedsReview,suggestionReviewDefaults,suggestionToItem,validateSource} from './ingestion.js';
 import {extractSourceContent,sha256File} from './content-extraction.js';
 import {MultipartQrCollector,decodeExternalText,importBatchToApp} from './external-import.js';
 import {availableTimelineModes,backfillTripDates,currentOperational,isItemOutsideTrip,normalizeDateRange,normalizeOperationalState,packingDuplicate,periodBounds,quickAccessTasks,sanitizeTripDates,shiftCursor,sortItemsByStartAt,uniqueRecordsById} from './operational-data.js';
 import {normalizeProposalLifecycle,rejectProposal} from './proposal-lifecycle.js';
-import {analyzeFlightSource,analyzeHotelSource,analyzeSource} from './smart-import-client.js';
+import {analyzeActivitySource,analyzeFlightSource,analyzeHotelSource,analyzeSource} from './smart-import-client.js';
 import {saveOnlySource,smartImportResultToSuggestion,preserveTrustedFieldsOnMerge} from './smart-import-adapter.js';
 import {clearResolvedDirectionWarning,smartImportFlightResultToSuggestions} from './flight-import-adapter.js';
+import {smartImportActivityResultToSuggestion} from './activity-import-adapter.js';
 import './v4.css';
 
 const KEY='family-trips-alpha-0.2';
@@ -142,7 +143,17 @@ function detailView(){const item=state.items.find(candidate=>candidate.id===stat
 function existingItemUnchangedNotice(type){
   return ({flight:'הטיסה הקיימת לא תשתנה עד לאישור מפורש.',hotel:'המלון הקיים לא ישתנה עד לאישור מפורש.'})[type]||'הפריט הקיים לא ישתנה עד לאישור מפורש.';
 }
-function suggestionView(){const suggestion=suggestionById(state.suggestionId);if(!suggestion)return '<section class="card">ההצעה לא נמצאה.</section>';const sources=(suggestion.sourceIds||[suggestion.sourceId]).map(sourceById).filter(Boolean),p=suggestion.proposed,experimental=sources.some(source=>source.experimental),isUpdate=Boolean(suggestion.targetItemId);return `<section class="card"><button class="btn ghost" data-route="center" data-cat="document">חזרה</button><div class="section-head"><div><h2>${isUpdate?'בדיקת הצעת עדכון':'בדיקת הצעה'}</h2><p class="muted">${isUpdate?existingItemUnchangedNotice(p.type):'המידע יישמר כפריט רק לאחר אישור מפורש.'}</p></div><span class="badge ${experimental||suggestion.confidence==='low'?'warn':'blue'}">${experimental?'PDF ניסיוני':`ביטחון ${confidenceLabel(suggestion.confidence)}`}</span></div>${experimental?'<div class="experimental-warning"><b>קליטה ניסיונית:</b> יש לבדוק כל שדה. מידע חסר נשאר ריק והקובץ המקורי נשמר.</div>':''}<div class="source-summary"><b>מקורות:</b> ${sources.map(source=>esc(source.name)).join(', ')||'ייבוא חיצוני'}</div>${suggestion.origin==='external-import'?'<div class="privacy-warning">🔒 ה־QR אינו מוצפן. אין לשתף אותו בפומבי.</div>':''}${suggestion.warnings?.length?`<div class="warning-list">${suggestion.warnings.map(warning=>`<div>⚠️ ${esc(warningText(warning))}</div>`).join('')}</div>`:''}${p.type==='flight'?directionPickerPanel(suggestion.id,p):''}${p.type==='flight'?flightSummaryBlock(p.details):''}${smartEvidencePanel(p)}<form id="suggestion-form" data-id="${suggestion.id}">${proposalFields(p)}<div class="actions"><button class="btn" name="decision" value="approve">${isUpdate?`אישור ועדכון ה${ITEM_TYPES[p.type]?.label||'פריט'}`:'אישור ויצירת פריט'}</button><button class="btn secondary" name="decision" value="save">שמירת עריכה</button><button class="btn ghost" type="button" data-action="defer-suggestion" data-id="${suggestion.id}">אחר כך</button><button class="btn danger" type="button" data-action="reject-suggestion" data-id="${suggestion.id}">דחייה</button></div></form></section>`}
+// V6-F49: an unresolved-sourced warning (smart-import-adapter.js / activity-import-adapter.js)
+// carries no field key at all, so it can never be auto-matched to an edited field and cleared by
+// reconcileStaleNeedsReview -- warningText() already unwraps a {message} object exactly like
+// this, so only a dismissible-marked object gets the extra manual dismiss control.
+function isDismissibleWarning(value){return typeof value==='object'&&value!==null&&value.dismissible===true}
+function suggestionView(){const suggestion=suggestionById(state.suggestionId);if(!suggestion)return '<section class="card">ההצעה לא נמצאה.</section>';const sources=(suggestion.sourceIds||[suggestion.sourceId]).map(sourceById).filter(Boolean),p=suggestion.proposed,experimental=sources.some(source=>source.experimental),isUpdate=Boolean(suggestion.targetItemId);
+  // V6-F51: mirrors suggestionToItem's own trip-start fallback (fires at approval time for a new
+  // item) so the review form shows the same value approval would have produced anyway, instead
+  // of empty air -- see suggestionReviewDefaults for the exact shared condition.
+  const displayP={...p,...suggestionReviewDefaults(p,state.trip?.startDate||'',!isUpdate)};
+  return `<section class="card"><button class="btn ghost" data-route="center" data-cat="document">חזרה</button><div class="section-head"><div><h2>${isUpdate?'בדיקת הצעת עדכון':'בדיקת הצעה'}</h2><p class="muted">${isUpdate?existingItemUnchangedNotice(p.type):'המידע יישמר כפריט רק לאחר אישור מפורש.'}</p></div><span class="badge ${experimental||suggestion.confidence==='low'?'warn':'blue'}">${experimental?'PDF ניסיוני':`ביטחון ${confidenceLabel(suggestion.confidence)}`}</span></div>${experimental?'<div class="experimental-warning"><b>קליטה ניסיונית:</b> יש לבדוק כל שדה. מידע חסר נשאר ריק והקובץ המקורי נשמר.</div>':''}<div class="source-summary"><b>מקורות:</b> ${sources.map(source=>esc(source.name)).join(', ')||'ייבוא חיצוני'}</div>${suggestion.origin==='external-import'?'<div class="privacy-warning">🔒 ה־QR אינו מוצפן. אין לשתף אותו בפומבי.</div>':''}${suggestion.warnings?.length?`<div class="warning-list">${suggestion.warnings.map((warning,index)=>`<div class="warning-row">⚠️ ${esc(warningText(warning))}${isDismissibleWarning(warning)?`<button class="link-button" type="button" data-action="dismiss-warning" data-id="${suggestion.id}" data-index="${index}">התעלמות</button>`:''}</div>`).join('')}</div>`:''}${p.type==='flight'?directionPickerPanel(suggestion.id,p):''}${p.type==='flight'?flightSummaryBlock(p.details):''}${smartEvidencePanel(p)}<form id="suggestion-form" data-id="${suggestion.id}">${proposalFields(displayP)}<div class="actions"><button class="btn" name="decision" value="approve">${isUpdate?`אישור ועדכון ה${ITEM_TYPES[p.type]?.label||'פריט'}`:'אישור ויצירת פריט'}</button><button class="btn secondary" name="decision" value="save">שמירת עריכה</button><button class="btn ghost" type="button" data-action="defer-suggestion" data-id="${suggestion.id}">אחר כך</button><button class="btn danger" type="button" data-action="reject-suggestion" data-id="${suggestion.id}">דחייה</button></div></form></section>`}
 const BAGGAGE_LABELS={carry_on:'כבודת יד',checked:'מזוודה',trolley:'טרולי'};
 const BAGGAGE_INCLUDED_LABELS={included:'כלול',not_included:'לא כלול',unknown:'לא ידוע'};
 // Revised V6-F32 (fix pass 3): a source whose direction is genuinely ambiguous no longer gets a
@@ -248,11 +259,11 @@ async function runSmartAnalysis(source,file,targetItem=null){
   source.status='בניתוח';source.processingState='processing';save();render();
   try{
     const result=targetItem
-      ?await (targetItem.type==='flight'?analyzeFlightSource({trip:state.trip,source,file}):analyzeHotelSource({trip:state.trip,source,file}))
+      ?await (targetItem.type==='flight'?analyzeFlightSource({trip:state.trip,source,file}):targetItem.type==='activity'?analyzeActivitySource({trip:state.trip,source,file}):analyzeHotelSource({trip:state.trip,source,file}))
       :await analyzeSource({trip:state.trip,source,file});
     const category=targetItem?targetItem.type:result.category;
-    if(category==='unrecognized')throw new Error('לא זוהה מסמך מלון או טיסה במקור. לא נוצרה הצעה.');
-    let suggestions=category==='flight'?smartImportFlightResultToSuggestions(result,source):[smartImportResultToSuggestion(result,source)];
+    if(category==='unrecognized')throw new Error('לא זוהה מסמך מלון, טיסה או אטרקציה במקור. לא נוצרה הצעה.');
+    let suggestions=category==='flight'?smartImportFlightResultToSuggestions(result,source):category==='activity'?[smartImportActivityResultToSuggestion(result,source)]:[smartImportResultToSuggestion(result,source)];
     if(targetItem)suggestions=suggestions.map(suggestion=>{const merged=preserveTrustedFieldsOnMerge(suggestion,targetItem);merged.targetItemId=targetItem.id;return merged});
     if(!suggestions.length)throw new Error('לא זוהה מקטע טיסה תקין במקור. לא נוצרה הצעה.');
     state.suggestions.push(...suggestions);
@@ -396,6 +407,10 @@ addEventListener('click',async event=>{const routeButton=event.target.closest('[
   else if(action==='open-source')await openSource(button.dataset.id);
   else if(action==='pick-direction'){pickFlightDirection(suggestionById(button.dataset.id),Number(button.dataset.index));render()}
   else if(action==='defer-suggestion'){suggestionById(button.dataset.id).status='deferred';save();route('center',{category:'document'});notify('ההצעה נשמרה לאחר כך')}
+  // V6-F49 backstop: an unresolved-sourced warning can never auto-clear (see
+  // isDismissibleWarning) since it has no field key to match an edit against -- this is the only
+  // way the Product Owner can remove it once they've judged it addressed/irrelevant.
+  else if(action==='dismiss-warning'){const suggestion=suggestionById(button.dataset.id);const index=Number(button.dataset.index);if(suggestion&&isDismissibleWarning(suggestion.warnings?.[index])){suggestion.warnings=suggestion.warnings.filter((_,i)=>i!==index);suggestion.proposed.warnings=suggestion.warnings;save();render()}}
   else if(action==='reject-suggestion'){if(confirm('לדחות את ההצעה? המקורות יישמרו.')){const lifecycle=rejectProposal(state.suggestions,state.rejectedSuggestions,button.dataset.id);state.suggestions=lifecycle.suggestions;state.rejectedSuggestions=lifecycle.rejectedSuggestions;save();route('center',{category:'document'});notify('ההצעה הועברה לארכיון')}}
   else if(action==='duplicate-merge')approveSuggestion(suggestionById(button.dataset.suggestion),'merge',button.dataset.target);
   else if(action==='duplicate-keep')approveSuggestion(suggestionById(button.dataset.suggestion),'keep');

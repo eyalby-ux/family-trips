@@ -156,6 +156,12 @@ const NEEDS_REVIEW_FIELD_MAP={
   departureAirport:['location'],arrivalAirport:['location'],departureTerminal:['location'],arrivalTerminal:['location'],
   directionAmbiguity:['location','startAt','endAt'],
   bookingReference:['confirmationNumber'],
+  // V6-F49: Hotel/Activity needsReviewFields entries are keyed by the RESOLVED proposed-field
+  // name (see smart-import-adapter.js's push(...,target||canonical,...)), not a flight-shaped
+  // key -- this table previously had no entries at all for that shape, so a Hotel needs-review
+  // warning could never clear on manual edit even when it WAS backed by a structured field.
+  startDate:['startAt'],endDate:['endAt'],startTime:['startAt'],endTime:['endAt'],
+  title:['title'],provider:['provider'],confirmationNumber:['confirmationNumber'],website:['website'],phone:['phone'],
 };
 export function reconcileStaleNeedsReview(proposed,changedFields){
   const needsReviewFields=proposed.details?.needsReviewFields;
@@ -179,6 +185,22 @@ export function manualCreateDefaults(trip,todayValue=today()){
   const base=isValidCalendarDate(trip?.startDate)?trip.startDate:todayValue;
   const startAt=`${base}T12:00`;
   return {startAt,endAt:startAt};
+}
+// V6-F51: the Smart Import review screen rendered a blank startAt/endAt exactly as extracted,
+// with no defaulting -- unlike manualCreateDefaults (fires when the manual form opens) and
+// suggestionToItem's own trip-start fallback (fires at approval time for a new item), leaving
+// the review screen as the one gap in an otherwise-consistent default. This mirrors
+// suggestionToItem's exact fallback condition (new item, a real trip start date, a schedule that
+// actually uses dates) so the review form shows the same value approval would have produced
+// anyway, editable before submit instead of appearing as empty air. Only applies to a genuinely
+// new-item suggestion, never an update/attach-and-extract suggestion targeting an existing item,
+// matching suggestionToItem's own isNewItem gate.
+export function suggestionReviewDefaults(proposed,tripStartDate,isNewItem){
+  const startAt=String(proposed?.startAt||''),endAt=String(proposed?.endAt||'');
+  if(!isNewItem||!isValidCalendarDate(tripStartDate)||['none','entire'].includes(proposed?.schedule))return {startAt,endAt};
+  const fallbackStart=startAt||`${tripStartDate}T12:00`;
+  const fallbackEnd=endAt||(proposed?.schedule==='range'?`${tripStartDate}T12:00`:endAt);
+  return {startAt:fallbackStart,endAt:fallbackEnd};
 }
 // Builds the item field values from the manual-create / edit-item form's own FormData, exactly
 // as the real submit handler does -- extracted so both the UI and a regression test call the

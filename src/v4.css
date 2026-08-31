@@ -5,3 +5,4 @@
 @media(max-width:640px){.quick-grid{grid-template-columns:1fr}.period-nav b{font-size:.8rem}.wide-modal{width:100%}}
 .processing-indicator{display:grid;justify-items:center;gap:.5rem;padding:2rem 1rem;text-align:center}.spinner{width:2.25rem;height:2.25rem;border-radius:50%;border:3px solid #d8ded8;border-top-color:#2f8f63;animation:familytrips-spin .8s linear infinite}@keyframes familytrips-spin{to{transform:rotate(360deg)}}
 .flight-summary{display:grid;grid-template-columns:auto 1fr;gap:.4rem 1rem;margin:0 0 1rem}.flight-summary dt{font-weight:800;color:#5f6b7a}.flight-summary dd{margin:0}.passenger-row{cursor:default}
+.warning-row{display:flex;align-items:baseline;justify-content:space-between;gap:.75rem}.link-button{flex:none;border:0;background:transparent;color:#6f4a00;text-decoration:underline;font-size:.85rem;cursor:pointer;padding:0}

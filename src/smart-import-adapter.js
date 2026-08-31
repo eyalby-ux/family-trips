@@ -1,4 +1,4 @@
-import {isValidCalendarDate,parseTimeValue} from './operational-data.js';
+import {isValidCalendarDate,normalizeFlightDateString,parseTimeValue} from './operational-data.js';
 
 const FIELD_MAP={
   property_name:'title',hotel_name:'title',booking_number:'confirmationNumber',booking_number_primary:'confirmationNumber',confirmation_number:'confirmationNumber',
@@ -17,9 +17,15 @@ export function smartImportResultToSuggestion(result,source,now=new Date()){
   for(const field of draft.fields||[]){
     const value=String(field.normalizedValue||field.rawValue||'').trim();
     const canonical=canonicalFieldKey(field.key);
-    if(field.certainty==='needs_review'&&value)needsReviewFields.push({key:canonical,label:field.label||canonical,value,evidence:field.evidence||''});
-    if(!value)continue;
+    // V6-F49: key this by the RESOLVED proposed-field name (target) when one is known, not the
+    // raw model-authored canonical key -- NEEDS_REVIEW_FIELD_MAP (ingestion.js) maps against
+    // exactly this small, controlled vocabulary (startDate/endDate/title/... -> startAt/endAt/
+    // title/...), so a manual edit of the mapped form field can actually find and clear this
+    // entry. Previously this was always the raw canonical key, which the map had no entries for
+    // at all, so a Hotel needs-review warning could never clear no matter what was edited.
     const target=FIELD_MAP[canonical]||classifyFieldKey(canonical);
+    if(field.certainty==='needs_review'&&value)needsReviewFields.push({key:target||canonical,label:field.label||canonical,value,evidence:field.evidence||''});
+    if(!value)continue;
     if(target&&['title','provider','confirmationNumber','website','phone'].includes(target)&&!proposed[target])proposed[target]=value;
     else if(target==='startDate'||canonical==='arrival_date'||canonical==='check_in_date')startDate=startDate||value;
     else if(target==='endDate'||canonical==='departure_date'||canonical==='check_out_date')endDate=endDate||value;
@@ -30,6 +36,33 @@ export function smartImportResultToSuggestion(result,source,now=new Date()){
   }
   if(!startTime)startTime=findTime(draft,'check_in_time','arrival_time','check_in_window','arrival_window');
   if(!endTime)endTime=findTime(draft,'check_out_time','departure_time','check_out_window','departure_window');
+  // V6-F50: a date the model resolves correctly but states only in free text (draft.unresolved /
+  // draft.importantNotes) instead of a structured `fields` entry must still reach startAt/endAt
+  // -- leaving it silently blank is a real omission (this project's standing no-omission
+  // severity), not cosmetic. The durable fix is the tightened systemPrompt (see
+  // smart-import-schema.mjs), which now tells the model to always pair a resolved conflict with
+  // a needs_review-marked field. This is the lower-confidence backstop for when it doesn't
+  // anyway: confirmed on the real Hyatt Regency case, whose free text read exactly
+  // "Check-in date: 18 Jan 2027 (...)" / "Check-out date: 23 Jan 2027 (...)". Only fires when the
+  // fields-based extraction above found nothing at all for that side, and always marks the
+  // result needs_review -- this is a fallback guess at intent, not a confirmed field.
+  const fallbackEvidenceFields=[];
+  if(!startDate){
+    const fallback=scanFreeTextForDate(draft,'start');
+    if(fallback){
+      startDate=fallback;
+      needsReviewFields.push({key:'startDate',label:'תאריך התחלה',value:fallback,evidence:'זוהה בטקסט חופשי (unresolved/importantNotes), לא בשדה מובנה — דורש אימות מול המקור'});
+      fallbackEvidenceFields.push({key:'startDate',label:'תאריך התחלה (מטקסט חופשי)',rawValue:fallback,normalizedValue:fallback,evidence:'זוהה בטקסט חופשי (unresolved/importantNotes)',certainty:'needs_review'});
+    }
+  }
+  if(!endDate){
+    const fallback=scanFreeTextForDate(draft,'end');
+    if(fallback){
+      endDate=fallback;
+      needsReviewFields.push({key:'endDate',label:'תאריך סיום',value:fallback,evidence:'זוהה בטקסט חופשי (unresolved/importantNotes), לא בשדה מובנה — דורש אימות מול המקור'});
+      fallbackEvidenceFields.push({key:'endDate',label:'תאריך סיום (מטקסט חופשי)',rawValue:fallback,normalizedValue:fallback,evidence:'זוהה בטקסט חופשי (unresolved/importantNotes)',certainty:'needs_review'});
+    }
+  }
   if(startDate)proposed.startAt=dateTime(startDate,startTime);
   if(endDate)proposed.endAt=dateTime(endDate,endTime);
   const propertyAddress=(draft.fields||[]).find(field=>['property_address','hotel_address','location'].includes(canonicalFieldKey(field.key)));
@@ -39,11 +72,19 @@ export function smartImportResultToSuggestion(result,source,now=new Date()){
   if(place?.state==='validated')proposed.details.canonicalPlace=place.acceptedPlace;
   const noteLines=[...(draft.importantNotes||[]).map(note=>`${note.title}: ${note.text}`),...otherFields.map(field=>`${field.label}: ${field.rawValue}`)];
   proposed.notes=noteLines.join('\n');
-  proposed.details.smartImportFields=draft.fields||[];
+  proposed.details.smartImportFields=[...(draft.fields||[]),...fallbackEvidenceFields];
   if(needsReviewFields.length)proposed.details.needsReviewFields=needsReviewFields;
   const needsReviewWarnings=needsReviewFields.map(field=>`דורש בדיקה — ${field.label}: ${field.value} (${field.evidence||'ללא הפניה למקור'})`);
   const proposalStateWarning=draft.proposalState==='needs_review'?['ההצעה כוללת מידע שדורש בדיקה לפני אישור.']:[];
-  proposed.warnings=[...(draft.warnings||[]),...(draft.unresolved||[]).map(value=>`דורש בדיקה: ${value}`),...proposalStateWarning,...needsReviewWarnings,...(place&&place.state!=='validated'?['המיקום נשמר כשם המלון בלבד; לא אומתו קואורדינטות.']:[])];
+  // V6-F49: an unresolved-sourced warning carries no field key at all, so reconcileStaleNeedsReview
+  // (ingestion.js) can never match it to an edited field and clear it automatically -- there is
+  // nothing to map FROM, unlike a needsReviewFields-sourced warning. Wrapping it as
+  // {message,dismissible:true} instead of a plain string lets the review screen offer a manual
+  // dismiss action specifically for this otherwise-unclearable kind (see v5-app.js's
+  // isDismissibleWarning/dismiss-warning), without changing how any other warning renders --
+  // warningText() already unwraps a {message} object exactly like this.
+  const unresolvedWarnings=(draft.unresolved||[]).map(value=>({message:`דורש בדיקה: ${value}`,dismissible:true,source:'unresolved'}));
+  proposed.warnings=[...(draft.warnings||[]),...unresolvedWarnings,...proposalStateWarning,...needsReviewWarnings,...(place&&place.state!=='validated'?['המיקום נשמר כשם המלון בלבד; לא אומתו קואורדינטות.']:[])];
   return {id:id('suggestion'),sourceId:source.id,sourceIds:[source.id],status:'pending',proposed,confidence:draft.proposalState==='proposed'?'high':'medium',warnings:proposed.warnings,extractionEngine:'familytrips-smart-import-0.6',sourceFingerprint:source.fingerprint||'',createdAt:now.toISOString(),updatedAt:now.toISOString(),requiresReview:true,smartImport:{attemptId:result.attemptId,usage:result.usage,costUsd:result.estimatedVariableCostUsd,latencyMs:result.latencyMs}};
 }
 
@@ -107,6 +148,28 @@ function findTime(draft,...keys){for(const field of draft.fields||[])if(keys.inc
 // different mechanism. Reject anything that isn't a real calendar date before it ever reaches
 // the field, so a bad extraction surfaces as blank-and-reviewable rather than silently vanishing.
 function dateTime(date,time){const clean=String(date).slice(0,10);if(!isValidCalendarDate(clean))return '';const clock=parseTimeValue(time)||'12:00';return `${clean}T${clock}`}
+// V6-F50 backstop: looks for a labelled date inside the model's own free-text explanation
+// (draft.unresolved entries, or draft.importantNotes' title+text) when the structured `fields`
+// loop above found nothing for that side at all. Matches the exact real-world shape this
+// project's own Hyatt Regency case produced ("Check-in date: 18 Jan 2027 (...)" / "Check-out
+// date: 23 Jan 2027 (...)") plus the equivalent arrival/departure/start/end wording. Deliberately
+// narrow and low-confidence -- this is a fallback for a gap the tightened systemPrompt is meant
+// to close at the source, not a general-purpose date parser.
+const FREE_TEXT_DATE_PATTERNS={
+  start:/(?:check[- ]?in|arrival|start|event)\s*date[^\n]{0,40}?:\s*([0-9]{1,2}[\s/.-][A-Za-z]{3,9}[\s/.-][0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2})/i,
+  end:/(?:check[- ]?out|departure|end)\s*date[^\n]{0,40}?:\s*([0-9]{1,2}[\s/.-][A-Za-z]{3,9}[\s/.-][0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2})/i,
+};
+export function scanFreeTextForDate(draft,kind){
+  const texts=[...(draft.unresolved||[]),...(draft.importantNotes||[]).map(note=>`${note.title||''}: ${note.text||''}`)];
+  for(const text of texts){
+    const match=FREE_TEXT_DATE_PATTERNS[kind].exec(String(text||''));
+    if(!match)continue;
+    const raw=match[1];
+    const clean=isValidCalendarDate(raw)?raw:normalizeFlightDateString(raw);
+    if(isValidCalendarDate(clean))return clean;
+  }
+  return '';
+}
 function normalizedEqual(left,right){return String(left||'').trim().toLowerCase()===String(right||'').trim().toLowerCase()}
 function isBlank(value){return value==null||value===''||(Array.isArray(value)&&!value.length)}
 function clone(value){return Array.isArray(value)||typeof value==='object'?JSON.parse(JSON.stringify(value)):value}

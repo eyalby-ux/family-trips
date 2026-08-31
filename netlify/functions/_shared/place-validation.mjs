@@ -1,15 +1,29 @@
 const LODGING=new Set(['bed_and_breakfast','budget_japanese_inn','camping_cabin','cottage','extended_stay_hotel','farmstay','guest_house','hostel','hotel','inn','japanese_inn','lodging','motel','private_guest_room','resort_hotel']);
+// Attraction/Event (0.6.6): the same property-first accurate-location discipline Hotel already
+// has, applied to Google's attraction/venue-shaped place types instead of lodging types. Kept as
+// its own set rather than merged with LODGING -- a result strongly typed as a hotel should not
+// silently satisfy an Attraction/Event lookup or vice versa.
+const ATTRACTION=new Set(['tourist_attraction','museum','zoo','amusement_park','aquarium','art_gallery','stadium','park','national_park','water_park','historical_landmark','performing_arts_theater','event_venue','visitor_center','amphitheater','planetarium']);
 const FIELD_MASK='places.id,places.displayName,places.formattedAddress,places.addressComponents,places.location,places.primaryType,places.types,places.googleMapsUri';
 export async function validateHotelPlace(draft){
-  const propertyName=String(draft.propertyName||'').trim();if(!propertyName)return null;
-  const address=field(draft,'property_address','hotel_address','location');const countryCode=country(draft,address);if(!countryCode)return pending(propertyName,'country_not_evidence_grounded');
-  const key=Netlify.env.get('FAMILYTRIPS_GOOGLE_PLACES_API_KEY');if(!key)return pending(propertyName,'provider_not_configured');
-  const query=[propertyName,address].filter(Boolean).join(', ');const response=await fetch('https://places.googleapis.com/v1/places:searchText',{method:'POST',headers:{'content-type':'application/json','x-goog-api-key':key,'x-goog-fieldmask':FIELD_MASK},body:JSON.stringify({textQuery:query,languageCode:'en',regionCode:countryCode.toUpperCase(),pageSize:5}),signal:AbortSignal.timeout(20000)});
-  if(!response.ok)return pending(propertyName,`provider_http_${response.status}`);const payload=await response.json();const strong=(payload.places||[]).map(candidate=>evaluate(propertyName,countryCode,candidate)).filter(Boolean);
-  if(strong.length!==1)return pending(propertyName,strong.length>1?'ambiguous_multiple_strong_matches':'no_strong_match');
-  return {state:'validated',locationDisplayValue:propertyName,query,lookupCount:1,acceptedPlace:strong[0]};
+  return validatePlace({draft,name:String(draft.propertyName||'').trim(),address:field(draft,'property_address','hotel_address','location'),typeSet:LODGING});
 }
-function evaluate(propertyName,countryCode,candidate){const names=normalize(candidate?.displayName?.text),expected=normalize(propertyName),types=[candidate?.primaryType,...(candidate?.types||[])].map(normalize),countryValue=normalize((candidate?.addressComponents||[]).find(component=>component?.types?.includes('country'))?.shortText),lat=Number(candidate?.location?.latitude),lng=Number(candidate?.location?.longitude);if(!(names===expected||names.startsWith(`${expected} `))||!types.some(type=>LODGING.has(type))||countryValue!==normalize(countryCode)||!Number.isFinite(lat)||!Number.isFinite(lng)||lat < -90||lat>90||lng < -180||lng>180)return null;return {placeId:String(candidate.id||''),name:String(candidate?.displayName?.text||propertyName),latitude:lat,longitude:lng,primaryType:normalize(candidate?.primaryType),types,countryCode:countryValue,formattedAddress:String(candidate?.formattedAddress||''),googleMapsUri:String(candidate?.googleMapsUri||'')}}
+// Attraction/Event (0.6.6): draft.activityName is the meaningful title (mirrors draft.propertyName
+// for Hotel); its own location comes from the generic `fields` array under the 'location' key,
+// same as every other field the activity adapter reads.
+export async function validateActivityPlace(draft){
+  return validatePlace({draft,name:String(draft.activityName||'').trim(),address:field(draft,'location'),typeSet:ATTRACTION});
+}
+async function validatePlace({draft,name,address,typeSet}){
+  if(!name)return null;
+  const countryCode=country(draft,address);if(!countryCode)return pending(name,'country_not_evidence_grounded');
+  const key=Netlify.env.get('FAMILYTRIPS_GOOGLE_PLACES_API_KEY');if(!key)return pending(name,'provider_not_configured');
+  const query=[name,address].filter(Boolean).join(', ');const response=await fetch('https://places.googleapis.com/v1/places:searchText',{method:'POST',headers:{'content-type':'application/json','x-goog-api-key':key,'x-goog-fieldmask':FIELD_MASK},body:JSON.stringify({textQuery:query,languageCode:'en',regionCode:countryCode.toUpperCase(),pageSize:5}),signal:AbortSignal.timeout(20000)});
+  if(!response.ok)return pending(name,`provider_http_${response.status}`);const payload=await response.json();const strong=(payload.places||[]).map(candidate=>evaluate(name,countryCode,candidate,typeSet)).filter(Boolean);
+  if(strong.length!==1)return pending(name,strong.length>1?'ambiguous_multiple_strong_matches':'no_strong_match');
+  return {state:'validated',locationDisplayValue:name,query,lookupCount:1,acceptedPlace:strong[0]};
+}
+function evaluate(propertyName,countryCode,candidate,typeSet){const names=normalize(candidate?.displayName?.text),expected=normalize(propertyName),types=[candidate?.primaryType,...(candidate?.types||[])].map(normalize),countryValue=normalize((candidate?.addressComponents||[]).find(component=>component?.types?.includes('country'))?.shortText),lat=Number(candidate?.location?.latitude),lng=Number(candidate?.location?.longitude);if(!(names===expected||names.startsWith(`${expected} `))||!types.some(type=>typeSet.has(type))||countryValue!==normalize(countryCode)||!Number.isFinite(lat)||!Number.isFinite(lng)||lat < -90||lat>90||lng < -180||lng>180)return null;return {placeId:String(candidate.id||''),name:String(candidate?.displayName?.text||propertyName),latitude:lat,longitude:lng,primaryType:normalize(candidate?.primaryType),types,countryCode:countryValue,formattedAddress:String(candidate?.formattedAddress||''),googleMapsUri:String(candidate?.googleMapsUri||'')}}
 function pending(name,reason){return {state:'pending_place_validation',locationDisplayValue:name,lookupCount:reason==='provider_not_configured'||reason==='country_not_evidence_grounded'?0:1,acceptedPlace:null,reason}}
 function field(draft,...keys){for(const item of draft.fields||[])if(keys.includes(normalizeKey(item.key)))return String(item.normalizedValue||item.rawValue||'').trim();return ''}
 export function country(draft,address){

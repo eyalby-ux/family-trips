@@ -5,16 +5,19 @@ import OpenAI from 'openai';
 import {convert} from 'html-to-text';
 import {authorize,httpError} from './_shared/smart-import-auth.mjs';
 import {consumeDailyQuota,registerOrVerifyTrip,writeAudit} from './_shared/smart-import-quota.mjs';
-import {classificationSystemPrompt,flightImportSchema,flightSystemPrompt,hotelImportSchema,sourceClassificationSchema,systemPrompt} from './_shared/smart-import-schema.mjs';
-import {validateHotelPlace} from './_shared/place-validation.mjs';
+import {activityImportSchema,activitySystemPrompt,classificationSystemPrompt,flightImportSchema,flightSystemPrompt,hotelImportSchema,sourceClassificationSchema,systemPrompt} from './_shared/smart-import-schema.mjs';
+import {validateActivityPlace,validateHotelPlace} from './_shared/place-validation.mjs';
 
 const MODEL='gpt-5.6-luna';const MAX_BINARY_BYTES=4*1024*1024;const MAX_PAGE_BYTES=1024*1024;
 // Flight Smart Import (0.6.5) has no public-URL source in its benchmark and no place-lookup
 // step (airports are not validated against Google Places); it otherwise follows the exact same
-// attempt/review/evidence pipeline as Hotel Smart Import.
+// attempt/review/evidence pipeline as Hotel Smart Import. Attraction/Event (0.6.6) DOES ship the
+// URL path (official venue/museum/OTA URLs are the intended target -- see fetchPublicPage's
+// robots.txt handling below) and DOES validate place accuracy, same as Hotel.
 const OPERATIONS={
-  analyze_hotel:{schemaName:'familytrips_hotel_import',schema:hotelImportSchema,systemPrompt,instruction:'Extract all readable Hotel information under the frozen FamilyTrips rules.',allowUrl:true,validatePlace:true},
+  analyze_hotel:{schemaName:'familytrips_hotel_import',schema:hotelImportSchema,systemPrompt,instruction:'Extract all readable Hotel information under the frozen FamilyTrips rules.',allowUrl:true,validatePlace:true,place:validateHotelPlace},
   analyze_flight:{schemaName:'familytrips_flight_import',schema:flightImportSchema,systemPrompt:flightSystemPrompt,instruction:'Extract all readable Flight information under the frozen FamilyTrips rules.',allowUrl:false,validatePlace:false},
+  analyze_activity:{schemaName:'familytrips_activity_import',schema:activityImportSchema,systemPrompt:activitySystemPrompt,instruction:'Extract all readable Attraction/Event ticket information under the frozen FamilyTrips rules.',allowUrl:true,validatePlace:true,place:validateActivityPlace},
 };
 export default async function handler(request){
   if(request.method!=='POST')return json({error:'method_not_allowed'},405);
@@ -33,9 +36,9 @@ export default async function handler(request){
       await registerOrVerifyTrip(tripId,user);const quota=await consumeDailyQuota(user);const prepared=await prepareSource(body.source,true);audit={...audit,sourceKind:prepared.kind,sourceSize:prepared.sourceSize};
       const classifyResponse=await client.responses.create({model:MODEL,store:false,reasoning:{effort:'low',context:'current_turn'},safety_identifier:user.emailHash,max_output_tokens:200,input:[{role:'system',content:classificationSystemPrompt},{role:'user',content:[...prepared.content,{type:'input_text',text:'Classify this document.'}]}],text:{format:{type:'json_schema',name:'familytrips_source_classification',strict:true,schema:sourceClassificationSchema}}});
       const classification=JSON.parse(classifyResponse.output_text);
-      const category=classification.category==='flight'?'flight':classification.category==='hotel'?'hotel':null;
+      const category=['flight','hotel','activity'].includes(classification.category)?classification.category:null;
       if(!category){const latencyMs=Date.now()-started;audit={...audit,status:'completed',model:classifyResponse.model||MODEL,latencyMs};await writeAudit(audit);return json({attemptId:audit.attemptId,state:'no_match',category:'unrecognized',latencyMs,quota:{remaining:Math.max(0,quota.limit-quota.count),limit:quota.limit}},200)}
-      const operation=OPERATIONS[category==='flight'?'analyze_flight':'analyze_hotel'];
+      const operation=OPERATIONS[{flight:'analyze_flight',hotel:'analyze_hotel',activity:'analyze_activity'}[category]];
       const result=await runExtraction(operation,prepared,user);
       const latencyMs=Date.now()-started;audit={...audit,status:'completed',model:result.response.model||MODEL,latencyMs,estimatedVariableCostUsd:result.cost};await writeAudit(audit);
       return json({attemptId:audit.attemptId,state:'proposal_ready',category,draft:result.draft,placeValidation:result.placeValidation,usage:result.usage,estimatedVariableCostUsd:result.cost,latencyMs,quota:{remaining:Math.max(0,quota.limit-quota.count),limit:quota.limit}},200);
@@ -49,7 +52,7 @@ export default async function handler(request){
 }
 async function runExtraction(operation,prepared,user){
   const client=new OpenAI();const response=await client.responses.create({model:MODEL,store:false,reasoning:{effort:'low',context:'current_turn'},safety_identifier:user.emailHash,max_output_tokens:8000,input:[{role:'system',content:operation.systemPrompt},{role:'user',content:[...prepared.content,{type:'input_text',text:operation.instruction}]}],text:{format:{type:'json_schema',name:operation.schemaName,strict:true,schema:operation.schema}}});
-  const draft=JSON.parse(response.output_text);const placeValidation=operation.validatePlace?await validateHotelPlace(draft):null;const usage=normalizeUsage(response.usage);const cost=estimateCost(usage);
+  const draft=JSON.parse(response.output_text);const placeValidation=operation.validatePlace?await operation.place(draft):null;const usage=normalizeUsage(response.usage);const cost=estimateCost(usage);
   return {response,draft,placeValidation,usage,cost};
 }
 export const config={path:'/api/familytrips-smart-import',method:'POST'};
@@ -64,7 +67,37 @@ async function prepareSource(source,allowUrl=true){
   const data=`data:${mime};base64,${bytes.toString('base64')}`;return {kind:source.kind,sourceSize:bytes.length,content:[source.kind==='pdf'?{type:'input_file',filename:safeFilename(source.name,'source.pdf'),file_data:data,detail:'high'}:{type:'input_image',image_url:data,detail:'high'}]};
 }
 async function fetchPublicPage(rawUrl){
-  let current=validateUrl(rawUrl);for(let step=0;step<3;step+=1){await assertPublicHost(current.hostname);const response=await fetch(current,{redirect:'manual',headers:{'user-agent':'FamilyTrips-SmartImport/0.6'},signal:AbortSignal.timeout(12000)});if([301,302,303,307,308].includes(response.status)){const location=response.headers.get('location');if(!location)throw httpError(422,'protected_or_private_url','Invalid redirect.');current=validateUrl(new URL(location,current).toString());continue}if(!response.ok)throw httpError(response.status===401||response.status===403?422:502,'protected_or_private_url',`Public page returned HTTP ${response.status}.`);const type=response.headers.get('content-type')||'';if(!type.includes('text/html'))throw httpError(415,'unsupported_source','The URL did not return an HTML page.');const html=await readLimited(response,MAX_PAGE_BYTES);const text=convert(html,{wordwrap:false,selectors:[{selector:'script',format:'skip'},{selector:'style',format:'skip'},{selector:'noscript',format:'skip'}]}).replace(/\n{3,}/g,'\n\n').trim();if(!text)throw httpError(422,'protected_or_private_url','The public page contained no readable content.');return {finalUrl:current.toString(),text}}throw httpError(422,'protected_or_private_url','Too many redirects.');
+  let current=validateUrl(rawUrl);for(let step=0;step<3;step+=1){await assertPublicHost(current.hostname);await assertRobotsAllowed(current);const response=await fetch(current,{redirect:'manual',headers:{'user-agent':'FamilyTrips-SmartImport/0.6'},signal:AbortSignal.timeout(12000)});if([301,302,303,307,308].includes(response.status)){const location=response.headers.get('location');if(!location)throw httpError(422,'protected_or_private_url','Invalid redirect.');current=validateUrl(new URL(location,current).toString());continue}if(!response.ok)throw httpError(response.status===401||response.status===403?422:502,'protected_or_private_url',`Public page returned HTTP ${response.status}.`);const type=response.headers.get('content-type')||'';if(!type.includes('text/html'))throw httpError(415,'unsupported_source','The URL did not return an HTML page.');const html=await readLimited(response,MAX_PAGE_BYTES);const text=convert(html,{wordwrap:false,selectors:[{selector:'script',format:'skip'},{selector:'style',format:'skip'},{selector:'noscript',format:'skip'}]}).replace(/\n{3,}/g,'\n\n').trim();if(!text)throw httpError(422,'protected_or_private_url','The public page contained no readable content.');return {finalUrl:current.toString(),text}}throw httpError(422,'protected_or_private_url','Too many redirects.');
+}
+// Attraction/Event (0.6.6): pre-implementation research found 4/4 real ticket-platform URLs
+// (Ticketmaster, tickets.hapoelbc.com on two path shapes, tickets.leaan.net) blocked by
+// robots.txt -- a distinct safe-failure reason from an authentication/login wall
+// (protected_or_private_url), with a different remediation path, so it gets its own code
+// (ROBOTS_DISALLOWED) rather than being folded into the existing one. Checked before every fetch
+// in the redirect chain, since a redirect can land on a different host with its own policy.
+// Missing/unreachable robots.txt default-allows, per standard robots convention -- this is a
+// courtesy check, not a security boundary (assertPublicHost/URL validation remain the actual
+// SSRF guard).
+async function assertRobotsAllowed(url){
+  let robotsText='';
+  try{
+    const response=await fetch(new URL('/robots.txt',url),{headers:{'user-agent':'FamilyTrips-SmartImport/0.6'},signal:AbortSignal.timeout(8000)});
+    if(response.ok)robotsText=await readLimited(response,MAX_PAGE_BYTES);
+  }catch{return}
+  if(!robotsText)return;
+  if(isRobotsDisallowed(robotsText,url.pathname))throw httpError(422,'robots_disallowed',`This site's robots.txt disallows automated access to this page.`);
+}
+export function isRobotsDisallowed(robotsText,pathname){
+  const lines=robotsText.split(/\r?\n/).map(line=>line.replace(/#.*/,'').trim());
+  let inWildcardBlock=false;const disallowRules=[];
+  for(const line of lines){
+    const uaMatch=/^user-agent:\s*(.+)$/i.exec(line);
+    if(uaMatch){inWildcardBlock=uaMatch[1].trim()==='*';continue}
+    if(!inWildcardBlock)continue;
+    const disallowMatch=/^disallow:\s*(.*)$/i.exec(line);
+    if(disallowMatch)disallowRules.push(disallowMatch[1].trim());
+  }
+  return disallowRules.some(rule=>rule&&pathname.startsWith(rule));
 }
 function validateUrl(value){let url;try{url=new URL(String(value||''))}catch{throw httpError(400,'invalid_url','Invalid URL.')}if(!['http:','https:'].includes(url.protocol)||url.username||url.password)throw httpError(422,'protected_or_private_url','Only public HTTP/HTTPS URLs are supported.');return url}
 async function assertPublicHost(hostname){if(hostname==='localhost'||hostname.endsWith('.local'))throw httpError(422,'protected_or_private_url','Private hosts are unsupported.');const addresses=net.isIP(hostname)?[{address:hostname}]:await dns.lookup(hostname,{all:true});if(!addresses.length||addresses.some(({address})=>isPrivateIp(address)))throw httpError(422,'protected_or_private_url','Private network addresses are unsupported.')}

@@ -20,6 +20,14 @@ export async function analyzeFlightSource({trip,source,file}){
   return runSource({operation:'analyze_flight',trip,source,file,url:'',allowUrl:false});
 }
 
+// Attraction/Event Smart Import (0.6.6): unlike Flight, public URL acquisition IS in scope --
+// official venue/museum/OTA URLs are the intended target; a ticket-resale/box-office platform
+// URL is expected to safe-fail server-side (access_required or robots_disallowed), which is
+// documented as expected behavior, not rejected client-side the way Flight's URL is.
+export async function analyzeActivitySource({trip,source,file,url}){
+  return runSource({operation:'analyze_activity',trip,source,file,url,allowUrl:true});
+}
+
 async function runSource({operation,trip,source,file,url,allowUrl}){
   const user=auth.currentUser;
   if(!user)throw new Error('נדרשת התחברות פעילה כדי לנתח מקור.');
@@ -55,4 +63,4 @@ async function request(token,body){
 
 function fileToBase64(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result||'').split(',')[1]||'');reader.onerror=()=>reject(new Error('קריאת הקובץ נכשלה.'));reader.readAsDataURL(file)})}
 function inferMime(name){return /\.pdf$/i.test(name)?'application/pdf':/\.png$/i.test(name)?'image/png':'image/jpeg'}
-function errorMessage(code,status){const messages={not_invited:'החשבון אינו נמצא ברשימת המוזמנים.',trip_not_owned:'הטיול אינו בבעלות החשבון הפעיל.',daily_quota_exceeded:'מכסת הניתוח היומית הסתיימה.',unsupported_source:'סוג המקור אינו נתמך.',protected_or_private_url:'הקישור אינו ציבורי או דורש גישה פרטית.',missing_server_configuration:'שירות Smart Import עדיין אינו מוגדר בסביבת הבדיקה.'};return messages[code]||`ניתוח המקור נכשל (${status}).`}
+function errorMessage(code,status){const messages={not_invited:'החשבון אינו נמצא ברשימת המוזמנים.',trip_not_owned:'הטיול אינו בבעלות החשבון הפעיל.',daily_quota_exceeded:'מכסת הניתוח היומית הסתיימה.',unsupported_source:'סוג המקור אינו נתמך.',protected_or_private_url:'הקישור אינו ציבורי או דורש גישה פרטית.',robots_disallowed:'האתר חוסם גישה אוטומטית לדף זה (robots.txt). אפשר לשמור את הקישור ולנסות ניתוח ידני, או לבחור PDF/תמונה של הכרטיס במקום.',missing_server_configuration:'שירות Smart Import עדיין אינו מוגדר בסביבת הבדיקה.'};return messages[code]||`ניתוח המקור נכשל (${status}).`}
