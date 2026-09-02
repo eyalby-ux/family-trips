@@ -16,7 +16,7 @@ const MODEL='gpt-5.6-luna';const MAX_BINARY_BYTES=4*1024*1024;const MAX_PAGE_BYT
 // robots.txt handling below) and DOES validate place accuracy, same as Hotel.
 const OPERATIONS={
   analyze_hotel:{schemaName:'familytrips_hotel_import',schema:hotelImportSchema,systemPrompt,instruction:'Extract all readable Hotel information under the frozen FamilyTrips rules.',allowUrl:true,validatePlace:true,place:validateHotelPlace},
-  analyze_flight:{schemaName:'familytrips_flight_import',schema:flightImportSchema,systemPrompt:flightSystemPrompt,instruction:'Extract all readable Flight information under the frozen FamilyTrips rules.',allowUrl:false,validatePlace:false},
+  analyze_flight:{schemaName:'familytrips_flight_import',schema:flightImportSchema,systemPrompt:flightSystemPrompt,instruction:'Extract all readable Flight information under the frozen FamilyTrips rules.',allowUrl:false,validatePlace:false,reconcileDirectionByRepetition:true},
   analyze_activity:{schemaName:'familytrips_activity_import',schema:activityImportSchema,systemPrompt:activitySystemPrompt,instruction:'Extract all readable Attraction/Event ticket information under the frozen FamilyTrips rules.',allowUrl:true,validatePlace:true,place:validateActivityPlace},
 };
 export default async function handler(request){
@@ -51,10 +51,70 @@ export default async function handler(request){
   }catch(error){audit={...audit,status:error.code||'failed',latencyMs:Date.now()-started};if(audit.userEmailHash)await writeAudit(audit).catch(()=>{});console.error('FamilyTrips Smart Import failed',{code:error?.code||'',message:String(error?.message||error)});return json({error:error?.code||'smart_import_failed',message:safeMessage(error)},Number(error?.status)||500)}
 }
 async function runExtraction(operation,prepared,user){
-  const client=new OpenAI();const response=await client.responses.create({model:MODEL,store:false,reasoning:{effort:'low',context:'current_turn'},safety_identifier:user.emailHash,max_output_tokens:8000,input:[{role:'system',content:operation.systemPrompt},{role:'user',content:[...prepared.content,{type:'input_text',text:operation.instruction}]}],text:{format:{type:'json_schema',name:operation.schemaName,strict:true,schema:operation.schema}}});
-  const draft=JSON.parse(response.output_text);const placeValidation=operation.validatePlace?await operation.place(draft):null;const usage=normalizeUsage(response.usage);const cost=estimateCost(usage);
+  const client=new OpenAI();
+  const response=await callExtraction(client,operation,prepared,user);
+  let draft=JSON.parse(response.output_text);
+  let usage=normalizeUsage(response.usage);
+  // V6-F53: a source describing more than one flight segment with no explicit per-segment
+  // departure/arrival labels (FL-003: an itinerary summary showing both legs) was root-caused to
+  // genuine run-to-run non-determinism in the raw model call (commit 716f950) -- the same
+  // unchanged source can read correctly, confidently wrong, or refuse, across separate attempts,
+  // and no prompt wording closes that gap because it depends on the model correctly recognizing
+  // its own uncertainty, which is itself not guaranteed. Rather than trust a single sample for
+  // exactly this higher-risk shape, a second independent call is made and the two readings are
+  // cross-checked per segment (matched by flight number, the one identifier direction disputes
+  // don't affect); a disagreement is routed through the EXISTING directionAmbiguous/
+  // directionCandidates picker (V6-F32/V6-F34) instead of ever silently trusting whichever guess
+  // happened to come first -- no new UI, the same mechanism the model itself already uses when it
+  // self-diagnoses ambiguity. A source's segment count isn't knowable before the first call
+  // returns, so this can only be decided here, after that call, never before it. Scoped to
+  // multi-segment flight sources only -- the Product Owner-accepted 2x cost/latency for this
+  // shape, not a blanket doubling of every Smart Import call.
+  if(operation.reconcileDirectionByRepetition&&Array.isArray(draft.segments)&&draft.segments.length>1){
+    const secondResponse=await callExtraction(client,operation,prepared,user);
+    const secondDraft=JSON.parse(secondResponse.output_text);
+    draft={...draft,segments:reconcileFlightSegmentDirections(draft.segments,secondDraft.segments)};
+    usage=combineUsage(usage,normalizeUsage(secondResponse.usage));
+  }
+  const placeValidation=operation.validatePlace?await operation.place(draft):null;const cost=estimateCost(usage);
   return {response,draft,placeValidation,usage,cost};
 }
+function callExtraction(client,operation,prepared,user){
+  return client.responses.create({model:MODEL,store:false,reasoning:{effort:'low',context:'current_turn'},safety_identifier:user.emailHash,max_output_tokens:8000,input:[{role:'system',content:operation.systemPrompt},{role:'user',content:[...prepared.content,{type:'input_text',text:operation.instruction}]}],text:{format:{type:'json_schema',name:operation.schemaName,strict:true,schema:operation.schema}}});
+}
+// Matches segments between the two calls by flight number -- the one identifier that doesn't
+// depend on which airport is departure vs. arrival, so it stays stable even when direction
+// itself is exactly what's disagreeing. A segment already self-flagged directionAmbiguous by
+// either call is left alone (the model already did the right thing on its own); a segment with
+// no committed direction on either side has nothing to cross-check. Comparing the full
+// departure/arrival airport+date tuple (not just airports alone) catches both an outright
+// swap and a same-airports-wrong-dates disagreement.
+export function reconcileFlightSegmentDirections(firstSegments,secondSegments){
+  const bySecondFlightNumber=new Map((secondSegments||[]).map(segment=>[normalizeFlightNumberForMatch(segment.flightNumber),segment]));
+  return (firstSegments||[]).map(segment=>{
+    if(segment.directionAmbiguous)return segment;
+    const departureCode=String(segment.departureAirportCode||'').trim(),arrivalCode=String(segment.arrivalAirportCode||'').trim();
+    if(!departureCode||!arrivalCode)return segment;
+    const match=bySecondFlightNumber.get(normalizeFlightNumberForMatch(segment.flightNumber));
+    if(!match||match.directionAmbiguous)return segment;
+    const matchDeparture=String(match.departureAirportCode||'').trim(),matchArrival=String(match.arrivalAirportCode||'').trim();
+    if(!matchDeparture||!matchArrival)return segment;
+    const agrees=departureCode===matchDeparture&&arrivalCode===matchArrival&&String(segment.departureDate||'')===String(match.departureDate||'')&&String(segment.arrivalDate||'')===String(match.arrivalDate||'');
+    if(agrees)return segment;
+    return {
+      ...segment,
+      directionAmbiguous:true,
+      directionCandidates:[
+        {departureAirportCode:segment.departureAirportCode,departureAirportName:segment.departureAirportName,arrivalAirportCode:segment.arrivalAirportCode,arrivalAirportName:segment.arrivalAirportName,departureDate:segment.departureDate,departureTime:segment.departureTime,arrivalDate:segment.arrivalDate,arrivalTime:segment.arrivalTime},
+        {departureAirportCode:match.departureAirportCode,departureAirportName:match.departureAirportName,arrivalAirportCode:match.arrivalAirportCode,arrivalAirportName:match.arrivalAirportName,departureDate:match.departureDate,departureTime:match.departureTime,arrivalDate:match.arrivalDate,arrivalTime:match.arrivalTime},
+      ],
+      departureAirportCode:'',departureAirportName:'',arrivalAirportCode:'',arrivalAirportName:'',departureDate:'',departureTime:'',arrivalDate:'',arrivalTime:'',
+      evidence:[segment.evidence,'Direction differed between two independent extraction passes over the same source (automated consistency check).'].filter(Boolean).join(' '),
+    };
+  });
+}
+function normalizeFlightNumberForMatch(value){return String(value||'').toUpperCase().replace(/\s+/g,'')}
+function combineUsage(a,b){return {inputTokens:a.inputTokens+b.inputTokens,outputTokens:a.outputTokens+b.outputTokens,totalTokens:a.totalTokens+b.totalTokens,cachedInputTokens:a.cachedInputTokens+b.cachedInputTokens}}
 export const config={path:'/api/familytrips-smart-import',method:'POST'};
 
 async function prepareSource(source,allowUrl=true){

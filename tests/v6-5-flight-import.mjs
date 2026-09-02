@@ -661,7 +661,13 @@ test_V6_F33_merge_still_fills_genuinely_blank_existing_fields();
 function test_V6_F31_landing_banner_synced_to_build_version_and_mentions_flight(){
   const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
   assert.doesNotMatch(app,/:'Alpha 0\.6\.3 · Hotel Smart Import'\}/,'the hardcoded stale "Alpha 0.6.3" literal must be gone from the landing banner\'s live template (a code comment may still mention it historically)');
-  assert.match(app,/function appVersionLabel\(\)\{const match=String\(document\.title\|\|''\)\.match\(\/Alpha\\s\+/,'the banner\'s version label must be derived from document.title (the same source __APP_VERSION__ resolves into at build time), not a second hardcoded literal');
+  // V6-F52: appVersionLabel's definition moved into its own shared module (app-version.js, also
+  // used by src/main.js's sign-in screen) so the two could not independently drift again -- this
+  // now checks v5-app.js imports the shared source rather than defining its own private copy;
+  // the document.title mechanism itself is asserted directly against app-version.js.
+  assert.match(app,/import\s*\{\s*appVersionLabel\s*\}\s*from\s*['"]\.\/app-version\.js['"]/,'the banner\'s version label must come from the shared app-version.js module, not a private copy in v5-app.js');
+  const versionModule=fs.readFileSync(new URL('../src/app-version.js',import.meta.url),'utf8');
+  assert.match(versionModule,/function appVersionLabel\(\)\{const match=String\(document\.title\|\|''\)\.match\(\/Alpha\\s\+/,'the shared version label must be derived from document.title (the same source __APP_VERSION__ resolves into at build time), not a hardcoded literal');
   assert.match(app,/\$\{appVersionLabel\(\)\} · Hotel \+ Flight Smart Import/,'the fallback subtitle must use the derived version label and mention Flight support, not just Hotel');
   console.log('PASS: V6-F31 the landing banner\'s version label is derived from the same build-version source as the tab title, and now mentions Flight support');
 }

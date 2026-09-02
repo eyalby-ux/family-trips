@@ -7,6 +7,7 @@ import {analyzeActivitySource,analyzeFlightSource,analyzeHotelSource,analyzeSour
 import {saveOnlySource,smartImportResultToSuggestion,preserveTrustedFieldsOnMerge} from './smart-import-adapter.js';
 import {clearResolvedDirectionWarning,smartImportFlightResultToSuggestions} from './flight-import-adapter.js';
 import {smartImportActivityResultToSuggestion} from './activity-import-adapter.js';
+import {appVersionLabel} from './app-version.js';
 import './v4.css';
 
 const KEY='family-trips-alpha-0.2';
@@ -48,13 +49,9 @@ function mapSearchLocation(item){
   if(item.type==='flight')return item.details?.departureAirport?.code||item.details?.departureAirport?.name||item.location;
   return item.location;
 }
-// V6-F31: the landing banner's fallback subtitle was a hand-maintained literal ("Alpha 0.6.3 ·
-// Hotel Smart Import") that had already drifted from the shipped version -- the exact class of
-// bug V6-F24 fixed for the tab title/description by deriving both from package.json at build
-// time via the __APP_VERSION__ placeholder (see index.html, scripts/inject-build-version.mjs).
-// Reading it back out of document.title here (rather than hardcoding a second literal) means
-// this label is wired to that same single source and can never drift from it again on its own.
-function appVersionLabel(){const match=String(document.title||'').match(/Alpha\s+([^\s·]+)/);return match?`Alpha ${match[1]}`:'Alpha'}
+// V6-F31/V6-F52: appVersionLabel lives in its own module (app-version.js), shared with
+// src/main.js's sign-in screen, so this landing-banner label and the sign-in screen's label
+// physically cannot drift apart again -- see app-version.js for the full history.
 // V6-F40: reads the package.json-version+git-SHA string already embedded in index.html's
 // <meta name="build-version"> (the same value the service worker's cache name carries) so QA can
 // visually confirm exactly which build is live without opening the network tab.

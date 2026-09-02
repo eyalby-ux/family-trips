@@ -10,6 +10,7 @@ import {
   signOut,
 } from 'firebase/auth';
 import { auth, googleProvider } from './firebase.js';
+import { appVersionLabel } from './app-version.js';
 
 const authRoot = document.querySelector('#auth-root');
 const accountBar = document.querySelector('#account-bar');
@@ -36,7 +37,7 @@ function renderLogin(message = '') {
     <main class="auth-page">
       <section class="auth-card" aria-labelledby="auth-title">
         <img class="auth-logo" src="/assets/icons/icon-192.png" alt="">
-        <p class="auth-kicker">Alpha 0.6.5</p>
+        <p class="auth-kicker">${appVersionLabel()}</p>
         <h1 id="auth-title">Family Trips</h1>
         <p>התחברות מאובטחת באמצעות חשבון Google למשתמשים מוזמנים בלבד.</p>
         ${message ? `<p class="auth-error" role="alert">${escapeHtml(message)}</p>` : ''}

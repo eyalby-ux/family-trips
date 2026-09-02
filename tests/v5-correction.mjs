@@ -7,7 +7,13 @@ const main=fs.readFileSync('src/main.js','utf8');
 const styles=fs.readFileSync('src/styles.css','utf8');
 const netlify=fs.readFileSync('netlify.toml','utf8');
 
-assert(main.includes('<p class="auth-kicker">Alpha 0.6.5</p>'));
+// V6-F52: this assertion used to hardcode the exact version string ("Alpha 0.6.5"), which is
+// exactly the bug that let the sign-in screen drift from the shipped build in the first place --
+// this line itself had already silently been hand-updated once before, from an even older
+// "V4 — Smart Ingestion" literal, with nobody noticing it was encoding the defect as correct.
+// Now checks the auth-kicker renders from the shared, build-injected source instead of any
+// literal; see tests/v6-52-53-correction.mjs for the full regression coverage.
+assert(main.includes('<p class="auth-kicker">${appVersionLabel()}</p>'));
 assert(!main.includes('V4 — Smart Ingestion'));
 
 const flight={id:'flight-1',type:'flight'};
