@@ -632,7 +632,11 @@ function test_V6_F33_merge_preserves_existing_trusted_values_on_conflict(){
 
   const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
   assert.match(app,/const protectedSuggestion=preserveTrustedFieldsOnMerge\(suggestion,target\)/,'the general duplicate-merge path in approveSuggestion (not just attach-and-extract) must also run new suggestions through preserveTrustedFieldsOnMerge before merging into an already-approved item');
-  assert.match(app,/item\.warnings\?\.length/,'the item detail view must render item.warnings so a flagged merge conflict is actually visible to the user afterwards, not just stored');
+  // V6-F54: detailView's warning rendering moved from a raw item.warnings?.length check to
+  // itemWarningEntries(item) (dedup by text while preserving the true index, so a dismiss action
+  // on a dismissible entry removes the correct one) -- still renders every warning, including a
+  // flagged merge conflict, just via the function that also makes dismissal possible.
+  assert.match(app,/const warningEntries=itemWarningEntries\(item\)/,'the item detail view must render item.warnings (via itemWarningEntries) so a flagged merge conflict is actually visible to the user afterwards, not just stored');
 
   console.log('PASS: V6-F33 merging into an already-approved item preserves its existing values as primary on conflict and flags the new value for review, instead of silently overwriting');
 }
