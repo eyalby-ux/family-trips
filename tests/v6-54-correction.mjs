@@ -40,15 +40,23 @@ function test_V6_F54_item_edit_handler_calls_reconcile_before_saving(){
   assert.match(app,/Object\.assign\(item,values,\{details:reconciled\.details,warnings:reconciled\.warnings\}\);/,'the reconciled details/warnings must actually be written back onto the item, not just computed and discarded');
   console.log('PASS: V6-F54 the item-edit save handler is wired to reconcile stale needs-review state before saving, not just the pre-approval suggestion form');
 }
+// V6-F55 correction pass: detailView's dismiss rendering and isDismissibleWarning's own signature
+// both changed (a shared warningRow() helper now renders both suggestion- and item-scoped rows,
+// and isDismissibleWarning takes a second `details` argument so it can also fall back to
+// dismissible for a plain-string warning that isn't backed by a live needsReviewFields entry --
+// see tests/v6-55-correction.mjs for the full V6-F55 coverage). These two regexes are updated to
+// match the new structure; the underlying guarantee they check -- a dismiss control is offered for
+// a dismissible item warning, scoped to state.items -- is unchanged and still verified here.
 function test_V6_F54_detailView_offers_dismiss_for_dismissible_item_warnings(){
   const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
   assert.match(app,/function itemWarningEntries\(item\)\{/,'detailView must track the TRUE index into item.warnings (not just a deduplicated display list), so a dismiss action removes the correct real entry');
-  assert.match(app,/isDismissibleWarning\(warning\)\?`<button class="link-button" type="button" data-action="dismiss-item-warning" data-id="\$\{item\.id\}" data-index="\$\{index\}">התעלמות<\/button>`:''/,'detailView must render a dismiss control for a dismissible (unresolved-sourced) item warning, mirroring suggestionView\'s own control');
+  assert.match(app,/function warningRow\(warning,details,scope,id,index\)\{\s*return `<div class="warning-row">⚠️ \$\{esc\(warningText\(warning\)\)\}\$\{isDismissibleWarning\(warning,details\)\?`<button class="link-button" type="button" data-action="\$\{scope==='item'\?'dismiss-item-warning':'dismiss-warning'\}" data-id="\$\{id\}" data-index="\$\{index\}">התעלמות<\/button>`:''\}<\/div>`;/,'the shared warningRow renderer must offer a dismiss control for a dismissible warning, routed to dismiss-item-warning when scope is "item" (mirroring suggestionView\'s own dismiss-warning control for scope "suggestion")');
+  assert.match(app,/\$\{warningEntries\.length\?`<div class="warning-list">\$\{warningEntries\.map\(\(\{warning,index\}\)=>warningRow\(warning,item\.details,'item',item\.id,index\)\)\.join\(''\)\}<\/div>`:''\}/,'detailView must actually call warningRow for each of its own item-scoped warning entries, not just define the helper');
   console.log('PASS: V6-F54 detailView offers a dismiss control for a dismissible warning on a saved item, mirroring the pre-approval suggestion screen');
 }
 function test_V6_F54_dismiss_item_warning_action_exists_and_is_scoped_to_items(){
   const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
-  assert.match(app,/action==='dismiss-item-warning'\)\{const item=state\.items\.find\(candidate=>candidate\.id===button\.dataset\.id\);const index=Number\(button\.dataset\.index\);if\(item&&isDismissibleWarning\(item\.warnings\?\.\[index\]\)\)\{item\.warnings=item\.warnings\.filter\(\(_,i\)=>i!==index\);save\(\);render\(\)\}\}/,'a dedicated dismiss-item-warning action must exist, addressing state.items (not state.suggestions -- that is the pre-existing, separate dismiss-warning action), and must actually filter the item\'s own warnings array and save');
+  assert.match(app,/action==='dismiss-item-warning'\)\{const item=state\.items\.find\(candidate=>candidate\.id===button\.dataset\.id\);const index=Number\(button\.dataset\.index\);if\(item&&isDismissibleWarning\(item\.warnings\?\.\[index\],item\.details\)\)\{item\.warnings=item\.warnings\.filter\(\(_,i\)=>i!==index\);save\(\);render\(\)\}\}/,'a dedicated dismiss-item-warning action must exist, addressing state.items (not state.suggestions -- that is the pre-existing, separate dismiss-warning action), and must actually filter the item\'s own warnings array and save');
   console.log('PASS: V6-F54 the dismiss-item-warning action is wired to state.items specifically, distinct from the pre-existing suggestion-only dismiss-warning action');
 }
 

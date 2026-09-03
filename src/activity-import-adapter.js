@@ -43,6 +43,12 @@ export function smartImportActivityResultToSuggestion(result,source,now=new Date
   const draft=result?.draft||{};
   const ticketHolders=(Array.isArray(draft.ticketHolders)?draft.ticketHolders:[]).map(holder=>({
     name:String(holder.name||'').trim(),
+    // V6-F56: ticketHolderSchema previously had no field for a per-passenger national ID/DNI at
+    // all (name/ticketNumber/seatOrSection/evidence/certainty only, additionalProperties:false),
+    // so AE-001's frozen two-DNI ground truth could never be captured regardless of extraction
+    // quality -- dni is now a real schema property (see smart-import-schema.mjs), mapped through
+    // here the same way every other per-holder field already is.
+    dni:String(holder.dni||'').trim(),
     ticketNumber:String(holder.ticketNumber||'').trim(),
     seatOrSection:String(holder.seatOrSection||'').trim(),
     evidence:String(holder.evidence||'').trim(),
@@ -84,7 +90,7 @@ export function smartImportActivityResultToSuggestion(result,source,now=new Date
   const place=result.placeValidation;
   if(place?.state==='validated')values.location=values.location||place.locationDisplayValue;
 
-  const noteLines=[...(draft.importantNotes||[]).map(note=>`${note.title}: ${note.text}`),...otherFields.map(field=>`${field.label}: ${field.rawValue}`)];
+  const noteLines=[...(draft.importantNotes||[]).map(note=>`${note.title}: ${note.text}`),...otherFields.map(field=>`${normalizedGenericLabel(field.label)}: ${stripDuplicateLabelPrefix(field.label,field.rawValue)}`)];
   const needsReviewWarnings=needsReviewFields.map(field=>`דורש בדיקה — ${field.label}: ${field.value} (${field.evidence||'ללא הפניה למקור'})`);
   const proposalStateWarning=draft.proposalState==='needs_review'?['ההצעה כוללת מידע שדורש בדיקה לפני אישור.']:[];
   // V6-F49, applied here from the start: an unresolved-sourced warning has no field key at all,
@@ -147,6 +153,25 @@ export function smartImportActivityResultToSuggestion(result,source,now=new Date
   };
 }
 
+// V6-F61: a field concept with no canonical FIELD_TARGETS mapping (e.g. "purchaser"/orderer,
+// distinct from ticketHolders' per-ticket names, which has no slot in the schema's fixed `fields`
+// key vocabulary either) falls through to the generic otherFields->notes dump above using
+// whatever label/rawValue the model itself chose. Two real, observed problems with that: (1) if
+// the model's own rawValue already includes the printed label text verbatim (AE-002's source
+// literally shows "Purchaser: <name>"), pairing it with field.label a second time produces a
+// doubled line ("Purchaser: Purchaser: <name>"); (2) nothing enforces a Hebrew label for this
+// fallback path the way every canonically-mapped field already has, so an English label leaks
+// straight into the UI unfiltered next to otherwise all-Hebrew field labels.
+const GENERIC_FIELD_LABELS={purchaser:'רוכש',buyer:'רוכש',orderer:'מזמין','purchased by':'רוכש'};
+function normalizedGenericLabel(label){
+  const key=String(label||'').trim().toLowerCase();
+  return GENERIC_FIELD_LABELS[key]||label;
+}
+function stripDuplicateLabelPrefix(label,rawValue){
+  const value=String(rawValue||'');
+  const prefix=`${String(label||'').trim()}:`;
+  return value.toLowerCase().startsWith(prefix.toLowerCase())?value.slice(prefix.length).trim():value;
+}
 function canonicalFieldKey(value){return String(value||'').trim().toLowerCase().replace(/[\s-]+/g,'_').replace(/_\d+$/,'')}
 function certainty(value){return value==='exact'?'high':value==='needs_review'?'medium':'low'}
 function dateTime(date,time){const clean=String(date).slice(0,10);if(!isValidCalendarDate(clean))return '';const clock=parseTimeValue(time)||'12:00';return `${clean}T${clock}`}

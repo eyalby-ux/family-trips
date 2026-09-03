@@ -4,8 +4,22 @@ const FIELD_MAP={
   property_name:'title',hotel_name:'title',booking_number:'confirmationNumber',booking_number_primary:'confirmationNumber',confirmation_number:'confirmationNumber',
   official_website:'website',website:'website',property_phone:'phone',property_phone_1:'phone',phone:'phone',
   supplier:'provider',provider:'provider',operator:'provider',booking_source:'provider',booking_platform:'provider',
+  // V6-F55 correction pass: property_address/hotel_address/location/address are the exact key
+  // names place-validation.mjs's validateHotelPlace() already recognizes for address evidence --
+  // without a target mapping here, a needs-review conflict on one of these landed under whatever
+  // raw key the model used, which NEEDS_REVIEW_FIELD_MAP (ingestion.js) has no entry for at all,
+  // so it could never clear on any edit. Mapping them to 'location' lets a location-shaped
+  // conflict resolve the same way every other mapped field already does.
+  property_address:'location',hotel_address:'location',location:'location',address:'location',
 };
 const MERGE_FIELDS=['title','provider','confirmationNumber','location','website','phone','startAt','endAt'];
+// V6-F55 correction pass: shared with ingestion.js's resolveMergeCandidate() and v5-app.js's
+// rendering, so the exact prefix used to generate a merge-conflict warning, filter it out of the
+// generic warning list (replaced by an explicit keep/accept picker), and clear it once resolved
+// all stay in lockstep -- previously this string was only ever inline here, with no way for any
+// other module to reliably recognize "this warning is a merge-conflict notice" without duplicating
+// the literal text.
+export const MERGE_CONFLICT_WARNING_PREFIX='ערך חדש התגלה עבור ';
 
 export function smartImportResultToSuggestion(result,source,now=new Date()){
   const draft=result?.draft||{};
@@ -110,7 +124,7 @@ export function preserveTrustedFieldsOnMerge(suggestion,targetItem){
   const candidateKeys=Object.keys(candidates);
   if(candidateKeys.length){
     proposed.details.mergeCandidates=candidates;
-    for(const key of candidateKeys)warnings.push(`ערך חדש התגלה עבור ${key}: ${candidates[key]} — הערך השמור נשמר; יש לבדוק ולעדכן ידנית במידת הצורך.`);
+    for(const key of candidateKeys)warnings.push(`${MERGE_CONFLICT_WARNING_PREFIX}${key}: ${candidates[key]} — הערך השמור נשמר; יש לבדוק ולעדכן ידנית במידת הצורך.`);
   }
   return {...suggestion,proposed:{...proposed,warnings},warnings};
 }

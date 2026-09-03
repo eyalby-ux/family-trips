@@ -16,7 +16,7 @@ import {isRobotsDisallowed} from '../netlify/functions/smart-import.mjs';
 // including the mandatory AE-001 wild-card test and the URL sub-scope's one still-needed
 // official-venue verification.
 function f(key,label,rawValue,certainty='exact',evidence='source'){return {key,label,rawValue,normalizedValue:rawValue,evidence,certainty}}
-function holder(overrides){return {name:'',ticketNumber:'',seatOrSection:'',evidence:'',certainty:'exact',...overrides}}
+function holder(overrides){return {name:'',dni:'',ticketNumber:'',seatOrSection:'',evidence:'',certainty:'exact',...overrides}}
 function draftResult(draft,attemptId='attempt'){return {attemptId,usage:{},estimatedVariableCostUsd:0,latencyMs:1,draft:{acquisitionState:'acquired',proposalState:'proposed',activityName:'',provider:'',ticketQuantity:'',ticketHolders:[],fields:[],importantNotes:[],unresolved:[],explicitlyAbsent:[],warnings:[],...draft}}}
 
 // ---------------------------------------------------------------------------------------------
@@ -32,8 +32,8 @@ function test_AE001_wildcard_two_dni_ticketholders(){
     provider:'FC Barcelona (CIF G08266298)',
     ticketQuantity:'2',
     ticketHolders:[
-      holder({name:'Eyal Ben Yitzchak Ben Yitzchak',ticketNumber:'C1E1A',seatOrSection:'Acces 5 INF · Gate 74 · Boca 118 · Row 0010 · Seat 0001',evidence:'ticket 1, per-passenger QR'}),
-      holder({name:'Amit Ben Yitzhak',ticketNumber:'C1E19',seatOrSection:'Acces 5 INF · Gate 74 · Boca 118 · Row 0010 · Seat 0003',evidence:'ticket 2, per-passenger QR'}),
+      holder({name:'Eyal Ben Yitzchak Ben Yitzchak',dni:'40384410',ticketNumber:'C1E1A',seatOrSection:'Acces 5 INF · Gate 74 · Boca 118 · Row 0010 · Seat 0001',evidence:'ticket 1, per-passenger QR'}),
+      holder({name:'Amit Ben Yitzhak',dni:'40386943',ticketNumber:'C1E19',seatOrSection:'Acces 5 INF · Gate 74 · Boca 118 · Row 0010 · Seat 0003',evidence:'ticket 2, per-passenger QR'}),
     ],
     fields:[
       f('location','Location','Estadi Olímpic Lluís Companys'),
@@ -53,6 +53,10 @@ function test_AE001_wildcard_two_dni_ticketholders(){
   assert.deepEqual(suggestion.proposed.details.ticketNumbers,['C1E1A','C1E19']);
   assert(suggestion.proposed.details.ticketHolders[0].seatOrSection.includes('Gate 74'),'per-holder seating vocabulary (Acces/Gate/Boca/Row/Seat) must be preserved verbatim, not forced into a single "seat" concept');
   assert.equal(suggestion.proposed.details.amount,'149.00');
+  // V6-F56: DNI previously had no schema field to land in at all -- ticketHolderSchema now has
+  // one, and the adapter must actually map it through, per-holder, evidence-linked.
+  assert.equal(suggestion.proposed.details.ticketHolders[0].dni,'40384410','the frozen ground truth DNI for the first ticket holder must be captured, not silently dropped');
+  assert.equal(suggestion.proposed.details.ticketHolders[1].dni,'40386943','the second ticket holder\'s own DNI must never be attached to the first holder\'s entry or dropped');
   console.log('PASS: AE-001 (mandatory wild-card) FC Barcelona vs Girona FC -- two DNI-identified ticket holders, non-canonical seating vocabulary, order-level reference shared across both tickets');
 }
 
@@ -72,6 +76,10 @@ function test_AE002_baseline_no_price_in_source(){
       f('confirmation_number','Order number','1955108'),
       f('start_date','Date','2021-03-31'),
       f('start_time','Time','20:00'),
+      // V6-F61: "purchaser" has no canonical field mapping in FIELD_TARGETS, so it falls through
+      // to the generic otherFields->notes dump -- reproduces the exact real, observed shape of the
+      // bug (the model's own rawValue already includes the printed label text verbatim).
+      f('purchaser','Purchaser','Purchaser: אייל בן יצחק'),
     ],
   });
   const suggestion=smartImportActivityResultToSuggestion(result,source);
@@ -79,7 +87,15 @@ function test_AE002_baseline_no_price_in_source(){
   assert.equal(suggestion.proposed.confirmationNumber,'1955108');
   assert.deepEqual(suggestion.proposed.participants,['אייל בן יצחק']);
   assert.equal(suggestion.proposed.details.amount,'','no price anywhere in the source must render as not-present, never fabricated as 0');
-  console.log('PASS: AE-002 baseline single-ticket case; no price in source is left not-present, not fabricated as 0');
+  // V6-F58: seatOrSection had fixture data but was never asserted -- a real coverage gap that
+  // would have let a display/mapping regression pass silently.
+  assert.equal(suggestion.proposed.details.ticketHolders[0].seatOrSection,'Row 4 · Seat 26 · Gate B','AE-002\'s frozen seat/row/gate assignment must be captured on its ticket holder');
+  // V6-F61: a single, Hebrew-localized label ("רוכש"), never the doubled "Purchaser: Purchaser:"
+  // the real bug produced, and never the model's own raw English label leaking through unfiltered.
+  assert(suggestion.proposed.notes.includes('רוכש: אייל בן יצחק'),'an unmapped field concept with a recognized synonym must render with a single, Hebrew-localized label');
+  assert(!suggestion.proposed.notes.includes('Purchaser: Purchaser'),'the printed label must never be duplicated when the model\'s own rawValue already includes it verbatim');
+  assert(!suggestion.proposed.notes.includes('Purchaser:'),'the raw English label must not leak into the UI unfiltered once a Hebrew synonym is recognized');
+  console.log('PASS: AE-002 baseline single-ticket case; no price in source is left not-present, not fabricated as 0; seat/row/gate captured; purchaser label single and Hebrew-localized');
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -144,6 +160,18 @@ function test_AE004_auditorium_companion_pair_becomes_two_related_items(){
   assert.equal(suggestion4.proposed.startAt,'2025-07-05T13:00','same date as AE-003, three hours later');
   assert.equal(suggestion4.proposed.details.amount,'5','unlike AE-003, this ticket is explicitly priced');
   assert.notDeepEqual(suggestion4.proposed.details.ticketNumbers,suggestion3.proposed.details.ticketNumbers,'AE-004\'s IDs are not adjacent to AE-003\'s -- must never be assumed part of the same numbering block');
+  // V6-F58: per-ticket seatOrSection had fixture data on all three AE-004 holders but was never
+  // asserted -- a real coverage gap.
+  assert.deepEqual(suggestion4.proposed.details.ticketHolders.map(holder=>holder.seatOrSection),['Row 5 · Seat 11','Row 5 · Seat 10','Row 5 · Seat 9'],'each of AE-004\'s three assigned seats must be captured on its own ticket holder, never collapsed or dropped');
+  // V6-F63: provider must be the venue/organizer (Bloomfield Science Museum Jerusalem), never the
+  // ticketing platform (SmarTicket.co.il/SmarTicket) it was sold through -- and consistent across
+  // both companion sources for the same venue, unlike the real observed bug where AE-003 and
+  // AE-004 disagreed with each other.
+  assert.equal(suggestion3.proposed.provider,'Bloomfield Science Museum Jerusalem','AE-003\'s provider must be the venue, not the ticketing platform');
+  assert.equal(suggestion4.proposed.provider,'Bloomfield Science Museum Jerusalem','AE-004\'s provider must match AE-003\'s -- both companion sources describe the same one venue');
+  // V6-F64: AE-004's location must combine the venue name with the stated sub-venue (Auditorium),
+  // never report the sub-venue alone -- "Auditorium" by itself doesn't identify which venue's.
+  assert.equal(suggestion4.proposed.location,'Bloomfield Science Museum Jerusalem, Auditorium (אודיטוריום)','the sub-venue must be combined with the venue name, not reported alone');
 
   // The frozen implementation decision: approve AE-003 into an item first, then confirm AE-004's
   // suggestion is surfaced as a possible duplicate against it (same provider + same calendar
@@ -184,7 +212,10 @@ function test_AE005_order_vs_ticket_number_precision(){
   assert.equal(suggestion.proposed.confirmationNumber,'2ZTN-G53R-GJ8');
   assert.deepEqual(suggestion.proposed.details.ticketNumbers,['2ZTN-G53R-GJ81P']);
   assert.notEqual(suggestion.proposed.confirmationNumber,suggestion.proposed.details.ticketNumbers[0],'the order number and ticket number are near-identical strings and must never be conflated, even though they differ by only a few trailing characters');
-  console.log('PASS: AE-005 Gamzu orienteering -- near-identical order-number/ticket-number strings correctly attributed to separate fields, sales-status suffix excluded from the title');
+  // V6-F58: amount had fixture data (₪120, "family ticket") but was never asserted -- a real
+  // coverage gap on the one benchmark field this case's ₪120 ground truth exists to test.
+  assert.equal(suggestion.proposed.details.amount,'120','the frozen ₪120 family-ticket price must be captured');
+  console.log('PASS: AE-005 Gamzu orienteering -- near-identical order-number/ticket-number strings correctly attributed to separate fields, sales-status suffix excluded from the title, amount captured');
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -214,6 +245,11 @@ function test_AE006_four_tickets_no_names_date_only(){
     importantNotes:[{category:'deposit',title:'Refundable deposit',text:'₪20 refundable digital wristband deposit',evidence:'ticket footer',certainty:'exact'}],
   });
   const suggestion=smartImportActivityResultToSuggestion(result,source);
+  // V6-F59: title had no assertion at all -- the fixture's activityName is already the frozen
+  // correct ticket-type label ("כניסה לפארק יום"), not the venue name ("WaterLand"), matching what
+  // the strengthened activitySystemPrompt priority rule now asks the live model to prefer; this
+  // proves the adapter passes it through unchanged once the model gets it right.
+  assert.equal(suggestion.proposed.title,'כניסה לפארק יום','the ticket-type/admission label must be used as the title, not the bare venue name');
   assert.deepEqual(suggestion.proposed.participants,[],'no per-person names anywhere in the source ("1 subscriber, 1 (55203)") must never be padded with fabricated names');
   assert.deepEqual(suggestion.proposed.details.ticketNumbers,['623000111','623000112','623000113','623000114'],'all four single-use tickets must still be individually represented despite having no named holder');
   assert.equal(suggestion.proposed.details.ticketHolders.length,4);
@@ -249,6 +285,11 @@ function test_AE007_single_named_booker_party_of_three_explicit_zero_price(){
     importantNotes:[{category:'eligibility',title:'Club voucher required',text:'מועדון חבר / מועדון טוב / קרנות השוטרים... הכניסה תתאפשר רק עם שובר הזמנה של המועדון',evidence:'ticket body',certainty:'exact'}],
   });
   const suggestion=smartImportActivityResultToSuggestion(result,source);
+  // V6-F65: the frozen ground truth is explicit that the source's only legible venue identity is
+  // the generic label "גן החיות" -- provider must never be upgraded to a specific real-world zoo
+  // brand name (e.g. "Jerusalem Biblical Zoo") from general knowledge. This fixture already
+  // encodes the correct, non-fabricated value; the assertion is new (was previously unasserted).
+  assert.equal(suggestion.proposed.provider,'גן החיות','a generic source label must be preserved exactly, never upgraded to a specific real-world venue name absent from legible source text');
   assert.deepEqual(suggestion.proposed.participants,['בן יצחק אייל'],'exactly one named booker, never three fabricated entries to match the stated quantity');
   assert.equal(suggestion.proposed.details.ticketQuantity,'3','the stated party size must still be reported even though only one person is named');
   assert.equal(suggestion.proposed.confirmationNumber,'1713809');
@@ -294,7 +335,29 @@ function test_activity_schema_and_classification(){
   assert(/never.*fabricat|do not fabricate/i.test(activitySystemPrompt));
   assert(/barcode/i.test(activitySystemPrompt)&&/QR/i.test(activitySystemPrompt),'the prompt must treat a linear barcode (AE-007) as first-class evidence, not only QR');
   assert(/needs_review/i.test(activitySystemPrompt)&&/unresolved/i.test(activitySystemPrompt),'the prompt must instruct the model to resolve a date conflict into a needs_review field rather than only unresolved prose (V6-F49/V6-F50 prevention, applied from the start)');
-  console.log('PASS: the activity schema/prompt shape supports per-ticket-holder breakdown, robots_disallowed state, and is wired into source classification');
+  // V6-F56: dni must be a real schema property on ticketHolders, not just documented -- proves the
+  // OpenAI structured-output schema itself, not merely the adapter, can carry the value.
+  const ticketHolderProps=activityImportSchema.properties.ticketHolders.items.properties;
+  assert(ticketHolderProps.dni,'ticketHolderSchema must have a dni property -- the schema itself, not just the adapter, previously had no slot for a per-passenger national ID at all');
+  assert(activityImportSchema.properties.ticketHolders.items.required.includes('dni'),'dni must be a required property on each ticket-holder entry, the same discipline as every other ticket-holder field');
+  console.log('PASS: the activity schema/prompt shape supports per-ticket-holder breakdown (including dni), robots_disallowed state, and is wired into source classification');
+}
+// V6-F59/V6-F63/V6-F64/V6-F65: these are live-model prompt-guidance fixes, not adapter code
+// changes -- title/provider/location are passed through by the adapter verbatim from whatever the
+// model reports (confirmed by direct code inspection during each finding's investigation), so
+// there is nothing in the adapter itself to unit-test beyond the pass-through already covered by
+// the AE-006/AE-003/AE-004/AE-007 fixture assertions above. What CAN be verified here, and what
+// this test actually proves, is that the corrected instructional text was genuinely shipped into
+// activitySystemPrompt, not just decided. Per the correction scope document's own framing (see
+// FAMILY_TRIPS_ALPHA_0_6_6_1_CORRECTION_SCOPE_V1.md, V6-F65's fix specification): a fixture-based
+// test has an inherent ceiling for a live-model-behavior fix -- it verifies the prompt/adapter
+// change is present and testable, not that the live model will never regress on a real document.
+function test_activity_prompt_guidance_additions(){
+  assert(/prefer the specific ticket-type\/admission label as activityName/i.test(activitySystemPrompt),'V6-F59: the prompt must tell the model to prefer a specific ticket-type/admission label over the bare venue name for activityName');
+  assert(/provider is the venue\/organizer/i.test(activitySystemPrompt)&&/not the ticket-selling platform/i.test(activitySystemPrompt),'V6-F63: the prompt must give explicit venue-vs-ticketing-platform priority guidance for provider, which previously had none at all');
+  assert(/combine both into location/i.test(activitySystemPrompt),'V6-F64: the prompt must instruct combining a venue name with a stated sub-venue, not reporting the sub-venue alone');
+  assert(/גן החיות/.test(activitySystemPrompt)&&/do NOT report a specific real zoo/i.test(activitySystemPrompt),'V6-F65: the prompt must carry a concrete negative example against upgrading a generic source label to a specific real-world name from general knowledge');
+  console.log('PASS: V6-F59/V6-F63/V6-F64/V6-F65 prompt-guidance corrections are present in activitySystemPrompt');
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -333,5 +396,6 @@ test_AE006_four_tickets_no_names_date_only();
 test_AE007_single_named_booker_party_of_three_explicit_zero_price();
 test_benchmark_file_identity();
 test_activity_schema_and_classification();
+test_activity_prompt_guidance_additions();
 test_activity_url_scope_and_robots_disallowed();
 console.log('ALL PASS: Alpha 0.6.6 Attraction/Event Smart Import benchmark suite (7/7 AE- cases, mandatory wild-card AE-001, companion-pair AE-003/AE-004, URL sub-scope)');

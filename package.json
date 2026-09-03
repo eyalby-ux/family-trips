@@ -1,14 +1,14 @@
 {
   "name": "family-trips-alpha-v6",
-  "version": "0.6.6",
+  "version": "0.6.6.1",
   "private": true,
-  "description": "Family Trips Alpha 0.6.6 Attraction/Event Smart Import",
+  "description": "Family Trips Alpha 0.6.6.1 Correction Package",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build && node scripts/inject-build-version.mjs",
     "preview": "vite preview --host 0.0.0.0",
-    "test": "node tests/smoke.mjs && node tests/v4-ingestion.mjs && node tests/v4-correction.mjs && node tests/v5-ingestion.mjs && node tests/v5-external-import.mjs && node tests/v5-operational.mjs && node tests/v5-correction.mjs && node tests/v5-offline.mjs && node tests/v5-stabilization.mjs && node tests/v5-intake-reset.mjs && node tests/v5-range-boundary.mjs && node tests/v6-smart-import.mjs && node tests/v6-correction.mjs && node tests/v6-5-flight-import.mjs && node tests/v6-49-51-correction.mjs && node tests/v6-6-attraction-event-import.mjs && node tests/v6-52-53-correction.mjs && node tests/v6-54-correction.mjs",
+    "test": "node tests/smoke.mjs && node tests/v4-ingestion.mjs && node tests/v4-correction.mjs && node tests/v5-ingestion.mjs && node tests/v5-external-import.mjs && node tests/v5-operational.mjs && node tests/v5-correction.mjs && node tests/v5-offline.mjs && node tests/v5-stabilization.mjs && node tests/v5-intake-reset.mjs && node tests/v5-range-boundary.mjs && node tests/v6-smart-import.mjs && node tests/v6-correction.mjs && node tests/v6-5-flight-import.mjs && node tests/v6-49-51-correction.mjs && node tests/v6-6-attraction-event-import.mjs && node tests/v6-52-53-correction.mjs && node tests/v6-54-correction.mjs && node tests/v6-55-correction.mjs",
     "check": "node --check src/main.js && node --check src/firebase.js && node --check src/legacy-app.js && node --check src/app-version.js && node --check src/ingestion.js && node --check src/content-extraction.js && node --check src/external-import.js && node --check src/operational-data.js && node --check src/proposal-lifecycle.js && node --check src/smart-import-client.js && node --check src/smart-import-adapter.js && node --check src/flight-import-adapter.js && node --check src/activity-import-adapter.js && node --check src/v5-app.js && node --check public/service-worker.js && node --check scripts/inject-build-version.mjs && node --check netlify/functions/smart-import.mjs && node --check netlify/functions/_shared/smart-import-schema.mjs && node --check netlify/functions/_shared/place-validation.mjs && npm test && npm run build"
   },
   "dependencies": {

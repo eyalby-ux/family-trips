@@ -1,10 +1,10 @@
-import {ITEM_TYPES,TYPE_FIELDS,buildItemFormValues,createSuggestions,findPossibleDuplicates,manualCreateDefaults,mapsUrl,normalizeUrlInput,reconcileStaleNeedsReview,suggestionReviewDefaults,suggestionToItem,validateSource} from './ingestion.js';
+import {ITEM_TYPES,TYPE_FIELDS,buildItemFormValues,createSuggestions,findPossibleDuplicates,manualCreateDefaults,mapsUrl,normalizeUrlInput,reconcileStaleNeedsReview,resolveMergeCandidate,suggestionReviewDefaults,suggestionToItem,validateSource} from './ingestion.js';
 import {extractSourceContent,sha256File} from './content-extraction.js';
 import {MultipartQrCollector,decodeExternalText,importBatchToApp} from './external-import.js';
 import {availableTimelineModes,backfillTripDates,currentOperational,isItemOutsideTrip,normalizeDateRange,normalizeOperationalState,packingDuplicate,periodBounds,quickAccessTasks,sanitizeTripDates,shiftCursor,sortItemsByStartAt,uniqueRecordsById} from './operational-data.js';
 import {normalizeProposalLifecycle,rejectProposal} from './proposal-lifecycle.js';
 import {analyzeActivitySource,analyzeFlightSource,analyzeHotelSource,analyzeSource} from './smart-import-client.js';
-import {saveOnlySource,smartImportResultToSuggestion,preserveTrustedFieldsOnMerge} from './smart-import-adapter.js';
+import {MERGE_CONFLICT_WARNING_PREFIX,saveOnlySource,smartImportResultToSuggestion,preserveTrustedFieldsOnMerge} from './smart-import-adapter.js';
 import {clearResolvedDirectionWarning,smartImportFlightResultToSuggestions} from './flight-import-adapter.js';
 import {smartImportActivityResultToSuggestion} from './activity-import-adapter.js';
 import {appVersionLabel} from './app-version.js';
@@ -34,7 +34,14 @@ function today(){return new Date().toISOString().slice(0,10)}
 // V6-F25: the compact with-time format omitted year entirely, which reads as ambiguous/wrong for
 // a booking made far enough ahead to cross a year boundary (a real risk for Flights, booked
 // months out) -- shown whenever the date isn't in the current year, not on every row.
-function fmt(value,withTime=true){if(!value)return 'ללא תאריך';const date=new Date(value.length===10?`${value}T12:00:00`:value);const showYear=date.getFullYear()!==new Date().getFullYear();return new Intl.DateTimeFormat('he-IL',withTime?{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',...(showYear?{year:'numeric'}:{})}:{day:'numeric',month:'short',year:'numeric'}).format(date)}
+// V6-F60: dateTime() (smart-import-adapter.js/activity-import-adapter.js/flight-import-adapter.js)
+// fills a missing extracted time with a neutral "12:00" default so a date-only value still has a
+// valid datetime-local-compatible string -- but fmt() rendered that default exactly like a real
+// extracted time, with no way for the reader to tell them apart. precision is the item's own
+// dateMeta.start/endPrecision ('date' means no real time was extracted); when it's 'date', this
+// renders the same way the explicit withTime=false callers already do (day/month/year, no clock),
+// rather than showing a synthetic time that looks indistinguishable from a genuine one.
+function fmt(value,withTime=true,precision=''){if(!value)return 'ללא תאריך';const date=new Date(value.length===10?`${value}T12:00:00`:value);const showYear=date.getFullYear()!==new Date().getFullYear();const showTime=withTime&&precision!=='date';return new Intl.DateTimeFormat('he-IL',showTime?{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',...(showYear?{year:'numeric'}:{})}:{day:'numeric',month:'short',year:'numeric'}).format(date)}
 function ensureTrip(seed={}){if(!state.trip){const dates=sanitizeTripDates(seed);state.trip={id:uid('trip'),name:seed.name||'הטיול המשפחתי שלי',startDate:dates.startDate,endDate:dates.endDate,createdAt:new Date().toISOString()}}if(!state.packing.length)state.packing=defaultPacking();normalizeOperationalState(state)}
 function defaultPacking(){return [{id:uid('pl'),name:'מסמכים וכסף',owner:'shared',items:['דרכונים','ביטוח נסיעות','כרטיסי אשראי'].map(name=>({id:uid('pi'),name,done:false,suggested:true,owner:'shared'}))}]}
 function route(view,options={}){stopCamera();if(view==='timeline'&&state.view!=='timeline'){state.timelineMode='all';state.timelineCursor=state.trip?.startDate||today();state.calendarDate=null}state.view=view;state.category=options.category||null;state.itemId=options.itemId||null;state.suggestionId=options.suggestionId||null;render();scrollTo(0,0)}
@@ -61,7 +68,7 @@ function suggestionById(id){return state.suggestions.find(suggestion=>suggestion
 
 function header(){return `<header class="top"><div class="top-in"><div class="brand"><img src="/assets/icons/icon-192.png" alt=""><div><h1>${esc(state.trip?.name||'Family Trips')}</h1><p>${state.trip?.startDate?`${fmt(state.trip.startDate,false)} — ${state.trip.endDate?fmt(state.trip.endDate,false):'ללא סיום'}`:`${appVersionLabel()} · Hotel + Flight Smart Import`}</p></div></div><span class="status">${status()}</span></div></header>`}
 function empty(){return '<section class="card hero empty"><div class="big">🧭</div><h2>מתחילים מטיול ריק</h2><p class="muted">העלה מקור, ייבא JSON/QR או הזן פריט ידנית.</p><div class="actions center-actions"><button class="btn" data-action="create">הוספה</button></div></section>'}
-function itemRow(item){return `<button class="row ${conflict(item)?'conflict':''}" data-route="detail" data-id="${item.id}"><span class="row-main"><b>${ITEM_TYPES[item.type]?.icon||'📌'} ${esc(item.title)}</b><small class="muted">${item.provider?`${esc(item.provider)} · `:''}${item.schedule==='entire'?'לכל הטיול':item.schedule==='none'?'ללא תאריך':item.schedule==='range'?`${fmt(item.startAt)} — ${fmt(item.endAt)}`:fmt(item.startAt)}</small></span>${conflict(item)?'<span class="badge warn">מחוץ לטווח</span>':`<span class="badge">${ITEM_TYPES[item.type]?.label||item.type}</span>`}</button>`}
+function itemRow(item){return `<button class="row ${conflict(item)?'conflict':''}" data-route="detail" data-id="${item.id}"><span class="row-main"><b>${ITEM_TYPES[item.type]?.icon||'📌'} ${esc(item.title)}</b><small class="muted">${item.provider?`${esc(item.provider)} · `:''}${item.schedule==='entire'?'לכל הטיול':item.schedule==='none'?'ללא תאריך':item.schedule==='range'?`${fmt(item.startAt,true,item.dateMeta?.startPrecision)} — ${fmt(item.endAt,true,item.dateMeta?.endPrecision)}`:fmt(item.startAt,true,item.dateMeta?.startPrecision)}</small></span>${conflict(item)?'<span class="badge warn">מחוץ לטווח</span>':`<span class="badge">${ITEM_TYPES[item.type]?.label||item.type}</span>`}</button>`}
 function suggestionRow(suggestion){const source=sourceById(suggestion.sourceId);return `<button class="row suggestion-row" data-route="suggestion" data-id="${suggestion.id}"><span class="row-main"><b>✨ ${esc(suggestion.proposed.title)}</b><small class="muted">${esc(source?.name||'ייבוא חיצוני')} · ביטחון ${confidenceLabel(suggestion.confidence)}</small></span><span class="badge ${suggestion.status==='pending'?'warn':'blue'}">${({pending:'ממתין לאישור',deferred:'אחר כך',rejected:'נדחה',approved:'אושר'})[suggestion.status]||suggestion.status}</span></button>`}
 function archivedSuggestionRow(suggestion){const source=sourceById(suggestion.sourceId);return `<div class="row suggestion-row archived-suggestion"><span class="row-main"><b>🗄️ ${esc(suggestion.proposed.title)}</b><small class="muted">${esc(source?.name||'ייבוא חיצוני')} · הועבר לארכיון</small></span><span class="badge">נדחה</span></div>`}
 function confidenceLabel(value){return ({high:'גבוה',medium:'בינוני',low:'נמוך'})[value]||value||'לא צוין'}
@@ -131,6 +138,14 @@ function taskRow(task){return `<article class="row check-row task-row ${task.don
 function shoppingView(){return `<section class="card"><div class="section-head"><h2>🛒 קניות</h2><button class="btn" data-action="shopping-add">פריט חדש</button></div><div class="list">${state.shopping.length?state.shopping.map(item=>`<label class="row check-row ${item.purchased?'done':''}"><input type="checkbox" data-action="shopping-toggle" data-id="${item.id}" ${item.purchased?'checked':''}><span class="row-main"><b>${esc(item.name)} × ${esc(item.quantity||'1')}</b><small class="muted">${item.owner&&item.owner!=='shared'?esc(item.owner):'משותף'}${item.linkedNeed?` · ${esc(item.linkedNeed)}`:''}</small></span></label>`).join(''):'<p class="muted">אין פריטי קניות.</p>'}</div></section>`}
 function locationsView(){return `<section class="card"><div class="section-head"><div><h2>📍 מיקומים</h2><p class="muted">חיפוש ואישור מיקום; מפה חיצונית נפתחת במפורש ואינה נכשלת בשקט.</p></div><button class="btn" data-action="location-add">מיקום חדש</button></div>${state.locationRecords.length?state.locationRecords.map(record=>`<article class="row"><span class="row-main"><b>${esc(record.placeName)}</b><small class="muted">${esc(record.address||'')}${record.approved?' · מאושר':' · דורש אישור'}</small></span><a class="btn ghost" href="${mapsUrl(record.coordinates?`${record.coordinates.lat},${record.coordinates.lng}`:record.address||record.placeName)}" target="_blank" rel="noopener">מפה / סיכה</a><button class="btn secondary" data-action="location-approve" data-id="${record.id}">${record.approved?'תיקון':'אישור'}</button></article>`).join(''):'<p class="muted">אין מיקומים שמורים.</p>'}</section>`}
 
+// V6-F55: a merge-conflict warning (preserveTrustedFieldsOnMerge, smart-import-adapter.js) is
+// resolved through the explicit keep/accept picker below (mergeCandidatePanel), not through the
+// generic warning list -- filtering it out here avoids showing the same conflict twice, once as
+// inert text and once as an actionable choice.
+function isMergeConflictWarningText(text,details){
+  const keys=Object.keys(details?.mergeCandidates||{});
+  return keys.some(key=>typeof text==='string'&&text.startsWith(`${MERGE_CONFLICT_WARNING_PREFIX}${key}`));
+}
 // V6-F54: a warning on a saved item previously had no way to ever clear -- detailView rendered
 // item.warnings as plain text, and nothing anywhere ever called reconcileStaleNeedsReview or
 // filtered item.warnings after item creation. Mirrors suggestionView's own dismiss control
@@ -143,11 +158,36 @@ function itemWarningEntries(item){
   const seen=new Set();
   return (item.warnings||[]).map((warning,index)=>({warning,index})).filter(entry=>{
     const text=warningText(entry.warning);
+    if(isMergeConflictWarningText(text,item.details))return false;
     if(seen.has(text))return false;
     seen.add(text);return true;
   });
 }
-function detailView(){const item=state.items.find(candidate=>candidate.id===state.itemId);if(!item)return '<section class="card">הפריט לא נמצא.</section>';const sources=state.sources.filter(source=>item.sourceIds?.includes(source.id)),place=item.details?.canonicalPlace,contactActions=[place?`<a class="btn secondary" href="${esc(place.googleMapsUri||mapsUrl(`${place.latitude},${place.longitude}`))}" target="_blank" rel="noopener">🧭 ניווט</a>`:item.location?`<a class="btn secondary" href="${mapsUrl(mapSearchLocation(item))}" target="_blank" rel="noopener">🧭 חיפוש במפה</a>`:'',item.website?`<a class="btn ghost" href="${esc(item.website)}" target="_blank" rel="noopener">🌐 קישור</a>`:'',item.phone?`<a class="btn ghost" href="tel:${esc(item.phone)}">☎️ התקשרות</a>`:''].filter(Boolean).join('');const warningEntries=itemWarningEntries(item);return `<section class="card ${conflict(item)?'conflict':''}"><button class="btn ghost" data-route="center" data-cat="${item.type}">חזרה</button><h2>${ITEM_TYPES[item.type]?.icon||'📌'} ${esc(item.title)}</h2><p><span class="badge">${ITEM_TYPES[item.type]?.label}</span></p>${item.provider?`<p><b>ספק:</b> ${esc(item.provider)}</p>`:''}${item.confirmationNumber?`<p><b>מספר הזמנה:</b> ${esc(item.confirmationNumber)}</p>`:''}${item.location?`<p><b>מיקום:</b> ${esc(item.location)} ${place?'<span class="badge blue">אומת</span>':'<span class="badge warn">שם לחיפוש</span>'}</p>`:''}${contactActions?`<div class="actions">${contactActions}</div>`:''}${item.startAt?`<p><b>מועד:</b> ${fmt(item.startAt)}</p>`:''}${item.endAt?`<p><b>סיום:</b> ${fmt(item.endAt)}</p>`:''}${item.notes?`<p class="preserve-lines">${esc(item.notes)}</p>`:''}${warningEntries.length?`<div class="warning-list">${warningEntries.map(({warning,index})=>`<div class="warning-row">⚠️ ${esc(warningText(warning))}${isDismissibleWarning(warning)?`<button class="link-button" type="button" data-action="dismiss-item-warning" data-id="${item.id}" data-index="${index}">התעלמות</button>`:''}</div>`).join('')}</div>`:''}${item.type==='flight'?flightSummaryBlock(item.details):''}<h3>מסמכים וכרטיסים</h3>${sources.length?`<div class="list">${sources.map(sourceRow).join('')}</div>`:'<p class="muted">אין מסמכים מצורפים.</p>'}<div class="actions">${['hotel','flight'].includes(item.type)?`<button class="btn" data-action="attach-source" data-id="${item.id}">הוספת מסמך</button>`:''}<button class="btn secondary" data-action="edit-item" data-id="${item.id}">עריכה</button><button class="btn danger" data-action="delete-item" data-id="${item.id}">מחיקה</button></div></section>`}
+// V6-F55: the suggestion-review screen never deduplicated warnings the way itemWarningEntries
+// does -- kept as-is (not deduped) to avoid changing existing suggestion-review behavior beyond
+// what this finding actually requires; only the merge-conflict filter is new here.
+function suggestionWarningEntries(suggestion){
+  return (suggestion.warnings||[]).map((warning,index)=>({warning,index})).filter(entry=>!isMergeConflictWarningText(warningText(entry.warning),suggestion.proposed?.details));
+}
+function warningRow(warning,details,scope,id,index){
+  return `<div class="warning-row">⚠️ ${esc(warningText(warning))}${isDismissibleWarning(warning,details)?`<button class="link-button" type="button" data-action="${scope==='item'?'dismiss-item-warning':'dismiss-warning'}" data-id="${id}" data-index="${index}">התעלמות</button>`:''}</div>`;
+}
+const MERGE_CANDIDATE_LABELS={title:'כותרת',provider:'ספק',confirmationNumber:'מספר הזמנה',location:'מיקום',website:'קישור',phone:'טלפון',startAt:'תאריך התחלה',endAt:'תאריך סיום'};
+// V6-F55 (merged with V6-F54): replaces the old "silently keep the trusted value + show a warning
+// that may never clear" behavior with the Product Owner's own requested fix direction -- an
+// explicit keep/accept choice per conflicting field, reusing the same fieldset/radio pattern as
+// directionPickerPanel (Flight) rather than inventing new UI. scope/id identify which the click
+// handler should resolve against (a pending suggestion's proposed object, or an already-saved
+// item); resolveMergeCandidate (ingestion.js) does the actual field/warning mutation.
+function mergeCandidatePanel(scope,id,current,details){
+  const candidates=details?.mergeCandidates;
+  if(!candidates||!Object.keys(candidates).length)return '';
+  return Object.entries(candidates).map(([key,value])=>{
+    const label=MERGE_CANDIDATE_LABELS[key]||key,name=`merge-${scope}-${id}-${key}`;
+    return `<fieldset class="processing-choice merge-conflict"><legend>⚠️ התגלה ערך חדש עבור ${esc(label)} — יש לבחור</legend><label><input type="radio" name="${esc(name)}" data-action="resolve-merge-candidate" data-scope="${scope}" data-id="${id}" data-key="${key}" data-choice="keep"> השארת הערך השמור: ${esc(String(current?.[key]??''))||'—'}</label><label><input type="radio" name="${esc(name)}" data-action="resolve-merge-candidate" data-scope="${scope}" data-id="${id}" data-key="${key}" data-choice="accept"> שימוש בערך החדש: ${esc(String(value))}</label></fieldset>`;
+  }).join('');
+}
+function detailView(){const item=state.items.find(candidate=>candidate.id===state.itemId);if(!item)return '<section class="card">הפריט לא נמצא.</section>';const sources=state.sources.filter(source=>item.sourceIds?.includes(source.id)),place=item.details?.canonicalPlace,contactActions=[place?`<a class="btn secondary" href="${esc(place.googleMapsUri||mapsUrl(`${place.latitude},${place.longitude}`))}" target="_blank" rel="noopener">🧭 ניווט</a>`:item.location?`<a class="btn secondary" href="${mapsUrl(mapSearchLocation(item))}" target="_blank" rel="noopener">🧭 חיפוש במפה</a>`:'',item.website?`<a class="btn ghost" href="${esc(item.website)}" target="_blank" rel="noopener">🌐 קישור</a>`:'',item.phone?`<a class="btn ghost" href="tel:${esc(item.phone)}">☎️ התקשרות</a>`:''].filter(Boolean).join('');const warningEntries=itemWarningEntries(item);return `<section class="card ${conflict(item)?'conflict':''}"><button class="btn ghost" data-route="center" data-cat="${item.type}">חזרה</button><h2>${ITEM_TYPES[item.type]?.icon||'📌'} ${esc(item.title)}</h2><p><span class="badge">${ITEM_TYPES[item.type]?.label}</span></p>${item.provider?`<p><b>ספק:</b> ${esc(item.provider)}</p>`:''}${item.confirmationNumber?`<p><b>מספר הזמנה:</b> ${esc(item.confirmationNumber)}</p>`:''}${item.location?`<p><b>מיקום:</b> ${esc(item.location)} ${place?'<span class="badge blue">אומת</span>':'<span class="badge warn">שם לחיפוש</span>'}</p>`:''}${contactActions?`<div class="actions">${contactActions}</div>`:''}${item.startAt?`<p><b>מועד:</b> ${fmt(item.startAt,true,item.dateMeta?.startPrecision)}</p>`:''}${item.endAt?`<p><b>סיום:</b> ${fmt(item.endAt,true,item.dateMeta?.endPrecision)}</p>`:''}${item.notes?`<p class="preserve-lines">${esc(item.notes)}</p>`:''}${warningEntries.length?`<div class="warning-list">${warningEntries.map(({warning,index})=>warningRow(warning,item.details,'item',item.id,index)).join('')}</div>`:''}${mergeCandidatePanel('item',item.id,item,item.details)}${item.type==='flight'?flightSummaryBlock(item.details):''}${item.type==='activity'?activitySummaryBlock(item.details):''}<h3>מסמכים וכרטיסים</h3>${sources.length?`<div class="list">${sources.map(sourceRow).join('')}</div>`:'<p class="muted">אין מסמכים מצורפים.</p>'}<div class="actions">${['hotel','flight','activity'].includes(item.type)?`<button class="btn" data-action="attach-source" data-id="${item.id}">הוספת מסמך</button>`:''}<button class="btn secondary" data-action="edit-item" data-id="${item.id}">עריכה</button><button class="btn danger" data-action="delete-item" data-id="${item.id}">מחיקה</button></div></section>`}
 // V6-F37 (fix pass 4): the update-confirmation copy hardcoded "המלון" (the hotel) regardless of
 // the suggestion's actual type, so a Flight update-review screen incorrectly talked about a
 // hotel. existingItemUnchangedNotice() picks the grammatically correct phrase for the two types
@@ -156,17 +196,31 @@ function detailView(){const item=state.items.find(candidate=>candidate.id===stat
 function existingItemUnchangedNotice(type){
   return ({flight:'הטיסה הקיימת לא תשתנה עד לאישור מפורש.',hotel:'המלון הקיים לא ישתנה עד לאישור מפורש.'})[type]||'הפריט הקיים לא ישתנה עד לאישור מפורש.';
 }
-// V6-F49: an unresolved-sourced warning (smart-import-adapter.js / activity-import-adapter.js)
-// carries no field key at all, so it can never be auto-matched to an edited field and cleared by
-// reconcileStaleNeedsReview -- warningText() already unwraps a {message} object exactly like
-// this, so only a dismissible-marked object gets the extra manual dismiss control.
-function isDismissibleWarning(value){return typeof value==='object'&&value!==null&&value.dismissible===true}
+// V6-F49/V6-F55: an unresolved-sourced warning (smart-import-adapter.js / activity-import-
+// adapter.js) carries no field key at all, so it can never be auto-matched to an edited field and
+// cleared by reconcileStaleNeedsReview -- always dismissible, regardless of shape. V6-F55 extends
+// this: ANY plain-string warning is now also dismissible unless it currently matches a live
+// needsReviewFields label (meaning it's still resolvable the normal way, by editing that field --
+// once that edit happens, reconcileStaleNeedsReview clears the label AND the warning text
+// together, so this isn't offering a second, competing way to resolve the same thing). This is the
+// fallback that guarantees every warning shape -- draft.warnings, the place-not-validated notice,
+// or any other model-authored free text -- can always be cleared by *some* explicit action, not
+// only the specific shapes V6-F49/V6-F54 originally anticipated. Merge-conflict warnings are
+// excluded upstream (isMergeConflictWarningText) before this is ever consulted for them, since
+// they resolve through mergeCandidatePanel's explicit keep/accept choice instead of a plain dismiss.
+function isDismissibleWarning(value,details){
+  if(typeof value==='object'&&value!==null&&value.dismissible===true)return true;
+  const text=warningText(value);
+  const needsReviewLabels=(details?.needsReviewFields||[]).map(field=>field.label);
+  return !needsReviewLabels.some(label=>text.includes(label));
+}
 function suggestionView(){const suggestion=suggestionById(state.suggestionId);if(!suggestion)return '<section class="card">ההצעה לא נמצאה.</section>';const sources=(suggestion.sourceIds||[suggestion.sourceId]).map(sourceById).filter(Boolean),p=suggestion.proposed,experimental=sources.some(source=>source.experimental),isUpdate=Boolean(suggestion.targetItemId);
   // V6-F51: mirrors suggestionToItem's own trip-start fallback (fires at approval time for a new
   // item) so the review form shows the same value approval would have produced anyway, instead
   // of empty air -- see suggestionReviewDefaults for the exact shared condition.
   const displayP={...p,...suggestionReviewDefaults(p,state.trip?.startDate||'',!isUpdate)};
-  return `<section class="card"><button class="btn ghost" data-route="center" data-cat="document">חזרה</button><div class="section-head"><div><h2>${isUpdate?'בדיקת הצעת עדכון':'בדיקת הצעה'}</h2><p class="muted">${isUpdate?existingItemUnchangedNotice(p.type):'המידע יישמר כפריט רק לאחר אישור מפורש.'}</p></div><span class="badge ${experimental||suggestion.confidence==='low'?'warn':'blue'}">${experimental?'PDF ניסיוני':`ביטחון ${confidenceLabel(suggestion.confidence)}`}</span></div>${experimental?'<div class="experimental-warning"><b>קליטה ניסיונית:</b> יש לבדוק כל שדה. מידע חסר נשאר ריק והקובץ המקורי נשמר.</div>':''}<div class="source-summary"><b>מקורות:</b> ${sources.map(source=>esc(source.name)).join(', ')||'ייבוא חיצוני'}</div>${suggestion.origin==='external-import'?'<div class="privacy-warning">🔒 ה־QR אינו מוצפן. אין לשתף אותו בפומבי.</div>':''}${suggestion.warnings?.length?`<div class="warning-list">${suggestion.warnings.map((warning,index)=>`<div class="warning-row">⚠️ ${esc(warningText(warning))}${isDismissibleWarning(warning)?`<button class="link-button" type="button" data-action="dismiss-warning" data-id="${suggestion.id}" data-index="${index}">התעלמות</button>`:''}</div>`).join('')}</div>`:''}${p.type==='flight'?directionPickerPanel(suggestion.id,p):''}${p.type==='flight'?flightSummaryBlock(p.details):''}${smartEvidencePanel(p)}<form id="suggestion-form" data-id="${suggestion.id}">${proposalFields(displayP)}<div class="actions"><button class="btn" name="decision" value="approve">${isUpdate?`אישור ועדכון ה${ITEM_TYPES[p.type]?.label||'פריט'}`:'אישור ויצירת פריט'}</button><button class="btn secondary" name="decision" value="save">שמירת עריכה</button><button class="btn ghost" type="button" data-action="defer-suggestion" data-id="${suggestion.id}">אחר כך</button><button class="btn danger" type="button" data-action="reject-suggestion" data-id="${suggestion.id}">דחייה</button></div></form></section>`}
+  const warningEntries=suggestionWarningEntries(suggestion);
+  return `<section class="card"><button class="btn ghost" data-route="center" data-cat="document">חזרה</button><div class="section-head"><div><h2>${isUpdate?'בדיקת הצעת עדכון':'בדיקת הצעה'}</h2><p class="muted">${isUpdate?existingItemUnchangedNotice(p.type):'המידע יישמר כפריט רק לאחר אישור מפורש.'}</p></div><span class="badge ${experimental||suggestion.confidence==='low'?'warn':'blue'}">${experimental?'PDF ניסיוני':`ביטחון ${confidenceLabel(suggestion.confidence)}`}</span></div>${experimental?'<div class="experimental-warning"><b>קליטה ניסיונית:</b> יש לבדוק כל שדה. מידע חסר נשאר ריק והקובץ המקורי נשמר.</div>':''}<div class="source-summary"><b>מקורות:</b> ${sources.map(source=>esc(source.name)).join(', ')||'ייבוא חיצוני'}</div>${suggestion.origin==='external-import'?'<div class="privacy-warning">🔒 ה־QR אינו מוצפן. אין לשתף אותו בפומבי.</div>':''}${warningEntries.length?`<div class="warning-list">${warningEntries.map(({warning,index})=>warningRow(warning,p.details,'suggestion',suggestion.id,index)).join('')}</div>`:''}${mergeCandidatePanel('suggestion',suggestion.id,p,p.details)}${p.type==='flight'?directionPickerPanel(suggestion.id,p):''}${p.type==='flight'?flightSummaryBlock(p.details):''}${p.type==='activity'?activitySummaryBlock(p.details):''}${smartEvidencePanel(p)}<form id="suggestion-form" data-id="${suggestion.id}">${proposalFields(displayP)}<div class="actions"><button class="btn" name="decision" value="approve">${isUpdate?`אישור ועדכון ה${ITEM_TYPES[p.type]?.label||'פריט'}`:'אישור ויצירת פריט'}</button><button class="btn secondary" name="decision" value="save">שמירת עריכה</button><button class="btn ghost" type="button" data-action="defer-suggestion" data-id="${suggestion.id}">אחר כך</button><button class="btn danger" type="button" data-action="reject-suggestion" data-id="${suggestion.id}">דחייה</button></div></form></section>`}
 const BAGGAGE_LABELS={carry_on:'כבודת יד',checked:'מזוודה',trolley:'טרולי'};
 const BAGGAGE_INCLUDED_LABELS={included:'כלול',not_included:'לא כלול',unknown:'לא ידוע'};
 // Revised V6-F32 (fix pass 3): a source whose direction is genuinely ambiguous no longer gets a
@@ -210,6 +264,26 @@ function flightPassengersTable(passengers){
   return `<h4>נוסעים (${passengers.length})</h4><div class="list">${passengers.map(passenger=>{
     const baggage=(passenger.baggage||[]).filter(bag=>bag.bagType).map(bag=>`${BAGGAGE_LABELS[bag.bagType]||bag.bagType}${bag.weight?` (${esc(bag.weight)})`:''} · ${BAGGAGE_INCLUDED_LABELS[bag.included]||bag.included||''}`).join(', ');
     return `<article class="row passenger-row"><span class="row-main"><b>${esc(passenger.name||'נוסע')}</b><small class="muted">${[passenger.eTicketNumber?`כרטיס ${esc(passenger.eTicketNumber)}`:'',passenger.seat?`מושב ${esc(passenger.seat)}`:'',passenger.mealRequest?esc(passenger.mealRequest):'',baggage].filter(Boolean).join(' · ')}</small></span></article>`;
+  }).join('')}</div>`;
+}
+// V6-F57/V6-F58: details.ticketHolders (per-ticket name/DNI/seat-section/ticket-number) and
+// amount/currency/duration/ageRestrictions/included/notIncluded/meetingPoint/ticketQuantity were
+// all correctly captured by smartImportActivityResultToSuggestion (activity-import-adapter.js)
+// but had no rendering path anywhere -- neither the suggestion review screen nor the saved item
+// detail view ever read details.ticketHolders/amount/currency at all. Mirrors flightSummaryBlock/
+// flightPassengersTable's own read-only-summary pattern exactly, applied to the Activity shape.
+function activitySummaryBlock(details){
+  if(!details)return '';
+  const price=details.amount?`${details.amount}${details.currency?` ${details.currency}`:''}`:'';
+  const rows=[price?['מחיר',price]:null,['משך',details.duration],['מגבלת גיל',details.ageRestrictions],['כלול',details.included],['לא כלול',details.notIncluded],['נקודת מפגש',details.meetingPoint],['כמות כרטיסים',details.ticketQuantity]].filter(Boolean).filter(([,value])=>String(value||'').trim());
+  if(!rows.length&&!details.ticketHolders?.length)return '';
+  return `<section class="card nested"><h3>פרטי הכרטיס</h3>${rows.length?`<dl class="flight-summary">${rows.map(([label,value])=>`<dt>${esc(label)}</dt><dd>${esc(value)}</dd>`).join('')}</dl>`:''}${activityTicketHoldersTable(details.ticketHolders)}</section>`;
+}
+function activityTicketHoldersTable(ticketHolders){
+  if(!ticketHolders?.length)return '';
+  return `<h4>כרטיסים (${ticketHolders.length})</h4><div class="list">${ticketHolders.map(holder=>{
+    const parts=[holder.ticketNumber?`כרטיס ${esc(holder.ticketNumber)}`:'',holder.seatOrSection?esc(holder.seatOrSection):'',holder.dni?`ת.ז./דרכון ${esc(holder.dni)}`:''].filter(Boolean).join(' · ');
+    return `<article class="row passenger-row"><span class="row-main"><b>${esc(holder.name||'כרטיס')}</b><small class="muted">${parts}</small></span></article>`;
   }).join('')}</div>`;
 }
 function smartEvidencePanel(p){const fields=p.details?.smartImportFields||[],notes=p.details?.importantNotes||[],place=p.details?.placeValidation;if(!fields.length&&!notes.length&&!place)return '';return `<details class="evidence-panel" open><summary>כל המידע והראיות שנקלטו (${fields.length+notes.length})</summary><div class="evidence-list">${fields.map(field=>`<article><b>${esc(field.label)}</b><p>${esc(field.rawValue)}</p><small>${esc(field.evidence)} · ${field.certainty==='exact'?'מדויק':'דורש בדיקה'}</small></article>`).join('')}${notes.map(note=>`<article><b>${esc(note.title)}</b><p>${esc(note.text)}</p><small>${esc(note.evidence)} · ${note.certainty==='exact'?'מדויק':'דורש בדיקה'}</small></article>`).join('')}${place?`<article><b>אימות מיקום</b><p>${place.state==='validated'?`אומת: ${esc(place.acceptedPlace?.formattedAddress||place.locationDisplayValue)}`:`לא אומת: ${esc(place.reason||'דורש בדיקה')}`}</p></article>`:''}</div></details>`}
@@ -420,14 +494,31 @@ addEventListener('click',async event=>{const routeButton=event.target.closest('[
   else if(action==='open-source')await openSource(button.dataset.id);
   else if(action==='pick-direction'){pickFlightDirection(suggestionById(button.dataset.id),Number(button.dataset.index));render()}
   else if(action==='defer-suggestion'){suggestionById(button.dataset.id).status='deferred';save();route('center',{category:'document'});notify('ההצעה נשמרה לאחר כך')}
-  // V6-F49 backstop: an unresolved-sourced warning can never auto-clear (see
-  // isDismissibleWarning) since it has no field key to match an edit against -- this is the only
-  // way the Product Owner can remove it once they've judged it addressed/irrelevant.
-  else if(action==='dismiss-warning'){const suggestion=suggestionById(button.dataset.id);const index=Number(button.dataset.index);if(suggestion&&isDismissibleWarning(suggestion.warnings?.[index])){suggestion.warnings=suggestion.warnings.filter((_,i)=>i!==index);suggestion.proposed.warnings=suggestion.warnings;save();render()}}
+  // V6-F49/V6-F55 backstop: a plain-string warning not currently backed by a live needsReviewFields
+  // entry can never auto-clear via an edit (see isDismissibleWarning) -- this is the only way the
+  // Product Owner can remove it once they've judged it addressed/irrelevant.
+  else if(action==='dismiss-warning'){const suggestion=suggestionById(button.dataset.id);const index=Number(button.dataset.index);if(suggestion&&isDismissibleWarning(suggestion.warnings?.[index],suggestion.proposed?.details)){suggestion.warnings=suggestion.warnings.filter((_,i)=>i!==index);suggestion.proposed.warnings=suggestion.warnings;save();render()}}
   // V6-F54: the item-page counterpart to dismiss-warning above -- addresses state.items, not
   // state.suggestions, since a dismissible unresolved-sourced warning previously had no way to
   // ever be dismissed once its suggestion was approved into an item.
-  else if(action==='dismiss-item-warning'){const item=state.items.find(candidate=>candidate.id===button.dataset.id);const index=Number(button.dataset.index);if(item&&isDismissibleWarning(item.warnings?.[index])){item.warnings=item.warnings.filter((_,i)=>i!==index);save();render()}}
+  else if(action==='dismiss-item-warning'){const item=state.items.find(candidate=>candidate.id===button.dataset.id);const index=Number(button.dataset.index);if(item&&isDismissibleWarning(item.warnings?.[index],item.details)){item.warnings=item.warnings.filter((_,i)=>i!==index);save();render()}}
+  // V6-F55: resolves a merge-conflict field (mergeCandidatePanel) by an explicit Product Owner
+  // choice instead of leaving it as a silently-kept value plus an indefinite warning. Works on
+  // either a pending suggestion's proposed object or an already-saved item -- resolveMergeCandidate
+  // (ingestion.js) is agnostic to which, since both share the same shape.
+  else if(action==='resolve-merge-candidate'){
+    const scope=button.dataset.scope,key=button.dataset.key,choice=button.dataset.choice;
+    if(scope==='suggestion'){
+      const suggestion=suggestionById(button.dataset.id);if(!suggestion)return;
+      suggestion.proposed=resolveMergeCandidate(suggestion.proposed,key,choice);
+      suggestion.warnings=suggestion.proposed.warnings;
+      suggestion.updatedAt=new Date().toISOString();
+    }else{
+      const item=state.items.find(candidate=>candidate.id===button.dataset.id);if(!item)return;
+      Object.assign(item,resolveMergeCandidate(item,key,choice));
+    }
+    save();render();
+  }
   else if(action==='reject-suggestion'){if(confirm('לדחות את ההצעה? המקורות יישמרו.')){const lifecycle=rejectProposal(state.suggestions,state.rejectedSuggestions,button.dataset.id);state.suggestions=lifecycle.suggestions;state.rejectedSuggestions=lifecycle.rejectedSuggestions;save();route('center',{category:'document'});notify('ההצעה הועברה לארכיון')}}
   else if(action==='duplicate-merge')approveSuggestion(suggestionById(button.dataset.suggestion),'merge',button.dataset.target);
   else if(action==='duplicate-keep')approveSuggestion(suggestionById(button.dataset.suggestion),'keep');

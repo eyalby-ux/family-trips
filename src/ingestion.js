@@ -1,5 +1,6 @@
 import {clearResolvedDirectionWarning,isSameFlightAcrossDirectionCandidates,isSameFlightForDedup,isSameFlightNumberAndDate,mergeFlightDetails} from './flight-import-adapter.js';
 import {isValidCalendarDate,normalizeDateRange,today} from './operational-data.js';
+import {MERGE_CONFLICT_WARNING_PREFIX} from './smart-import-adapter.js';
 
 export const ITEM_TYPES = {
   flight:{label:'טיסה',icon:'✈️',schedule:'single'},hotel:{label:'מלון',icon:'🏨',schedule:'range'},car:{label:'רכב שכור',icon:'🚗',schedule:'range'},activity:{label:'אטרקציה',icon:'🎟️',schedule:'single'},restaurant:{label:'מסעדה',icon:'🍽️',schedule:'single'},insurance:{label:'ביטוח',icon:'🛡️',schedule:'entire'},link:{label:'קישור',icon:'🔗',schedule:'none'},document:{label:'מסמך',icon:'📄',schedule:'none'},contact:{label:'איש קשר',icon:'☎️',schedule:'none'},participant:{label:'משתתף',icon:'👨‍👩‍👧‍👦',schedule:'none'},
@@ -162,6 +163,11 @@ const NEEDS_REVIEW_FIELD_MAP={
   // warning could never clear on manual edit even when it WAS backed by a structured field.
   startDate:['startAt'],endDate:['endAt'],startTime:['startAt'],endTime:['endAt'],
   title:['title'],provider:['provider'],confirmationNumber:['confirmationNumber'],website:['website'],phone:['phone'],
+  // V6-F55 correction pass: 'location' had no entry at all -- a location/address-shaped
+  // needs-review conflict (Hotel's property_address/hotel_address/location keys, now routed here
+  // by smart-import-adapter.js's FIELD_MAP; Activity's already-correctly-keyed 'location') could
+  // never clear no matter which field was edited, since this map had nothing to match it against.
+  location:['location'],
 };
 export function reconcileStaleNeedsReview(proposed,changedFields){
   const needsReviewFields=proposed.details?.needsReviewFields;
@@ -175,6 +181,28 @@ export function reconcileStaleNeedsReview(proposed,changedFields){
   if(!resolvedLabels.length)return proposed;
   const warnings=(proposed.warnings||[]).filter(warning=>!resolvedLabels.some(label=>String(warning).includes(label)));
   return {...proposed,details:{...proposed.details,needsReviewFields:stillPending},warnings};
+}
+// V6-F55: replaces "silently keep the trusted value + show a warning that may never clear" with an
+// explicit decision -- the Product Owner picks 'keep' (the already-applied trusted value stays,
+// the conflict is dismissed as reviewed) or 'accept' (the new value the merge discovered
+// overwrites it). Works identically on a pending suggestion's `proposed` object or an already-
+// saved item, since both share the same shape (`[key]`, `details.mergeCandidates`, `warnings`) --
+// no separate item/suggestion branch needed, mirroring reconcileStaleNeedsReview's own generality.
+// 'accept' is a genuine field-value change, so it also runs reconcileStaleNeedsReview for that key
+// -- a merge conflict and a stale needs-review flag on the same field are two separate mechanisms
+// that can otherwise both be pointing at the one value the Product Owner just resolved.
+export function resolveMergeCandidate(target,key,choice){
+  const candidates=target.details?.mergeCandidates;
+  if(!candidates||!(key in candidates))return target;
+  const candidateValue=candidates[key];
+  const nextCandidates={...candidates};delete nextCandidates[key];
+  const warnings=(target.warnings||[]).filter(warning=>!(typeof warning==='string'&&warning.startsWith(`${MERGE_CONFLICT_WARNING_PREFIX}${key}`)));
+  let next={...target,details:{...target.details,mergeCandidates:nextCandidates},warnings};
+  if(choice==='accept'){
+    next={...next,[key]:candidateValue};
+    next=reconcileStaleNeedsReview(next,new Set([key]));
+  }
+  return next;
 }
 // The date/time defaults shown in the manual "create new item" form the moment it opens
 // (V6-F06/V4-F04 also apply here, via the rendered form's own pre-filled value= attribute).
