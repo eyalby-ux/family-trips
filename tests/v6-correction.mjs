@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {smartImportResultToSuggestion,preserveTrustedFieldsOnMerge} from '../src/smart-import-adapter.js';
 import {buildItemFormValues,manualCreateDefaults,normalizeUrlInput,suggestionToItem} from '../src/ingestion.js';
-import {backfillTripDates,isValidCalendarDate,sanitizeTripDates,sortItemsByStartAt} from '../src/operational-data.js';
+import {backfillTripDates,isValidCalendarDate,normalizedGenericLabel,sanitizeTripDates,sortItemsByStartAt,stripDuplicateLabelPrefix} from '../src/operational-data.js';
 import {normalizeProposalLifecycle} from '../src/proposal-lifecycle.js';
 import {APP_VERSION_PLACEHOLDER,PLACEHOLDER,injectIndexHtmlVersion,injectServiceWorkerVersion,resolveBuildVersion} from '../scripts/inject-build-version.mjs';
 import {country} from '../netlify/functions/_shared/place-validation.mjs';
@@ -464,5 +464,40 @@ function test_V6_F61_hotel_important_notes_label_not_doubled(){
   console.log('PASS: V6-F61 Hotel\'s importantNotes note-line site (previously untouched) no longer doubles or leaves an unlocalized label');
 }
 test_V6_F61_hotel_important_notes_label_not_doubled();
+
+// --- V6-F67: stripDuplicateLabelPrefix's original exact-literal-match check couldn't recognize a
+// source-embedded prefix phrased DIFFERENTLY from the current field's own label, even when both
+// mean the same thing -- real observed case: label translates to "מזמין" (orderer), but the
+// source's own printed prefix was "הוזמן על ידי:" ("ordered by:"), a different, synonymous Hebrew
+// phrasing already known to this codebase as `booked by`'s own translation, just never checked
+// against a DIFFERENT label's synonym group before this fix. Direct unit test of the exported
+// function, isolating the exact mechanism the fix changed. ---
+function test_V6_F67_strip_prefix_recognizes_synonymous_phrasing_not_just_literal_repeat(){
+  assert.equal(normalizedGenericLabel('Orderer'),'מזמין','sanity check: this is the real label->translation pairing from the reported case');
+  assert.equal(stripDuplicateLabelPrefix('Orderer','הוזמן על ידי: אייל בן יצחק'),'אייל בן יצחק','a source-embedded prefix phrased as a KNOWN SYNONYM of the current label (here, "booked by"\'s own Hebrew translation, for the same underlying "who ordered this" concept as "orderer") must be recognized and stripped, not just an exact literal repeat of "Orderer" itself');
+  // The original V6-F61 exact-duplicate case must still work identically -- the literal label is
+  // still checked (and matches first, since it is checked before any synonym) even now that
+  // synonym groups exist.
+  assert.equal(stripDuplicateLabelPrefix('Purchaser','Purchaser: אייל בן יצחק'),'אייל בן יצחק','the original exact-literal-duplicate case (V6-F61) must keep working unchanged');
+  // A label with no known synonym group at all must fall back to exact-match-only behavior, same
+  // as before this fix -- no group means no extra candidates, never a false-positive strip.
+  assert.equal(stripDuplicateLabelPrefix('Some Unrelated Field','Some Unrelated Field: value'),'value');
+  assert.equal(stripDuplicateLabelPrefix('Some Unrelated Field','Completely different: value'),'Completely different: value','a value with no matching prefix at all, literal or synonymous, must be returned unchanged');
+  console.log('PASS: V6-F67 stripDuplicateLabelPrefix recognizes a synonymous, differently-worded source-embedded prefix, not only an exact literal repeat of the current label -- while the original V6-F61 exact-duplicate case keeps passing');
+}
+test_V6_F67_strip_prefix_recognizes_synonymous_phrasing_not_just_literal_repeat();
+
+// --- V6-F67, end-to-end through the real adapter path (not just the isolated helper), mirroring
+// the exact real observed item: "מזמין: הוזמן על ידי: אייל בן יצחק". ---
+function test_V6_F67_hotel_other_fields_synonymous_prefix_not_doubled(){
+  const result={attemptId:'f67-hotel-a',usage:{},estimatedVariableCostUsd:0,latencyMs:1,draft:{proposalState:'proposed',meaningfulTitle:'Panvaree Resort',propertyName:'Panvaree Resort',fields:[
+    {key:'orderer',label:'Orderer',rawValue:'הוזמן על ידי: אייל בן יצחק',normalizedValue:'הוזמן על ידי: אייל בן יצחק',evidence:'Page 1',certainty:'exact'},
+  ],importantNotes:[],warnings:[],unresolved:[],explicitlyAbsent:[]},placeValidation:null};
+  const suggestion=smartImportResultToSuggestion(result,source,now);
+  assert(suggestion.proposed.notes.includes('מזמין: אייל בן יצחק'),'a single, non-redundant, Hebrew-localized line');
+  assert(!suggestion.proposed.notes.includes('מזמין: הוזמן על ידי'),'the source\'s own differently-worded prefix must not survive alongside the translated label -- this was V6-F67\'s exact reported bug');
+  console.log('PASS: V6-F67 a canonical label and a differently-worded, same-meaning source-embedded prefix no longer render as a redundant compound line');
+}
+test_V6_F67_hotel_other_fields_synonymous_prefix_not_doubled();
 
 console.log('ALL PASS: Alpha 0.6.4 correction package regression suite');

@@ -215,12 +215,42 @@ export const GENERIC_FIELD_LABELS={
   purchaser:'רוכש',buyer:'רוכש',orderer:'מזמין','purchased by':'רוכש',
   'payment status':'סטטוס תשלום','booked by':'הוזמן על ידי','ticket number':'מספר כרטיס',
 };
+// V6-F67: stripDuplicateLabelPrefix originally only recognized a value's own embedded prefix when
+// it was an exact, case-insensitive literal repeat of THIS field's own label -- it had no concept
+// of two different strings meaning the same thing, so a canonical label translated to Hebrew
+// (normalizedGenericLabel) and a source-embedded prefix already in a different, synonymous
+// phrasing never matched even though a human reads them as the same redundant statement twice
+// (confirmed real case: label "Orderer" translates to "מזמין", but the source's own printed
+// prefix was "הוזמן על ידי:" -- a different, synonymous Hebrew phrasing of the same "who ordered
+// this" concept, already present verbatim as `booked by`'s own translation below, just never
+// checked against a DIFFERENT label's synonym group). Each group lists every known phrasing --
+// in any language -- that refers to the same underlying concept, so stripDuplicateLabelPrefix can
+// recognize a same-meaning prefix regardless of which specific synonym the model chose as this
+// field's own label vs. which phrasing the source happened to print.
+const LABEL_SYNONYM_GROUPS=[
+  ['purchaser','buyer','orderer','purchased by','booked by'],
+  ['payment status'],
+  ['ticket number'],
+];
+function synonymGroupFor(key){return LABEL_SYNONYM_GROUPS.find(group=>group.includes(key))}
 export function normalizedGenericLabel(label){
   const key=String(label||'').trim().toLowerCase();
   return GENERIC_FIELD_LABELS[key]||label;
 }
 export function stripDuplicateLabelPrefix(label,rawValue){
   const value=String(rawValue||'');
-  const prefix=`${String(label||'').trim()}:`;
-  return value.toLowerCase().startsWith(prefix.toLowerCase())?value.slice(prefix.length).trim():value;
+  const key=String(label||'').trim().toLowerCase();
+  // Every phrasing worth checking as a redundant prefix: this field's own literal label (the
+  // original V6-F61 exact-duplicate case, kept first so it still wins when both would match),
+  // this label's own Hebrew translation, and -- if this label belongs to a known synonym group --
+  // every OTHER phrasing in that group plus each one's own translation, so a differently-worded
+  // same-concept prefix from a real source (V6-F67) is recognized too.
+  const candidates=new Set([String(label||'').trim(),normalizedGenericLabel(label)]);
+  const group=synonymGroupFor(key);
+  if(group)for(const synonym of group){candidates.add(synonym);candidates.add(normalizedGenericLabel(synonym))}
+  for(const candidate of candidates){
+    const prefix=`${candidate}:`;
+    if(candidate&&value.toLowerCase().startsWith(prefix.toLowerCase()))return value.slice(prefix.length).trim();
+  }
+  return value;
 }

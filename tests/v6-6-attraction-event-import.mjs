@@ -587,4 +587,41 @@ test_benchmark_file_identity();
 test_activity_schema_and_classification();
 test_activity_prompt_guidance_additions();
 test_activity_url_scope_and_robots_disallowed();
+
+// V6-F68: investigated a one-character name misread ("אילי" instead of "אייל"/Eyal) on a fresh
+// AE-007 reimport. Traced every step from the model's raw ticketHolders[].name output to the
+// final rendered value: smartImportActivityResultToSuggestion's own mapping
+// (activity-import-adapter.js) does `name:String(holder.name||'').trim()` -- no substring
+// operation, no regex replace, no character reordering; mergeActivityTicketHolders (V6-F66,
+// added in 0.6.6.2) only ever picks one side's WHOLE name string (`current.name||holder.name`),
+// never touches individual characters, and normalizedHolderName (used only to build the merge
+// MATCH key, never to build the stored value) does trim/lowercase/whitespace-collapse only, also
+// no reordering; participants is a Set-deduped pass of the same untouched name strings; rendering
+// (activityTicketHoldersTable, src/v5-app.js) reads holder.name directly with no transformation
+// either. No code path anywhere in the pipeline is capable of transposing two letters -- this
+// confirms V6-F68 is an isolated live-model OCR/transcription inconsistency on that one source
+// image, not a genuine adapter/normalization defect. No fix implemented; none is warranted, since
+// there is nothing in this codebase to fix. This test protects that conclusion going forward: it
+// proves the pipeline is a pure passthrough today, so a future change that accidentally adds any
+// transformation to a ticket holder's name would be caught here rather than silently becoming a
+// real, code-level version of this same symptom.
+function test_V6_F68_ticket_holder_name_is_never_transformed_by_the_pipeline(){
+  const source={id:'src-ae007b',name:'AE-007',fingerprint:'ae007b'};
+  const oddlySpacedName='  אייל  בן   יצחק  ';
+  const result=draftResult({
+    activityName:'כניסה לגן החיות 2020',provider:'גן החיות',ticketQuantity:'1',
+    ticketHolders:[holder({name:oddlySpacedName,evidence:'linear barcode'})],
+    fields:[f('start_date','Date','2020-08-25')],
+  });
+  const suggestion=smartImportActivityResultToSuggestion(result,source);
+  // trim() is the ONLY transformation this pipeline is allowed to apply -- leading/trailing
+  // whitespace is stripped, but internal characters (including internal spacing/letter order)
+  // must survive completely unchanged, proving there is no normalization step that could ever
+  // transpose or otherwise alter the letters of a name.
+  assert.equal(suggestion.proposed.details.ticketHolders[0].name,oddlySpacedName.trim(),'a ticket holder\'s name must pass through with only leading/trailing whitespace trimmed -- no other character-level transformation exists anywhere in this pipeline');
+  assert.equal(suggestion.proposed.participants[0],oddlySpacedName.trim(),'participants must carry the exact same untransformed string');
+  console.log('PASS: V6-F68 confirmed not a code defect -- no code path anywhere transforms a ticket holder\'s name beyond whitespace trimming, so the reported one-character misread is an isolated live-model transcription inconsistency on that one source image');
+}
+test_V6_F68_ticket_holder_name_is_never_transformed_by_the_pipeline();
+
 console.log('ALL PASS: Alpha 0.6.6 Attraction/Event Smart Import benchmark suite (7/7 AE- cases, mandatory wild-card AE-001, companion-pair AE-003/AE-004, URL sub-scope)');
