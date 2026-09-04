@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
-import {smartImportActivityResultToSuggestion} from '../src/activity-import-adapter.js';
+import {mergeActivityDetails,mergeActivityTicketHolders,smartImportActivityResultToSuggestion} from '../src/activity-import-adapter.js';
 import {findPossibleDuplicates,suggestionToItem} from '../src/ingestion.js';
 import {activityImportSchema,activitySystemPrompt,sourceClassificationSchema} from '../netlify/functions/_shared/smart-import-schema.mjs';
 import {isRobotsDisallowed} from '../netlify/functions/smart-import.mjs';
@@ -299,6 +299,186 @@ function test_AE007_single_named_booker_party_of_three_explicit_zero_price(){
 }
 
 // ---------------------------------------------------------------------------------------------
+// V6-F59: title priority rule is now a COMBINATION (venue name + ticket type), not a strict
+// either/or preferring one over the other. This is a prompt-only change (the adapter does a pure
+// title:activityName passthrough, confirmed above by every AE-00x fixture's title assertion) --
+// this test guards against any future adapter change that tries to split or cherry-pick one half
+// of an already-combined activityName back apart.
+// ---------------------------------------------------------------------------------------------
+function test_V6_F59_title_preserves_combined_venue_and_ticket_type(){
+  const source={id:'src-f59',name:'F59',fingerprint:'f59'};
+  const result=draftResult({
+    activityName:'WaterLand - כניסה לפארק יום',
+    provider:'WaterLand',
+    ticketQuantity:'1',
+    ticketHolders:[holder({ticketNumber:'623000999'})],
+    fields:[f('location','Location','WaterLand'),f('start_date','Date','2024-04-24')],
+  });
+  const suggestion=smartImportActivityResultToSuggestion(result,source);
+  assert.equal(suggestion.proposed.title,'WaterLand - כניסה לפארק יום','a combined venue-name + ticket-type activityName must be passed through verbatim, neither half split off nor cherry-picked');
+  console.log('PASS: V6-F59 the adapter preserves a combined venue-name + ticket-type activityName verbatim as the title');
+}
+
+// ---------------------------------------------------------------------------------------------
+// V6-F61: label-doubling / unlocalized-label fix applied at the shared source (operational-data.js)
+// -- this covers Activity's importantNotes site specifically, the one Activity site the previous
+// (0.6.6.1) fix pass never touched at all (only otherFields was fixed then). Mirrors the existing
+// AE-002 otherFields test shape exactly.
+// ---------------------------------------------------------------------------------------------
+function test_V6_F61_activity_important_notes_label_not_doubled(){
+  const source={id:'src-f61-activity',name:'F61-activity',fingerprint:'f61-activity'};
+  const result=draftResult({
+    activityName:'ניווט ביער גמזו',
+    provider:'איגוד לספורט הניווט',
+    ticketQuantity:'1',
+    ticketHolders:[holder({name:'אייל בן יצחק'})],
+    fields:[f('location','Location','גמזו'),f('start_date','Date','2026-01-17')],
+    importantNotes:[{category:'ticketing',title:'Ticket number',text:'Ticket number: 2ZTN-G53R-GJ81P',evidence:'ticket footer',certainty:'exact'}],
+  });
+  const suggestion=smartImportActivityResultToSuggestion(result,source);
+  assert(suggestion.proposed.notes.includes('מספר כרטיס: 2ZTN-G53R-GJ81P'),'an importantNotes entry with a recognized synonym must render with a single, Hebrew-localized label');
+  assert(!suggestion.proposed.notes.includes('Ticket number: Ticket number'),'the printed label must never be doubled when the model\'s own text already includes it verbatim -- this is the actual reopened AE-005 evidence shape (importantNotes, not otherFields)');
+  assert(!suggestion.proposed.notes.includes('Ticket number:'),'the raw English label must not leak into the UI unfiltered once a Hebrew synonym is recognized');
+  console.log('PASS: V6-F61 Activity\'s importantNotes note-line site (previously untouched) no longer doubles or leaves an unlocalized label');
+}
+
+// ---------------------------------------------------------------------------------------------
+// V6-F65 (extension): provider/activityName now have paired certainty fields
+// (providerCertainty/activityNameCertainty). These tests exercise the adapter's defense-in-depth
+// handling directly -- proving the blanking/flagging happens even if the model doesn't fully obey
+// the prompt's instruction to leave the value empty when unreadable (fixture simulates exactly
+// that: the model still returns a guessed string despite declaring it unreadable).
+// ---------------------------------------------------------------------------------------------
+function test_V6_F65_ext_unreadable_provider_certainty_blanks_value_and_flags_illegible(){
+  const source={id:'src-f65-provider',name:'F65-provider',fingerprint:'f65-provider'};
+  const result=draftResult({
+    activityName:'כניסה לגן החיות',
+    provider:'החברה להגנת הטבע', // simulates the model still guessing despite unreadable certainty
+    providerCertainty:'unreadable',
+    ticketQuantity:'1',
+    ticketHolders:[holder({name:'אייל בן יצחק'})],
+    fields:[f('start_date','Date','2025-01-01')],
+  });
+  const suggestion=smartImportActivityResultToSuggestion(result,source);
+  assert.equal(suggestion.proposed.provider,'','providerCertainty:"unreadable" must force the value blank regardless of what the model actually returned -- defense in depth, not just trusting prompt compliance');
+  assert(suggestion.proposed.details.needsReviewFields.some(entry=>entry.key==='provider'),'an unreadable provider must be flagged in needsReviewFields');
+  assert(suggestion.proposed.warnings.some(w=>typeof w==='object'&&w.needsReviewRef&&w.needsReviewRef.key==='provider'),'an unreadable provider must produce a needsReviewRef-backed warning, the same mechanism as every other needs-review field');
+  assert.equal(suggestion.proposed.fieldConfidence.provider.confidence,'low','an unreadable certainty must map to low field confidence, the same as every other unreadable field');
+  console.log('PASS: V6-F65 ext providerCertainty:"unreadable" blanks the value and flags it, even when the model still returned a guessed string');
+}
+function test_V6_F65_ext_exact_provider_certainty_unaffected(){
+  const source={id:'src-f65-provider-exact',name:'F65-provider-exact',fingerprint:'f65-provider-exact'};
+  const result=draftResult({
+    activityName:'כניסה לגן החיות',
+    provider:'גן החיות',
+    ticketQuantity:'1',
+    ticketHolders:[holder({name:'אייל בן יצחק'})],
+    fields:[f('start_date','Date','2025-01-01')],
+  });
+  const suggestion=smartImportActivityResultToSuggestion(result,source);
+  assert.equal(suggestion.proposed.provider,'גן החיות','a normal exact-certainty provider (or one with no certainty field at all, matching an older fixture) must be completely unaffected -- no regression');
+  assert(!suggestion.proposed.details.needsReviewFields?.some(entry=>entry.key==='provider'),'an exact-certainty provider must not be flagged for review');
+  assert.equal(suggestion.proposed.fieldConfidence.provider.confidence,'high');
+  console.log('PASS: V6-F65 ext an absent/exact providerCertainty is a complete no-op, matching every existing fixture with no certainty field at all');
+}
+function test_V6_F65_ext_unreadable_activityName_certainty_blanks_value_and_flags_illegible(){
+  const source={id:'src-f65-name',name:'F65-name',fingerprint:'f65-name'};
+  const result=draftResult({
+    activityName:'הגן הזואולוגי התנ"כי בירושלים', // simulates the model still guessing despite unreadable certainty
+    activityNameCertainty:'unreadable',
+    provider:'גן החיות',
+    ticketQuantity:'1',
+    ticketHolders:[holder({name:'אייל בן יצחק'})],
+    fields:[f('start_date','Date','2025-01-01')],
+  });
+  const suggestion=smartImportActivityResultToSuggestion(result,source);
+  assert.equal(suggestion.proposed.title,'','activityNameCertainty:"unreadable" must force the title blank regardless of what the model actually returned');
+  assert.equal(suggestion.proposed.details.activityName,'','details.activityName must also be blanked, not just the top-level title');
+  assert(suggestion.proposed.details.needsReviewFields.some(entry=>entry.key==='activityName'),'an unreadable activityName must be flagged in needsReviewFields');
+  assert.equal(suggestion.proposed.fieldConfidence.activityName.confidence,'low');
+  console.log('PASS: V6-F65 ext activityNameCertainty:"unreadable" blanks the title and flags it, even when the model still returned a guessed string');
+}
+function test_V6_F65_ext_needs_review_certainty_keeps_value_and_flags(){
+  const source={id:'src-f65-needs-review',name:'F65-needs-review',fingerprint:'f65-needs-review'};
+  const result=draftResult({
+    activityName:'כניסה לגן החיות',
+    activityNameCertainty:'needs_review',
+    provider:'גן החיות',
+    ticketQuantity:'1',
+    ticketHolders:[holder({name:'אייל בן יצחק'})],
+    fields:[f('start_date','Date','2025-01-01')],
+  });
+  const suggestion=smartImportActivityResultToSuggestion(result,source);
+  assert.equal(suggestion.proposed.title,'כניסה לגן החיות','needs_review must KEEP the value (it was legible, just not fully certain), unlike unreadable which blanks it');
+  assert(suggestion.proposed.details.needsReviewFields.some(entry=>entry.key==='activityName'),'a needs_review activityName must still be flagged for verification');
+  assert.equal(suggestion.proposed.fieldConfidence.activityName.confidence,'medium');
+  console.log('PASS: V6-F65 ext activityNameCertainty:"needs_review" keeps the value but still flags it for verification');
+}
+
+// ---------------------------------------------------------------------------------------------
+// V6-F66: Activity ticketHolders/participants were silently OVERWRITTEN on merge, not merged --
+// suggestionToItem's details merge was field-aware only for type==='flight' (mergeFlightDetails);
+// every other type (including activity) fell through to a plain object spread, so a second
+// suggestion's ticketHolders array wholesale-replaced the first's. Mirrors Eyal's own wild-card
+// repro: his own seat/row entry and a companion's, both for the same match, attaching in two
+// separate passes.
+// ---------------------------------------------------------------------------------------------
+function test_V6_F66_merge_activity_ticket_holders_preserves_both_people(){
+  const existingItem=suggestionToItem(smartImportActivityResultToSuggestion(draftResult({
+    activityName:'FC Barcelona - Girona FC',provider:'FC Barcelona',ticketQuantity:'2',
+    ticketHolders:[holder({name:'Eyal Ben Yitzchak',ticketNumber:'C1E1A',seatOrSection:'Row 1'})],
+    fields:[f('start_date','Date','2025-03-30'),f('start_time','Time','16:15')],
+  }),{id:'src-f66a',name:'F66a',fingerprint:'f66a'}),{});
+  const secondSuggestion=smartImportActivityResultToSuggestion(draftResult({
+    activityName:'FC Barcelona - Girona FC',provider:'FC Barcelona',ticketQuantity:'2',
+    ticketHolders:[holder({name:'Amit Ben Yitzhak',ticketNumber:'C1E19',seatOrSection:'Row 1'})],
+    fields:[f('start_date','Date','2025-03-30'),f('start_time','Time','16:15')],
+  }),{id:'src-f66b',name:'F66b',fingerprint:'f66b'});
+  const merged=suggestionToItem(secondSuggestion,existingItem);
+  const names=merged.details.ticketHolders.map(holderEntry=>holderEntry.name);
+  assert(names.includes('Eyal Ben Yitzchak'),'the first holder must survive attaching a second, companion suggestion -- not be wholesale-replaced');
+  assert(names.includes('Amit Ben Yitzhak'),'the second holder must also be present');
+  assert.equal(merged.details.ticketHolders.length,2,'both distinct ticket holders must be present, never collapsed or dropped');
+  console.log('PASS: V6-F66 both people\'s ticketHolders entries survive a merge, instead of the second suggestion silently overwriting the first');
+}
+function test_V6_F66_merge_activity_participants_union_not_overwrite(){
+  const existingItem=suggestionToItem(smartImportActivityResultToSuggestion(draftResult({
+    activityName:'FC Barcelona - Girona FC',provider:'FC Barcelona',ticketQuantity:'2',
+    ticketHolders:[holder({name:'Eyal Ben Yitzchak',ticketNumber:'C1E1A'})],
+    fields:[f('start_date','Date','2025-03-30')],
+  }),{id:'src-f66c',name:'F66c',fingerprint:'f66c'}),{});
+  const secondSuggestion=smartImportActivityResultToSuggestion(draftResult({
+    activityName:'FC Barcelona - Girona FC',provider:'FC Barcelona',ticketQuantity:'2',
+    ticketHolders:[holder({name:'Amit Ben Yitzhak',ticketNumber:'C1E19'})],
+    fields:[f('start_date','Date','2025-03-30')],
+  }),{id:'src-f66d',name:'F66d',fingerprint:'f66d'});
+  const merged=suggestionToItem(secondSuggestion,existingItem);
+  assert(merged.participants.includes('Eyal Ben Yitzchak'),'both participants must survive as a union');
+  assert(merged.participants.includes('Amit Ben Yitzhak'));
+  assert.equal(merged.participants.length,2,'no duplicate/dropped participant entries');
+  console.log('PASS: V6-F66 top-level participants union both suggestions\' names instead of the second overwriting the first');
+}
+function test_V6_F66_merge_activity_ticket_holders_fills_blank_fields_from_either_side(){
+  // Same ticketNumber on both sides (the reliable match key); one side has a blank field the
+  // other has filled -- the fields must merge, not pick one side wholesale.
+  const existing=[{name:'Eyal Ben Yitzchak',dni:'',ticketNumber:'C1E1A',seatOrSection:'',evidence:'ticket 1',certainty:'exact'}];
+  const incoming=[{name:'',dni:'40384410',ticketNumber:'C1E1A',seatOrSection:'Row 1 Seat 1',evidence:'',certainty:'exact'}];
+  const merged=mergeActivityTicketHolders(existing,incoming);
+  assert.equal(merged.length,1,'the same ticketNumber on both sides must match to ONE merged entry, not two');
+  assert.equal(merged[0].name,'Eyal Ben Yitzchak','existing non-blank name must win');
+  assert.equal(merged[0].dni,'40384410','a blank existing dni must be filled from the incoming entry');
+  assert.equal(merged[0].seatOrSection,'Row 1 Seat 1','a blank existing seatOrSection must be filled from the incoming entry');
+  assert.equal(merged[0].evidence,'ticket 1','existing non-blank evidence must win over the incoming blank');
+
+  // mergeActivityDetails wires this through end-to-end, and also unions ticketNumbers.
+  const mergedDetails=mergeActivityDetails({ticketHolders:existing,ticketNumbers:['C1E1A']},{ticketHolders:incoming,ticketNumbers:['C1E1A']});
+  assert.equal(mergedDetails.ticketHolders.length,1);
+  assert.equal(mergedDetails.ticketHolders[0].dni,'40384410');
+  assert.deepEqual(mergedDetails.ticketNumbers,['C1E1A'],'ticketNumbers must be deduped, not doubled, when both sides report the same one');
+  console.log('PASS: V6-F66 a partial-overlap ticket holder (same ticketNumber, complementary blank fields on either side) merges fields instead of one side winning wholesale');
+}
+
+// ---------------------------------------------------------------------------------------------
 // SHA-256 identity check against the frozen discovery-document table, per the implementation
 // prompt's explicit instruction to verify before use.
 // ---------------------------------------------------------------------------------------------
@@ -353,7 +533,7 @@ function test_activity_schema_and_classification(){
 // test has an inherent ceiling for a live-model-behavior fix -- it verifies the prompt/adapter
 // change is present and testable, not that the live model will never regress on a real document.
 function test_activity_prompt_guidance_additions(){
-  assert(/prefer the specific ticket-type\/admission label as activityName/i.test(activitySystemPrompt),'V6-F59: the prompt must tell the model to prefer a specific ticket-type/admission label over the bare venue name for activityName');
+  assert(/report BOTH together as activityName/i.test(activitySystemPrompt),'V6-F59: the prompt must tell the model to combine venue name AND ticket-type/admission label together, not prefer one over the other as a strict either/or');
   assert(/provider is the venue\/organizer/i.test(activitySystemPrompt)&&/not the ticket-selling platform/i.test(activitySystemPrompt),'V6-F63: the prompt must give explicit venue-vs-ticketing-platform priority guidance for provider, which previously had none at all');
   assert(/combine both into location/i.test(activitySystemPrompt),'V6-F64: the prompt must instruct combining a venue name with a stated sub-venue, not reporting the sub-venue alone');
   assert(/גן החיות/.test(activitySystemPrompt)&&/do NOT report a specific real zoo/i.test(activitySystemPrompt),'V6-F65: the prompt must carry a concrete negative example against upgrading a generic source label to a specific real-world name from general knowledge');
@@ -394,6 +574,15 @@ test_AE004_auditorium_companion_pair_becomes_two_related_items();
 test_AE005_order_vs_ticket_number_precision();
 test_AE006_four_tickets_no_names_date_only();
 test_AE007_single_named_booker_party_of_three_explicit_zero_price();
+test_V6_F59_title_preserves_combined_venue_and_ticket_type();
+test_V6_F61_activity_important_notes_label_not_doubled();
+test_V6_F65_ext_unreadable_provider_certainty_blanks_value_and_flags_illegible();
+test_V6_F65_ext_exact_provider_certainty_unaffected();
+test_V6_F65_ext_unreadable_activityName_certainty_blanks_value_and_flags_illegible();
+test_V6_F65_ext_needs_review_certainty_keeps_value_and_flags();
+test_V6_F66_merge_activity_ticket_holders_preserves_both_people();
+test_V6_F66_merge_activity_participants_union_not_overwrite();
+test_V6_F66_merge_activity_ticket_holders_fills_blank_fields_from_either_side();
 test_benchmark_file_identity();
 test_activity_schema_and_classification();
 test_activity_prompt_guidance_additions();

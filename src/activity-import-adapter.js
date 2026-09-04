@@ -1,4 +1,4 @@
-import {isValidCalendarDate,parseTimeValue} from './operational-data.js';
+import {isValidCalendarDate,normalizedGenericLabel,parseTimeValue,stripDuplicateLabelPrefix} from './operational-data.js';
 import {scanFreeTextForDate} from './smart-import-adapter.js';
 
 // Attraction/Event Smart Import (0.6.6). Unlike Flight, a single source describes ONE bookable
@@ -86,12 +86,41 @@ export function smartImportActivityResultToSuggestion(result,source,now=new Date
     }
   }
 
-  const activityName=String(draft.activityName||'').trim();
+  let activityName=String(draft.activityName||'').trim();
+  let provider=String(draft.provider||'').trim();
+  // V6-F65 (extension): activityName/provider were bare top-level strings with no paired
+  // certainty concept at all -- unlike fields[]/ticketHolderSchema entries, which both have a
+  // certainty enum -- so the model had no structural way to say "this is visible but illegible"
+  // (e.g. a small stylized logo) and, per Eyal's direct source check, instead guessed a plausible
+  // real organization name and falsely claimed it was "identified from the logo."
+  // activityNameCertainty/providerCertainty (smart-import-schema.mjs) give it that structural
+  // option; this block is defense in depth -- even if the model doesn't fully comply with the
+  // prompt's instruction to leave the value empty when unreadable, a value is never trusted here
+  // once its own paired certainty says it genuinely couldn't be read. 'needs_review' keeps the
+  // value (it WAS legible, just not fully certain) but still flags it; 'unreadable' blanks the
+  // value outright (defaults to 'exact' when absent, so fixtures/older callers with no certainty
+  // field at all keep working unchanged).
+  const activityNameCertainty=draft.activityNameCertainty||'exact';
+  const providerCertainty=draft.providerCertainty||'exact';
+  if(activityNameCertainty==='unreadable'){
+    needsReviewFields.push({key:'activityName',label:'שם האטרקציה',value:'לא ניתן לזהות בבירור מהמקור',evidence:activityName?`המודל דיווח ערך למרות חוסר קריאות מוצהר: "${activityName}"`:'האלמנט במקור (למשל לוגו) אינו קריא בבירור בגודל/באיכות הזמינים'});
+    activityName='';
+  }else if(activityNameCertainty==='needs_review'&&activityName){
+    needsReviewFields.push({key:'activityName',label:'שם האטרקציה',value:activityName,evidence:'ביטחון הזיהוי מוגבל — דורש אימות מול המקור'});
+  }
+  if(providerCertainty==='unreadable'){
+    needsReviewFields.push({key:'provider',label:'ספק',value:'לא ניתן לזהות בבירור מהמקור',evidence:provider?`המודל דיווח ערך למרות חוסר קריאות מוצהר: "${provider}"`:'האלמנט במקור (למשל לוגו) אינו קריא בבירור בגודל/באיכות הזמינים'});
+    provider='';
+  }else if(providerCertainty==='needs_review'&&provider){
+    needsReviewFields.push({key:'provider',label:'ספק',value:provider,evidence:'ביטחון הזיהוי מוגבל — דורש אימות מול המקור'});
+  }
+  fieldConfidence.activityName={confidence:certainty(activityNameCertainty),evidence:'',method:'ai_source_extraction'};
+  fieldConfidence.provider={confidence:certainty(providerCertainty),evidence:'',method:'ai_source_extraction'};
   const place=result.placeValidation;
   if(place?.state==='validated')values.location=values.location||place.locationDisplayValue;
 
-  const noteLines=[...(draft.importantNotes||[]).map(note=>`${note.title}: ${note.text}`),...otherFields.map(field=>`${normalizedGenericLabel(field.label)}: ${stripDuplicateLabelPrefix(field.label,field.rawValue)}`)];
-  const needsReviewWarnings=needsReviewFields.map(field=>`דורש בדיקה — ${field.label}: ${field.value} (${field.evidence||'ללא הפניה למקור'})`);
+  const noteLines=[...(draft.importantNotes||[]).map(note=>`${normalizedGenericLabel(note.title)}: ${stripDuplicateLabelPrefix(note.title,note.text)}`),...otherFields.map(field=>`${normalizedGenericLabel(field.label)}: ${stripDuplicateLabelPrefix(field.label,field.rawValue)}`)];
+  const needsReviewWarnings=needsReviewFields.map(field=>({message:`דורש בדיקה — ${field.label}: ${field.value} (${field.evidence||'ללא הפניה למקור'})`,needsReviewRef:{key:field.key,value:field.value}}));
   const proposalStateWarning=draft.proposalState==='needs_review'?['ההצעה כוללת מידע שדורש בדיקה לפני אישור.']:[];
   // V6-F49, applied here from the start: an unresolved-sourced warning has no field key at all,
   // so it can never be auto-matched to an edited field -- wrapped as a dismissible object exactly
@@ -105,7 +134,7 @@ export function smartImportActivityResultToSuggestion(result,source,now=new Date
   const proposed={
     type:'activity',
     title:activityName,
-    provider:String(draft.provider||'').trim(),
+    provider,
     confirmationNumber:values.confirmationNumber,
     location:values.location,
     website:values.website,
@@ -162,17 +191,61 @@ export function smartImportActivityResultToSuggestion(result,source,now=new Date
 // doubled line ("Purchaser: Purchaser: <name>"); (2) nothing enforces a Hebrew label for this
 // fallback path the way every canonically-mapped field already has, so an English label leaks
 // straight into the UI unfiltered next to otherwise all-Hebrew field labels.
-const GENERIC_FIELD_LABELS={purchaser:'רוכש',buyer:'רוכש',orderer:'מזמין','purchased by':'רוכש'};
-function normalizedGenericLabel(label){
-  const key=String(label||'').trim().toLowerCase();
-  return GENERIC_FIELD_LABELS[key]||label;
-}
-function stripDuplicateLabelPrefix(label,rawValue){
-  const value=String(rawValue||'');
-  const prefix=`${String(label||'').trim()}:`;
-  return value.toLowerCase().startsWith(prefix.toLowerCase())?value.slice(prefix.length).trim():value;
-}
+// V6-F61 correction pass: normalizedGenericLabel/stripDuplicateLabelPrefix now live in
+// operational-data.js (imported above) as the ONE shared implementation for both adapters and
+// all four note-line generation sites -- the previous fix only ever closed this one site.
 function canonicalFieldKey(value){return String(value||'').trim().toLowerCase().replace(/[\s-]+/g,'_').replace(/_\d+$/,'')}
 function certainty(value){return value==='exact'?'high':value==='needs_review'?'medium':'low'}
 function dateTime(date,time){const clean=String(date).slice(0,10);if(!isValidCalendarDate(clean))return '';const clock=parseTimeValue(time)||'12:00';return `${clean}T${clock}`}
 function id(prefix){return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`}
+
+// V6-F66: Activity's ticketHolders array (and top-level participants, handled in ingestion.js's
+// suggestionToItem) was silently wholesale-REPLACED on merge instead of combined -- suggestionToItem
+// only had a field-aware details merge for type==='flight', so every other type fell through to a
+// plain object spread, letting a second suggestion's ticketHolders array overwrite the first's
+// entirely. Root-caused against Eyal's own wild-card repro: his own seat/row entry and a
+// companion's, both for the same match, arriving as two separate attach passes. Mirrors Flight's
+// own already-solved version of this exact problem (mergeFlightPassengers/mergeFlightDetails,
+// flight-import-adapter.js) applied to the Activity per-ticket-holder shape: match by
+// ticketNumber when present (most reliable, mirrors Flight's e-ticket-number priority), else
+// normalized name; union all entries from both sides, never drop one; per matched entry, existing
+// non-blank field wins, blank fields fill from the incoming entry.
+export function mergeActivityTicketHolders(existingHolders,newHolders){
+  const existing=Array.isArray(existingHolders)?existingHolders:[];
+  const incoming=Array.isArray(newHolders)?newHolders:[];
+  const merged=new Map(existing.map(holder=>[ticketHolderKey(holder),{...holder}]));
+  for(const holder of incoming){
+    const key=ticketHolderKey(holder);
+    const current=merged.get(key);
+    if(!current){merged.set(key,{...holder});continue}
+    merged.set(key,{
+      name:current.name||holder.name,
+      dni:current.dni||holder.dni,
+      ticketNumber:current.ticketNumber||holder.ticketNumber,
+      seatOrSection:current.seatOrSection||holder.seatOrSection,
+      evidence:current.evidence||holder.evidence,
+      certainty:current.certainty||holder.certainty,
+    });
+  }
+  return [...merged.values()];
+}
+function ticketHolderKey(holder){
+  const ticket=String(holder?.ticketNumber||'').replace(/\s+/g,'');
+  return ticket?`ticket:${ticket}`:`name:${normalizedHolderName(holder?.name)}`;
+}
+function normalizedHolderName(value=''){return String(value).trim().toLowerCase().replace(/\s+/g,' ')}
+
+// Mirrors mergeFlightDetails' own "existing wins unless genuinely blank" scalar-merge rule,
+// applied to the small set of Activity detail scalars, plus a deduped union of ticketNumbers and
+// the ticketHolders merge above.
+const ACTIVITY_DETAIL_SCALAR_KEYS=['activityName','meetingPoint','duration','ageRestrictions','included','notIncluded','amount','currency','ticketQuantity'];
+export function mergeActivityDetails(existingDetails,newDetails){
+  const existing=existingDetails||{},incoming=newDetails||{};
+  const merged={...existing,...incoming};
+  for(const key of ACTIVITY_DETAIL_SCALAR_KEYS){
+    if(!String(incoming[key]||'').trim()&&String(existing[key]||'').trim())merged[key]=existing[key];
+  }
+  merged.ticketNumbers=[...new Set([...(existing.ticketNumbers||[]),...(incoming.ticketNumbers||[])])];
+  merged.ticketHolders=mergeActivityTicketHolders(existing.ticketHolders,incoming.ticketHolders);
+  return merged;
+}

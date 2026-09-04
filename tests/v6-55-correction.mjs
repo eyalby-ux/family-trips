@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {resolveMergeCandidate,reconcileStaleNeedsReview} from '../src/ingestion.js';
+import {isDismissibleWarning,resolveMergeCandidate,reconcileStaleNeedsReview} from '../src/ingestion.js';
 import {MERGE_CONFLICT_WARNING_PREFIX,preserveTrustedFieldsOnMerge} from '../src/smart-import-adapter.js';
 
 // V6-F55 (merged with V6-F54): a merge-conflict warning (preserveTrustedFieldsOnMerge) previously
@@ -75,17 +75,58 @@ function test_V6_F55_merge_conflict_warnings_excluded_from_generic_dismiss_list(
   assert.match(app,/if\(isMergeConflictWarningText\(text,item\.details\)\)return false;/,'itemWarningEntries must exclude merge-conflict warnings from the generic list');
   console.log('PASS: V6-F55 merge-conflict warnings render only through the explicit picker, never doubled as inert dismissible text');
 }
-// --- V6-F55's general fallback: a plain-string warning not backed by a live needsReviewFields
-// label must always be dismissible, closing the "third category, never clearable by any means"
-// gap for draft.warnings/the place-not-validated notice/any other model-authored free text,
-// across every Smart Import vertical (Hotel/Flight/Activity), without needing to enumerate and
-// wrap every generation site individually. ---
-function test_V6_F55_plain_string_warning_dismissible_unless_backed_by_live_needs_review(){
-  const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
-  assert.match(app,/function isDismissibleWarning\(value,details\)\{/,'isDismissibleWarning must accept a details argument to check against live needsReviewFields labels');
-  assert.match(app,/const needsReviewLabels=\(details\?\.needsReviewFields\|\|\[\]\)\.map\(field=>field\.label\);/,'must compute the current, live set of needs-review labels from details, not a stale/cached list');
-  assert.match(app,/return !needsReviewLabels\.some\(label=>text\.includes\(label\)\);/,'a plain-string warning must be dismissible UNLESS it currently matches a live needs-review label -- this is the fallback that guarantees every warning shape can eventually be cleared by some explicit action');
-  console.log('PASS: V6-F55 a plain-string warning (draft.warnings, the place-not-validated notice, or any other model-authored text) is dismissible by default, deferring only to a field edit while a live needs-review flag actually covers it');
+// --- V6-F55's general fallback: a plain-string warning (or an object with neither
+// dismissible:true nor needsReviewRef) is unconditionally dismissible, since it was never
+// generated FROM a needsReviewFields entry and has no other way to ever clear. ---
+function test_V6_F55_plain_string_warning_always_dismissible(){
+  assert.equal(isDismissibleWarning('לא זוהה מספר הזמנה — השדה נשאר ריק',{needsReviewFields:[{key:'phone',label:'טלפון',value:'x'}]}),true,'a plain-string warning must be dismissible unconditionally, even one that happens to share wording with a live needs-review label -- it was never generated FROM that entry');
+  assert.equal(isDismissibleWarning({message:'some object warning with neither marker'},{}),true,'an object warning with neither dismissible:true nor needsReviewRef must also be unconditionally dismissible');
+  console.log('PASS: V6-F55 a plain-string warning (draft.warnings, the place-not-validated notice, or any other model-authored text) is always dismissible, since it was never field-backed in the first place');
+}
+
+// --- V6-F55 (extension): four Panvaree Resort warnings (a duplicate/unexplained second booking
+// number, ambiguous check-in/check-out date labeling, RTL phone-formatting ambiguity, and a
+// truncated address) survived both editing every related field AND the existing generic dismiss
+// action. Root cause (confirmed by code reading): isDismissibleWarning decided "this warning will
+// auto-clear when the right field is edited" by checking whether the warning's TEXT happened to
+// contain the LABEL TEXT of any currently-live needsReviewFields entry -- a free-text warning that
+// merely MENTIONS a common label word (e.g. "טלפון") in an unrelated sentence was misclassified as
+// field-backed purely by substring coincidence, so it could never clear (not really field-backed)
+// NOR be dismissed (the false match blocked the generic dismiss action too). Fixed by requiring an
+// explicit needsReviewRef{key,value} the warning carries only when it genuinely was generated from
+// a needsReviewFields entry. ---
+function test_V6_F55_ext_needsReviewRef_warning_not_dismissible_while_live(){
+  const details={needsReviewFields:[{key:'phone',label:'טלפון',value:'+66-1-234-5678',evidence:'x'}]};
+  const warning={message:'דורש בדיקה — טלפון: +66-1-234-5678 (x)',needsReviewRef:{key:'phone',value:'+66-1-234-5678'}};
+  assert.equal(isDismissibleWarning(warning,details),false,'a needsReviewRef-backed warning must NOT be dismissible while its exact entry is still present in needsReviewFields -- editing the field is the primary way to clear it');
+  console.log('PASS: V6-F55 ext a needsReviewRef-backed warning stays non-dismissible while its exact field entry is still live');
+}
+function test_V6_F55_ext_needsReviewRef_warning_dismissible_once_stale(){
+  const details={needsReviewFields:[]}; // the entry was removed elsewhere (resolved by an edit, or via resolveMergeCandidate)
+  const warning={message:'דורש בדיקה — טלפון: +66-1-234-5678 (x)',needsReviewRef:{key:'phone',value:'+66-1-234-5678'}};
+  assert.equal(isDismissibleWarning(warning,details),true,'once the backing needsReviewFields entry is gone, the now-stale warning text must be dismissible as a safety net');
+  // Also stale when the SAME key now holds a genuinely different value (resolved to something else).
+  const detailsChangedValue={needsReviewFields:[{key:'phone',label:'טלפון',value:'+66-9-999-9999',evidence:'y'}]};
+  assert.equal(isDismissibleWarning(warning,detailsChangedValue),true,'a needsReviewFields entry with the same key but a different value no longer matches this warning\'s exact snapshot -- the warning is stale and must be dismissible');
+  console.log('PASS: V6-F55 ext a needsReviewRef-backed warning becomes dismissible once its exact entry is no longer live');
+}
+function test_V6_F55_ext_freetext_warning_dismissible_despite_label_word_collision(){
+  // The actual repro of Eyal's bug: a live phone needs-review entry with label "טלפון", and a
+  // separate, unrelated free-text warning that also happens to contain the word "טלפון" (an RTL
+  // phone-formatting-ambiguity note) -- must be dismissible regardless, because it carries no
+  // needsReviewRef at all and was never generated FROM the phone entry.
+  const details={needsReviewFields:[{key:'phone',label:'טלפון',value:'+66-1-234-5678',evidence:'x'}]};
+  const freeTextWarning='מספר הטלפון מוצג בכיוון RTL באופן שעלול להטעות — יש לבדוק מול המקור';
+  assert(freeTextWarning.includes('טלפון'),'sanity check: the free-text warning must genuinely contain the same word as the live label, or this is not the collision being tested');
+  assert.equal(isDismissibleWarning(freeTextWarning,details),true,'a plain free-text warning must be dismissible even when it happens to mention the same word as a currently-live field label, since it carries no needsReviewRef and was never generated FROM that field entry');
+  console.log('PASS: V6-F55 ext a free-text warning sharing a label word with a live needs-review field is dismissible regardless, closing the substring-collision bug (Panvaree Resort\'s RTL-phone/truncated-address warnings)');
+}
+function test_V6_F55_ext_reconcile_clears_needsReviewRef_warning_by_exact_key(){
+  const proposed={details:{needsReviewFields:[{key:'phone',label:'טלפון',value:'+66-1-234-5678',evidence:'x'}]},warnings:[{message:'דורש בדיקה — טלפון: +66-1-234-5678 (x)',needsReviewRef:{key:'phone',value:'+66-1-234-5678'}}]};
+  const reconciled=reconcileStaleNeedsReview(proposed,new Set(['phone']));
+  assert.equal(reconciled.details.needsReviewFields.length,0,'editing the phone field must clear the needsReviewFields entry');
+  assert.equal(reconciled.warnings.length,0,'editing the phone field must also clear the needsReviewRef-tagged warning by exact key match, not leave a now-stale warning behind');
+  console.log('PASS: V6-F55 ext reconcileStaleNeedsReview clears a needsReviewRef-tagged warning by exact key match when its field is edited');
 }
 
 // V6-F60: a date-only value's synthetic "12:00" default (dateTime(), activity-import-adapter.js/
@@ -132,7 +173,11 @@ test_V6_F55_resolve_merge_candidate_is_a_noop_for_an_unknown_key();
 test_V6_F55_resolve_merge_candidate_works_on_a_saved_item_shape();
 test_V6_F55_merge_candidate_panel_wired_into_both_screens();
 test_V6_F55_merge_conflict_warnings_excluded_from_generic_dismiss_list();
-test_V6_F55_plain_string_warning_dismissible_unless_backed_by_live_needs_review();
+test_V6_F55_plain_string_warning_always_dismissible();
+test_V6_F55_ext_needsReviewRef_warning_not_dismissible_while_live();
+test_V6_F55_ext_needsReviewRef_warning_dismissible_once_stale();
+test_V6_F55_ext_freetext_warning_dismissible_despite_label_word_collision();
+test_V6_F55_ext_reconcile_clears_needsReviewRef_warning_by_exact_key();
 test_V6_F60_fmt_omits_synthetic_time_for_date_only_precision();
 test_V6_F62_activity_items_have_attach_document_control();
-console.log('ALL PASS: 0.6.6.1 correction package -- V6-F55 (merged V6-F54) warning-lifecycle explicit decision point, V6-F60 date-only display, V6-F62 activity attach-document control');
+console.log('ALL PASS: 0.6.6.1/0.6.6.2 correction package -- V6-F55 (merged V6-F54, extended) warning-lifecycle explicit decision point (now needsReviewRef-based, not text-substring), V6-F60 date-only display, V6-F62 activity attach-document control');

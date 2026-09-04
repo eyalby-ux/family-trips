@@ -72,10 +72,14 @@ const now=new Date('2027-01-20T12:00:00Z');
   // map has no entry for) -- otherwise a manual edit of the check-in date could never clear this
   // exact warning. See tests/v6-49-51-correction.mjs for the full regression coverage.
   assert.equal(suggestion.proposed.details.needsReviewFields[0].key,'startDate');
-  assert(suggestion.warnings.some(w=>w.includes('דורש בדיקה')&&w.includes('2027-03-28')),'the conflicting value must be visible in the review-form warning list');
-  assert(suggestion.warnings.some(w=>w.includes('דורש בדיקה')),'a needs_review proposal state must also surface a general warning');
+  // V6-F55 ext: a needsReviewFields-sourced warning is now an object ({message,needsReviewRef}),
+  // not a plain string -- wt() extracts the displayable text either way, matching warningText()
+  // in v5-app.js.
+  const wt=w=>typeof w==='string'?w:(w?.message||'');
+  assert(suggestion.warnings.some(w=>wt(w).includes('דורש בדיקה')&&wt(w).includes('2027-03-28')),'the conflicting value must be visible in the review-form warning list');
+  assert(suggestion.warnings.some(w=>wt(w).includes('דורש בדיקה')),'a needs_review proposal state must also surface a general warning');
   const item=suggestionToItem(suggestion,{});
-  assert(item.warnings.some(w=>w.includes('2027-03-28')),'the needs_review marker must remain inspectable on the saved item, not just at review time');
+  assert(item.warnings.some(w=>wt(w).includes('2027-03-28')),'the needs_review marker must remain inspectable on the saved item, not just at review time');
   console.log('PASS: V6-F13 internally resolved evidence conflicts are surfaced as needs_review on the proposal and the saved item');
 }
 
@@ -431,5 +435,34 @@ function test_V6_F24_index_html_version_synced_to_package_json(){
   console.log('PASS: V6-F24 index.html\'s title/description are resolved from package.json at build time and can no longer drift from the shipped version');
 }
 test_V6_F24_index_html_version_synced_to_package_json();
+
+// --- V6-F61 (extended to the shared implementation, operational-data.js): Hotel had the
+// byte-identical unfixed label-doubling pattern in its own otherFields note-line mapping that
+// Activity's otherFields site was fixed for in the 0.6.6.1 pass -- and BOTH adapters'
+// importantNotes note-line mapping was never touched at all, which is very likely the actual
+// cause of Eyal's reopened AE-005 evidence (doubled "Payment status:"/"Booked by:"/"Ticket
+// number:" lines read as importantNotes entries, not otherFields entries). ---
+function test_V6_F61_hotel_other_fields_label_not_doubled(){
+  const result={attemptId:'f61-hotel-a',usage:{},estimatedVariableCostUsd:0,latencyMs:1,draft:{proposalState:'proposed',meaningfulTitle:'Panvaree Resort',propertyName:'Panvaree Resort',fields:[
+    {key:'payment_status',label:'Payment status',rawValue:'Payment status: paid',normalizedValue:'Payment status: paid',evidence:'Page 1',certainty:'exact'},
+  ],importantNotes:[],warnings:[],unresolved:[],explicitlyAbsent:[]},placeValidation:null};
+  const suggestion=smartImportResultToSuggestion(result,source,now);
+  assert(suggestion.proposed.notes.includes('סטטוס תשלום: paid'),'an unmapped otherFields field with a recognized synonym must render with a single, Hebrew-localized label');
+  assert(!suggestion.proposed.notes.includes('Payment status: Payment status'),'the printed label must never be doubled when the model\'s own rawValue already includes it verbatim -- Hotel had this exact byte-identical bug in its own otherFields mapping');
+  assert(!suggestion.proposed.notes.includes('Payment status:'),'the raw English label must not leak into the UI unfiltered once a Hebrew synonym is recognized');
+  console.log('PASS: V6-F61 Hotel\'s otherFields note-line site no longer doubles or leaves an unlocalized label');
+}
+test_V6_F61_hotel_other_fields_label_not_doubled();
+
+function test_V6_F61_hotel_important_notes_label_not_doubled(){
+  const result={attemptId:'f61-hotel-b',usage:{},estimatedVariableCostUsd:0,latencyMs:1,draft:{proposalState:'proposed',meaningfulTitle:'Panvaree Resort',propertyName:'Panvaree Resort',fields:[
+  ],importantNotes:[{category:'booking',title:'Booked by',text:'Booked by: Eyal Ben Yitzchak',evidence:'Page 1',certainty:'exact'}],warnings:[],unresolved:[],explicitlyAbsent:[]},placeValidation:null};
+  const suggestion=smartImportResultToSuggestion(result,source,now);
+  assert(suggestion.proposed.notes.includes('הוזמן על ידי: Eyal Ben Yitzchak'),'an importantNotes entry with a recognized synonym must render with a single, Hebrew-localized label');
+  assert(!suggestion.proposed.notes.includes('Booked by: Booked by'),'the printed label must never be doubled when the model\'s own text already includes it verbatim -- importantNotes was never touched by the previous (0.6.6.1) fix pass at all');
+  assert(!suggestion.proposed.notes.includes('Booked by:'),'the raw English label must not leak into the UI unfiltered once a Hebrew synonym is recognized');
+  console.log('PASS: V6-F61 Hotel\'s importantNotes note-line site (previously untouched) no longer doubles or leaves an unlocalized label');
+}
+test_V6_F61_hotel_important_notes_label_not_doubled();
 
 console.log('ALL PASS: Alpha 0.6.4 correction package regression suite');

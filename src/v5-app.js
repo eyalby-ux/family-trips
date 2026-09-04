@@ -1,4 +1,4 @@
-import {ITEM_TYPES,TYPE_FIELDS,buildItemFormValues,createSuggestions,findPossibleDuplicates,manualCreateDefaults,mapsUrl,normalizeUrlInput,reconcileStaleNeedsReview,resolveMergeCandidate,suggestionReviewDefaults,suggestionToItem,validateSource} from './ingestion.js';
+import {ITEM_TYPES,TYPE_FIELDS,buildItemFormValues,createSuggestions,findPossibleDuplicates,isDismissibleWarning,manualCreateDefaults,mapsUrl,normalizeUrlInput,reconcileStaleNeedsReview,resolveMergeCandidate,suggestionReviewDefaults,suggestionToItem,validateSource} from './ingestion.js';
 import {extractSourceContent,sha256File} from './content-extraction.js';
 import {MultipartQrCollector,decodeExternalText,importBatchToApp} from './external-import.js';
 import {availableTimelineModes,backfillTripDates,currentOperational,isItemOutsideTrip,normalizeDateRange,normalizeOperationalState,packingDuplicate,periodBounds,quickAccessTasks,sanitizeTripDates,shiftCursor,sortItemsByStartAt,uniqueRecordsById} from './operational-data.js';
@@ -196,24 +196,17 @@ function detailView(){const item=state.items.find(candidate=>candidate.id===stat
 function existingItemUnchangedNotice(type){
   return ({flight:'הטיסה הקיימת לא תשתנה עד לאישור מפורש.',hotel:'המלון הקיים לא ישתנה עד לאישור מפורש.'})[type]||'הפריט הקיים לא ישתנה עד לאישור מפורש.';
 }
-// V6-F49/V6-F55: an unresolved-sourced warning (smart-import-adapter.js / activity-import-
-// adapter.js) carries no field key at all, so it can never be auto-matched to an edited field and
-// cleared by reconcileStaleNeedsReview -- always dismissible, regardless of shape. V6-F55 extends
-// this: ANY plain-string warning is now also dismissible unless it currently matches a live
-// needsReviewFields label (meaning it's still resolvable the normal way, by editing that field --
-// once that edit happens, reconcileStaleNeedsReview clears the label AND the warning text
-// together, so this isn't offering a second, competing way to resolve the same thing). This is the
-// fallback that guarantees every warning shape -- draft.warnings, the place-not-validated notice,
-// or any other model-authored free text -- can always be cleared by *some* explicit action, not
-// only the specific shapes V6-F49/V6-F54 originally anticipated. Merge-conflict warnings are
-// excluded upstream (isMergeConflictWarningText) before this is ever consulted for them, since
-// they resolve through mergeCandidatePanel's explicit keep/accept choice instead of a plain dismiss.
-function isDismissibleWarning(value,details){
-  if(typeof value==='object'&&value!==null&&value.dismissible===true)return true;
-  const text=warningText(value);
-  const needsReviewLabels=(details?.needsReviewFields||[]).map(field=>field.label);
-  return !needsReviewLabels.some(label=>text.includes(label));
-}
+// V6-F49/V6-F55 (extended, V6-F55 ext): an unresolved-sourced warning (smart-import-adapter.js /
+// activity-import-adapter.js) carries no field key at all, so it can never be auto-matched to an
+// edited field and cleared by reconcileStaleNeedsReview -- always dismissible, regardless of
+// shape. isDismissibleWarning itself now lives in ingestion.js (pure logic, directly testable,
+// imported above) -- it decides dismissibility from an explicit needsReviewRef{key,value} a
+// warning carries only when it genuinely was generated from a live needsReviewFields entry,
+// replacing an earlier heuristic that guessed this from a text-substring match against the
+// entry's LABEL, which could misfire on an unrelated free-text warning that merely mentioned the
+// same common word (see ingestion.js for the full history). Merge-conflict warnings are excluded
+// upstream (isMergeConflictWarningText) before this is ever consulted for them, since they resolve
+// through mergeCandidatePanel's explicit keep/accept choice instead of a plain dismiss.
 function suggestionView(){const suggestion=suggestionById(state.suggestionId);if(!suggestion)return '<section class="card">ההצעה לא נמצאה.</section>';const sources=(suggestion.sourceIds||[suggestion.sourceId]).map(sourceById).filter(Boolean),p=suggestion.proposed,experimental=sources.some(source=>source.experimental),isUpdate=Boolean(suggestion.targetItemId);
   // V6-F51: mirrors suggestionToItem's own trip-start fallback (fires at approval time for a new
   // item) so the review form shows the same value approval would have produced anyway, instead

@@ -1,4 +1,5 @@
 import {clearResolvedDirectionWarning,isSameFlightAcrossDirectionCandidates,isSameFlightForDedup,isSameFlightNumberAndDate,mergeFlightDetails} from './flight-import-adapter.js';
+import {mergeActivityDetails} from './activity-import-adapter.js';
 import {isValidCalendarDate,normalizeDateRange,today} from './operational-data.js';
 import {MERGE_CONFLICT_WARNING_PREFIX} from './smart-import-adapter.js';
 
@@ -128,8 +129,14 @@ export function suggestionToItem(suggestion,existing={},tripStartDate=''){
   // direction-ambiguous companion source) silently drop every OTHER passenger, or wipe an
   // already-resolved direction/aircraft/class value back to blank (V6-F39). mergeFlightDetails
   // preserves existing non-blank values and only fills genuine gaps.
+  // V6-F66: extends the flight-only field-aware details merge to Activity's own per-ticket-holder
+  // array (mergeActivityDetails, activity-import-adapter.js), mirroring exactly the class of
+  // problem Flight already solved for its per-passenger array -- every OTHER type still falls
+  // through to the original plain object spread, unchanged.
   const details=value('type','')==='flight'&&existing.details&&p.details
     ?mergeFlightDetails(existing.details,p.details)
+    :value('type','')==='activity'&&existing.details&&p.details
+    ?mergeActivityDetails(existing.details,p.details)
     :{...(existing.details||{}),...(p.details||{})};
   const location=String(value('location','')).trim();
   // V6-F35/V6-F39 (fix pass 4): once a flight's direction is resolved -- location ends up
@@ -139,8 +146,16 @@ export function suggestionToItem(suggestion,existing={},tripStartDate=''){
   // own unresolved extraction attempt must not be dragged onto the item. Checked here, once, so
   // every merge path (general duplicate-merge, attach-and-extract) gets this for free.
   const directionNowResolved=value('type','')==='flight'&&Boolean(p.details?.directionCandidates?.length)&&Boolean(location);
+  // V6-F66: the top-level participants array had the identical either/or defect one level up
+  // (value('participants',[]) picks the new suggestion's array OR the existing one, never both) --
+  // fixed only for 'activity' (the type this array is actually used for per-ticket-holder-derived
+  // names) to avoid any unintended behavior change for Hotel/Flight/manual items, which don't
+  // populate participants the same way.
+  const participants=value('type','')==='activity'
+    ?[...new Set([...(existing.participants||[]),...(p.participants||[])])].filter(Boolean)
+    :value('participants',[]);
   const incomingWarnings=p.warnings||suggestion.warnings||[];
-  return {...existing,id:existing.id||makeId('item'),type:value('type','document'),title:String(value('title','')).trim(),provider:String(value('provider','')).trim(),confirmationNumber:String(value('confirmationNumber','')).trim(),participants:value('participants',[]),location,website:String(value('website','')).trim(),phone:String(value('phone','')).trim(),schedule,startAt,endAt,notes:String(value('notes','')).trim(),details,dateMeta:{...(existing.dateMeta||{}),...(p.dateMeta||{})},fieldConfidence:{...(existing.fieldConfidence||{}),...(p.fieldConfidence||{})},warnings:[...(existing.warnings||[]),...(directionNowResolved?clearResolvedDirectionWarning(incomingWarnings):incomingWarnings)],sourceIds:[...new Set([...(existing.sourceIds||[]),...sourceIds])],updatedAt:new Date().toISOString()};
+  return {...existing,id:existing.id||makeId('item'),type:value('type','document'),title:String(value('title','')).trim(),provider:String(value('provider','')).trim(),confirmationNumber:String(value('confirmationNumber','')).trim(),participants,location,website:String(value('website','')).trim(),phone:String(value('phone','')).trim(),schedule,startAt,endAt,notes:String(value('notes','')).trim(),details,dateMeta:{...(existing.dateMeta||{}),...(p.dateMeta||{})},fieldConfidence:{...(existing.fieldConfidence||{}),...(p.fieldConfidence||{})},warnings:[...(existing.warnings||[]),...(directionNowResolved?clearResolvedDirectionWarning(incomingWarnings):incomingWarnings)],sourceIds:[...new Set([...(existing.sourceIds||[]),...sourceIds])],updatedAt:new Date().toISOString()};
 }
 // V6-F35 (reopened, fix pass 5): the fix-pass-4 version of this only cleared a stale warning when
 // a direction was resolved via the picker. Retesting FL-007 found the same class of bug on a
@@ -172,15 +187,52 @@ const NEEDS_REVIEW_FIELD_MAP={
 export function reconcileStaleNeedsReview(proposed,changedFields){
   const needsReviewFields=proposed.details?.needsReviewFields;
   if(!Array.isArray(needsReviewFields)||!needsReviewFields.length||!changedFields||!changedFields.size)return proposed;
-  const stillPending=[],resolvedLabels=[];
+  const stillPending=[],resolvedLabels=[],resolvedKeys=[];
   for(const field of needsReviewFields){
     const mapped=NEEDS_REVIEW_FIELD_MAP[field.key]||[];
-    if(mapped.some(name=>changedFields.has(name)))resolvedLabels.push(field.label);
+    if(mapped.some(name=>changedFields.has(name))){resolvedLabels.push(field.label);resolvedKeys.push(field.key)}
     else stillPending.push(field);
   }
   if(!resolvedLabels.length)return proposed;
-  const warnings=(proposed.warnings||[]).filter(warning=>!resolvedLabels.some(label=>String(warning).includes(label)));
+  // V6-F55 (extension): a warning generated FROM a needsReviewFields entry now carries an explicit
+  // needsReviewRef{key,value} (smart-import-adapter.js/activity-import-adapter.js) -- cleared here
+  // by an EXACT key match, not a text-substring guess. The old label-substring fallback is kept
+  // for any warning that still hasn't been migrated to that shape (e.g. an older/plain-string
+  // warning already sitting in a fixture or in a real user's stored data).
+  const warnings=(proposed.warnings||[]).filter(warning=>{
+    if(typeof warning==='object'&&warning!==null&&warning.needsReviewRef)return !resolvedKeys.includes(warning.needsReviewRef.key);
+    return !resolvedLabels.some(label=>String(warning).includes(label));
+  });
   return {...proposed,details:{...proposed.details,needsReviewFields:stillPending},warnings};
+}
+// V6-F55 (extension): replaces the old heuristic -- "this warning will auto-clear when the right
+// field is edited, so don't offer a manual dismiss" decided by checking whether the warning's
+// rendered TEXT happened to contain the LABEL TEXT of any currently-live needsReviewFields entry
+// (needsReviewLabels.some(label=>text.includes(label))). Field labels are generic, common Hebrew
+// words -- "טלפון" (phone), "תאריך התחלה"/"תאריך סיום" (start/end date), "מספר הזמנה" (booking
+// number) -- so a free-text warning that merely MENTIONS one of these common words in an unrelated
+// sentence (e.g. a note that the phone number's RTL rendering is ambiguous, or that an address
+// looks truncated) got misclassified as "resolvable by editing that field" purely by substring
+// coincidence, even though it was never actually generated FROM a needsReviewFields entry at all
+// -- and because it wasn't really field-backed, editing the field did nothing for it either
+// (reconcileStaleNeedsReview only clears a warning tied to an entry that ACTUALLY got resolved),
+// so it was stuck in both directions at once (Panvaree Resort's four never-clearing warnings).
+// Fixed by requiring an EXPLICIT needsReviewRef{key,value} the warning carries only when it
+// genuinely was generated from a needsReviewFields entry -- everything else (a plain string, or an
+// object with neither needsReviewRef nor dismissible:true) is unconditionally dismissible, since
+// it was never field-backed in the first place and has no other way to ever clear. Lives here
+// (not v5-app.js, where it is used) because it is pure logic with no DOM dependency, the same
+// reasoning that already put reconcileStaleNeedsReview/resolveMergeCandidate here -- and because
+// it makes the function directly importable and testable, unlike v5-app.js (a CSS import makes it
+// unimportable from plain Node).
+export function isDismissibleWarning(value,details){
+  if(typeof value==='object'&&value!==null&&value.dismissible===true)return true;
+  if(typeof value==='object'&&value!==null&&value.needsReviewRef){
+    const ref=value.needsReviewRef;
+    const stillLive=(details?.needsReviewFields||[]).some(field=>field.key===ref.key&&field.value===ref.value);
+    return !stillLive;
+  }
+  return true;
 }
 // V6-F55: replaces "silently keep the trusted value + show a warning that may never clear" with an
 // explicit decision -- the Product Owner picks 'keep' (the already-applied trusted value stays,

@@ -200,3 +200,27 @@ export function sanitizeTripDates(seed={}){
     endDate:isValidCalendarDate(seed.endDate)?seed.endDate:'',
   };
 }
+
+// V6-F61: label-doubling / unlocalized-label fix, shared by both Smart Import adapters
+// (Hotel/Activity) across all four note-line generation sites (each adapter's own otherFields
+// and importantNotes note mappings). Previously this lived only in activity-import-adapter.js
+// and was applied to just ONE of its two sites -- Hotel's own byte-identical otherFields
+// doubling, and BOTH adapters' importantNotes mapping, were never touched at all, which is very
+// likely the actual cause of Eyal's reopened AE-005 evidence ("Payment status: Payment status:
+// paid", "Booked by: Booked by: [name]", "Ticket number: Ticket number: 2ZTN-G53R-GJ81P" all
+// doubled -- these read as importantNotes entries, not otherFields entries, exactly the
+// untouched path). A single shared implementation means a future translation or dedup fix only
+// ever has to happen once, at the source, instead of per call site.
+export const GENERIC_FIELD_LABELS={
+  purchaser:'רוכש',buyer:'רוכש',orderer:'מזמין','purchased by':'רוכש',
+  'payment status':'סטטוס תשלום','booked by':'הוזמן על ידי','ticket number':'מספר כרטיס',
+};
+export function normalizedGenericLabel(label){
+  const key=String(label||'').trim().toLowerCase();
+  return GENERIC_FIELD_LABELS[key]||label;
+}
+export function stripDuplicateLabelPrefix(label,rawValue){
+  const value=String(rawValue||'');
+  const prefix=`${String(label||'').trim()}:`;
+  return value.toLowerCase().startsWith(prefix.toLowerCase())?value.slice(prefix.length).trim():value;
+}

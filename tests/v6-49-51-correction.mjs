@@ -49,11 +49,15 @@ const now=new Date('2027-01-15T12:00:00Z');
   assert(edited.warnings.some(w=>typeof w==='object'&&w!==null&&w.dismissible),'an unresolved-sourced warning must survive reconcileStaleNeedsReview regardless of which fields changed -- it has no key to match against');
 
   const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
+  const ingestionSrc=fs.readFileSync(new URL('../src/ingestion.js',import.meta.url),'utf8');
   // V6-F55 correction pass: isDismissibleWarning gained a second `details` argument (a plain-
   // string warning is now also dismissible as a fallback when it isn't backed by a live
   // needsReviewFields entry) -- an object-wrapped {dismissible:true} warning like this one is
   // still always recognized first, unconditionally, regardless of that second argument.
-  assert.match(app,/if\(typeof value==='object'&&value!==null&&value\.dismissible===true\)return true;/,'the review screen must recognize a dismissible warning object');
+  // V6-F55 ext: isDismissibleWarning itself now lives in ingestion.js (pure logic, directly
+  // testable), imported into v5-app.js rather than defined there -- source-inspected here at its
+  // new location.
+  assert.match(ingestionSrc,/if\(typeof value==='object'&&value!==null&&value\.dismissible===true\)return true;/,'isDismissibleWarning must recognize a dismissible warning object');
   assert.match(app,/action==='dismiss-warning'/,'the review screen must offer a manual dismiss action for a dismissible warning');
   console.log('PASS: V6-F49 (unresolved path) a warning with no field key never auto-clears and is marked dismissible; the review screen wires a manual dismiss control for exactly this case');
 }

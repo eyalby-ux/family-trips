@@ -1,4 +1,4 @@
-import {isValidCalendarDate,normalizeFlightDateString,parseTimeValue} from './operational-data.js';
+import {isValidCalendarDate,normalizeFlightDateString,normalizedGenericLabel,parseTimeValue,stripDuplicateLabelPrefix} from './operational-data.js';
 
 const FIELD_MAP={
   property_name:'title',hotel_name:'title',booking_number:'confirmationNumber',booking_number_primary:'confirmationNumber',confirmation_number:'confirmationNumber',
@@ -84,11 +84,15 @@ export function smartImportResultToSuggestion(result,source,now=new Date()){
   if(draft.propertyName)proposed.location=String(draft.propertyName).trim();
   const place=result.placeValidation;
   if(place?.state==='validated')proposed.details.canonicalPlace=place.acceptedPlace;
-  const noteLines=[...(draft.importantNotes||[]).map(note=>`${note.title}: ${note.text}`),...otherFields.map(field=>`${field.label}: ${field.rawValue}`)];
+  // V6-F61 correction pass: both note-line sites (previously plain template literals) now
+  // apply the same shared normalizedGenericLabel/stripDuplicateLabelPrefix helpers Activity's
+  // otherFields site already used -- Hotel had this exact byte-identical doubling bug in its own
+  // otherFields mapping, and BOTH adapters' importantNotes mapping was never touched at all.
+  const noteLines=[...(draft.importantNotes||[]).map(note=>`${normalizedGenericLabel(note.title)}: ${stripDuplicateLabelPrefix(note.title,note.text)}`),...otherFields.map(field=>`${normalizedGenericLabel(field.label)}: ${stripDuplicateLabelPrefix(field.label,field.rawValue)}`)];
   proposed.notes=noteLines.join('\n');
   proposed.details.smartImportFields=[...(draft.fields||[]),...fallbackEvidenceFields];
   if(needsReviewFields.length)proposed.details.needsReviewFields=needsReviewFields;
-  const needsReviewWarnings=needsReviewFields.map(field=>`דורש בדיקה — ${field.label}: ${field.value} (${field.evidence||'ללא הפניה למקור'})`);
+  const needsReviewWarnings=needsReviewFields.map(field=>({message:`דורש בדיקה — ${field.label}: ${field.value} (${field.evidence||'ללא הפניה למקור'})`,needsReviewRef:{key:field.key,value:field.value}}));
   const proposalStateWarning=draft.proposalState==='needs_review'?['ההצעה כוללת מידע שדורש בדיקה לפני אישור.']:[];
   // V6-F49: an unresolved-sourced warning carries no field key at all, so reconcileStaleNeedsReview
   // (ingestion.js) can never match it to an edited field and clear it automatically -- there is
