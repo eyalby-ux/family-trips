@@ -1,8 +1,8 @@
 {
   "name": "family-trips-alpha-v6",
-  "version": "0.6.6.1",
+  "version": "0.6.6.2",
   "private": true,
-  "description": "Family Trips Alpha 0.6.6.1 Correction Package",
+  "description": "Family Trips Alpha 0.6.6.2 Correction Package",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
