@@ -1,0 +1,24 @@
+Session checkpoint: review and close out all outstanding investigation prompts from the first `0.6.6` acceptance-testing pass before moving on. The prompt files from that pass have been moved to `docs/claude-code-prompts/0_6_6_1/` (five files, listed below) — treat that folder as the complete record of what was asked during this first session.
+
+## What's already been resolved (context, not re-work)
+
+`claude_code_prompt_v6f56_f57_followup.md`'s Follow-up 1 and Follow-up 2 have already been completed and reported: `V6-F56` (High — no DNI field anywhere in `ticketHolderSchema`, schema-provable, real defect), `V6-F57` (Low — `ticketHolders`/`amount`/`currency` correctly captured but never rendered in `detailView()`, confirmed unconditional across every Activity case, not case-specific), and `V6-F58` (Low-Medium — the regression suite `tests/v6-6-attraction-event-import.mjs` has fixture data for `AE-005`'s `amount` and `AE-002`/`AE-004`'s `seatOrSection` but never asserts them, a real coverage gap). All three are recorded in `MVP_DELIVERY_PLAN_CURRENT_STATE_V1.md` at `V60`, status `TBD after acceptance completion`. Do not redo this work — confirm it's accurately reflected in the register (see the audit step below) and move on.
+
+## What still needs to be done
+
+Go through each of the following and complete whatever that file's own instructions ask for — investigate, do NOT fix, register findings with the next available ID(s) in the standard's mandatory finding register format:
+
+1. **`claude_code_prompt_v6f56_f57_followup.md`, Follow-up 3 only** (Follow-ups 1–2 are done, see above) — `AE-006` (WaterLand): confirm the `V6-F57` display-gap pattern extends to `AE-006` too, and separately investigate (a) the saved item's title showing "WaterLand" (the venue name) instead of the frozen correct title "כניסה לפארק יום" (day park entry), and (b) whether the displayed time "12:00" on `AE-006` is a genuine model fabrication (the source is explicitly a day-ticket with no time given) or a UI-layer default for date-only values.
+2. **`claude_code_prompt_ae002_purchaser_label_bug.md`** — the "Purchaser: Purchaser: <name>" duplicated label on `AE-002`, plus why that one field's label renders in English when every sibling label on the page is Hebrew.
+3. **`claude_code_prompt_ae003_ae004_companion_pair_investigation.md`** — three issues: whether `AE-003`/`AE-004` failing to land as a linked companion pair is actually explained by `activity` items having no attach-existing-document control at all (the likely root cause, per Eyal's direct observation while testing — check this first), the `provider` field showing the ticketing platform ("SmarTicket.co.il"/"SmarTicket") instead of the Bloomfield Science Museum venue name, and `AE-004`'s location showing only "אודיטוריום" instead of the full "Bloomfield Science Museum Jerusalem, Auditorium."
+4. **`claude_code_prompt_ae007_venue_name_investigation.md`** — whether "גן החיות התנ\"כי ירושלים" (Jerusalem Biblical Zoo) actually appears in the `AE-007` source image, or whether the model fabricated a specific real-world venue name where the frozen ground truth says the source only contains a generic "גן החיות" label. This one is flagged High-severity-if-confirmed in its own file — read that file's full reasoning before investigating.
+
+## Final step: consolidated audit of the whole first session, not just these four
+
+Once all four above are investigated and registered, produce one consolidated summary covering every finding discovered across this entire first `0.6.6` acceptance session — from the originally-folded-in `V6-F49`–`V6-F51` through whatever new IDs come out of items 1–4 above. For each finding, confirm in `MVP_DELIVERY_PLAN_CURRENT_STATE_V1.md`:
+
+- it has exactly one entry, with a unique ID (no duplicate ID reuse, no two findings silently sharing one ID);
+- its severity, current status (`TBD`/`Assigned`/`Fixed`/`Deferred`/`Accepted`), and target version are all present and consistent with what was actually reported for it during investigation;
+- nothing investigated during this session is missing from the register entirely (cross-check against all five files in `0_6_6_1/`, not just items 1–4 — including the parts of `claude_code_prompt_ae001_item5_investigation.md` that fed into `V6-F56`/`V6-F57`, to make sure both landed correctly).
+
+Report back: the full list of finding IDs opened or touched during this session with a one-line status each, explicit confirmation the register is internally consistent (or a list of what you had to correct if it wasn't), and anything from the five investigation files that turned out NOT to be a defect (so it doesn't get mistaken for an open finding later). Do not fix anything — this is investigation, registration, and audit only. This is a natural checkpoint before deciding what goes into a correction package; it does not need to block Eyal from continuing further `0.6.6` acceptance testing in parallel.
