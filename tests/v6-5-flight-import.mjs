@@ -635,7 +635,14 @@ function test_V6_F33_merge_preserves_existing_trusted_values_on_conflict(){
   assert.equal(merged.details.passengers.length,1,'a conflicting merge must still preserve passengers already on the item, unrelated to the scalar-field conflict');
 
   const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
-  assert.match(app,/const protectedSuggestion=preserveTrustedFieldsOnMerge\(suggestion,target\)/,'the general duplicate-merge path in approveSuggestion (not just attach-and-extract) must also run new suggestions through preserveTrustedFieldsOnMerge before merging into an already-approved item');
+  // V6-F73: this now reads `suggestion.targetItemId?suggestion:preserveTrustedFieldsOnMerge(...)` --
+  // a suggestion with no targetItemId (the general duplicate-merge path this test is about) still
+  // takes the preserveTrustedFieldsOnMerge branch, unchanged in effect from the original
+  // unconditional call this assertion used to match literally. See tests/v6-73-correction.mjs for
+  // the fix itself (a targetItemId-bearing suggestion, from attach-and-extract, must NOT be run
+  // through preserveTrustedFieldsOnMerge a second time at approval, or an already-resolved merge
+  // conflict is silently reverted -- the Panvaree Resort data-loss bug).
+  assert.match(app,/const protectedSuggestion=suggestion\.targetItemId\?suggestion:preserveTrustedFieldsOnMerge\(suggestion,target\)/,'the general duplicate-merge path in approveSuggestion (not just attach-and-extract) must also run new suggestions through preserveTrustedFieldsOnMerge before merging into an already-approved item');
   // V6-F54: detailView's warning rendering moved from a raw item.warnings?.length check to
   // itemWarningEntries(item) (dedup by text while preserving the true index, so a dismiss action
   // on a dismissible entry removes the correct one) -- still renders every warning, including a

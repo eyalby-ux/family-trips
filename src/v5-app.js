@@ -1,4 +1,4 @@
-import {ITEM_TYPES,TYPE_FIELDS,buildItemFormValues,createSuggestions,findPossibleDuplicates,isDismissibleWarning,manualCreateDefaults,mapsUrl,normalizeUrlInput,reconcileStaleNeedsReview,resolveMergeCandidate,suggestionReviewDefaults,suggestionToItem,validateSource} from './ingestion.js';
+import {ITEM_TYPES,TYPE_FIELDS,buildItemFormValues,createSuggestions,findPossibleDuplicates,flagReversedFlightDirection,isDismissibleWarning,manualCreateDefaults,mapsUrl,normalizeUrlInput,reconcileStaleNeedsReview,resolveMergeCandidate,suggestionReviewDefaults,suggestionToItem,validateSource} from './ingestion.js';
 import {extractSourceContent,sha256File} from './content-extraction.js';
 import {MultipartQrCollector,decodeExternalText,importBatchToApp} from './external-import.js';
 import {availableTimelineModes,backfillTripDates,currentOperational,isItemOutsideTrip,normalizeDateRange,normalizeOperationalState,packingDuplicate,periodBounds,quickAccessTasks,sanitizeTripDates,shiftCursor,sortItemsByStartAt,uniqueRecordsById} from './operational-data.js';
@@ -347,6 +347,11 @@ async function runSmartAnalysis(source,file,targetItem=null){
     const category=targetItem?targetItem.type:result.category;
     if(category==='unrecognized')throw new Error('לא זוהה מסמך מלון, טיסה או אטרקציה במקור. לא נוצרה הצעה.');
     let suggestions=category==='flight'?smartImportFlightResultToSuggestions(result,source):category==='activity'?[smartImportActivityResultToSuggestion(result,source)]:[smartImportResultToSuggestion(result,source)];
+    // V6-F72: flags a newly extracted flight segment whose airports are the exact reverse of an
+    // already-saved item sharing its flight number -- the precise, deterministic signature of the
+    // FL-001/FL-003 RTL-misread failure mode, independent of whatever the live model itself
+    // reported as its own confidence. Runs for every flight suggestion, not only attach-and-extract.
+    if(category==='flight')suggestions=suggestions.map(suggestion=>flagReversedFlightDirection(suggestion,state.items));
     if(targetItem)suggestions=suggestions.map(suggestion=>{const merged=preserveTrustedFieldsOnMerge(suggestion,targetItem);merged.targetItemId=targetItem.id;return merged});
     if(!suggestions.length)throw new Error('לא זוהה מקטע טיסה תקין במקור. לא נוצרה הצעה.');
     state.suggestions.push(...suggestions);
@@ -457,7 +462,21 @@ function approveSuggestion(suggestion,mode='check',targetId=''){if(!suggestion||
     // preserveTrustedFieldsOnMerge here -- the same trusted-field protection already used for
     // attach-and-extract -- keeps the existing item's non-blank values as primary on conflict and
     // records the differing new value as a reviewable candidate + warning instead.
-    const protectedSuggestion=preserveTrustedFieldsOnMerge(suggestion,target);
+    // V6-F73: a suggestion that already carries targetItemId was already run through
+    // preserveTrustedFieldsOnMerge once, at creation time (see runSmartAnalysis), and any conflict
+    // it found is already reflected in suggestion.proposed.details.mergeCandidates for the
+    // Product Owner to resolve via the merge-candidate picker. Calling it AGAIN here re-compares
+    // the (possibly now-resolved) suggestion value against the target item's still-untouched old
+    // value -- which the target hasn't been assigned yet, since that happens two lines below -- so
+    // a resolution that picked the new value reads as a brand-new conflict and gets silently
+    // reverted back to the old value, with a fresh mergeCandidates entry recreated on the very item
+    // being saved. That is exactly the observed Panvaree Resort bug: the detail page (which reads
+    // the persisted item, not the suggestion) shows the old values and the same prompt reappears,
+    // because the "resolution" the Product Owner saved was discarded before it ever reached the
+    // item. A suggestion with no targetItemId (the duplicate-dialog merge path, whose target is
+    // only chosen at approval time) has never been through preserveTrustedFieldsOnMerge before and
+    // still needs it run here for the first time -- that path is unaffected by this fix.
+    const protectedSuggestion=suggestion.targetItemId?suggestion:preserveTrustedFieldsOnMerge(suggestion,target);
     mergeHadConflict=Object.keys(protectedSuggestion.proposed.details?.mergeCandidates||{}).length>0;
     // V6-F36/V6-F39 (fix pass 4): an ambiguous suggestion merging into a trusted item either
     // already had its direction picked by the Product Owner, or -- more likely, since dedup can

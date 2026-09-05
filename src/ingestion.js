@@ -1,4 +1,4 @@
-import {clearResolvedDirectionWarning,isSameFlightAcrossDirectionCandidates,isSameFlightForDedup,isSameFlightNumberAndDate,mergeFlightDetails} from './flight-import-adapter.js';
+import {clearResolvedDirectionWarning,isSameFlightAcrossDirectionCandidates,isSameFlightForDedup,isSameFlightNumberAndDate,mergeFlightDetails,normalizeFlightNumber} from './flight-import-adapter.js';
 import {mergeActivityDetails} from './activity-import-adapter.js';
 import {isValidCalendarDate,normalizeDateRange,today} from './operational-data.js';
 import {MERGE_CONFLICT_WARNING_PREFIX} from './smart-import-adapter.js';
@@ -111,6 +111,35 @@ export function findPossibleDuplicates(suggestion,items=[],sources=[]){
     const sameType=p.type===item.type,sameProvider=normalized(p.provider)&&normalized(p.provider)===normalized(item.provider),sameTitle=normalized(p.title)&&normalized(p.title)===normalized(item.title),sameDate=dateOnly(p.startAt)&&dateOnly(p.startAt)===dateOnly(item.startAt);
     return sameType&&((sameProvider&&sameDate)||(sameTitle&&sameDate));
   });
+}
+// V6-F72: FL-003 reproduced FL-001's own already-once-confirmed RTL-layout misread (both legs'
+// departure/arrival swapped, confidently, with no review flag at all) -- a live vision model's own
+// visual parsing of a right-to-left itinerary layout is not something a text prompt instruction
+// alone can fully guarantee to prevent, the same live-model-compliance ceiling already documented
+// for V6-F53 (direction non-determinism) and V6-F65 (fabrication) -- prompt strengthening alone
+// was already tried once for this exact failure class and clearly did not fully close it. This
+// adds a real, deterministic, code-level safety net alongside the strengthened prompt: if a newly
+// extracted flight segment shares its flight number with an ALREADY-SAVED flight item, but its
+// departure and arrival airports are the EXACT REVERSE of that item's, this is the precise,
+// unambiguous signature of the known failure mode (the same real flight, read backwards) --
+// flagged needs_review rather than silently trusting either reading, regardless of which one
+// happens to be right this time. Only fires when there is something to compare against (an
+// existing saved item with the same flight number); it cannot help a flight number's very first
+// extraction, which is exactly why the prompt-level strengthening still matters too.
+export function flagReversedFlightDirection(suggestion,items=[]){
+  const p=suggestion.proposed||suggestion;
+  if(p.type!=='flight')return suggestion;
+  const flightNumber=normalizeFlightNumber(p.details?.flightNumber);
+  const dep=String(p.details?.departureAirport?.code||'').trim(),arr=String(p.details?.arrivalAirport?.code||'').trim();
+  if(!flightNumber||!dep||!arr)return suggestion;
+  const reversed=items.find(item=>{
+    if(item.type!=='flight'||normalizeFlightNumber(item.details?.flightNumber)!==flightNumber)return false;
+    const itemDep=String(item.details?.departureAirport?.code||'').trim(),itemArr=String(item.details?.arrivalAirport?.code||'').trim();
+    return Boolean(itemDep)&&Boolean(itemArr)&&dep===itemArr&&arr===itemDep;
+  });
+  if(!reversed)return suggestion;
+  const warning=`מספר טיסה ${p.details.flightNumber} כבר קיים בפריט אחר בכיוון הפוך (${reversed.location||`${reversed.details?.departureAirport?.code||''} → ${reversed.details?.arrivalAirport?.code||''}`}) — יש לוודא איזה כיוון נכון לפני אישור.`;
+  return {...suggestion,proposed:{...p,warnings:[...(p.warnings||[]),warning]},warnings:[...(suggestion.warnings||p.warnings||[]),warning]};
 }
 export function suggestionToItem(suggestion,existing={},tripStartDate=''){
   const p=suggestion.proposed,sourceIds=suggestion.sourceIds?.length?suggestion.sourceIds:[suggestion.sourceId].filter(Boolean);

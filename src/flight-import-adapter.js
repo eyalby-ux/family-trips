@@ -294,7 +294,7 @@ export function isSameFlightNumberAndDate(proposed,item){
   if(!flightA||flightA!==flightB)return false;
   return Boolean(dateOnly(proposed.startAt)&&dateOnly(proposed.startAt)===dateOnly(item.startAt));
 }
-function normalizeFlightNumber(value){
+export function normalizeFlightNumber(value){
   const raw=String(value||'').toUpperCase().replace(/\s+/g,'');
   const match=raw.match(/^([A-Z]{1,3})0*(\d+)$/);
   return match?`${match[1]}${match[2]}`:raw;
