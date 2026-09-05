@@ -1,4 +1,5 @@
 import { auth } from './firebase.js';
+import { resolveSmartImportSubmissionMode } from './operational-data.js';
 
 const ENDPOINT='/api/familytrips-smart-import';
 const MAX_BINARY_BYTES=4*1024*1024;
@@ -10,8 +11,15 @@ export async function analyzeHotelSource({trip,source,file,url}){
 // Add no longer asks Hotel vs. Flight up front (removed alongside this) -- the server
 // classifies from content first, then runs the matching extraction; result.category tells the
 // caller which adapter to route the draft through.
-export async function analyzeSource({trip,source,file}){
-  return runSource({operation:'analyze_source',trip,source,file,url:'',allowUrl:true});
+// V6-F69: url was previously missing from this signature entirely and hardcoded to '' below,
+// unlike analyzeHotelSource/analyzeActivitySource in this same file, which both correctly accept
+// and forward it -- a link source (which has no file at all) always fell into runSource's
+// file-required branch and threw before any network request was attempted, for every URL
+// regardless of content-type/robots.txt/reachability. This is the one call site used for a
+// brand-new item's global Add before its category is known, so the bug affected every category,
+// not just one.
+export async function analyzeSource({trip,source,file,url}){
+  return runSource({operation:'analyze_source',trip,source,file,url,allowUrl:true});
 }
 
 // Flight Smart Import (0.6.5): no public-URL source is in scope, so it is rejected here with a
@@ -36,12 +44,11 @@ async function runSource({operation,trip,source,file,url,allowUrl}){
   const tripId=String(trip?.id||'').trim();
   if(!tripId)throw new Error('לא נמצא טיול פעיל.');
   await request(token,{operation:'register_trip',tripId});
+  const mode=resolveSmartImportSubmissionMode(url,file,allowUrl);
   let submittedSource;
-  if(url){
-    if(!allowUrl)throw new Error('קישור ציבורי אינו נתמך עבור סוג מקור זה.');
+  if(mode==='url'){
     submittedSource={kind:'url',url:String(url).trim(),name:String(source?.name||url)};
   }else{
-    if(!file)throw new Error('יש לבחור PDF או תמונה.');
     if(file.size>MAX_BINARY_BYTES)throw new Error('בגרסת 0.6.5 ניתן לנתח קובץ עד 4MB. אפשר לשמור אותו ללא ניתוח.');
     submittedSource={
       kind:file.type==='application/pdf'?'pdf':'image',

@@ -254,3 +254,23 @@ export function stripDuplicateLabelPrefix(label,rawValue){
   }
   return value;
 }
+
+// V6-F69: the URL-vs-file submission-mode decision -- the exact logic that had the bug, since
+// analyzeSource (src/smart-import-client.js) never forwarded a url into it at all, hardcoding it
+// to '' and making the file-required branch the only possible outcome regardless of what was
+// submitted. Extracted here, dependency-free, so it can be executed directly by a regression test:
+// smart-import-client.js itself cannot be imported at all under this project's plain-Node test
+// harness, since it transitively imports firebase.js, which touches import.meta.env and throws
+// immediately outside a Vite build -- confirmed directly (`node -e "import('./src/smart-import-
+// client.js')"` fails with "Cannot read properties of undefined (reading 'VITE_FIREBASE_API_KEY')"
+// before ever reaching this logic). This was the actual coverage gap: the one prior test touching
+// analyzeSource could only ever source-inspect the v5-app.js call-site text, never truly exercise
+// this decision.
+export function resolveSmartImportSubmissionMode(url,file,allowUrl){
+  if(url){
+    if(!allowUrl)throw new Error('קישור ציבורי אינו נתמך עבור סוג מקור זה.');
+    return 'url';
+  }
+  if(!file)throw new Error('יש לבחור PDF או תמונה.');
+  return 'file';
+}

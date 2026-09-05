@@ -340,7 +340,10 @@ async function runSmartAnalysis(source,file,targetItem=null){
   try{
     const result=targetItem
       ?await (targetItem.type==='flight'?analyzeFlightSource({trip:state.trip,source,file}):targetItem.type==='activity'?analyzeActivitySource({trip:state.trip,source,file}):analyzeHotelSource({trip:state.trip,source,file}))
-      :await analyzeSource({trip:state.trip,source,file});
+      // V6-F69: source.url is only ever non-empty for a kind:'link' source (createLocalSource
+      // sets it to the submitted URL, '' for a file); forwarding it here is what actually lets a
+      // brand-new item's global Add-by-link reach the network at all.
+      :await analyzeSource({trip:state.trip,source,file,url:source.url});
     const category=targetItem?targetItem.type:result.category;
     if(category==='unrecognized')throw new Error('לא זוהה מסמך מלון, טיסה או אטרקציה במקור. לא נוצרה הצעה.');
     let suggestions=category==='flight'?smartImportFlightResultToSuggestions(result,source):category==='activity'?[smartImportActivityResultToSuggestion(result,source)]:[smartImportResultToSuggestion(result,source)];

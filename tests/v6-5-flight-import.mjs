@@ -401,7 +401,11 @@ function test_ux_category_picker_removed_and_auto_detected(){
   const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
   assert.doesNotMatch(app,/SMART_IMPORT_CATEGORIES/,'the manual category-picker fieldset must be fully removed from the Add flow');
   assert.doesNotMatch(app,/name="smart-category"/,'no smart-category radio input may remain in the rendered form');
-  assert.match(app,/await analyzeSource\(\{trip:state\.trip,source,file\}\)/,'a brand-new source (no target item yet) must go through the auto-detecting analyzeSource, not a pre-chosen category');
+  // V6-F69 correction pass: analyzeSource gained a url parameter (forwarded from source.url) so a
+  // brand-new item's global Add-by-link could reach the network at all -- the call site itself is
+  // otherwise unchanged, still routing every brand-new source through analyzeSource rather than a
+  // pre-chosen category.
+  assert.match(app,/await analyzeSource\(\{trip:state\.trip,source,file,url:source\.url\}\)/,'a brand-new source (no target item yet) must go through the auto-detecting analyzeSource, not a pre-chosen category, and must forward the source\'s own URL');
   assert.match(app,/category===\s*'unrecognized'/,'an unrecognized document must be handled with a clear message, not a raw/false "no valid flight segment" error');
 
   const client=fs.readFileSync(new URL('../src/smart-import-client.js',import.meta.url),'utf8');
