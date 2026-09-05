@@ -148,17 +148,14 @@ async function fetchPublicPage(rawUrl){
     console.info('FamilyTrips Smart Import public page fetch',{host:current.hostname,status:response.status,contentType:type,robotsCheck});
     if(!type.includes('text/html'))throw httpError(415,robotsCheck==='unverifiable'?'robots_unverifiable':'unsupported_source',robotsCheck==='unverifiable'?ROBOTS_UNVERIFIABLE_MESSAGE:'The URL did not return an HTML page.');const html=await readLimited(response,MAX_PAGE_BYTES);const text=convert(html,{wordwrap:false,selectors:[{selector:'script',format:'skip'},{selector:'style',format:'skip'},{selector:'noscript',format:'skip'}]}).replace(/\n{3,}/g,'\n\n').trim();if(!text)throw httpError(422,'protected_or_private_url','The public page contained no readable content.');return {finalUrl:current.toString(),text}}throw httpError(422,'protected_or_private_url','Too many redirects.');
 }
-// V6-F70: kept as one Hebrew constant (not the English-language pattern every other httpError
-// message in this file uses) because it is the message that actually reaches the user --
-// safeMessage()/request() (src/smart-import-client.js) both prefer the server's own error.message
-// verbatim over the client's errorMessage() Hebrew lookup table whenever the server supplies one
-// at all, which is always, for every httpError call site in this file. That lookup table is
-// therefore dead code for every existing entry (robots_disallowed included) -- flagged as its own
-// finding rather than silently relied upon here, but not fixed for the pre-existing entries, since
-// that is broader than what was actually asked. Still added to errorMessage() below too, as a
-// genuine (if secondary) defense for the one real edge case where the response body fails to
-// parse as JSON at all and payload.message is never set.
-const ROBOTS_UNVERIFIABLE_MESSAGE=`לא ניתן היה לאמת מראש שהאתר מתיר גישה אוטומטית (robots.txt), וניתוח הדף נכשל. אפשר לשמור את הקישור ולנסות ניתוח ידני, או לבחור PDF/תמונה של הכרטיס במקום.`;
+// V6-F71: this used to be Hebrew, as a workaround for the client's errorMessage() dictionary
+// being dead code (src/smart-import-client.js's request() always preferred the server's own raw
+// message). Now that request()'s precedence is fixed to check the dictionary by code FIRST, this
+// English message is only ever an unreachable-in-practice fallback (used only if the dictionary
+// somehow lacked a robots_unverifiable entry, or the response body failed to parse) -- restored to
+// the same plain-English style every other httpError message in this file uses, matching e.g.
+// 'The URL did not return an HTML page.' immediately below.
+const ROBOTS_UNVERIFIABLE_MESSAGE=`Could not verify whether this site's robots.txt allows automated access, and the page fetch also failed.`;
 // Attraction/Event (0.6.6): pre-implementation research found 4/4 real ticket-platform URLs
 // (Ticketmaster, tickets.hapoelbc.com on two path shapes, tickets.leaan.net) blocked by
 // robots.txt -- a distinct safe-failure reason from an authentication/login wall

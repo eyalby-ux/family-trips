@@ -1,5 +1,5 @@
 import { auth } from './firebase.js';
-import { resolveSmartImportSubmissionMode } from './operational-data.js';
+import { resolveSmartImportErrorMessage, resolveSmartImportSubmissionMode } from './operational-data.js';
 
 const ENDPOINT='/api/familytrips-smart-import';
 const MAX_BINARY_BYTES=4*1024*1024;
@@ -64,17 +64,20 @@ async function runSource({operation,trip,source,file,url,allowUrl}){
 async function request(token,body){
   const response=await fetch(ENDPOINT,{method:'POST',headers:{authorization:`Bearer ${token}`,'content-type':'application/json'},body:JSON.stringify(body)});
   const payload=await response.json().catch(()=>({}));
-  if(!response.ok)throw new Error(payload.message||errorMessage(payload.error,response.status));
+  // V6-F71: previously `payload.message||errorMessage(...)` -- the server's own English message
+  // always won whenever present, which is every httpError call site in netlify/functions/
+  // smart-import.mjs (each one supplies one), so the Hebrew dictionary (now
+  // resolveSmartImportErrorMessage, src/operational-data.js) was effectively dead code for every
+  // entry, including robots_disallowed. Fixed: the dictionary is now consulted FIRST, by error
+  // code, and only falls back to the server's own raw message for a code with no Hebrew entry at
+  // all -- so an entry, once added, is actually reachable. Five codes currently have no entry
+  // (invalid_trip/invalid_operation/invalid_url/authentication_required/source_too_large, audited
+  // directly against every httpError(...) call site in netlify/functions/) and so still fall back
+  // to the server's raw English message -- correct/expected given none was asked for those
+  // lower-severity/rare paths, not itself a bug.
+  if(!response.ok)throw new Error(resolveSmartImportErrorMessage(payload.error,response.status,payload.message));
   return payload;
 }
 
 function fileToBase64(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result||'').split(',')[1]||'');reader.onerror=()=>reject(new Error('קריאת הקובץ נכשלה.'));reader.readAsDataURL(file)})}
 function inferMime(name){return /\.pdf$/i.test(name)?'application/pdf':/\.png$/i.test(name)?'image/png':'image/jpeg'}
-// V6-F70: added robots_unverifiable alongside the existing robots_disallowed entry, as asked --
-// but note this whole dict is a FALLBACK, not the primary path: request() above prefers the
-// server's own payload.message verbatim whenever one is present, which is always, for every
-// httpError call site in netlify/functions/smart-import.mjs (each one supplies a message). This
-// dict is only actually reached if response.json() fails to parse the body at all. Flagged as a
-// real, separate discovery (every existing entry here has been effectively dead code for the same
-// reason) rather than fixed for the pre-existing entries, which is broader than what was asked.
-function errorMessage(code,status){const messages={not_invited:'החשבון אינו נמצא ברשימת המוזמנים.',trip_not_owned:'הטיול אינו בבעלות החשבון הפעיל.',daily_quota_exceeded:'מכסת הניתוח היומית הסתיימה.',unsupported_source:'סוג המקור אינו נתמך.',protected_or_private_url:'הקישור אינו ציבורי או דורש גישה פרטית.',robots_disallowed:'האתר חוסם גישה אוטומטית לדף זה (robots.txt). אפשר לשמור את הקישור ולנסות ניתוח ידני, או לבחור PDF/תמונה של הכרטיס במקום.',robots_unverifiable:'לא ניתן היה לאמת מראש שהאתר מתיר גישה אוטומטית (robots.txt), וניתוח הדף נכשל. אפשר לשמור את הקישור ולנסות ניתוח ידני, או לבחור PDF/תמונה של הכרטיס במקום.',missing_server_configuration:'שירות Smart Import עדיין אינו מוגדר בסביבת הבדיקה.'};return messages[code]||`ניתוח המקור נכשל (${status}).`}

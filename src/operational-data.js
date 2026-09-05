@@ -274,3 +274,29 @@ export function resolveSmartImportSubmissionMode(url,file,allowUrl){
   if(!file)throw new Error('יש לבחור PDF או תמונה.');
   return 'file';
 }
+
+// V6-F71: request()'s error-message resolution (src/smart-import-client.js) previously preferred
+// the server's own raw (English) message whenever one was present, which was always, for every
+// httpError call site in netlify/functions/smart-import.mjs -- so this Hebrew dictionary was
+// effectively dead code for every existing entry, including robots_disallowed, which had been
+// reported as "already working" based on the dictionary's mere existence, not on what was actually
+// displayed. Fixed precedence: the dictionary is now checked FIRST, by code; serverMessage (the
+// raw message the server sent) is used only as a fallback for a code with no Hebrew entry at all.
+// Extracted here, dependency-free, for the same reason resolveSmartImportSubmissionMode is above:
+// smart-import-client.js cannot be imported at all under this project's plain-Node test harness
+// (it transitively imports firebase.js, which touches import.meta.env and throws outside a Vite
+// build), so this is the only way a regression test can assert on the actual DISPLAYED text
+// (Hebrew, not English) rather than merely confirming a dictionary entry exists.
+const SMART_IMPORT_ERROR_MESSAGES={
+  not_invited:'החשבון אינו נמצא ברשימת המוזמנים.',
+  trip_not_owned:'הטיול אינו בבעלות החשבון הפעיל.',
+  daily_quota_exceeded:'מכסת הניתוח היומית הסתיימה.',
+  unsupported_source:'סוג המקור אינו נתמך.',
+  protected_or_private_url:'הקישור אינו ציבורי או דורש גישה פרטית.',
+  robots_disallowed:'האתר חוסם גישה אוטומטית לדף זה (robots.txt). אפשר לשמור את הקישור ולנסות ניתוח ידני, או לבחור PDF/תמונה של הכרטיס במקום.',
+  robots_unverifiable:'לא ניתן היה לאמת מראש שהאתר מתיר גישה אוטומטית (robots.txt), וניתוח הדף נכשל. אפשר לשמור את הקישור ולנסות ניתוח ידני, או לבחור PDF/תמונה של הכרטיס במקום.',
+  missing_server_configuration:'שירות Smart Import עדיין אינו מוגדר בסביבת הבדיקה.',
+};
+export function resolveSmartImportErrorMessage(code,status,serverMessage){
+  return SMART_IMPORT_ERROR_MESSAGES[code]||serverMessage||`ניתוח המקור נכשל (${status}).`;
+}

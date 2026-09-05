@@ -88,15 +88,27 @@ function test_V6_F70_unverifiable_then_failed_surfaces_honest_message(){
   const server=fs.readFileSync(new URL('../netlify/functions/smart-import.mjs',import.meta.url),'utf8');
   // Outcome 3/3: the new case this whole fix exists for -- robots.txt couldn't be verified AND
   // the real fetch afterward also failed or came back non-HTML.
-  assert.match(server,/const ROBOTS_UNVERIFIABLE_MESSAGE=`לא ניתן היה לאמת מראש שהאתר מתיר גישה אוטומטית \(robots\.txt\), וניתוח הדף נכשל\./,'a single shared Hebrew message constant must exist for the unverifiable-then-failed outcome, used consistently by both failure sites (HTTP failure and non-HTML content type)');
+  // V6-F71 correction pass: this constant's own text is now plain English again (matching every
+  // other httpError message in this file) -- the actual Hebrew the user sees now comes from
+  // resolveSmartImportErrorMessage's dictionary (src/operational-data.js), consulted by the CODE
+  // 'robots_unverifiable' this constant is paired with, not from this string's own content. What
+  // still matters here is that one single shared constant exists and is used consistently by both
+  // failure sites, so the code (which drives the Hebrew dictionary lookup) is right either way.
+  assert.match(server,/const ROBOTS_UNVERIFIABLE_MESSAGE=`Could not verify whether this site's robots\.txt allows automated access, and the page fetch also failed\.`;/,'a single shared message constant must exist for the unverifiable-then-failed outcome, used consistently by both failure sites (HTTP failure and non-HTML content type)');
   assert.match(server,/robotsCheck==='unverifiable'\?ROBOTS_UNVERIFIABLE_MESSAGE:`Public page returned HTTP \$\{response\.status\}\.`/,'an HTTP failure following an unverifiable robots.txt check must surface the honest robots_unverifiable message, not the generic HTTP-status one');
   assert.match(server,/robotsCheck==='unverifiable'\?ROBOTS_UNVERIFIABLE_MESSAGE:'The URL did not return an HTML page\.'/,'a non-HTML content type following an unverifiable robots.txt check must surface the honest robots_unverifiable message, not the generic "not an HTML page" one -- this is the exact tickets.leaan.net scenario this investigation could not rule out');
   console.log('PASS: V6-F70 outcome 3/3 -- an unverifiable robots.txt followed by a genuine fetch failure now surfaces the honest "couldn\'t confirm this site allows automated access" reason, not a misleading generic one');
 }
+// V6-F71 correction pass: this test originally only confirmed the dictionary entry's mere
+// existence in src/smart-import-client.js -- exactly the shallow check that let the precedence
+// bug (V6-F71) go unnoticed for robots_disallowed. Superseded by tests/v6-71-correction.mjs,
+// which executes the real resolution function (now resolveSmartImportErrorMessage,
+// src/operational-data.js, moved there specifically so it CAN be executed rather than merely
+// source-inspected) and asserts on the actual resolved/displayed text for all three codes.
 function test_V6_F70_client_error_message_dict_has_robots_unverifiable_entry(){
-  const client=fs.readFileSync(new URL('../src/smart-import-client.js',import.meta.url),'utf8');
-  assert.match(client,/robots_unverifiable:'לא ניתן היה לאמת מראש שהאתר מתיר גישה אוטומטית \(robots\.txt\), וניתוח הדף נכשל\./,'the client-side errorMessage() fallback dictionary must have an entry for robots_unverifiable alongside the existing robots_disallowed one, as asked -- even though (see the code comment) it is a secondary defense, since the server\'s own message is what actually reaches the user in the normal case');
-  console.log('PASS: V6-F70 the client-side errorMessage() dictionary has a robots_unverifiable entry alongside robots_disallowed');
+  const operationalData=fs.readFileSync(new URL('../src/operational-data.js',import.meta.url),'utf8');
+  assert.match(operationalData,/robots_unverifiable:'לא ניתן היה לאמת מראש שהאתר מתיר גישה אוטומטית \(robots\.txt\), וניתוח הדף נכשל\./,'the shared error-message dictionary (src/operational-data.js) must have an entry for robots_unverifiable alongside the existing robots_disallowed one -- see tests/v6-71-correction.mjs for the executed, displayed-text-level proof this is actually reachable, not just present');
+  console.log('PASS: V6-F70 the shared error-message dictionary has a robots_unverifiable entry alongside robots_disallowed');
 }
 
 test_V6_F70_public_page_fetch_logs_host_status_and_content_type();
