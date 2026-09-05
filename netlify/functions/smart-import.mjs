@@ -127,7 +127,15 @@ async function prepareSource(source,allowUrl=true){
   const data=`data:${mime};base64,${bytes.toString('base64')}`;return {kind:source.kind,sourceSize:bytes.length,content:[source.kind==='pdf'?{type:'input_file',filename:safeFilename(source.name,'source.pdf'),file_data:data,detail:'high'}:{type:'input_image',image_url:data,detail:'high'}]};
 }
 async function fetchPublicPage(rawUrl){
-  let current=validateUrl(rawUrl);for(let step=0;step<3;step+=1){await assertPublicHost(current.hostname);await assertRobotsAllowed(current);const response=await fetch(current,{redirect:'manual',headers:{'user-agent':'FamilyTrips-SmartImport/0.6'},signal:AbortSignal.timeout(12000)});if([301,302,303,307,308].includes(response.status)){const location=response.headers.get('location');if(!location)throw httpError(422,'protected_or_private_url','Invalid redirect.');current=validateUrl(new URL(location,current).toString());continue}if(!response.ok)throw httpError(response.status===401||response.status===403?422:502,'protected_or_private_url',`Public page returned HTTP ${response.status}.`);const type=response.headers.get('content-type')||'';
+  let current=validateUrl(rawUrl);for(let step=0;step<3;step+=1){await assertPublicHost(current.hostname);const robotsCheck=await assertRobotsAllowed(current);const response=await fetch(current,{redirect:'manual',headers:{'user-agent':'FamilyTrips-SmartImport/0.6'},signal:AbortSignal.timeout(12000)});if([301,302,303,307,308].includes(response.status)){const location=response.headers.get('location');if(!location)throw httpError(422,'protected_or_private_url','Invalid redirect.');current=validateUrl(new URL(location,current).toString());continue}
+    // V6-F70 (Product Owner decision): fail-open is unchanged -- an unverifiable robots.txt never
+    // blocks this fetch from being attempted. But when the fetch that follows an unverifiable
+    // check ALSO fails or comes back non-HTML, the user is told the honest reason (couldn't
+    // confirm this site allows automated access) instead of the generic, potentially misleading
+    // content-type/access message -- this is exactly the scenario this investigation could not
+    // rule out for tickets.leaan.net (a bot-protection layer plausibly answering the robots.txt
+    // check and the page fetch differently for this runtime than for a normal request).
+    if(!response.ok)throw httpError(response.status===401||response.status===403?422:502,robotsCheck==='unverifiable'?'robots_unverifiable':'protected_or_private_url',robotsCheck==='unverifiable'?ROBOTS_UNVERIFIABLE_MESSAGE:`Public page returned HTTP ${response.status}.`);const type=response.headers.get('content-type')||'';
     // V6-F70: this call site had no logging of its own at all -- a robots_disallowed/
     // unsupported_source/protected_or_private_url failure was indistinguishable, after the fact,
     // from any other host or any other reason for the same code, and every SUCCESSFUL fetch left
@@ -137,9 +145,20 @@ async function fetchPublicPage(rawUrl){
     // layer -- confirmed present here, tickets.leaan.net runs behind Cloudflare -- may treat
     // differently). This one bounded log line (host + status + content-type only, never the page
     // body) is enough to answer that question next time without needing a code change first.
-    console.info('FamilyTrips Smart Import public page fetch',{host:current.hostname,status:response.status,contentType:type});
-    if(!type.includes('text/html'))throw httpError(415,'unsupported_source','The URL did not return an HTML page.');const html=await readLimited(response,MAX_PAGE_BYTES);const text=convert(html,{wordwrap:false,selectors:[{selector:'script',format:'skip'},{selector:'style',format:'skip'},{selector:'noscript',format:'skip'}]}).replace(/\n{3,}/g,'\n\n').trim();if(!text)throw httpError(422,'protected_or_private_url','The public page contained no readable content.');return {finalUrl:current.toString(),text}}throw httpError(422,'protected_or_private_url','Too many redirects.');
+    console.info('FamilyTrips Smart Import public page fetch',{host:current.hostname,status:response.status,contentType:type,robotsCheck});
+    if(!type.includes('text/html'))throw httpError(415,robotsCheck==='unverifiable'?'robots_unverifiable':'unsupported_source',robotsCheck==='unverifiable'?ROBOTS_UNVERIFIABLE_MESSAGE:'The URL did not return an HTML page.');const html=await readLimited(response,MAX_PAGE_BYTES);const text=convert(html,{wordwrap:false,selectors:[{selector:'script',format:'skip'},{selector:'style',format:'skip'},{selector:'noscript',format:'skip'}]}).replace(/\n{3,}/g,'\n\n').trim();if(!text)throw httpError(422,'protected_or_private_url','The public page contained no readable content.');return {finalUrl:current.toString(),text}}throw httpError(422,'protected_or_private_url','Too many redirects.');
 }
+// V6-F70: kept as one Hebrew constant (not the English-language pattern every other httpError
+// message in this file uses) because it is the message that actually reaches the user --
+// safeMessage()/request() (src/smart-import-client.js) both prefer the server's own error.message
+// verbatim over the client's errorMessage() Hebrew lookup table whenever the server supplies one
+// at all, which is always, for every httpError call site in this file. That lookup table is
+// therefore dead code for every existing entry (robots_disallowed included) -- flagged as its own
+// finding rather than silently relied upon here, but not fixed for the pre-existing entries, since
+// that is broader than what was actually asked. Still added to errorMessage() below too, as a
+// genuine (if secondary) defense for the one real edge case where the response body fails to
+// parse as JSON at all and payload.message is never set.
+const ROBOTS_UNVERIFIABLE_MESSAGE=`לא ניתן היה לאמת מראש שהאתר מתיר גישה אוטומטית (robots.txt), וניתוח הדף נכשל. אפשר לשמור את הקישור ולנסות ניתוח ידני, או לבחור PDF/תמונה של הכרטיס במקום.`;
 // Attraction/Event (0.6.6): pre-implementation research found 4/4 real ticket-platform URLs
 // (Ticketmaster, tickets.hapoelbc.com on two path shapes, tickets.leaan.net) blocked by
 // robots.txt -- a distinct safe-failure reason from an authentication/login wall
@@ -149,6 +168,13 @@ async function fetchPublicPage(rawUrl){
 // Missing/unreachable robots.txt default-allows, per standard robots convention -- this is a
 // courtesy check, not a security boundary (assertPublicHost/URL validation remain the actual
 // SSRF guard).
+// V6-F70 (Product Owner decision): the fail-open default itself stays unchanged -- a fetch
+// error, non-ok status or empty robots.txt still lets the caller proceed exactly as before,
+// never blocking a legitimate site over a merely slow/flaky robots.txt endpoint. What changes is
+// that this is no longer silently indistinguishable from a genuinely-checked "allowed" outcome:
+// the return value tells fetchPublicPage whether THIS host's robots.txt was actively verified as
+// allowing access ('verified') or could not be confirmed either way ('unverifiable') -- still
+// throws exactly as before for the one case that IS confirmed, robots_disallowed.
 async function assertRobotsAllowed(url){
   let robotsText='',status='fetch_error';
   try{
@@ -159,18 +185,17 @@ async function assertRobotsAllowed(url){
     // V6-F70: previously a silent, unlogged fail-open -- if the robots.txt fetch itself is
     // blocked/throttled by the target site specifically for this runtime's IP/UA (rather than
     // genuinely absent, which is the case this fail-open default is meant for), there was no way
-    // to tell the two apart after the fact. Logged, not yet changed to fail closed -- see the
-    // investigation note above assertRobotsAllowed's call site; whether unreachable should mean
-    // "allow" (current behavior, safe for a merely-slow/flaky robots.txt) or "disallow" (safer
-    // against exactly this silent-bypass shape, but riskier for real transient failures) is a
-    // product decision, not made unilaterally here.
+    // to tell the two apart after the fact. Now logged AND surfaced as 'unverifiable' rather than
+    // silently identical to a genuinely-checked-and-allowed site -- still proceeds exactly the
+    // same either way (Product Owner decision: fail-open stays, but honestly so).
     console.info('FamilyTrips Smart Import robots.txt check',{host:url.hostname,outcome:'fetch_error',error:String(error?.message||error)});
-    return;
+    return 'unverifiable';
   }
-  if(!robotsText){console.info('FamilyTrips Smart Import robots.txt check',{host:url.hostname,outcome:'empty_or_not_ok',status});return}
+  if(!robotsText){console.info('FamilyTrips Smart Import robots.txt check',{host:url.hostname,outcome:'empty_or_not_ok',status});return 'unverifiable'}
   const disallowed=isRobotsDisallowed(robotsText,url.pathname);
   console.info('FamilyTrips Smart Import robots.txt check',{host:url.hostname,pathname:url.pathname,status,disallowed,bodySnippet:robotsText.slice(0,200)});
   if(disallowed)throw httpError(422,'robots_disallowed',`This site's robots.txt disallows automated access to this page.`);
+  return 'verified';
 }
 export function isRobotsDisallowed(robotsText,pathname){
   const lines=robotsText.split(/\r?\n/).map(line=>line.replace(/#.*/,'').trim());
