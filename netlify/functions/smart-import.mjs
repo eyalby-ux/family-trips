@@ -127,7 +127,18 @@ async function prepareSource(source,allowUrl=true){
   const data=`data:${mime};base64,${bytes.toString('base64')}`;return {kind:source.kind,sourceSize:bytes.length,content:[source.kind==='pdf'?{type:'input_file',filename:safeFilename(source.name,'source.pdf'),file_data:data,detail:'high'}:{type:'input_image',image_url:data,detail:'high'}]};
 }
 async function fetchPublicPage(rawUrl){
-  let current=validateUrl(rawUrl);for(let step=0;step<3;step+=1){await assertPublicHost(current.hostname);await assertRobotsAllowed(current);const response=await fetch(current,{redirect:'manual',headers:{'user-agent':'FamilyTrips-SmartImport/0.6'},signal:AbortSignal.timeout(12000)});if([301,302,303,307,308].includes(response.status)){const location=response.headers.get('location');if(!location)throw httpError(422,'protected_or_private_url','Invalid redirect.');current=validateUrl(new URL(location,current).toString());continue}if(!response.ok)throw httpError(response.status===401||response.status===403?422:502,'protected_or_private_url',`Public page returned HTTP ${response.status}.`);const type=response.headers.get('content-type')||'';if(!type.includes('text/html'))throw httpError(415,'unsupported_source','The URL did not return an HTML page.');const html=await readLimited(response,MAX_PAGE_BYTES);const text=convert(html,{wordwrap:false,selectors:[{selector:'script',format:'skip'},{selector:'style',format:'skip'},{selector:'noscript',format:'skip'}]}).replace(/\n{3,}/g,'\n\n').trim();if(!text)throw httpError(422,'protected_or_private_url','The public page contained no readable content.');return {finalUrl:current.toString(),text}}throw httpError(422,'protected_or_private_url','Too many redirects.');
+  let current=validateUrl(rawUrl);for(let step=0;step<3;step+=1){await assertPublicHost(current.hostname);await assertRobotsAllowed(current);const response=await fetch(current,{redirect:'manual',headers:{'user-agent':'FamilyTrips-SmartImport/0.6'},signal:AbortSignal.timeout(12000)});if([301,302,303,307,308].includes(response.status)){const location=response.headers.get('location');if(!location)throw httpError(422,'protected_or_private_url','Invalid redirect.');current=validateUrl(new URL(location,current).toString());continue}if(!response.ok)throw httpError(response.status===401||response.status===403?422:502,'protected_or_private_url',`Public page returned HTTP ${response.status}.`);const type=response.headers.get('content-type')||'';
+    // V6-F70: this call site had no logging of its own at all -- a robots_disallowed/
+    // unsupported_source/protected_or_private_url failure was indistinguishable, after the fact,
+    // from any other host or any other reason for the same code, and every SUCCESSFUL fetch left
+    // no trace either, so a live investigation like this one had no way to tell which invocation
+    // belonged to which URL, or what response a specific host actually returned to Netlify's own
+    // runtime (as opposed to a manual fetch from a different network/IP, which a bot-protection
+    // layer -- confirmed present here, tickets.leaan.net runs behind Cloudflare -- may treat
+    // differently). This one bounded log line (host + status + content-type only, never the page
+    // body) is enough to answer that question next time without needing a code change first.
+    console.info('FamilyTrips Smart Import public page fetch',{host:current.hostname,status:response.status,contentType:type});
+    if(!type.includes('text/html'))throw httpError(415,'unsupported_source','The URL did not return an HTML page.');const html=await readLimited(response,MAX_PAGE_BYTES);const text=convert(html,{wordwrap:false,selectors:[{selector:'script',format:'skip'},{selector:'style',format:'skip'},{selector:'noscript',format:'skip'}]}).replace(/\n{3,}/g,'\n\n').trim();if(!text)throw httpError(422,'protected_or_private_url','The public page contained no readable content.');return {finalUrl:current.toString(),text}}throw httpError(422,'protected_or_private_url','Too many redirects.');
 }
 // Attraction/Event (0.6.6): pre-implementation research found 4/4 real ticket-platform URLs
 // (Ticketmaster, tickets.hapoelbc.com on two path shapes, tickets.leaan.net) blocked by
@@ -139,13 +150,27 @@ async function fetchPublicPage(rawUrl){
 // courtesy check, not a security boundary (assertPublicHost/URL validation remain the actual
 // SSRF guard).
 async function assertRobotsAllowed(url){
-  let robotsText='';
+  let robotsText='',status='fetch_error';
   try{
     const response=await fetch(new URL('/robots.txt',url),{headers:{'user-agent':'FamilyTrips-SmartImport/0.6'},signal:AbortSignal.timeout(8000)});
+    status=`${response.status} ${response.headers.get('content-type')||''}`.trim();
     if(response.ok)robotsText=await readLimited(response,MAX_PAGE_BYTES);
-  }catch{return}
-  if(!robotsText)return;
-  if(isRobotsDisallowed(robotsText,url.pathname))throw httpError(422,'robots_disallowed',`This site's robots.txt disallows automated access to this page.`);
+  }catch(error){
+    // V6-F70: previously a silent, unlogged fail-open -- if the robots.txt fetch itself is
+    // blocked/throttled by the target site specifically for this runtime's IP/UA (rather than
+    // genuinely absent, which is the case this fail-open default is meant for), there was no way
+    // to tell the two apart after the fact. Logged, not yet changed to fail closed -- see the
+    // investigation note above assertRobotsAllowed's call site; whether unreachable should mean
+    // "allow" (current behavior, safe for a merely-slow/flaky robots.txt) or "disallow" (safer
+    // against exactly this silent-bypass shape, but riskier for real transient failures) is a
+    // product decision, not made unilaterally here.
+    console.info('FamilyTrips Smart Import robots.txt check',{host:url.hostname,outcome:'fetch_error',error:String(error?.message||error)});
+    return;
+  }
+  if(!robotsText){console.info('FamilyTrips Smart Import robots.txt check',{host:url.hostname,outcome:'empty_or_not_ok',status});return}
+  const disallowed=isRobotsDisallowed(robotsText,url.pathname);
+  console.info('FamilyTrips Smart Import robots.txt check',{host:url.hostname,pathname:url.pathname,status,disallowed,bodySnippet:robotsText.slice(0,200)});
+  if(disallowed)throw httpError(422,'robots_disallowed',`This site's robots.txt disallows automated access to this page.`);
 }
 export function isRobotsDisallowed(robotsText,pathname){
   const lines=robotsText.split(/\r?\n/).map(line=>line.replace(/#.*/,'').trim());
