@@ -47,10 +47,17 @@ function test_V6_F54_item_edit_handler_calls_reconcile_before_saving(){
 // see tests/v6-55-correction.mjs for the full V6-F55 coverage). These two regexes are updated to
 // match the new structure; the underlying guarantee they check -- a dismiss control is offered for
 // a dismissible item warning, scoped to state.items -- is unchanged and still verified here.
+// V6-F74 correction pass: warningRow's body changed again (a non-dismissible, needsReviewRef-
+// backed warning now renders a "confirm as correct" action instead of nothing at all -- see
+// tests/v6-74-correction.mjs for that coverage) -- the regex below is loosened to the specific
+// dismissible-branch fragment this test actually cares about, rather than the whole function
+// body, so it survives that unrelated structural change without needing yet another update here.
 function test_V6_F54_detailView_offers_dismiss_for_dismissible_item_warnings(){
   const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
   assert.match(app,/function itemWarningEntries\(item\)\{/,'detailView must track the TRUE index into item.warnings (not just a deduplicated display list), so a dismiss action removes the correct real entry');
-  assert.match(app,/function warningRow\(warning,details,scope,id,index\)\{\s*return `<div class="warning-row">⚠️ \$\{esc\(warningText\(warning\)\)\}\$\{isDismissibleWarning\(warning,details\)\?`<button class="link-button" type="button" data-action="\$\{scope==='item'\?'dismiss-item-warning':'dismiss-warning'\}" data-id="\$\{id\}" data-index="\$\{index\}">התעלמות<\/button>`:''\}<\/div>`;/,'the shared warningRow renderer must offer a dismiss control for a dismissible warning, routed to dismiss-item-warning when scope is "item" (mirroring suggestionView\'s own dismiss-warning control for scope "suggestion")');
+  assert.match(app,/function warningRow\(warning,details,scope,id,index\)\{/,'the shared warningRow renderer must exist');
+  assert.match(app,/const dismissible=isDismissibleWarning\(warning,details\);/,'warningRow must decide dismissibility via isDismissibleWarning');
+  assert.match(app,/dismissible\?`<button class="link-button" type="button" data-action="\$\{scope==='item'\?'dismiss-item-warning':'dismiss-warning'\}" data-id="\$\{id\}" data-index="\$\{index\}">התעלמות<\/button>`/,'the shared warningRow renderer must offer a dismiss control for a dismissible warning, routed to dismiss-item-warning when scope is "item" (mirroring suggestionView\'s own dismiss-warning control for scope "suggestion")');
   assert.match(app,/\$\{warningEntries\.length\?`<div class="warning-list">\$\{warningEntries\.map\(\(\{warning,index\}\)=>warningRow\(warning,item\.details,'item',item\.id,index\)\)\.join\(''\)\}<\/div>`:''\}/,'detailView must actually call warningRow for each of its own item-scoped warning entries, not just define the helper');
   console.log('PASS: V6-F54 detailView offers a dismiss control for a dismissible warning on a saved item, mirroring the pre-approval suggestion screen');
 }

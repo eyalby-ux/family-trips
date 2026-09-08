@@ -285,6 +285,32 @@ export function resolveMergeCandidate(target,key,choice){
   }
   return next;
 }
+// V6-F74: a needsReviewFields-sourced warning (V6-F49/V6-F55) has exactly one clearing path --
+// reconcileStaleNeedsReview, which only fires when the mapped field's VALUE actually changes.
+// There was never a "this flagged value is already correct, I've reviewed it" action -- the only
+// way to make the warning go away was to edit the field to something else (or edit it away and
+// back, a pointless workaround). isDismissibleWarning (above) correctly keeps a live
+// needsReviewRef non-dismissible, since a plain "ignore" would hide a real, unresolved reading --
+// but it left no OTHER action in its place. This adds that missing action, mirroring
+// resolveMergeCandidate's 'keep' choice: removes the specific needsReviewFields entry (matched by
+// exact key+value, the same match isDismissibleWarning itself uses) and its warning, WITHOUT
+// touching the field's actual value -- confirming the flagged reading as reviewed and correct
+// rather than silently discarding an unresolved one. A stale key+value (already resolved by some
+// other means, or never live in the first place) is a safe no-op, matching resolveMergeCandidate's
+// own no-op guard for an unknown key.
+export function confirmNeedsReviewField(target,key,value){
+  const needsReviewFields=target.details?.needsReviewFields;
+  if(!Array.isArray(needsReviewFields)||!needsReviewFields.length)return target;
+  if(!needsReviewFields.some(field=>field.key===key&&field.value===value))return target;
+  const remaining=needsReviewFields.filter(field=>!(field.key===key&&field.value===value));
+  const warnings=(target.warnings||[]).filter(warning=>{
+    if(typeof warning==='object'&&warning!==null&&warning.needsReviewRef){
+      return !(warning.needsReviewRef.key===key&&warning.needsReviewRef.value===value);
+    }
+    return true;
+  });
+  return {...target,details:{...target.details,needsReviewFields:remaining},warnings};
+}
 // The date/time defaults shown in the manual "create new item" form the moment it opens
 // (V6-F06/V4-F04 also apply here, via the rendered form's own pre-filled value= attribute).
 // A missing OR malformed Trip start date (V6-F23: e.g. a non-canonical value that slipped in

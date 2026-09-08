@@ -1,4 +1,4 @@
-import {ITEM_TYPES,TYPE_FIELDS,buildItemFormValues,createSuggestions,findPossibleDuplicates,flagReversedFlightDirection,isDismissibleWarning,manualCreateDefaults,mapsUrl,normalizeUrlInput,reconcileStaleNeedsReview,resolveMergeCandidate,suggestionReviewDefaults,suggestionToItem,validateSource} from './ingestion.js';
+import {ITEM_TYPES,TYPE_FIELDS,buildItemFormValues,confirmNeedsReviewField,createSuggestions,findPossibleDuplicates,flagReversedFlightDirection,isDismissibleWarning,manualCreateDefaults,mapsUrl,normalizeUrlInput,reconcileStaleNeedsReview,resolveMergeCandidate,suggestionReviewDefaults,suggestionToItem,validateSource} from './ingestion.js';
 import {extractSourceContent,sha256File} from './content-extraction.js';
 import {MultipartQrCollector,decodeExternalText,importBatchToApp} from './external-import.js';
 import {availableTimelineModes,backfillTripDates,currentOperational,isItemOutsideTrip,normalizeDateRange,normalizeOperationalState,packingDuplicate,periodBounds,quickAccessTasks,sanitizeTripDates,shiftCursor,sortItemsByStartAt,uniqueRecordsById} from './operational-data.js';
@@ -169,8 +169,17 @@ function itemWarningEntries(item){
 function suggestionWarningEntries(suggestion){
   return (suggestion.warnings||[]).map((warning,index)=>({warning,index})).filter(entry=>!isMergeConflictWarningText(warningText(entry.warning),suggestion.proposed?.details));
 }
+// V6-F74: a warning backed by a still-live needsReviewRef (isDismissibleWarning returns false --
+// this is the ONLY case it does) previously rendered with no action at all, since dismiss is
+// deliberately withheld for exactly this shape (see isDismissibleWarning's own comments). Offers
+// the missing "confirm this reading as correct, no value change needed" action instead of a plain
+// dismiss, wired to confirmNeedsReviewField (ingestion.js) via the same scope/id convention
+// resolve-merge-candidate already uses.
 function warningRow(warning,details,scope,id,index){
-  return `<div class="warning-row">⚠️ ${esc(warningText(warning))}${isDismissibleWarning(warning,details)?`<button class="link-button" type="button" data-action="${scope==='item'?'dismiss-item-warning':'dismiss-warning'}" data-id="${id}" data-index="${index}">התעלמות</button>`:''}</div>`;
+  const dismissible=isDismissibleWarning(warning,details);
+  const ref=!dismissible&&typeof warning==='object'&&warning!==null?warning.needsReviewRef:null;
+  const action=dismissible?`<button class="link-button" type="button" data-action="${scope==='item'?'dismiss-item-warning':'dismiss-warning'}" data-id="${id}" data-index="${index}">התעלמות</button>`:ref?`<button class="link-button" type="button" data-action="confirm-needs-review" data-scope="${scope}" data-id="${id}" data-key="${esc(ref.key)}" data-value="${esc(String(ref.value))}">אישור כנכון</button>`:'';
+  return `<div class="warning-row">⚠️ ${esc(warningText(warning))}${action}</div>`;
 }
 const MERGE_CANDIDATE_LABELS={title:'כותרת',provider:'ספק',confirmationNumber:'מספר הזמנה',location:'מיקום',website:'קישור',phone:'טלפון',startAt:'תאריך התחלה',endAt:'תאריך סיום'};
 // V6-F55 (merged with V6-F54): replaces the old "silently keep the trusted value + show a warning
@@ -531,6 +540,24 @@ addEventListener('click',async event=>{const routeButton=event.target.closest('[
     }else{
       const item=state.items.find(candidate=>candidate.id===button.dataset.id);if(!item)return;
       Object.assign(item,resolveMergeCandidate(item,key,choice));
+    }
+    save();render();
+  }
+  // V6-F74: confirms a still-live needsReviewFields entry as reviewed and correct without
+  // requiring its value to change -- the missing counterpart to editing the field, which was
+  // previously the only way to clear a needsReviewRef-backed warning. Same scope/id convention as
+  // resolve-merge-candidate, since confirmNeedsReviewField (ingestion.js) is likewise agnostic to
+  // a pending suggestion's proposed object vs. an already-saved item.
+  else if(action==='confirm-needs-review'){
+    const scope=button.dataset.scope,key=button.dataset.key,value=button.dataset.value;
+    if(scope==='suggestion'){
+      const suggestion=suggestionById(button.dataset.id);if(!suggestion)return;
+      suggestion.proposed=confirmNeedsReviewField(suggestion.proposed,key,value);
+      suggestion.warnings=suggestion.proposed.warnings;
+      suggestion.updatedAt=new Date().toISOString();
+    }else{
+      const item=state.items.find(candidate=>candidate.id===button.dataset.id);if(!item)return;
+      Object.assign(item,confirmNeedsReviewField(item,key,value));
     }
     save();render();
   }
