@@ -36,6 +36,13 @@ export async function analyzeActivitySource({trip,source,file,url}){
   return runSource({operation:'analyze_activity',trip,source,file,url,allowUrl:true});
 }
 
+// Insurance Smart Import (0.6.7): PDF/image only, no public-URL source is in scope for this slice
+// (INSURANCE_SMART_IMPORT_DISCOVERY_V1.md V3, Decision 7) -- rejected here before ever reaching
+// the server, mirroring Flight's own url:''/allowUrl:false handling exactly.
+export async function analyzeInsuranceSource({trip,source,file}){
+  return runSource({operation:'analyze_insurance',trip,source,file,url:'',allowUrl:false});
+}
+
 async function runSource({operation,trip,source,file,url,allowUrl}){
   const user=auth.currentUser;
   if(!user)throw new Error('נדרשת התחברות פעילה כדי לנתח מקור.');

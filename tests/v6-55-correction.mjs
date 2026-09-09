@@ -147,7 +147,9 @@ function test_V6_F60_fmt_omits_synthetic_time_for_date_only_precision(){
 // had an attach event to fire on for this item type.
 function test_V6_F62_activity_items_have_attach_document_control(){
   const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
-  assert.match(app,/\['hotel','flight','activity'\]\.includes\(item\.type\)\?`<button class="btn" data-action="attach-source" data-id="\$\{item\.id\}">הוספת מסמך<\/button>`:''/,'detailView must render an attach-document control for activity items too, mirroring the existing Hotel/Flight control');
+  // 0.6.7 added a fourth type (insurance) to this same list -- the underlying guarantee this
+  // test checks (activity items have an attach-document control) is unchanged.
+  assert.match(app,/\['hotel','flight','activity','insurance'\]\.includes\(item\.type\)\?`<button class="btn" data-action="attach-source" data-id="\$\{item\.id\}">הוספת מסמך<\/button>`:''/,'detailView must render an attach-document control for activity items too, mirroring the existing Hotel/Flight control');
   console.log('PASS: V6-F62 activity items now have an attach-existing-document control, matching Hotel/Flight');
 }
 

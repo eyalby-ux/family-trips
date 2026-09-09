@@ -1,5 +1,6 @@
 import {clearResolvedDirectionWarning,isSameFlightAcrossDirectionCandidates,isSameFlightForDedup,isSameFlightNumberAndDate,mergeFlightDetails,normalizeFlightNumber} from './flight-import-adapter.js';
 import {mergeActivityDetails} from './activity-import-adapter.js';
+import {mergeInsuranceDetails} from './insurance-import-adapter.js';
 import {isValidCalendarDate,normalizeDateRange,today} from './operational-data.js';
 import {MERGE_CONFLICT_WARNING_PREFIX} from './smart-import-adapter.js';
 
@@ -7,8 +8,23 @@ export const ITEM_TYPES = {
   flight:{label:'טיסה',icon:'✈️',schedule:'single'},hotel:{label:'מלון',icon:'🏨',schedule:'range'},car:{label:'רכב שכור',icon:'🚗',schedule:'range'},activity:{label:'אטרקציה',icon:'🎟️',schedule:'single'},restaurant:{label:'מסעדה',icon:'🍽️',schedule:'single'},insurance:{label:'ביטוח',icon:'🛡️',schedule:'entire'},link:{label:'קישור',icon:'🔗',schedule:'none'},document:{label:'מסמך',icon:'📄',schedule:'none'},contact:{label:'איש קשר',icon:'☎️',schedule:'none'},participant:{label:'משתתף',icon:'👨‍👩‍👧‍👦',schedule:'none'},
 };
 export const TYPE_FIELDS={
-  flight:['provider','confirmationNumber','location','startAt','endAt','participants','notes'],hotel:['provider','confirmationNumber','location','website','phone','startAt','endAt','participants','notes'],car:['provider','confirmationNumber','location','phone','startAt','endAt','participants','notes'],activity:['provider','confirmationNumber','location','website','startAt','participants','notes'],restaurant:['provider','confirmationNumber','location','website','phone','startAt','participants','notes'],insurance:['provider','confirmationNumber','phone','participants','notes'],link:['website','notes'],contact:['provider','phone','website','location','notes'],participant:['phone','notes'],
+  flight:['provider','confirmationNumber','location','startAt','endAt','participants','notes'],hotel:['provider','confirmationNumber','location','website','phone','startAt','endAt','participants','notes'],car:['provider','confirmationNumber','location','phone','startAt','endAt','participants','notes'],activity:['provider','confirmationNumber','location','website','startAt','participants','notes'],restaurant:['provider','confirmationNumber','location','website','phone','startAt','participants','notes'],insurance:['provider','confirmationNumber','phone','startAt','endAt','participants','notes'],link:['website','notes'],contact:['provider','phone','website','location','notes'],participant:['phone','notes'],
 };
+// 0.6.7 (Insurance discovery doc, Section 3/3a): coverage start/end dates are captured and shown
+// on the item for reference and validity checking, but insurance.schedule stays fixed at 'entire'
+// -- ITEM_TYPES.insurance is deliberately NOT changed, so startAt/endAt never drive Timeline
+// placement and no insurance item (whole-trip or dedicated/activity-linked alike) ever appears on
+// the date-based Timeline/Today view. `relatedItemIds` (an array of other item ids this policy
+// covers) is a SEPARATE, insurance-only field, added directly on the item shape rather than
+// through TYPE_FIELDS -- proposalFields() (v5-app.js) only knows how to render TYPE_FIELDS' fixed
+// set of scalar text/date inputs, and an array-of-ids relationship needs its own dedicated
+// multi-select control (relatedItemsPanel, v5-app.js), the same way mergeCandidatePanel and
+// directionPickerPanel are dedicated UI blocks rather than generic form fields. Never populated by
+// Smart Import extraction (no source document states a relationship to another item); set
+// manually by the user after the item exists. The reverse direction (a non-insurance item showing
+// which insurance covers it) is a computed lookup at render time (insuranceCoveringItem, v5-app.js),
+// not a stored field on any other type -- mirrors the existing linkedItems-via-shared-sourceIds
+// computed-lookup pattern (findPossibleDuplicates, below) rather than a new relational-field concept.
 const PROVIDERS=[
   {label:'EL AL',pattern:/\b(?:el\s?-?\s?al|elal)\b|אל\s?-?\s?על/i,type:'flight'},{label:'Arkia',pattern:/\barkia\b|ארקיע/i,type:'flight'},{label:'Israir',pattern:/\bisrair\b|ישראייר/i,type:'flight'},{label:'Thai Airways',pattern:/\bthai airways\b/i,type:'flight'},{label:'Booking.com',pattern:/booking\.com/i,type:'hotel'},{label:'Agoda',pattern:/\bagoda\b/i,type:'hotel'},{label:'Airbnb',pattern:/\bairbnb\b/i,type:'hotel'},
 ];
@@ -162,10 +178,15 @@ export function suggestionToItem(suggestion,existing={},tripStartDate=''){
   // array (mergeActivityDetails, activity-import-adapter.js), mirroring exactly the class of
   // problem Flight already solved for its per-passenger array -- every OTHER type still falls
   // through to the original plain object spread, unchanged.
+  // 0.6.7: extends the same field-aware pattern to Insurance's own per-person array
+  // (mergeInsuranceDetails, insurance-import-adapter.js) for the identical reason -- attaching a
+  // second insurance document to an existing item must not silently replace insuredPersons.
   const details=value('type','')==='flight'&&existing.details&&p.details
     ?mergeFlightDetails(existing.details,p.details)
     :value('type','')==='activity'&&existing.details&&p.details
     ?mergeActivityDetails(existing.details,p.details)
+    :value('type','')==='insurance'&&existing.details&&p.details
+    ?mergeInsuranceDetails(existing.details,p.details)
     :{...(existing.details||{}),...(p.details||{})};
   const location=String(value('location','')).trim();
   // V6-F35/V6-F39 (fix pass 4): once a flight's direction is resolved -- location ends up
@@ -179,8 +200,10 @@ export function suggestionToItem(suggestion,existing={},tripStartDate=''){
   // (value('participants',[]) picks the new suggestion's array OR the existing one, never both) --
   // fixed only for 'activity' (the type this array is actually used for per-ticket-holder-derived
   // names) to avoid any unintended behavior change for Hotel/Flight/manual items, which don't
-  // populate participants the same way.
-  const participants=value('type','')==='activity'
+  // populate participants the same way. 0.6.7: 'insurance' has the identical shape (participants
+  // derived from details.insuredPersons the same way activity derives from ticketHolders), so it
+  // gets the same union treatment for the same reason.
+  const participants=['activity','insurance'].includes(value('type',''))
     ?[...new Set([...(existing.participants||[]),...(p.participants||[])])].filter(Boolean)
     :value('participants',[]);
   const incomingWarnings=p.warnings||suggestion.warnings||[];
