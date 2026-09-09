@@ -1,14 +1,15 @@
 # INSURANCE_SMART_IMPORT_DISCOVERY
 
-Status: **FROZEN.** All entry-gate and Decision 4/6/7 questions are resolved by the Product Owner, including the Section 3a architecture question (dedicated/activity-linked insurance and Timeline behavior), closed this revision via a `/product-management:brainstorm` session. `0.6.7`'s implementation prompt may now be authored.
-Document revision: `V3`
-Date: 2026-09-08
+Status: **FROZEN.** All entry-gate and Decision 4/6/7 questions are resolved by the Product Owner, including the Section 3a architecture question (dedicated/activity-linked insurance and Timeline behavior), closed via a `/product-management:brainstorm` session. Two factual corrections to the frozen benchmark ground truth were made in `V4`, found during the `0.6.7` acceptance session — see that row below; neither reopens any Decision 1/4/6/7 question.
+Document revision: `V4`
+Date: 2026-09-09
 Sequenced: `0.6.7`, immediately following `0.6.6` (through its `0.6.6.1`–`0.6.6.3` correction cycle, closed and live in Production)
 
 ## Document change history
 
 | Document revision | Date | Change |
 |---|---|---|
+| V4 | 2026-09-09 | Two factual corrections to the frozen benchmark ground truth, confirmed against the real source PDFs by the Product Owner during the `0.6.7` acceptance session (`docs/versions/V6/0.6.7/EXECUTABLE_TEST_SESSION_V1.md`) — documentation corrections only, not scope/decision changes, and not code findings: (1) `INS-004` (Phoenix): the catalogued customer-service number was wrong (`03-7338141`, corrected to `03-7332222`). (2) `INS-005` (Wobi): Daniel's and Amit's IDs were swapped (corrected: Daniel `220990485`, consistent with the same person's ID on `INS-002`/`INS-003`; Amit `340255835`). In both cases the app's own live extraction during the acceptance session was already correct — the document was wrong, not the extraction. Part of the `0.6.7.1` focused correction package alongside `V6-F75`–`V6-F81` (`MVP_DELIVERY_PLAN_CURRENT_STATE_V1.md`). |
 | V3 | 2026-09-08 | Resolved Section 3a via a `/product-management:brainstorm` session with the Product Owner. Final design: `schedule` stays fixed at `'entire'` for every insurance item, including dedicated/activity-linked ones (Option A from `V2` — Option B, per-item date-aware `schedule`, was explicitly rejected: "I don't want they both will appear on the Today page... I want to be able to reach the insurance both from the activity/event/item or from the insurance basket"). A new field, `relatedItemIds` (array), is added to `TYPE_FIELDS.insurance` only, letting a Product Owner manually link an insurance item to one or more other items it covers (e.g. a diving activity, a rental car). The reverse direction — an item showing the insurance that covers it — is a **computed lookup at render time** (scan all items for any insurance item whose `relatedItemIds` includes this item's id); no new field is added to any other item type. The link is two-way and tappable in the UI. No new "basket" surface is needed — the existing Insurance category tile in Trip Center already serves that role. This closes the document's last open question; status moves from DRAFT to **Frozen**. |
 | V2 | 2026-09-07 | Product Owner confirmed three of the four `V1` open questions: (1) add `startAt`/`endAt` to `TYPE_FIELDS.insurance` — confirmed, and expanded in scope (see below); (2) `phone`-priority resolution (emergency line over claims line) — confirmed; (3) sum-insured amount to `notes` — confirmed; (4) Decision 7, PDF/image-only, no URL scope — confirmed, no real URL example available. Confirming (1) surfaced a new, real requirement: the Product Owner wants **dedicated, activity- or asset-linked insurance policies during the trip** (a diving-specific policy, a rental-car excess-protection policy), not just whole-trip medical/travel insurance — illustrated with two more real documents, `INS-007` (DiveAssure, single-day) and `INS-008` (RentalCover.com/Cover Genius rental-car excess protection, a sub-range of the trip). This surfaces a genuine architecture question beyond a simple field addition — see Section 3a — which is now this document's one remaining open item before it can freeze. |
 | V1 | 2026-09-07 | Baseline draft. Data-model check performed by direct code inspection (not assumed). Six real benchmark documents supplied by the Product Owner, individually catalogued with SHA-256 identity and frozen field-by-field expected values, including one mandatory wild-card. Decisions 4 and 7 proposed for Product Owner confirmation; Decisions 1/2/3/5/6 inherited per the established pattern. |
@@ -117,7 +118,7 @@ Eight supplied by the Product Owner from local files, Gmail, and directly attach
 - Insured (`participants`): Eyal Ben-Yitzhak, ID `43119213`, DOB `19/05/1981` — single traveler, self only
 - Coverage: `17/06/2021` – `20/06/2021` (4 days), destination area: Asia
 - Address on file: Revadim (kibbutz) 155, postal code 50000; mobile `050-3109035`; email `eyalby@gmail.com`
-- Emergency phone (`phone`): `+972-3-7331177` (MEDASSIS assistance company); email `info@medassis.org`; separate customer-service line `03-7338141` (office hours only, not 24/7 — goes to `notes`, not `phone`)
+- Emergency phone (`phone`): `+972-3-7331177` (MEDASSIS assistance company); email `info@medassis.org`; separate customer-service line `03-7332222` (office hours only, not 24/7 — goes to `notes`, not `phone`) — **corrected `V4`: originally catalogued as `03-7338141`, confirmed wrong against the real source PDF during the `0.6.7` acceptance session; the app's own live extraction of `03-7332222` was correct.**
 
 ### INS-005 — Wobi (booking confirmation)
 
@@ -127,8 +128,8 @@ Eight supplied by the Product Owner from local files, Gmail, and directly attach
 - Insured (`participants`), **five travelers — the real full family, the largest real case in this benchmark**:
   - Eyal Ben Yitzhak — ID `043119213`, age 43
   - Paola Cohen — ID `303597751`, age 43
-  - Amit Ben Yitzhak — ID `220990485`
-  - Daniel Ben Yitzhak — ID `340255835`, age 10
+  - Amit Ben Yitzhak — ID `340255835`
+  - Daniel Ben Yitzhak — ID `220990485`, age 10 — **corrected `V4`: Daniel's and Amit's IDs were originally swapped in this catalogue, confirmed wrong against the real source PDF during the `0.6.7` acceptance session (Daniel's `220990485` is also consistent with the same person's ID on `INS-002`/`INS-003`); the app's own live extraction was correct.**
   - Ofri Ben Yitzhak — ID `225991736`, age 6
 - Coverage: `14/08/2025` – `26/08/2025` (13 days)
 - Emergency phone (`phone`): `+972-3-7547030` (24/7, same Harel hotline as INS-002 — consistent across both real Harel documents, a useful cross-check)

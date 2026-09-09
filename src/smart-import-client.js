@@ -87,4 +87,8 @@ async function request(token,body){
 }
 
 function fileToBase64(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result||'').split(',')[1]||'');reader.onerror=()=>reject(new Error('קריאת הקובץ נכשלה.'));reader.readAsDataURL(file)})}
-function inferMime(name){return /\.pdf$/i.test(name)?'application/pdf':/\.png$/i.test(name)?'image/png':'image/jpeg'}
+// V6-F78: had no TIFF branch at all -- a .tif/.tiff file with an empty file.type (TIFF MIME-type
+// detection is less universal across browsers/OS than PNG/JPEG) fell through to the 'image/jpeg'
+// default, mislabeling the actual TIFF bytes sent to the server/model. This is the same root
+// cause class as validateSmartSource's own missing TIFF recognition (src/v5-app.js).
+function inferMime(name){return /\.pdf$/i.test(name)?'application/pdf':/\.png$/i.test(name)?'image/png':/\.tiff?$/i.test(name)?'image/tiff':'image/jpeg'}

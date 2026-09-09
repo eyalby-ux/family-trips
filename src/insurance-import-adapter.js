@@ -15,6 +15,16 @@ const FIELD_TARGETS={
   phone:'phone',emergency_phone:'phone',hotline:'phone',
   start_date:'startDate',coverage_start:'startDate',coverage_start_date:'startDate',
   end_date:'endDate',coverage_end:'endDate',coverage_end_date:'endDate',
+  // V6-F76/V6-F77: website was deliberately left unmapped at first launch (the original Section 1
+  // data-model check called the location/website omission "reasonable, an insurance policy has no
+  // venue" -- true for location, but the 0.6.7 acceptance session confirmed real insurer websites
+  // ARE commonly present and worth a structured field, same as Hotel/Activity/Restaurant already
+  // have). Mapping it here is the single fix for both findings: it also puts 'website' into
+  // TYPE_FIELDS.insurance (src/ingestion.js), which is what makes proposalFields() render the
+  // field on the FIRST suggestion-review screen too, not only in the edit-item form's own
+  // alwaysWebsite:true special case (which is why the field previously appeared only after
+  // save+reopen, never on initial review).
+  website:'website',
 };
 // sum_insured and broker (and any other free-form key the model chooses, e.g. "claims_phone" for a
 // secondary non-emergency number) are deliberately NOT mapped to a target above -- per Decision 4,
@@ -36,7 +46,7 @@ export function smartImportInsuranceResultToSuggestion(result,source,now=new Dat
   const otherFields=[];
   const needsReviewFields=[];
   let startDate='',endDate='';
-  const values={provider:'',confirmationNumber:'',phone:''};
+  const values={provider:'',confirmationNumber:'',phone:'',website:''};
   for(const field of draft.fields||[]){
     const value=String(field.normalizedValue||field.rawValue||'').trim();
     const canonical=canonicalFieldKey(field.key);
@@ -85,6 +95,7 @@ export function smartImportInsuranceResultToSuggestion(result,source,now=new Dat
     provider:values.provider,
     confirmationNumber:values.confirmationNumber,
     phone:values.phone,
+    website:values.website,
     startAt:dateTime(startDate),
     endAt:dateTime(endDate),
     participants,

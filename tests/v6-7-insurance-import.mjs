@@ -27,26 +27,37 @@ function test_INS001_direct_insurance_hebrew_font_no_tounicode(){
   const result=draftResult({
     insuredPersons:[person({name:'Eyal Ben Yitzhak',idNumber:'043119213',dob:'1981-05-19',evidence:'policy holder section'})],
     fields:[
-      f('provider','Provider','ביטוח ישיר'),
+      // V6-F75 (0.6.7.1): the live QA session found this resolved silently to "IDI Insurance
+      // Company Ltd." (the legal underwriting entity) with the "ביטוח ישיר" brand name dropped
+      // entirely, no needs_review flag. The fixed prompt instructs combining both names when a
+      // source shows both together for the one same insurer -- this fixture represents that
+      // corrected reading.
+      f('provider','Provider','ביטוח ישיר / IDI Insurance Company Ltd.'),
       f('policy_number','Policy number','1595783600'),
       f('start_date','Coverage start','2023-02-03'),
       f('end_date','Coverage end','2023-02-07'),
       f('phone','Emergency phone','972-3-5655999'),
       f('claims_phone','Claims/office fax','03-5555545'),
       f('sum_insured','Sum insured (medical)','$5,000,000'),
+      // V6-F76/V6-F77 (0.6.7.1): the insurer website was extracted correctly but had nowhere
+      // structured to land -- see the dedicated V6-F76/V6-F77 tests below for the isolated case;
+      // included here too since INS-001 is one of the three real documents the QA session
+      // actually confirmed this on.
+      f('website','Website','www.555.co.il'),
     ],
   });
   const suggestion=smartImportInsuranceResultToSuggestion(result,source);
-  assert.equal(suggestion.proposed.provider,'ביטוח ישיר');
+  assert.equal(suggestion.proposed.provider,'ביטוח ישיר / IDI Insurance Company Ltd.','V6-F75: the brand name and the legal underwriting entity must both be preserved, combined, not one silently dropped for the other');
   assert.equal(suggestion.proposed.confirmationNumber,'1595783600');
   assert.equal(suggestion.proposed.startAt,'2023-02-03T12:00');
   assert.equal(suggestion.proposed.endAt,'2023-02-07T12:00');
   assert.equal(suggestion.proposed.phone,'972-3-5655999','the emergency line, not the claims/office fax, must land in phone');
+  assert.equal(suggestion.proposed.website,'www.555.co.il','V6-F76: the insurer website must land in the structured website field, not only in notes text');
   assert.match(suggestion.proposed.notes,/03-5555545/,'the separate claims/office fax must still be preserved, just in notes rather than phone');
   assert.match(suggestion.proposed.notes,/5,000,000/,'sum insured goes to notes per Decision 4, not a new structured field');
   assert.deepEqual(suggestion.proposed.participants,['Eyal Ben Yitzhak']);
   assert.equal(suggestion.proposed.details.insuredPersons[0].idNumber,'043119213');
-  console.log('PASS: INS-001 Direct Insurance -- numeric/date fields captured reliably despite the source PDF\'s own Hebrew-font ToUnicode limitation, emergency phone correctly separated from the claims fax');
+  console.log('PASS: INS-001 Direct Insurance -- numeric/date fields captured reliably despite the source PDF\'s own Hebrew-font ToUnicode limitation, emergency phone correctly separated from the claims fax, brand+legal-entity provider combined, website in its own structured field');
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -66,6 +77,7 @@ function test_INS002_harel_two_travelers(){
       f('end_date','Coverage end','2026-07-19'),
       f('phone','Emergency phone','972-3-7547030'),
       f('sum_insured','Sum insured (medical)','$5,000,000'),
+      f('website','Website','www.harel-group.co.il'), // V6-F76/V6-F77 (0.6.7.1)
     ],
   });
   const suggestion=smartImportInsuranceResultToSuggestion(result,source);
@@ -74,7 +86,8 @@ function test_INS002_harel_two_travelers(){
   assert.equal(suggestion.proposed.endAt,'2026-07-19T12:00');
   assert.deepEqual(suggestion.proposed.participants,['Eyal Ben Yitzhak','Daniel Ben Yitzhak'],'both named, ID+DOB-identified travelers must be captured, each their own participant');
   assert.equal(suggestion.proposed.details.insuredPersons[1].dob,'2011-09-20','the second traveler\'s own DOB must never be attached to the first traveler\'s entry');
-  console.log('PASS: INS-002 Harel -- two named, ID+DOB-identified travelers correctly captured as separate insuredPersons/participants');
+  assert.equal(suggestion.proposed.website,'www.harel-group.co.il','V6-F76: the insurer website must land in the structured website field, not only in notes text');
+  console.log('PASS: INS-002 Harel -- two named, ID+DOB-identified travelers correctly captured as separate insuredPersons/participants, website in its own structured field');
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -89,6 +102,11 @@ function test_INS003_passportcard_confirmation_letter(){
       person({name:'Ben Yitzhak Daniel',idNumber:'220990485',dob:'2011-09-20',evidence:'confirmation letter'}),
     ],
     fields:[
+      // V6-F81 (0.6.7.1): the live QA session's actual result resolved provider to "DavidShield
+      // Insurance Company LTD" alone with a needs_review flag about the dropped "PassportCard"
+      // brand name -- honest, but incomplete, since the source shows both names together with no
+      // genuine ambiguity about either. The fixed prompt (same paragraph that fixes V6-F75)
+      // instructs combining both, matching the discovery document's own catalogued format below.
       f('provider','Provider','PassportCard / DavidShield Insurance Company Ltd.'),
       f('policy_number','Policy number','306117447'),
       f('start_date','Coverage start','2022-11-28'),
@@ -97,6 +115,7 @@ function test_INS003_passportcard_confirmation_letter(){
     ],
   });
   const suggestion=smartImportInsuranceResultToSuggestion(result,source);
+  assert.equal(suggestion.proposed.provider,'PassportCard / DavidShield Insurance Company Ltd.','V6-F81: both the customer-facing brand and the legal entity name must be combined, not one reported with a needs_review flag about the other, when the source shows both together with no genuine ambiguity');
   assert.equal(suggestion.proposed.confirmationNumber,'306117447');
   assert.equal(suggestion.proposed.startAt,'2022-11-28T12:00');
   assert.equal(suggestion.proposed.endAt,'2022-12-02T12:00');
@@ -120,15 +139,20 @@ function test_INS004_phoenix_insurer_not_wobi_agent(){
       f('start_date','Coverage start','2021-06-17'),
       f('end_date','Coverage end','2021-06-20'),
       f('phone','Emergency phone (MEDASSIS)','+972-3-7331177'),
-      f('claims_phone','Customer service (office hours only)','03-7338141'),
+      // 0.6.7.1 documentation correction: the discovery document's originally-catalogued number
+      // here, 03-7338141, was itself wrong -- confirmed against the real source PDF during the
+      // 0.6.7 acceptance session. The correct printed number is 03-7332222.
+      f('claims_phone','Customer service (office hours only)','03-7332222'),
+      f('website','Website','WWW.FNX.CO.IL'), // V6-F76/V6-F77 (0.6.7.1)
     ],
   });
   const suggestion=smartImportInsuranceResultToSuggestion(result,source);
   assert.equal(suggestion.proposed.provider,'Phoenix Insurance Company Ltd.','provider must resolve to the underwriting insurer, not the selling agent Wobi, mirroring the same insurer-vs-agent priority discipline Attraction/Event\'s V6-F63 already had to solve');
   assert.match(suggestion.proposed.notes,/Wobi Insurance Agencies/,'the selling agent must still be preserved, in notes, not silently dropped');
   assert.equal(suggestion.proposed.phone,'+972-3-7331177','the 24/7 MEDASSIS emergency line, not the office-hours-only customer service number');
-  assert.match(suggestion.proposed.notes,/03-7338141/,'the office-hours-only customer service line must land in notes, not phone');
-  console.log('PASS: INS-004 Phoenix -- provider resolves to the underwriting insurer, not the selling agent (Wobi); emergency phone correctly separated from the office-hours customer service line');
+  assert.match(suggestion.proposed.notes,/03-7332222/,'the office-hours-only customer service line must land in notes, not phone');
+  assert.equal(suggestion.proposed.website,'WWW.FNX.CO.IL','V6-F76: the insurer website must land in the structured website field, not only in notes text');
+  console.log('PASS: INS-004 Phoenix -- provider resolves to the underwriting insurer, not the selling agent (Wobi); emergency phone correctly separated from the office-hours customer service line; website in its own structured field');
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -138,11 +162,15 @@ function test_INS004_phoenix_insurer_not_wobi_agent(){
 function test_INS005_wobi_five_traveler_family_case(){
   const source={id:'src-ins005',name:'INS-005',fingerprint:'ins005'};
   const result=draftResult({
+    // 0.6.7.1 documentation correction: the discovery document originally had Daniel's and Amit's
+    // IDs swapped -- confirmed against the real source PDF during the 0.6.7 acceptance session.
+    // Correct: Daniel = 220990485 (consistent with the same person's ID on INS-002/INS-003),
+    // Amit = 340255835.
     insuredPersons:[
       person({name:'Eyal Ben Yitzhak',idNumber:'043119213',evidence:'order confirmation, traveler 1'}),
       person({name:'Paola Cohen',idNumber:'303597751',evidence:'order confirmation, traveler 2'}),
-      person({name:'Amit Ben Yitzhak',idNumber:'220990485',evidence:'order confirmation, traveler 3'}),
-      person({name:'Daniel Ben Yitzhak',idNumber:'340255835',evidence:'order confirmation, traveler 4'}),
+      person({name:'Amit Ben Yitzhak',idNumber:'340255835',evidence:'order confirmation, traveler 3'}),
+      person({name:'Daniel Ben Yitzhak',idNumber:'220990485',evidence:'order confirmation, traveler 4'}),
       person({name:'Ofri Ben Yitzhak',idNumber:'225991736',evidence:'order confirmation, traveler 5'}),
     ],
     fields:[
@@ -240,7 +268,9 @@ function test_INS008_rentalcover_no_phone_only_claims_url(){
   assert.equal(suggestion.proposed.endAt,'2025-08-26T12:00');
   assert.equal(suggestion.proposed.phone,'','no phone number anywhere in this source -- must be genuinely absent, never fabricated, confirming phone is required-when-present rather than assumed universal');
   assert.match(suggestion.proposed.notes,/260,600/,'the ILS excess/damage limit (not a USD medical sum) must still be preserved in notes, currency as printed');
-  assert.match(suggestion.proposed.notes,/rentalcover\.com\/en\/claim/,'the claims URL must be preserved even though there is no phone number to report');
+  // V6-F76 (0.6.7.1): a claims URL is a website-shaped value, so it now correctly lands in the
+  // structured website field (previously it had nowhere structured to go and fell into notes).
+  assert.equal(suggestion.proposed.website,'www.rentalcover.com/en/claim','the claims URL must be preserved even though there is no phone number to report -- now via the structured website field rather than notes');
   assert.equal(suggestion.proposed.schedule,'entire','a dedicated, asset-linked policy (rental-car excess protection, narrower than the whole trip) still uses the fixed entire-trip schedule');
   console.log('PASS: INS-008 RentalCover.com/Cover Genius -- a dedicated asset-linked policy with no phone at all (only a claims URL) correctly leaves phone empty rather than fabricating a number, ILS excess limit preserved in notes');
 }
@@ -249,9 +279,106 @@ function test_INS008_rentalcover_no_phone_only_claims_url(){
 // Data model (Section 1/3, discovery doc)
 // ---------------------------------------------------------------------------------------------
 function test_data_model_startAt_endAt_added_schedule_unchanged(){
-  assert.deepEqual(TYPE_FIELDS.insurance,['provider','confirmationNumber','phone','startAt','endAt','participants','notes'],'startAt/endAt must be added to TYPE_FIELDS.insurance per Decision 4');
+  // V6-F76/V6-F77 (0.6.7.1): 'website' added alongside startAt/endAt -- see the dedicated tests
+  // below for why this single addition fixes both findings at once.
+  assert.deepEqual(TYPE_FIELDS.insurance,['provider','confirmationNumber','website','phone','startAt','endAt','participants','notes'],'startAt/endAt (0.6.7) and website (0.6.7.1, V6-F76/V6-F77) must be in TYPE_FIELDS.insurance');
   assert.equal(ITEM_TYPES.insurance.schedule,'entire','schedule must stay fixed at \'entire\' -- an explicit, deliberate Product Owner decision (Section 3a) -- never made computed/per-instance based on coverage dates');
-  console.log('PASS: data model -- startAt/endAt added to TYPE_FIELDS.insurance, ITEM_TYPES.insurance.schedule unchanged at \'entire\'');
+  console.log('PASS: data model -- startAt/endAt/website added to TYPE_FIELDS.insurance, ITEM_TYPES.insurance.schedule unchanged at \'entire\'');
+}
+// ---------------------------------------------------------------------------------------------
+// V6-F76/V6-F77 (0.6.7.1): root cause confirmed by direct code trace, not inference --
+// proposalFields() (src/v5-app.js) only renders 'website' when TYPE_FIELDS[type] includes it OR
+// p.website is already truthy; the insurance adapter never populated proposed.website at all
+// (V6-F76's cause -- the value landed in notes via the otherFields fallback instead), so the
+// field never appeared on the FIRST suggestion-review screen (V6-F77's cause). editModal() alone
+// passes {alwaysWebsite:true}, which is why the field appeared only after save+reopen -- the one
+// case that forces it regardless of TYPE_FIELDS/p.website. Fixing the adapter mapping (tested via
+// the INS-001/INS-002/INS-004 fixtures above, all three real documents the QA session actually
+// confirmed this on) also fixes the missing-field symptom, since it makes 'website' a permanent
+// member of TYPE_FIELDS.insurance rather than depending on the alwaysWebsite special case.
+// ---------------------------------------------------------------------------------------------
+function test_V6_F76_website_lands_in_structured_field_not_only_notes(){
+  const source={id:'src-website',name:'website-case',fingerprint:'website-case'};
+  const result=draftResult({
+    insuredPersons:[person({name:'Eyal Ben Yitzhak'})],
+    fields:[f('provider','Provider','Test Insurer'),f('website','Website','www.example-insurer.co.il')],
+  });
+  const suggestion=smartImportInsuranceResultToSuggestion(result,source);
+  assert.equal(suggestion.proposed.website,'www.example-insurer.co.il','the website value must land in the structured proposed.website field');
+  assert.doesNotMatch(suggestion.proposed.notes,/example-insurer/,'a website mapped to its own structured field must not ALSO be duplicated into notes via the otherFields fallback');
+  console.log('PASS: V6-F76 a correctly-extracted insurer website lands in the structured website field, not only in notes text');
+}
+function test_V6_F77_website_field_is_a_permanent_TYPE_FIELDS_member_not_only_alwaysWebsite(){
+  // Source-inspection: confirms proposalFields()'s own alwaysWebsite special case still exists
+  // (unrelated to this fix, still needed for every other type), but that insurance no longer
+  // DEPENDS on it -- 'website' being a genuine TYPE_FIELDS.insurance member (asserted directly
+  // above, test_data_model_startAt_endAt_added_schedule_unchanged) is what makes the field render
+  // on the very first suggestion-review screen, not only in the post-save edit form.
+  const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
+  assert.match(app,/alwaysWebsite:true/,'editModal must still force the website field for every type (unchanged, unrelated to this fix)');
+  assert(TYPE_FIELDS.insurance.includes('website'),'insurance must no longer rely solely on editModal\'s alwaysWebsite special case to ever show a website field -- it must be a genuine TYPE_FIELDS member, rendered on the first suggestion-review screen too');
+  console.log('PASS: V6-F77 the website field no longer depends solely on the post-save edit form\'s alwaysWebsite special case -- it is now a genuine TYPE_FIELDS.insurance member, rendered from the first suggestion-review screen onward');
+}
+// ---------------------------------------------------------------------------------------------
+// V6-F78 (0.6.7.1, hard blocker) -- .tif/.tiff rejected by a MIME/extension allowlist that never
+// included TIFF, at three layers: the client-side accept attributes (global Add + attach-and-
+// extract), the actual client-side validateSmartSource check that produced the reported alert,
+// and the server-side prepareSource check. All three fixed together, plus inferMime's own
+// fallback-MIME-guessing gap (would have mislabeled a .tif with an empty file.type as image/jpeg).
+// ---------------------------------------------------------------------------------------------
+function test_V6_F78_client_validation_accepts_tif(){
+  const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
+  assert.match(app,/function validateSmartSource\(kind,file,url\)\{/,'validateSmartSource must exist');
+  const fn=app.slice(app.indexOf('function validateSmartSource(kind,file,url){'));
+  const isImageLine=fn.slice(0,fn.indexOf(';if(kind'));
+  assert(isImageLine.includes('png|jpeg|webp|tiff'),'validateSmartSource\'s isImage MIME check must recognize image/tiff, alongside the existing png/jpeg/webp');
+  assert(isImageLine.includes('.tiff?$/i.test(file.name)'),'validateSmartSource\'s isImage check must also fall back to a .tif/.tiff filename check (mirroring isPdf\'s own MIME-or-filename fallback), since TIFF MIME-type detection is less universal across browsers/OS than PNG/JPEG');
+  console.log('PASS: V6-F78 validateSmartSource (the actual source of the reported "must choose PDF or image" alert) now accepts TIFF, by MIME type and by filename fallback');
+}
+function test_V6_F78_file_inputs_accept_tif_for_both_entry_points(){
+  const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
+  const acceptAttr='accept="application/pdf,.pdf,image/png,image/jpeg,image/webp,image/tiff,.tif,.tiff"';
+  const count=app.split(acceptAttr).length-1;
+  assert.equal(count,2,'both file-input entry points -- global Add\'s smartImportPanel and the existing-item attachmentModal -- must accept TIFF, confirmed broken at both entry points during the 0.6.7 acceptance session');
+  console.log('PASS: V6-F78 both confirmed-broken entry points (global Add and existing-item attach-and-extract) accept .tif/.tiff files');
+}
+function test_V6_F78_server_side_prepareSource_accepts_tiff_mime(){
+  const server=fs.readFileSync(new URL('../netlify/functions/smart-import.mjs',import.meta.url),'utf8');
+  assert(server.includes('png|jpeg|webp|tiff'),'the server-side prepareSource MIME check must also accept image/tiff, so a client fix alone cannot silently be undone by a server-side rejection later in the same pipeline');
+  assert(server.includes('Only PNG, JPEG, WebP and TIFF images are supported.'),'the server-side error message must be updated to reflect that TIFF is now supported, not left describing the old, narrower allowlist');
+  console.log('PASS: V6-F78 the server-side prepareSource MIME allowlist also accepts image/tiff, matching the client-side fix');
+}
+function test_V6_F78_inferMime_recognizes_tiff_filenames(){
+  const client=fs.readFileSync(new URL('../src/smart-import-client.js',import.meta.url),'utf8');
+  assert(client.includes("test(name)?'image/tiff'"),'inferMime must recognize a .tif/.tiff filename and return image/tiff -- previously it had no TIFF branch at all and would have mislabeled a .tif file with an empty file.type as image/jpeg, corrupting the actual bytes sent to the server/model even after the upload itself was no longer rejected');
+  console.log('PASS: V6-F78 inferMime correctly recognizes a .tif/.tiff filename and reports image/tiff, not the image/jpeg default');
+}
+// ---------------------------------------------------------------------------------------------
+// V6-F79 (0.6.7.1, Product Owner real-world feedback) -- the relatedItemIds picker's ADD-candidate
+// list must exclude other Insurance items (insurance-covering-insurance isn't meaningful), while
+// an already-existing link (however it got there) must still be shown/tappable regardless of type.
+// ---------------------------------------------------------------------------------------------
+function test_V6_F79_relatedItemsPanel_excludes_insurance_from_add_candidates(){
+  const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
+  assert.match(app,/const candidates=state\.items\.filter\(candidate=>candidate\.id!==item\.id&&candidate\.type!=='insurance'\);/,'the ADD-candidate checklist must exclude other insurance items, per the Product Owner\'s real-world feedback during the 0.6.7 acceptance session -- Section 3a\'s frozen "no type restriction" wording still applies to every other type');
+  assert.match(app,/const linkedItems=state\.items\.filter\(candidate=>candidate\.id!==item\.id&&linkedIds\.has\(candidate\.id\)\);/,'the already-LINKED list must remain unrestricted by type, so a pre-existing link is never silently hidden by this fix');
+  console.log('PASS: V6-F79 the relatedItemIds picker\'s add-candidate list excludes other insurance items; already-linked items remain visible regardless of type');
+}
+// ---------------------------------------------------------------------------------------------
+// V6-F75/V6-F81 (0.6.7.1) -- both are the same underlying pattern: a source names both a
+// customer-facing brand and a distinct legal underwriting entity for the ONE same insurer.
+// V6-F75 (INS-001) silently substituted the legal entity for the brand with no flag at all;
+// V6-F81 (INS-003) reported one with an honest needs_review flag about the other. Neither is what
+// Decision 4 actually wants when the source shows both together with no genuine ambiguity: this
+// is prompt-only guidance (there is no adapter-level parsing of "which of two names is which" --
+// the model itself must recognize and combine them), so regression coverage here is
+// source-inspection of the prompt text, plus the end-to-end adapter fixtures above
+// (INS-001/INS-003) proving a correctly-combined string flows through cleanly to proposed.provider.
+// ---------------------------------------------------------------------------------------------
+function test_V6_F75_V6_F81_insuranceSystemPrompt_instructs_combining_brand_and_legal_entity(){
+  assert.match(insuranceSystemPrompt,/report provider as the combination "<brand name> \/ <legal entity name>"/,'the prompt must explicitly instruct combining a customer-facing brand name and a distinct legal underwriting entity name for the same insurer, rather than silently dropping one (V6-F75) or flagging needs_review about one while keeping only the other (V6-F81)');
+  assert.match(insuranceSystemPrompt,/never drop one silently in favor of the other/,'the prompt must explicitly warn against silently dropping one of the two names -- V6-F75\'s exact observed failure mode');
+  console.log('PASS: V6-F75/V6-F81 insuranceSystemPrompt explicitly instructs combining a brand name and a legal entity name for the same insurer, rather than silently dropping or flagging one');
 }
 function test_relatedItemIds_is_not_in_TYPE_FIELDS(){
   assert(!TYPE_FIELDS.insurance.includes('relatedItemIds'),'relatedItemIds must NOT be in TYPE_FIELDS.insurance -- it needs a dedicated multi-select UI (relatedItemsPanel), not a generic scalar form field, and proposalFields() has no rendering path for an array-of-ids field anyway');
@@ -368,4 +495,12 @@ test_relatedItemsPanel_and_reverse_lookup_are_wired();
 test_toggle_related_item_click_handler_mutates_relatedItemIds();
 test_attach_and_extract_offered_for_insurance_items();
 test_runSmartAnalysis_routes_insurance_attach_and_extract_to_the_insurance_operation();
-console.log('ALL PASS: 0.6.7 Insurance Smart Import -- all 8 real INS-001-INS-008 benchmark cases (INS-006 as the mandatory wild-card), the data model (startAt/endAt added, schedule unchanged, relatedItemIds insurance-only and never extracted), the two-way relatedItemIds UI, and the V6-F66-style per-person merge all pass');
+test_V6_F76_website_lands_in_structured_field_not_only_notes();
+test_V6_F77_website_field_is_a_permanent_TYPE_FIELDS_member_not_only_alwaysWebsite();
+test_V6_F78_client_validation_accepts_tif();
+test_V6_F78_file_inputs_accept_tif_for_both_entry_points();
+test_V6_F78_server_side_prepareSource_accepts_tiff_mime();
+test_V6_F78_inferMime_recognizes_tiff_filenames();
+test_V6_F79_relatedItemsPanel_excludes_insurance_from_add_candidates();
+test_V6_F75_V6_F81_insuranceSystemPrompt_instructs_combining_brand_and_legal_entity();
+console.log('ALL PASS: 0.6.7 Insurance Smart Import -- all 8 real INS-001-INS-008 benchmark cases (INS-006 as the mandatory wild-card), the data model (startAt/endAt/website added, schedule unchanged, relatedItemIds insurance-only and never extracted), the two-way relatedItemIds UI, the V6-F66-style per-person merge, and the 0.6.7.1 correction findings (V6-F75-V6-F79, V6-F81) all pass');

@@ -127,7 +127,11 @@ async function prepareSource(source,allowUrl=true){
     if(!allowUrl)throw httpError(400,'unsupported_source','A public URL source is not supported for this category.');
     const page=await fetchPublicPage(source.url);return {kind:'url',sourceSize:page.text.length,content:[{type:'input_text',text:`OFFICIAL PUBLIC SOURCE ${page.finalUrl}\n${page.text}`}]}}
   const bytes=Buffer.from(String(source.dataBase64||''),'base64');if(!bytes.length||bytes.length>MAX_BINARY_BYTES)throw httpError(413,'source_too_large','The file is empty or exceeds 4MB.');
-  const mime=String(source.mimeType||'');if(source.kind==='pdf'&&mime!=='application/pdf')throw httpError(400,'unsupported_source','Invalid PDF MIME type.');if(source.kind==='image'&&!/^image\/(?:png|jpeg|webp)$/.test(mime))throw httpError(400,'unsupported_source','Only PNG, JPEG and WebP images are supported.');
+  // V6-F78: never included TIFF, even though Decision 7 (INSURANCE_SMART_IMPORT_DISCOVERY_V1.md)
+  // explicitly confirms scanned/fax-quality images -- INS-006's own real format -- as in scope.
+  // Mirrors the client-side fix (src/v5-app.js's validateSmartSource, src/smart-import-client.js's
+  // inferMime) so the full pipeline agrees, not just the client-side alert.
+  const mime=String(source.mimeType||'');if(source.kind==='pdf'&&mime!=='application/pdf')throw httpError(400,'unsupported_source','Invalid PDF MIME type.');if(source.kind==='image'&&!/^image\/(?:png|jpeg|webp|tiff)$/.test(mime))throw httpError(400,'unsupported_source','Only PNG, JPEG, WebP and TIFF images are supported.');
   const data=`data:${mime};base64,${bytes.toString('base64')}`;return {kind:source.kind,sourceSize:bytes.length,content:[source.kind==='pdf'?{type:'input_file',filename:safeFilename(source.name,'source.pdf'),file_data:data,detail:'high'}:{type:'input_image',image_url:data,detail:'high'}]};
 }
 async function fetchPublicPage(rawUrl){
