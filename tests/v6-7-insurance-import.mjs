@@ -125,16 +125,23 @@ function test_INS003_passportcard_confirmation_letter(){
 }
 
 // ---------------------------------------------------------------------------------------------
-// INS-004 -- Phoenix, sold via agent Wobi. Real, confirmed insurer != selling agent case --
-// provider must resolve to Phoenix (the underwriter), not Wobi (the agent).
+// INS-004 -- Phoenix. 0.6.7.2 documentation correction: this document does NOT name Wobi at all
+// (the V1-V4 discovery-document catalogue's "sold via agent Wobi Insurance Agencies Ltd." was a
+// cross-document mix-up with INS-005, confirmed against the real source PDF during the 0.6.7.1
+// acceptance session -- see INSURANCE_SMART_IMPORT_DISCOVERY_V1.md V5). This fixture previously
+// carried a fabricated `broker` field reflecting that wrong catalogue entry; removed. The document
+// DOES show a distinct "SMART TRAVEL" plan/product name near the provider, which the live
+// extraction incorrectly combined into provider ("הפניקס / SMART TRAVEL") during the 0.6.7.1
+// session -- V6-F84, fixed via insuranceSystemPrompt (see the dedicated prompt-text regression
+// test below; a plan-name-pollution bug lives entirely in the model's own reading of the prompt,
+// not in this adapter, so it cannot be exercised by an adapter-level fixture like this one).
 // ---------------------------------------------------------------------------------------------
-function test_INS004_phoenix_insurer_not_wobi_agent(){
+function test_INS004_phoenix_provider_stays_clean_of_plan_name(){
   const source={id:'src-ins004',name:'INS-004',fingerprint:'ins004'};
   const result=draftResult({
     insuredPersons:[person({name:'Eyal Ben-Yitzhak',idNumber:'43119213',dob:'1981-05-19',evidence:'policy holder section'})],
     fields:[
       f('provider','Insurer','Phoenix Insurance Company Ltd.'),
-      f('broker','Selling agent','Wobi Insurance Agencies Ltd.'),
       f('policy_number','Policy number','21/121/667/1017370'),
       f('start_date','Coverage start','2021-06-17'),
       f('end_date','Coverage end','2021-06-20'),
@@ -147,12 +154,12 @@ function test_INS004_phoenix_insurer_not_wobi_agent(){
     ],
   });
   const suggestion=smartImportInsuranceResultToSuggestion(result,source);
-  assert.equal(suggestion.proposed.provider,'Phoenix Insurance Company Ltd.','provider must resolve to the underwriting insurer, not the selling agent Wobi, mirroring the same insurer-vs-agent priority discipline Attraction/Event\'s V6-F63 already had to solve');
-  assert.match(suggestion.proposed.notes,/Wobi Insurance Agencies/,'the selling agent must still be preserved, in notes, not silently dropped');
+  assert.equal(suggestion.proposed.provider,'Phoenix Insurance Company Ltd.','provider must be the underwriting insurer alone, with no plan/product name (e.g. "SMART TRAVEL") appended -- V6-F84\'s exact failure mode, and no Wobi at all, which this document never names');
+  assert.doesNotMatch(suggestion.proposed.notes,/Wobi/,'this document never names Wobi -- the 0.6.7.1-era fixture incorrectly asserted a Wobi broker note here, a documentation-catalogue mix-up with INS-005, corrected in INSURANCE_SMART_IMPORT_DISCOVERY_V1.md V5');
   assert.equal(suggestion.proposed.phone,'+972-3-7331177','the 24/7 MEDASSIS emergency line, not the office-hours-only customer service number');
   assert.match(suggestion.proposed.notes,/03-7332222/,'the office-hours-only customer service line must land in notes, not phone');
   assert.equal(suggestion.proposed.website,'WWW.FNX.CO.IL','V6-F76: the insurer website must land in the structured website field, not only in notes text');
-  console.log('PASS: INS-004 Phoenix -- provider resolves to the underwriting insurer, not the selling agent (Wobi); emergency phone correctly separated from the office-hours customer service line; website in its own structured field');
+  console.log('PASS: INS-004 Phoenix -- provider resolves to the underwriting insurer alone (no Wobi, which this document never names, and no plan/product name pollution); emergency phone correctly separated from the office-hours customer service line; website in its own structured field');
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -380,6 +387,77 @@ function test_V6_F75_V6_F81_insuranceSystemPrompt_instructs_combining_brand_and_
   assert.match(insuranceSystemPrompt,/never drop one silently in favor of the other/,'the prompt must explicitly warn against silently dropping one of the two names -- V6-F75\'s exact observed failure mode');
   console.log('PASS: V6-F75/V6-F81 insuranceSystemPrompt explicitly instructs combining a brand name and a legal entity name for the same insurer, rather than silently dropping or flagging one');
 }
+// ---------------------------------------------------------------------------------------------
+// V6-F84 (0.6.7.2) -- the V6-F75/V6-F81 brand+legal-entity combination fix over-fired on INS-004
+// (Phoenix), appending its "SMART TRAVEL" plan/product name into provider as if it were a second
+// entity name ("הפניקס / SMART TRAVEL"). Prompt-only, same reason V6-F75/V6-F81 above are: there is
+// no adapter-level way to tell a plan name from a company name, only the model reading the prompt
+// can. Regression coverage is source-inspection of the new distinguishing paragraph, plus the
+// INS-004 fixture above (test_INS004_phoenix_provider_stays_clean_of_plan_name) proving a
+// correctly-clean provider string flows through the adapter untouched.
+// ---------------------------------------------------------------------------------------------
+function test_V6_F84_insuranceSystemPrompt_distinguishes_plan_name_from_second_entity(){
+  assert.match(insuranceSystemPrompt,/plan, product, coverage-tier or package name/i,'the prompt must explicitly name the plan/product/edition-name pattern as distinct from the brand+legal-entity pattern above it');
+  assert.match(insuranceSystemPrompt,/do not combine it into provider at all/,'the prompt must explicitly instruct NOT combining a plan/product name into provider -- V6-F84\'s exact observed failure mode (the SMART TRAVEL plan name appended to Phoenix\'s provider)');
+  assert.match(insuranceSystemPrompt,/SMART TRAVEL/,'the prompt should reference the actual real-world example that exposed this bug, mirroring how the brand+legal-entity paragraph above it cites PassportCard/DavidShield');
+  console.log('PASS: V6-F84 insuranceSystemPrompt explicitly distinguishes a plan/product/edition name (must stay out of provider) from a genuine second entity name (must be combined), preventing the SMART TRAVEL-into-Phoenix pollution');
+}
+// ---------------------------------------------------------------------------------------------
+// V6-F83 (0.6.7.2) -- INS-003's website field extracted correctly in only 1 of 4 identical live
+// runs during the 0.6.7.1 acceptance session, a genuine model-sampling non-determinism issue (this
+// benchmark's own fixture PDF, INS-003_PassportCard.pdf, shows no website value in its plain-text
+// layer at all -- consistent with the Product Owner's own observation that the value is visually
+// present but easy to miss, likely near a logo/signature rather than a labelled field, exactly the
+// class of low-prominence placement this fix targets). No live-model verification is possible from
+// this environment (no API access); the fix is prompt-tightening only, following this project's own
+// established precedent (V6-F53/V6-F65/V6-F72) that a live-model consistency issue can only be
+// addressed via strengthened prompt wording, never guaranteed fixed from static analysis alone.
+// ---------------------------------------------------------------------------------------------
+function test_V6_F83_insuranceSystemPrompt_reinforces_website_thoroughness(){
+  assert.match(insuranceSystemPrompt,/website specifically deserves the same active-search diligence/,'the prompt must explicitly call out website as needing the same active-search diligence as any required-when-present field, not a best-effort glance -- V6-F83\'s exact failure mode (correctly read in only 1 of 4 identical runs)');
+  assert.match(insuranceSystemPrompt,/footer band, beside a logo, next to a signature line, in a stamp/,'the prompt must name the specific low-prominence positions a website value is easy to miss in, not just a generic "look harder" instruction');
+  console.log('PASS: V6-F83 insuranceSystemPrompt reinforces website-field thoroughness with specific low-prominence placement examples, targeting the observed 1-of-4-runs non-determinism (prompt-only fix -- full determinism cannot be verified without live-model access from this environment)');
+}
+// ---------------------------------------------------------------------------------------------
+// V6-F85 (0.6.7.2, hard blocker, second attempt at the same mandatory wild-card) -- the V6-F78 fix
+// (0.6.7.1) only cleared the upload-time allowlist; .tif now passes upload but the raw TIFF bytes
+// were still handed directly to the vision model, which rejects TIFF outright ("does not represent
+// a valid image... supported image formats: jpeg, png, gif, webp"). Fixed with a server-side
+// TIFF->PNG conversion (convertTiffToPng, netlify/functions/smart-import.mjs) inserted into
+// prepareSource before the extraction call, using pure-JS decode/encode (utif2/pngjs, no native
+// binary -- safe inside an esbuild-bundled Netlify Function). Per this correction package's own
+// explicit verification bar (this is a second attempt at the same mandatory test; V6-F78's own
+// narrower test passed while this failure mode still existed underneath it), this test asserts a
+// REAL completed conversion against the ACTUAL INS-006 fixture file -- not a mock, not merely the
+// absence of an error -- decoding it back with an independent PNG reader (pngjs itself) and
+// confirming the real pixel dimensions (1654x2339, confirmed via direct TIFF-header inspection of
+// the fixture: little-endian, bps=1, CCITT Group 4, PhotometricInterpretation=WhiteIsZero -- a
+// genuinely representative bi-level fax-style scan, exactly the shape a naive "any TIFF" test could
+// miss). This does not and cannot verify the OpenAI vision call itself succeeds against the
+// converted PNG (no live API access from this environment) -- that remains a Product Owner
+// acceptance-session step, same honest limitation already recorded for the V6-F78/V6-F75/V6-F81
+// live-model-dependent fixes above.
+// ---------------------------------------------------------------------------------------------
+async function test_V6_F85_tiff_conversion_produces_real_decodable_png_from_actual_fixture(){
+  const {convertTiffToPng}=await import('../netlify/functions/smart-import.mjs');
+  const {PNG}=await import('pngjs');
+  const tiffBytes=fs.readFileSync(new URL('./fixtures/insurance_benchmark/INS-006_TorenInsurance.tif',import.meta.url));
+  const pngBytes=await convertTiffToPng(tiffBytes);
+  assert(pngBytes.length>0,'convertTiffToPng must return non-empty output for the real INS-006 fixture');
+  assert.equal(pngBytes[0],0x89,'output must be a valid PNG (magic byte 1)');
+  assert.equal(pngBytes[1],0x50,'output must be a valid PNG (magic byte 2, "P")');
+  assert.equal(pngBytes[2],0x4e,'output must be a valid PNG (magic byte 3, "N")');
+  assert.equal(pngBytes[3],0x47,'output must be a valid PNG (magic byte 4, "G")');
+  const decoded=PNG.sync.read(pngBytes);
+  assert.equal(decoded.width,1654,'the converted PNG must preserve the real fixture\'s actual pixel width -- a real completed conversion, not a mocked/stubbed format check');
+  assert.equal(decoded.height,2339,'the converted PNG must preserve the real fixture\'s actual pixel height');
+  console.log('PASS: V6-F85 convertTiffToPng produces a real, independently-decodable PNG from the actual INS-006 fixture (a genuine bi-level, CCITT Group 4-compressed 2010 scan), preserving its exact pixel dimensions -- a real completed conversion result, not merely the absence of an error');
+}
+function test_V6_F85_prepareSource_is_wired_to_convertTiffToPng(){
+  const server=fs.readFileSync(new URL('../netlify/functions/smart-import.mjs',import.meta.url),'utf8');
+  assert(server.includes("if(source.kind==='image'&&mime==='image/tiff'){outBytes=await convertTiffToPng(bytes);outMime='image/png'}"),'prepareSource must actually call convertTiffToPng and use its PNG output (and image/png mime) for a TIFF source -- the V6-F78 upload-allowlist fix alone is not sufficient, since the vision model itself rejects raw TIFF bytes regardless of what the upload layer allowed through');
+  console.log('PASS: V6-F85 prepareSource is wired to convert a TIFF source to PNG before the extraction call, not merely to allow the upload through');
+}
 function test_relatedItemIds_is_not_in_TYPE_FIELDS(){
   assert(!TYPE_FIELDS.insurance.includes('relatedItemIds'),'relatedItemIds must NOT be in TYPE_FIELDS.insurance -- it needs a dedicated multi-select UI (relatedItemsPanel), not a generic scalar form field, and proposalFields() has no rendering path for an array-of-ids field anyway');
   for(const type of Object.keys(TYPE_FIELDS)){
@@ -477,7 +555,7 @@ function test_runSmartAnalysis_routes_insurance_attach_and_extract_to_the_insura
 test_INS001_direct_insurance_hebrew_font_no_tounicode();
 test_INS002_harel_two_travelers();
 test_INS003_passportcard_confirmation_letter();
-test_INS004_phoenix_insurer_not_wobi_agent();
+test_INS004_phoenix_provider_stays_clean_of_plan_name();
 test_INS005_wobi_five_traveler_family_case();
 test_INS006_wildcard_toren_clal_two_phone_numbers();
 test_INS007_diveassure_dedicated_single_day_policy();
@@ -503,4 +581,8 @@ test_V6_F78_server_side_prepareSource_accepts_tiff_mime();
 test_V6_F78_inferMime_recognizes_tiff_filenames();
 test_V6_F79_relatedItemsPanel_excludes_insurance_from_add_candidates();
 test_V6_F75_V6_F81_insuranceSystemPrompt_instructs_combining_brand_and_legal_entity();
-console.log('ALL PASS: 0.6.7 Insurance Smart Import -- all 8 real INS-001-INS-008 benchmark cases (INS-006 as the mandatory wild-card), the data model (startAt/endAt/website added, schedule unchanged, relatedItemIds insurance-only and never extracted), the two-way relatedItemIds UI, the V6-F66-style per-person merge, and the 0.6.7.1 correction findings (V6-F75-V6-F79, V6-F81) all pass');
+test_V6_F84_insuranceSystemPrompt_distinguishes_plan_name_from_second_entity();
+test_V6_F83_insuranceSystemPrompt_reinforces_website_thoroughness();
+test_V6_F85_prepareSource_is_wired_to_convertTiffToPng();
+await test_V6_F85_tiff_conversion_produces_real_decodable_png_from_actual_fixture();
+console.log('ALL PASS: 0.6.7 Insurance Smart Import -- all 8 real INS-001-INS-008 benchmark cases (INS-006 as the mandatory wild-card), the data model (startAt/endAt/website added, schedule unchanged, relatedItemIds insurance-only and never extracted), the two-way relatedItemIds UI, the V6-F66-style per-person merge, and the 0.6.7.1/0.6.7.2 correction findings (V6-F75-V6-F85) all pass');

@@ -1,8 +1,8 @@
 {
   "name": "family-trips-alpha-v6",
-  "version": "0.6.7.1",
+  "version": "0.6.7.2",
   "private": true,
-  "description": "Family Trips Alpha 0.6.7.1 Correction Package",
+  "description": "Family Trips Alpha 0.6.7.2 Correction Package",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
@@ -16,7 +16,9 @@
     "firebase": "^12.1.0",
     "html-to-text": "9.0.5",
     "jose": "6.2.8",
-    "openai": "7.4.0"
+    "openai": "7.4.0",
+    "pngjs": "7.0.0",
+    "utif2": "4.1.0"
   },
   "devDependencies": {
     "vite": "^7.3.6"

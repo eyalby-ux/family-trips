@@ -3,6 +3,8 @@ import dns from 'node:dns/promises';
 import net from 'node:net';
 import OpenAI from 'openai';
 import {convert} from 'html-to-text';
+import {PNG} from 'pngjs';
+import UTIF from 'utif2';
 import {authorize,httpError} from './_shared/smart-import-auth.mjs';
 import {consumeDailyQuota,registerOrVerifyTrip,writeAudit} from './_shared/smart-import-quota.mjs';
 import {activityImportSchema,activitySystemPrompt,classificationSystemPrompt,flightImportSchema,flightSystemPrompt,hotelImportSchema,insuranceImportSchema,insuranceSystemPrompt,sourceClassificationSchema,systemPrompt} from './_shared/smart-import-schema.mjs';
@@ -132,7 +134,39 @@ async function prepareSource(source,allowUrl=true){
   // Mirrors the client-side fix (src/v5-app.js's validateSmartSource, src/smart-import-client.js's
   // inferMime) so the full pipeline agrees, not just the client-side alert.
   const mime=String(source.mimeType||'');if(source.kind==='pdf'&&mime!=='application/pdf')throw httpError(400,'unsupported_source','Invalid PDF MIME type.');if(source.kind==='image'&&!/^image\/(?:png|jpeg|webp|tiff)$/.test(mime))throw httpError(400,'unsupported_source','Only PNG, JPEG, WebP and TIFF images are supported.');
-  const data=`data:${mime};base64,${bytes.toString('base64')}`;return {kind:source.kind,sourceSize:bytes.length,content:[source.kind==='pdf'?{type:'input_file',filename:safeFilename(source.name,'source.pdf'),file_data:data,detail:'high'}:{type:'input_image',image_url:data,detail:'high'}]};
+  // V6-F85 (0.6.7.2): the V6-F78 fix above only cleared the upload-time allowlist gap -- the raw
+  // TIFF bytes were still handed straight to the vision model, which rejects TIFF outright ("The
+  // image data you provided does not represent a valid image... supported image formats: jpeg,
+  // png, gif, webp"). TIFF is not a format the vision API itself ever accepts, so allowing the
+  // upload was necessary but not sufficient; the fix has to convert, not just allow. Converted
+  // once, here, server-side -- never trust the client to do this, since a browser's own <canvas>
+  // can't decode a bi-level/CCITT-compressed fax-style scan like INS-006's real fixture either, and
+  // the conversion needs to happen exactly once regardless of which entry point (global Add,
+  // existing-item attach) the file came through.
+  let outMime=mime,outBytes=bytes;
+  if(source.kind==='image'&&mime==='image/tiff'){outBytes=await convertTiffToPng(bytes);outMime='image/png'}
+  const data=`data:${outMime};base64,${outBytes.toString('base64')}`;return {kind:source.kind,sourceSize:bytes.length,content:[source.kind==='pdf'?{type:'input_file',filename:safeFilename(source.name,'source.pdf'),file_data:data,detail:'high'}:{type:'input_image',image_url:data,detail:'high'}]};
+}
+// V6-F85: pure-JS TIFF decode (UTIF.js, published as utif2 -- confirmed to include CCITT Group 3/4
+// fax-compression support, the exact compression INS-006's real 2010 scan uses) followed by a
+// pure-JS PNG encode (pngjs). Deliberately not sharp: sharp ships a platform-specific native
+// binary, which is a real risk inside an esbuild-bundled Netlify Function (no container image to
+// pre-match the deploy target against) -- utif2/pngjs have no native dependency at all, so there is
+// nothing for the bundler or the deploy target to get wrong.
+export async function convertTiffToPng(bytes){
+  let ifds;
+  try{ifds=UTIF.decode(bytes)}catch(error){throw httpError(422,'unsupported_source',`The TIFF image could not be decoded: ${String(error?.message||error)}`)}
+  if(!ifds.length)throw httpError(422,'unsupported_source','The TIFF image could not be decoded: no image directory found.');
+  UTIF.decodeImage(bytes,ifds[0],ifds);
+  const width=ifds[0].width,height=ifds[0].height;
+  if(!width||!height)throw httpError(422,'unsupported_source','The TIFF image could not be decoded: no readable image data.');
+  const rgba=UTIF.toRGBA8(ifds[0]);
+  const png=new PNG({width,height});
+  png.data=Buffer.from(rgba);
+  return await new Promise((resolve,reject)=>{
+    const chunks=[];
+    png.pack().on('data',chunk=>chunks.push(chunk)).on('end',()=>resolve(Buffer.concat(chunks))).on('error',reject);
+  });
 }
 async function fetchPublicPage(rawUrl){
   let current=validateUrl(rawUrl);for(let step=0;step<3;step+=1){await assertPublicHost(current.hostname);const robotsCheck=await assertRobotsAllowed(current);const response=await fetch(current,{redirect:'manual',headers:{'user-agent':'FamilyTrips-SmartImport/0.6'},signal:AbortSignal.timeout(12000)});if([301,302,303,307,308].includes(response.status)){const location=response.headers.get('location');if(!location)throw httpError(422,'protected_or_private_url','Invalid redirect.');current=validateUrl(new URL(location,current).toString());continue}

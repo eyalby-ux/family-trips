@@ -2,7 +2,7 @@
 
 **Document revision:** `V2`
 **Candidate:** `0.6.7` (Insurance Smart Import, plus `V6-F74` already implemented in `V81`), installed on `version/V6`, deployed to the fixed `qa` alias
-**Instructions:** Run one test at a time, in order. Record the actual observed result under each test, not just PASS/FAIL — a finding is only useful with what you actually saw. Findings are recorded immediately with target `TBD after acceptance completion`, per `VERSION_PACKAGE_AUTHORING_STANDARD_V35.md`; do not assign a finding to a version until the whole session is complete.
+**Instructions:** Run one test at a time, in order. Record the actual observed result under each test, not just PASS/FAIL — a finding is only useful with what you actually saw. Findings are recorded immediately with target `TBD after acceptance completion`, per `VERSION_PACKAGE_AUTHORING_STANDARD_V36.md`; do not assign a finding to a version until the whole session is complete.
 
 ## Document change history
 
@@ -155,3 +155,5 @@ Both applied to `docs/roadmap/INSURANCE_SMART_IMPORT_DISCOVERY_V1.md`, bumped `V
 **NO-GO**, decided by the Product Owner. `V6-F78` (Test 6, the mandatory wild-card) is a hard blocker — the `.tif` format explicitly confirmed in scope by Decision 7 cannot be processed at all, so the mandatory non-canonical wild-card test required by the standard's own wild-card rule cannot be completed. Three additional FAILs (`V6-F75`, `V6-F76`/`V6-F77`, `V6-F81`) are real but non-blocking data-accuracy and UI gaps. `0.6.7` is not promoted to Production; `0.6.6.3` remains the accepted Production baseline, unaffected.
 
 **Next step:** the focused correction package `0.6.7.1`, scoped to `V6-F75`–`V6-F81` plus the two discovery-document corrections, is implemented (`version/V6`, commit — see `MVP_DELIVERY_PLAN_CURRENT_STATE_V1.md` `V83` for the exact commit SHA once recorded). A new, complete acceptance session against the `0.6.7.1` build is required before any GO decision is reconsidered.
+
+**Follow-up:** that Round 2 session ran against build `0.6.7.1-8e41a683` and is recorded in `EXECUTABLE_TEST_SESSION_V2.md` (this session's own per-candidate sequence, session number `V2`) — result 11/14 PASS, 3 FAIL, NO-GO, leading to the `0.6.7.2` correction package.
