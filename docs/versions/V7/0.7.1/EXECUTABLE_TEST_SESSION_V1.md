@@ -20,11 +20,13 @@
 
 ## Test 1 — Task creation from the global floating "+"
 
+**Session run:** 2026-09-10, Product Owner (Eyal), against `qa` alias build `0.7.1-5218c8f5`.
+
 From any screen (Today, Timeline, Trip Center), tap the global "+" button. Confirm the source-choice bar now includes a "✅ משימה" (Task) option alongside the existing ידני/מסמך/קישור/JSON/QR choices. Tap it. Confirm this opens the same task-creation form already used by Preparations/Tasks' own "משימה חדשה" button (fields: משימה/בעלים/מועד/תאריך יעד/עדיפות — the last one is new, see Test 4). Fill in a title and save. Confirm the new task appears in the Preparations/Tasks list, and that no unrelated Item (Hotel/Flight/etc.) was created in the process.
 
 **Expect:** Task is reachable and creatable directly from the global "+", the same as any other manually-created item type — this was previously impossible (the global "+" only ever offered generic Item types, since Tasks are a separate data model).
 
-**Result:** ☐ PASS ☐ FAIL — notes: ___________
+**Result:** ☑ PASS — notes: Confirmed as expected; no notes.
 
 ## Test 2 — Today page: packing-list shortcut, not individual items
 
@@ -32,7 +34,7 @@ Open Today. If any packing list has items, confirm the "גישה מהירה" (Qu
 
 **Expect:** A stable shortcut link to the full Packing list, visible whenever packing has items, without crowding the most urgent tasks out of their own slots — explicit Product Owner decision, not a Development Agent judgment call.
 
-**Result:** ☐ PASS ☐ FAIL — notes: ___________
+**Result:** ☑ PASS — notes: Confirmed as expected; no notes.
 
 ## Test 3 — Category-level Add presets the current category's item type (`V5-F09`)
 
@@ -40,7 +42,7 @@ From Trip Center, open any specific category (e.g. Flight). Tap "הוספה" (Ad
 
 **Expect:** Add opened from within a specific category defaults its type to that category; Add opened from the global "+" (no category context) is unaffected, still defaulting to Hotel; the type remains freely changeable in both cases.
 
-**Result:** ☐ PASS ☐ FAIL — notes: ___________
+**Result:** ☑ PASS — notes: "The default of the general + isn't Hotel, but I don't think is a problem. All other issues behave as expected — pass." (Product Owner's own words; logged as Finding 1 below, non-blocking per his judgment.)
 
 ## Test 4 — Task priority (High/Normal/Low) + filters
 
@@ -48,13 +50,13 @@ Open Preparations/Tasks. Create a new task and confirm the creation form now inc
 
 **Expect:** Every task has a priority (new tasks default to Normal, pre-existing tasks are backward-normalized to Normal, never left blank); priority is visible on each row alongside the due date; the two filters combine with AND; a clear/reset action is available once filtering; sorting is deterministic.
 
-**Result:** ☐ PASS ☐ FAIL — notes: ___________
+**Result:** ☑ PASS — notes: "All pass, we should add a filter that display only open tasks, closed tasks are still shown at any filter." (Product Owner's own words; logged as Finding 2 below, enhancement request, not a defect in this candidate's scope.)
 
 ## Test 5 — Short regression (confirm nothing else broke, including Smart Import)
 
 `0.7.1` touches no Smart Import code (`netlify/functions/smart-import.mjs` and the insurance/flight/activity adapters are untouched by this candidate) — this test is a quick live confirmation of that, not a full re-run of the Hotel/Flight/Attraction-Event/Insurance Smart Import benchmark suites those already-accepted candidates carry their own sessions for. Spot-check: create a Hotel item via the global "+" (still defaults to Hotel, still works exactly as before). Open an existing Flight/Attraction-Event/Insurance item (each already live in Production via its own accepted Smart Import vertical) and confirm nothing about its own edit/detail behavior changed. Confirm Today's existing task Quick Access (the top-3-urgent list itself, unrelated to the new packing shortcut) still orders overdue → today → nearest due → undated exactly as before, with its own existing "כל המשימות" overflow link when there are more than 3 open tasks.
 
-**Result:** ☐ PASS ☐ FAIL — notes: ___________
+**Result:** ☑ PASS — notes: Confirmed as expected; no notes.
 
 ---
 
@@ -62,8 +64,9 @@ Open Preparations/Tasks. Create a new task and confirm the creation form now inc
 
 | Finding | Test | Severity | Disposition |
 |---|---|---|---|
-| — | — | — | — |
+| Global "+" default type is not Hotel as the test expected | Test 3 | Low | Accepted, non-blocking — Product Owner's own judgment |
+| No filter to show open tasks only; closed tasks appear regardless of active filter | Test 4 | Enhancement | Not a defect in `0.7.1`'s scope — candidate for a future correction package or backlog item |
 
 ## GO/NO-GO decision
 
-_To be recorded by the Product Owner after all five tests above are run._
+**GO.** All five tests PASS (two with non-blocking notes above). Recorded by the Product Owner (Eyal), 2026-09-10. `0.7.1` may proceed to Production promotion as a separate, explicit action.
