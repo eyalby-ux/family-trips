@@ -362,17 +362,24 @@ function render(){normalizeOperationalState(state);const views={today:todayView,
 
 async function storeOriginal(source,file){const db=await openDb();await new Promise((resolve,reject)=>{const tx=db.transaction('files','readwrite');tx.objectStore('files').put({id:source.id,blob:file,name:file.name,type:file.type});tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});source.storedOffline=true}
 async function openSource(id){const source=sourceById(id);if(!source)return;if(source.kind==='link'){open(source.url,'_blank','noopener');return}try{const db=await openDb(),record=await new Promise((resolve,reject)=>{const tx=db.transaction('files','readonly'),request=tx.objectStore('files').get(id);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});if(!record?.blob){notify('קובץ המקור אינו זמין אופליין במכשיר זה');return}
-  // V6-F87: unlike PDF/PNG/JPEG/WebP -- every one of which every browser already renders inline
-  // from a blob: URL opened this way -- no browser renders TIFF natively, so opening one identically
-  // silently downloads it instead, with no explanation, inconsistent with every other supported
-  // type's working inline preview. Converting for inline preview here would mean duplicating the
-  // server-side TIFF decoder (V6-F85, netlify/functions/smart-import.mjs's convertTiffToPng) into
-  // the client bundle purely for this one narrow case; instead, the download is kept (it already
-  // works, and the file remains reachable) but is now an explained, intentional outcome rather than
-  // a silent, confusing inconsistency.
+  // V6-F87 (0.6.7.3 attempt): unlike PDF/PNG/JPEG/WebP -- every one of which every browser already
+  // renders inline from a blob: URL opened this way -- no browser renders TIFF natively, so opening
+  // one identically silently downloads it instead, with no explanation, inconsistent with every
+  // other supported type's working inline preview. The 0.6.7.3 fix put the explanation in a
+  // notify() toast called AFTER open() -- code-correct (confirmed present in that build's actual
+  // deployed bundle by direct inspection) but the Product Owner still reported no visible message
+  // in 0.6.7.4's retest, identically to before that fix. notify()'s toast auto-dismisses after 2.6s
+  // (see notify() below) and open(url,'_blank') immediately shifts the browser's attention to a new
+  // tab/download, which very likely visually buries or races past a toast rendered in the tab being
+  // left behind -- a real, plausible explanation for "the code fires but nobody ever sees it".
+  // V6-F87 (0.6.7.4 attempt): moved the explanation to a blocking alert() (this codebase's own
+  // established pattern for a message that must not be missed -- see e.g. validateSmartSource's own
+  // alert(error.message) a few lines below), shown BEFORE open()/the download starts, not after --
+  // this removes the tab-focus race entirely, since the alert is guaranteed to block and be visible
+  // in the same tab the user just clicked in, before any new tab or download activity begins.
   const isTiff=(record.type||'')==='image/tiff'||/\.tiff?$/i.test(record.name||'');
+  if(isTiff)alert('קובצי TIFF אינם נתמכים לתצוגה בדפדפן — הקובץ יורד למכשיר לאחר אישור זה');
   const url=URL.createObjectURL(record.blob);open(url,'_blank','noopener');setTimeout(()=>URL.revokeObjectURL(url),60000);
-  if(isTiff)notify('קובצי TIFF אינם נתמכים לתצוגה בדפדפן — הקובץ הורד למכשיר');
 }catch(error){console.error(error);notify('פתיחת המקור נכשלה')}}
 function openDb(){return new Promise((resolve,reject)=>{const request=indexedDB.open('family-trips-v4',1);request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains('files'))request.result.createObjectStore('files',{keyPath:'id'})};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)})}
 async function clearStoredSources(){try{const db=await openDb();await new Promise((resolve,reject)=>{const tx=db.transaction('files','readwrite');tx.objectStore('files').clear();tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)})}catch(error){console.error('Stored source cleanup failed',error);throw new Error('מחיקת קובצי המקור נכשלה. לא בוצע איפוס.') }}

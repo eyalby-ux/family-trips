@@ -488,22 +488,65 @@ function test_V6_F86_insuranceSystemPrompt_warns_against_confident_provider_hall
   console.log('PASS: V6-F86 insuranceSystemPrompt explicitly warns against confident provider hallucination, without naming the specific real companies involved (avoiding an INS-002/INS-005 Harel-reporting regression)');
 }
 // ---------------------------------------------------------------------------------------------
-// V6-F87 (0.6.7.3) -- opening a .tif attachment silently downloads it instead of previewing
-// inline, unlike every other supported type (PDF/PNG/JPEG/WebP), all of which every browser
-// already renders inline from a blob: URL opened the same way openSource opens every attachment.
-// No browser renders TIFF natively, so the download itself is correct/unavoidable behavior, not a
-// bug in itself -- the bug is that it happens silently, with no explanation, inconsistent with
-// every other type's working inline preview. Fixed by detecting a TIFF source (by stored MIME type
-// or, mirroring this project's established MIME-or-filename fallback pattern, .tif/.tiff filename)
-// and surfacing an explicit notify() explaining the download, rather than reimplementing the
-// server-side TIFF decoder (V6-F85) a second time inside the client bundle purely for this one
-// narrow, offline-only local-file-viewing path.
+// V6-F86 (0.6.7.4, 4th consecutive round, same failure identically) -- the Product Owner re-tested
+// 0.6.7.3 specifically against this finding and found provider STILL resolved to the exact same
+// wrong "Harel Insurance Company Ltd." value, with no needs_review flag -- unchanged from before
+// the 0.6.7.3 "fix". Root-cause investigation of the DISCONNECT between that report and live
+// behavior (not just re-guessing at the extraction bug) found no evidence of a wrong deployed
+// commit, a duplicate/shadow prompt file, or a broken import/wiring chain -- the 0.6.7.3 paragraph
+// genuinely is present, correctly wired, and was deployed. What WAS a genuine gap: the 0.6.7.3
+// regression test for this finding is pure source-inspection of the exported insuranceSystemPrompt
+// string -- it never invokes callExtraction/prepareSource or the real model call at all, so a
+// passing test there was only ever proof the STRING changed, never proof the MODEL'S BEHAVIOR
+// changed. That gap is inherent to every prompt-only fix in this whole correction lineage (V6-F53/
+// V6-F65/V6-F72/V6-F75/V6-F81/V6-F83/V6-F84 all carry the same honestly-recorded "cannot verify
+// against the live model from this environment" caveat) -- V6-F86 is simply the first case where
+// that unverified gap turned out to matter. Given a soft "be careful" paragraph evidently did not
+// change this specific document's outcome at all, 0.6.7.4 adds a stronger, more OPERATIONAL
+// requirement: provider's evidence must be a literal, verbatim transcription of the printed text,
+// not a paraphrase or location description -- a concrete task that is only satisfiable by actually
+// reading the source (fabricating a specific literal quote is a meaningfully harder failure mode
+// to fall into than naming a plausible company from memory). This fix remains UNVERIFIED against
+// the live model from this environment (no OpenAI API access, and the qa app requires Google
+// sign-in restricted to authorized users, which this environment does not have) -- per this
+// package's own strengthened closure bar, it is NOT reported as Fixed; see the correction report's
+// own explicit statement of what could and could not be verified.
+// ---------------------------------------------------------------------------------------------
+function test_V6_F86_insuranceSystemPrompt_requires_literal_quoted_evidence_for_provider(){
+  assert.match(insuranceSystemPrompt,/evidence must contain a literal, verbatim transcription of the actual company-name text/,'the prompt must require a literal, verbatim transcription of the printed provider text as evidence -- a concrete, checkable task rather than an abstract "be careful" instruction, since the softer 0.6.7.3 paragraph alone did not change this document\'s reported outcome at all (V6-F86, 4th consecutive round, identical failure)');
+  assert(insuranceSystemPrompt.includes('copy the exact characters'),'the prompt must instruct copying the exact printed characters, not a paraphrase or description');
+  assert(insuranceSystemPrompt.includes('not translated or normalized'),'the prompt must forbid a translated/normalized "transcription" -- that could still be fabricated without ever actually reading the source');
+  assert.match(insuranceSystemPrompt,/that is proof you do not actually have the reading/,'the prompt must explicitly frame an unproducible literal quote as proof the model does not actually have a grounded reading, directing it to needs_review rather than inventing a quote to satisfy the requirement');
+  assert.doesNotMatch(insuranceSystemPrompt,/Harel|Clal/,'the prompt must still not name the specific real companies involved in this bug (unchanged discipline from the first V6-F86 attempt)');
+  console.log('PASS: V6-F86 (0.6.7.4 attempt) insuranceSystemPrompt now requires a literal, verbatim transcription of the printed provider text as evidence -- a concrete grounding mechanism, not merely restated caution -- though this remains unverified against the live model from this environment (no API access, and the qa app\'s Google sign-in is restricted to authorized users this environment does not have)');
+}
+// ---------------------------------------------------------------------------------------------
+// V6-F87 (0.6.7.3, then a second attempt in 0.6.7.4) -- opening a .tif attachment silently
+// downloads it instead of previewing inline, unlike every other supported type (PDF/PNG/JPEG/
+// WebP), all of which every browser already renders inline from a blob: URL opened the same way
+// openSource opens every attachment. No browser renders TIFF natively, so the download itself is
+// correct/unavoidable behavior, not a bug in itself -- the bug is that it happens silently, with
+// no explanation, inconsistent with every other type's working inline preview.
+// The 0.6.7.3 fix explained the download via a notify() toast called AFTER open() -- confirmed
+// (by fetching the actual live 0.6.7.3 qa bundle directly) to be genuinely present and correctly
+// deployed, yet the Product Owner's 0.6.7.4 retest still saw no message at all, identically to
+// before that fix. notify()'s toast auto-dismisses after 2.6s and open(url,'_blank') immediately
+// shifts browser attention to a new tab/download -- a real, plausible reason the toast was
+// technically firing but never actually seen. The 0.6.7.4 fix replaces it with a BLOCKING alert()
+// (this codebase's own established pattern for a message that must not be missed -- see
+// validateSmartSource's own alert(error.message) elsewhere in this file), shown BEFORE open()
+// starts the download, not after -- removing the tab-focus race entirely rather than trying to
+// out-time it.
 // ---------------------------------------------------------------------------------------------
 function test_V6_F87_openSource_explains_tiff_download_instead_of_silent_inconsistency(){
   const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
-  assert(app.includes("const isTiff=(record.type||'')==='image/tiff'||/\\.tiff?$/i.test(record.name||'');"),'openSource must detect a TIFF source by stored MIME type or filename fallback (mirroring validateSmartSource/inferMime\'s own established MIME-or-filename pattern), since record.type can be empty depending on browser/OS');
-  assert(app.includes("if(isTiff)notify('קובצי TIFF אינם נתמכים לתצוגה בדפדפן — הקובץ הורד למכשיר');"),'openSource must notify the user when a TIFF download happens instead of an inline preview, explaining why -- V6-F87\'s exact failure mode was the SAME download happening with no explanation at all, inconsistent with every other supported type');
-  console.log('PASS: V6-F87 openSource now explains a TIFF attachment\'s download-instead-of-preview behavior explicitly, rather than leaving it silent and inconsistent with every other supported type');
+  const fn=app.slice(app.indexOf('async function openSource(id){'),app.indexOf('async function openSource(id){')+2500);
+  assert(fn.includes("const isTiff=(record.type||'')==='image/tiff'||/\\.tiff?$/i.test(record.name||'');"),'openSource must detect a TIFF source by stored MIME type or filename fallback (mirroring validateSmartSource/inferMime\'s own established MIME-or-filename pattern), since record.type can be empty depending on browser/OS');
+  assert(fn.includes("if(isTiff)alert('קובצי TIFF אינם נתמכים לתצוגה בדפדפן — הקובץ יורד למכשיר לאחר אישור זה');"),'openSource must alert() (a blocking, cannot-be-missed dialog -- this codebase\'s own established pattern) the user when a TIFF will download instead of preview inline -- 0.6.7.3\'s notify()-based fix was confirmed present in that build\'s live deployed bundle yet still went unnoticed, so this round upgrades to a mechanism that cannot be missed regardless of tab-focus timing');
+  const alertIndex=fn.indexOf("if(isTiff)alert(");
+  const openIndex=fn.indexOf("open(url,'_blank','noopener')");
+  assert(alertIndex>-1&&openIndex>-1&&alertIndex<openIndex,'the alert() must fire BEFORE open()/the download starts, not after -- this is what actually eliminates the tab-focus race (0.6.7.3\'s notify() fired after open(), when attention had already shifted to the new tab/download)');
+  console.log('PASS: V6-F87 openSource now blocks with an alert() BEFORE a TIFF attachment downloads, eliminating the tab-focus race that made 0.6.7.3\'s after-the-fact notify() toast go unseen despite being genuinely present in that build\'s live bundle');
 }
 function test_relatedItemIds_is_not_in_TYPE_FIELDS(){
   assert(!TYPE_FIELDS.insurance.includes('relatedItemIds'),'relatedItemIds must NOT be in TYPE_FIELDS.insurance -- it needs a dedicated multi-select UI (relatedItemsPanel), not a generic scalar form field, and proposalFields() has no rendering path for an array-of-ids field anyway');
@@ -633,5 +676,6 @@ test_V6_F83_insuranceSystemPrompt_reinforces_website_thoroughness();
 test_V6_F85_prepareSource_is_wired_to_convertTiffToPng();
 await test_V6_F85_tiff_conversion_produces_real_decodable_png_from_actual_fixture();
 test_V6_F86_insuranceSystemPrompt_warns_against_confident_provider_hallucination();
+test_V6_F86_insuranceSystemPrompt_requires_literal_quoted_evidence_for_provider();
 test_V6_F87_openSource_explains_tiff_download_instead_of_silent_inconsistency();
-console.log('ALL PASS: 0.6.7 Insurance Smart Import -- all 8 real INS-001-INS-008 benchmark cases (INS-006 as the mandatory wild-card), the data model (startAt/endAt/website added, schedule unchanged, relatedItemIds insurance-only and never extracted), the two-way relatedItemIds UI, the V6-F66-style per-person merge, and the 0.6.7.1/0.6.7.2/0.6.7.3 correction findings (V6-F75-V6-F87) all pass');
+console.log('ALL PASS: 0.6.7 Insurance Smart Import -- all 8 real INS-001-INS-008 benchmark cases (INS-006 as the mandatory wild-card), the data model (startAt/endAt/website added, schedule unchanged, relatedItemIds insurance-only and never extracted), the two-way relatedItemIds UI, the V6-F66-style per-person merge, and the 0.6.7.1/0.6.7.2/0.6.7.3/0.6.7.4 correction findings (V6-F75-V6-F87) all pass');

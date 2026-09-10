@@ -3,7 +3,7 @@
 **Document revision:** `V2`
 **Candidate:** `0.6.7.2` (second correction package for `0.6.7.1`'s `V6-F83`–`V6-F85`), installed on `version/V6`, deployed to the fixed `qa` alias (build `0.6.7.2-6eb553d3`)
 **Session number:** `V3`, continuing the per-candidate session sequence opened for `0.6.7` (`EXECUTABLE_TEST_SESSION_V1.md` session `V1`, `EXECUTABLE_TEST_SESSION_V2.md` session `V2`).
-**Instructions:** Run one test at a time, in order. Record the actual observed result under each test, not just PASS/FAIL. Findings are recorded immediately with target `TBD after acceptance completion`, per `VERSION_PACKAGE_AUTHORING_STANDARD_V37.md`.
+**Instructions:** Run one test at a time, in order. Record the actual observed result under each test, not just PASS/FAIL. Findings are recorded immediately with target `TBD after acceptance completion`, per `VERSION_PACKAGE_AUTHORING_STANDARD_V38.md`.
 
 **Honest scope note on this document:** as with `EXECUTABLE_TEST_SESSION_V2.md`, the Development Agent received this session's outcome as a summary from the Product Owner (result totals and full detail on the one failing test's two findings), not the complete per-test observed-notes write-up. This document records exactly what was verified — Test 6's full detail, and the aggregate PASS/FAIL counts — and marks the rest honestly rather than fabricating notes for tests not individually detailed to the Development Agent.
 
@@ -37,3 +37,5 @@
 **NO-GO**, decided by the Product Owner. `V6-F86` (Test 6, the mandatory wild-card, a third consecutive failure of the same mandatory test, each time one layer deeper) is a hard blocker. `V6-F87`, found on the same test, is non-blocking but High severity. `0.6.7.2` is not promoted to Production; `0.6.6.3` remains the accepted Production baseline, unaffected.
 
 **Next step:** the third focused correction package, `0.6.7.3`, scoped to `V6-F86`–`V6-F87`, is implemented (`version/V6` — see `MVP_DELIVERY_PLAN_CURRENT_STATE_V1.md` for the exact commit SHA once recorded). A new acceptance session against the `0.6.7.3` build is required before any GO decision is reconsidered — the correction prompt raised the possibility of scoping that next session to Test 6 plus adjacent regression spot-checks rather than a full 14-test re-run, given how narrow the remaining gap is, but asked for that to be confirmed with the Product Owner rather than assumed.
+
+**Follow-up:** that Round 4 session ran against build `0.6.7.3-54419015`, scoped to Test 6 plus three adjacent regression spot-checks as confirmed, and is recorded in `EXECUTABLE_TEST_SESSION_V4.md` (session number `V4`) — both `V6-F86` and `V6-F87` failed identically to before the `0.6.7.3` fix, despite that correction's own report claiming both fixed. NO-GO, leading to the `0.6.7.4` correction package, which treats the reported-fix/live-behavior disconnect as its own investigation, not just a re-fix.
