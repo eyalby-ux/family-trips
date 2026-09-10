@@ -1,16 +1,19 @@
 # Family Trips Alpha 0.7.1 — Executable Acceptance Test Session
 
-**Document revision:** `V1`
-**Candidate:** `0.7.1` (Alpha 0.7's first candidate: global-"+" Task creation, Today packing-list shortcut, category-preset Add, Task priority/filters), installed on `version/V7`
-**Session number:** `V1`, opening a new per-candidate session sequence for `version/V7`, mirroring the convention established for `version/V6` (see `docs/versions/V6/0.6.7/EXECUTABLE_TEST_SESSION_V1.md`'s own `V2` change-history row for why that sequence restarted per-candidate rather than continuing the older global cross-candidate numbering).
-**Instructions:** Run one test at a time, in order. Record the actual observed result under each test, not just PASS/FAIL — a finding is only useful with what you actually saw. Findings are recorded immediately with target `TBD after acceptance completion`, per `VERSION_PACKAGE_AUTHORING_STANDARD_V41.md`; do not assign a finding to a version until the whole session is complete.
+**Document revision:** `V2`
+**Candidate:** `0.7.1` (Alpha 0.7's first candidate: global-"+" Task creation, Today packing-list shortcut, category-preset Add, Task priority/filters), installed on `version/V7`, deployed to the fixed `qa` alias (build `0.7.1-5218c8f5`)
+**Session number:** `V1`, opening a new per-candidate session sequence for `version/V7`, mirroring the convention established for `version/V6` (see `docs/versions/V6/0.6.7/EXECUTABLE_TEST_SESSION_V1.md`'s own `V2` change-history row for why that sequence restarted per-candidate rather than continuing the older global cross-candidate numbering). No test has been run yet — this is still the pre-session document, revised once before the Product Owner begins (see the `V2` change-history row below), the same way `0.6.7`'s own `EXECUTABLE_TEST_SESSION_V1.md` was internally revised prior to its own first completed round.
+**Instructions:** Run one test at a time, in order. Record the actual observed result under each test, not just PASS/FAIL — a finding is only useful with what you actually saw. Findings are recorded immediately with target `TBD after acceptance completion`, per `VERSION_PACKAGE_AUTHORING_STANDARD_V42.md`; do not assign a finding to a version until the whole session is complete.
 
 **Note on this candidate specifically:** the Development Agent could not click through these four features in an authenticated session from its own environment (no Google credentials for this app, and it confirmed no dev-mode auth bypass exists before concluding that, rather than assuming). Verification up to this point rests on a regression-test suite that source-inspects the exact rendering/wiring code paths and, for the priority/filter logic specifically, exercises the real functions directly (`tests/v7-1-small-fixes.mjs`). This session is therefore the first real, authenticated confirmation any of these four features actually work as intended — please read each test's own notes with that in mind, not as a routine confirmation of already-observed behavior.
+
+**Mandatory wild-card-document rule — judged inapplicable to this session, stated explicitly rather than silently omitted (per `VERSION_PACKAGE_AUTHORING_STANDARD_V42.md`'s "Mandatory wild-card document per acceptance session"):** that rule requires a real, non-canonical source document as a first-class numbered test whenever a session covers AI Smart Import document extraction, because a clean pass across the fixed canonical benchmark set only demonstrates fit to that set, not generalization to real, unseen input. None of `0.7.1`'s four items involve document extraction, a source document, or any AI Smart Import code path at all — they are UI/data-model changes to Task creation, Today's Quick Access, category-level Add defaults, and Task priority/filtering, none of which touch `netlify/functions/smart-import.mjs`, the insurance/flight/activity import adapters, or any extraction schema. There is no document to draw a wild-card case from because this candidate's scope has nothing for one to probe. The rule is therefore judged inapplicable to this session by scope, not skipped by oversight — consistent with how this project intends `0.7.7` (Bulk Trip Import) to make the same determination explicitly when its own turn comes, rather than leaving the absence unexplained.
 
 ## Document change history
 
 | Document revision | Date | Change |
 |---|---|---|
+| V2 | 2026-09-10 | Pre-session revision, requested alongside the `qa` deployment: added the `Candidate` line's deployed build identifier (`0.7.1-5218c8f5`, `version/V7` commit `5218c8f`); added the explicit statement above judging the mandatory wild-card-document rule inapplicable to this session's scope, with rationale, rather than leaving its absence unaddressed; lightly reframed Test 5 to name the Alpha 0.6 Smart Import feature set explicitly. No test results changed — session number stays `V1`, no round has been run yet. |
 | V1 | 2026-09-10 | Initial session drafted by the Development Agent for the `0.7.1` candidate, 5 tests, all results blank pending the Product Owner's run. |
 
 ---
@@ -47,9 +50,9 @@ Open Preparations/Tasks. Create a new task and confirm the creation form now inc
 
 **Result:** ☐ PASS ☐ FAIL — notes: ___________
 
-## Test 5 — Short regression (confirm nothing else broke)
+## Test 5 — Short regression (confirm nothing else broke, including Smart Import)
 
-Spot-check: create a Hotel item via the global "+" (still defaults to Hotel, still works exactly as before). Open an existing Flight/Attraction-Event/Insurance item and confirm nothing about its own edit/detail behavior changed. Confirm Today's existing task Quick Access (the top-3-urgent list itself, unrelated to the new packing shortcut) still orders overdue → today → nearest due → undated exactly as before, with its own existing "כל המשימות" overflow link when there are more than 3 open tasks.
+`0.7.1` touches no Smart Import code (`netlify/functions/smart-import.mjs` and the insurance/flight/activity adapters are untouched by this candidate) — this test is a quick live confirmation of that, not a full re-run of the Hotel/Flight/Attraction-Event/Insurance Smart Import benchmark suites those already-accepted candidates carry their own sessions for. Spot-check: create a Hotel item via the global "+" (still defaults to Hotel, still works exactly as before). Open an existing Flight/Attraction-Event/Insurance item (each already live in Production via its own accepted Smart Import vertical) and confirm nothing about its own edit/detail behavior changed. Confirm Today's existing task Quick Access (the top-3-urgent list itself, unrelated to the new packing shortcut) still orders overdue → today → nearest due → undated exactly as before, with its own existing "כל המשימות" overflow link when there are more than 3 open tasks.
 
 **Result:** ☐ PASS ☐ FAIL — notes: ___________
 
