@@ -8,7 +8,7 @@
 - **Git commit:** `8f6c1b9` (`version/V6`) — "Doc: FL-002 direction independently confirmed (V6-F72), no code change"
 - **Netlify deploy ID:** `6a9db97e87bedefe568f0be0`
 - **Netlify site ID:** `72aed09d-86e4-48f9-901d-0f52f6c16078`
-- **Promoted originally via:** `netlify deploy --dir dist --prod --no-build` (see `MVP_DELIVERY_PLAN_CURRENT_STATE_V1.md` `V79`)
+- **Promoted originally via:** `netlify deploy --dir dist --prod --no-build` (see `MVP_DELIVERY_PLAN_CURRENT_STATE.md` `V79`)
 - **Confirmed live** via fresh, cache-bypassed fetch of `https://familytripz.netlify.app` immediately before this promotion — `build-version` meta tag read `0.6.6.3-8f6c1b95`, matching the recorded state exactly. Raw response saved alongside this file as `production-index-before-promotion.html`.
 
 ## How to roll back

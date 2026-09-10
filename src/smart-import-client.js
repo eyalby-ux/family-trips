@@ -37,7 +37,7 @@ export async function analyzeActivitySource({trip,source,file,url}){
 }
 
 // Insurance Smart Import (0.6.7): PDF/image only, no public-URL source is in scope for this slice
-// (INSURANCE_SMART_IMPORT_DISCOVERY_V1.md V3, Decision 7) -- rejected here before ever reaching
+// (INSURANCE_SMART_IMPORT_DISCOVERY.md V3, Decision 7) -- rejected here before ever reaching
 // the server, mirroring Flight's own url:''/allowUrl:false handling exactly.
 export async function analyzeInsuranceSource({trip,source,file}){
   return runSource({operation:'analyze_insurance',trip,source,file,url:'',allowUrl:false});

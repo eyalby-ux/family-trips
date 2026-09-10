@@ -1,7 +1,7 @@
 import {isValidCalendarDate,normalizedGenericLabel,stripDuplicateLabelPrefix} from './operational-data.js';
 import {scanFreeTextForDate} from './smart-import-adapter.js';
 
-// Insurance Smart Import (0.6.7). INSURANCE_SMART_IMPORT_DISCOVERY_V1.md (V3, Frozen), Section 3/4.
+// Insurance Smart Import (0.6.7). INSURANCE_SMART_IMPORT_DISCOVERY.md (V3, Frozen), Section 3/4.
 // Field shape is a hybrid: mostly flat scalar fields exactly like Hotel (provider/confirmationNumber/
 // phone/coverage dates, read through the same canonical fields[]->target mapping pattern), plus one
 // structured per-person array (details.insuredPersons: name/idNumber/dob) mirroring Activity's own

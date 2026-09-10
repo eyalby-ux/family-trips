@@ -4,7 +4,7 @@ import {reconcileFlightSegmentDirections} from '../netlify/functions/smart-impor
 
 // Two real defects found during Eyal's own 0.6.6 QA acceptance testing (build 0.6.6-3925bb20),
 // investigated and registered per VERSION_PACKAGE_AUTHORING_STANDARD_V29.md's mandatory finding
-// register, MVP_DELIVERY_PLAN_CURRENT_STATE_V1.md V54.
+// register, MVP_DELIVERY_PLAN_CURRENT_STATE.md V54.
 
 // --- V6-F52: sign-in screen hardcoded a stale "Alpha 0.6.5" literal (src/main.js), disconnected
 // from the build-injected source (document.title, set by scripts/inject-build-version.mjs) every

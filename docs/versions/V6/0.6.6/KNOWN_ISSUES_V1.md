@@ -5,11 +5,11 @@
 
 ## Open, explicitly accepted (not a defect — a named verification gap)
 
-- **No official venue/museum/OTA URL has been tested end-to-end against the live model.** Every URL exercised during discovery was a ticket-resale/box-office platform (Ticketmaster, tickets.hapoelbc.com, tickets.leaan.net) — the side of the URL sub-scope expected to safe-fail on `robots.txt`, not the side expected to succeed. This is the one mandatory step in `EXECUTABLE_TEST_SESSION_V184.md` (Test 9) that requires a real venue/museum/OTA ticket page and cannot be closed without one. Carried forward unchanged from `ATTRACTION_EVENT_SMART_IMPORT_DISCOVERY_V1.md`'s own explicitly-accepted gap.
+- **No official venue/museum/OTA URL has been tested end-to-end against the live model.** Every URL exercised during discovery was a ticket-resale/box-office platform (Ticketmaster, tickets.hapoelbc.com, tickets.leaan.net) — the side of the URL sub-scope expected to safe-fail on `robots.txt`, not the side expected to succeed. This is the one mandatory step in `EXECUTABLE_TEST_SESSION_V184.md` (Test 9) that requires a real venue/museum/OTA ticket page and cannot be closed without one. Carried forward unchanged from `ATTRACTION_EVENT_SMART_IMPORT_DISCOVERY.md`'s own explicitly-accepted gap.
 
 ## Carried forward from `0.6.5` Production monitoring — no `0.6.6` action
 
-Per `MVP_DELIVERY_PLAN_CURRENT_STATE_V1.md` `V51`, these four require nothing in this candidate:
+Per `MVP_DELIVERY_PLAN_CURRENT_STATE.md` `V51`, these four require nothing in this candidate:
 
 - `V6-F45` (corrupted lockfile blocking the first Production deploy) — Fixed, live.
 - `V6-F46` (Product Owner locked out of Production Smart Import) — Fixed, live.

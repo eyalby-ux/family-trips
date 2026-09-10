@@ -6,7 +6,7 @@ import {insuranceImportSchema,insuranceSystemPrompt,sourceClassificationSchema} 
 
 // Every fixture below is a hand-verified transcription of the real INS-00x benchmark document at
 // tests/fixtures/insurance_benchmark/, taken directly from the frozen field-by-field ground truth
-// in INSURANCE_SMART_IMPORT_DISCOVERY_V1.md (V3, Frozen) -- not synthesized. It represents the
+// in INSURANCE_SMART_IMPORT_DISCOVERY.md (V3, Frozen) -- not synthesized. It represents the
 // JSON a correct extraction (per insuranceImportSchema/insuranceSystemPrompt) should produce for
 // that exact source, so these tests exercise the adapter/mapping pipeline end-to-end against all
 // eight real cases. They cannot exercise the live model itself (no API access from this
@@ -128,7 +128,7 @@ function test_INS003_passportcard_confirmation_letter(){
 // INS-004 -- Phoenix. 0.6.7.2 documentation correction: this document does NOT name Wobi at all
 // (the V1-V4 discovery-document catalogue's "sold via agent Wobi Insurance Agencies Ltd." was a
 // cross-document mix-up with INS-005, confirmed against the real source PDF during the 0.6.7.1
-// acceptance session -- see INSURANCE_SMART_IMPORT_DISCOVERY_V1.md V5). This fixture previously
+// acceptance session -- see INSURANCE_SMART_IMPORT_DISCOVERY.md V5). This fixture previously
 // carried a fabricated `broker` field reflecting that wrong catalogue entry; removed. The document
 // DOES show a distinct "SMART TRAVEL" plan/product name near the provider, which the live
 // extraction incorrectly combined into provider ("הפניקס / SMART TRAVEL") during the 0.6.7.1
@@ -155,7 +155,7 @@ function test_INS004_phoenix_provider_stays_clean_of_plan_name(){
   });
   const suggestion=smartImportInsuranceResultToSuggestion(result,source);
   assert.equal(suggestion.proposed.provider,'Phoenix Insurance Company Ltd.','provider must be the underwriting insurer alone, with no plan/product name (e.g. "SMART TRAVEL") appended -- V6-F84\'s exact failure mode, and no Wobi at all, which this document never names');
-  assert.doesNotMatch(suggestion.proposed.notes,/Wobi/,'this document never names Wobi -- the 0.6.7.1-era fixture incorrectly asserted a Wobi broker note here, a documentation-catalogue mix-up with INS-005, corrected in INSURANCE_SMART_IMPORT_DISCOVERY_V1.md V5');
+  assert.doesNotMatch(suggestion.proposed.notes,/Wobi/,'this document never names Wobi -- the 0.6.7.1-era fixture incorrectly asserted a Wobi broker note here, a documentation-catalogue mix-up with INS-005, corrected in INSURANCE_SMART_IMPORT_DISCOVERY.md V5');
   assert.equal(suggestion.proposed.phone,'+972-3-7331177','the 24/7 MEDASSIS emergency line, not the office-hours-only customer service number');
   assert.match(suggestion.proposed.notes,/03-7332222/,'the office-hours-only customer service line must land in notes, not phone');
   assert.equal(suggestion.proposed.website,'WWW.FNX.CO.IL','V6-F76: the insurer website must land in the structured website field, not only in notes text');

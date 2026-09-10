@@ -144,7 +144,7 @@ If the source itself conflicts about, or only partially resolves, a value that m
 
 If content is partial, ambiguous, obscured or unreadable, set certainty to "needs_review" or "unreadable" on exactly the field or entry affected rather than guessing a value or omitting it silently. Legal/waiver/liability boilerplate text belongs only in the preserved original, never as a structured field or importantNotes entry.`;
 
-// Insurance Smart Import (0.6.7). INSURANCE_SMART_IMPORT_DISCOVERY_V1.md (V3, Frozen), Section 3/4.
+// Insurance Smart Import (0.6.7). INSURANCE_SMART_IMPORT_DISCOVERY.md (V3, Frozen), Section 3/4.
 // Field shape is a hybrid: mostly flat scalar fields exactly like Hotel (provider/confirmationNumber/
 // phone/coverage dates), read through the same generic evidence-linked fields[] vocabulary, PLUS one
 // structured per-person array (insuredPersons: name/idNumber/dob) mirroring Activity's ticketHolders

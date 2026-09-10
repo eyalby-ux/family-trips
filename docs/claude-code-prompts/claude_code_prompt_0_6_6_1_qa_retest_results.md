@@ -31,5 +31,5 @@ Register this as a new finding with the next available finding ID, **High severi
 
 ## What to produce
 
-1. Update `MVP_DELIVERY_PLAN_CURRENT_STATE_V1.md`'s finding register: mark the confirmed-Fixed findings above as Fixed, verified (with Eyal's retest evidence noted per finding); keep `V6-F59`, `V6-F61`, `V6-F65` open with the new evidence and requirements recorded; register the new participant-data-loss finding with the next available ID; note the open `V6-F55` sub-question about warning persistence explicitly so it isn't mistaken for closed.
+1. Update `MVP_DELIVERY_PLAN_CURRENT_STATE.md`'s finding register: mark the confirmed-Fixed findings above as Fixed, verified (with Eyal's retest evidence noted per finding); keep `V6-F59`, `V6-F61`, `V6-F65` open with the new evidence and requirements recorded; register the new participant-data-loss finding with the next available ID; note the open `V6-F55` sub-question about warning persistence explicitly so it isn't mistaken for closed.
 2. Investigate root cause for `V6-F59`'s new requirement, `V6-F61`'s broader pattern, `V6-F65`'s illegible-source behavior, the `V6-F55` warning-persistence question, and the new participant-data-loss finding. Report back on all five before any further implementation — no fixes yet.

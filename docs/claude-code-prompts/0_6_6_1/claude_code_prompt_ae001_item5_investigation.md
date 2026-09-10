@@ -2,7 +2,7 @@ AE-001 retest (QA acceptance testing, 0.6.6 build) surfaced a partial gap on ite
 
 ## Context: why this matters more than a typical UI-gap note
 
-`AE-001` is the mandatory wild-card case for the Attraction/Event Smart Import benchmark (`ATTRACTION_EVENT_SMART_IMPORT_DISCOVERY_V1.md`, frozen `V4`). Its frozen ground truth for `participants` is:
+`AE-001` is the mandatory wild-card case for the Attraction/Event Smart Import benchmark (`ATTRACTION_EVENT_SMART_IMPORT_DISCOVERY.md`, frozen `V4`). Its frozen ground truth for `participants` is:
 
 - Eyal Ben Yitzchak Ben Yitzchak, DNI 40384410 — Acces `5 INF`, Gate `74`, Boca `118`, Row `0010`, Seat `0001`, ticket code `C1E1A`
 - Amit Ben Yitzhak, DNI 40386943 — Acces `5 INF`, Gate `74`, Boca `118`, Row `0010`, Seat `0003`, ticket code `C1E19`
@@ -32,7 +32,7 @@ Do not fix. If this turns out to be Scenario B (data genuinely not captured), re
 
 ## Addendum: same question on `AE-002` — seat/row/section data also not shown
 
-While testing `AE-002` (`order1955108.pdf`, "Experience Park - Red band"), the same class of gap showed up. `AE-002`'s frozen ground truth (`ATTRACTION_EVENT_SMART_IMPORT_DISCOVERY_V1.md`) includes a per-ticket seat assignment: Row 4, Seat 26, Section/Gate B. Seat/section assignment is listed in the discovery doc as "required when present, not [a no-omission] blocker" — so, like `AE-001`'s per-passenger data, it's graded ground truth, just not a hard fail if genuinely absent from the source. On the saved `AE-002` item, none of Row/Seat/Gate B appears anywhere in the detail view.
+While testing `AE-002` (`order1955108.pdf`, "Experience Park - Red band"), the same class of gap showed up. `AE-002`'s frozen ground truth (`ATTRACTION_EVENT_SMART_IMPORT_DISCOVERY.md`) includes a per-ticket seat assignment: Row 4, Seat 26, Section/Gate B. Seat/section assignment is listed in the discovery doc as "required when present, not [a no-omission] blocker" — so, like `AE-001`'s per-passenger data, it's graded ground truth, just not a hard fail if genuinely absent from the source. On the saved `AE-002` item, none of Row/Seat/Gate B appears anywhere in the detail view.
 
 Since this is the same field family (per-ticket seat/section data on the `activity` type) and the same open question (stored-but-not-rendered vs. never captured) as the `AE-001` item 5 investigation above, treat it as the same root-cause investigation rather than a separate one:
 

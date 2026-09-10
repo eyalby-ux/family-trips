@@ -2,7 +2,7 @@ QA acceptance testing 0.6.6 build — a possible fabrication found while testing
 
 ## Why this matters more than a typical field-accuracy check
 
-`AE-007`'s frozen ground truth (`ATTRACTION_EVENT_SMART_IMPORT_DISCOVERY_V1.md`) is explicit and deliberate on this exact point:
+`AE-007`'s frozen ground truth (`ATTRACTION_EVENT_SMART_IMPORT_DISCOVERY.md`) is explicit and deliberate on this exact point:
 
 > `provider`: a zoo, printed as "גן החיות" (venue's own precise name is not legible beyond this generic label in the source — **frozen as a real location-precision limitation**, not resolved by assumption; correct behavior is to persist what the source actually shows and flag for review rather than guessing a specific zoo brand name)
 

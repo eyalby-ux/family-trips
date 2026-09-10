@@ -6,7 +6,7 @@ Date: 2026-09-03
 Candidate: Alpha 0.6.6.1, first focused correction package against the `0.6.6` (Attraction/Event Smart Import) baseline, on `version/V6`
 Baseline for installation: the installed `0.6.6` QA handoff (build `0.6.6-9b5b1ed0`) on `version/V6` — complete runtime/Functions replacement, so no earlier `0.6.x` handoff is separately supported
 Accepted Production baseline (unchanged by this package): Alpha 0.6.5 (build `0.6.5-a915a440`, deploy `6a9464b101a1690008db8823`) — `0.6.6` and `0.6.6.1` remain QA-only until explicit Product Owner GO
-Source of truth for this scope: `docs/roadmap/MVP_DELIVERY_PLAN_CURRENT_STATE_V1.md` (internal revision `V62`) and `docs/process/VERSION_PACKAGE_AUTHORING_STANDARD_V30.md` (internal revision `V30`, "For V6" version-naming list)
+Source of truth for this scope: `docs/roadmap/MVP_DELIVERY_PLAN_CURRENT_STATE.md` (internal revision `V62`) and `docs/process/VERSION_PACKAGE_AUTHORING_STANDARD_V30.md` (internal revision `V30`, "For V6" version-naming list)
 
 ## Document change history
 
@@ -151,7 +151,7 @@ Each entry gives: the exact defect as observed and root-caused, the required beh
 - automated tests: at least eleven named regression tests total — one per finding in section 3 (`V6-F58`'s coverage gap is closed by strengthening three existing tests in place, not a new named test, per its own entry above);
 - the current revision of `docs/process/VERSION_PACKAGE_AUTHORING_STANDARD_V30.md`;
 - `docs/versions/V6/0.6.6.1/` lifecycle documents, including this scope document and the new executable test session (section 7);
-- the approved delivery plan: `docs/roadmap/MVP_DELIVERY_PLAN_CURRENT_STATE_V1.md` (current-state document per the current-state/history split rule);
+- the approved delivery plan: `docs/roadmap/MVP_DELIVERY_PLAN_CURRENT_STATE.md` (current-state document per the current-state/history split rule);
 - a single installation script: `install_V6_0_6_6_1.ps1`;
 - a rollback script: `rollback_V6_0_6_6_1.ps1`;
 - an executable test session (section 7).

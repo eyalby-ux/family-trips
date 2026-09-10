@@ -4,7 +4,7 @@ import {flagReversedFlightDirection} from '../src/ingestion.js';
 
 // V6-F72: FL-003 reproduced FL-001's own already-once-confirmed RTL-layout misread -- both legs'
 // departure/arrival were extracted exactly backwards, confidently, with no review flag at all.
-// FL-001 (TLV->BKK, corrected to BKK->TLV in FLIGHT_SMART_IMPORT_DISCOVERY_V1.md V2) was never
+// FL-001 (TLV->BKK, corrected to BKK->TLV in FLIGHT_SMART_IMPORT_DISCOVERY.md V2) was never
 // root-caused in the actual extraction behaviour, only in the benchmark document's own recorded
 // ground truth -- so nothing changed in the code that could have caught the identical misread
 // reproducing on FL-003's two legs (LY87 read as HKT->TLV, actually TLV->HKT; LY84 read as
@@ -52,7 +52,7 @@ function test_V6_F72_FL002_LY087_reversed_reading_is_flagged_against_the_now_con
   // FL-002 was catalogued (pre-fix) as LY087 HKT->TLV, but was never independently confirmed by
   // the Product Owner the way FL-001 was -- and FL-003's own confirmation of LY87 as TLV->HKT
   // makes FL-002's catalogued direction for the SAME flight number suspect. Once the saved item
-  // reflects the corrected direction (TLV->HKT, per this fix's own FLIGHT_SMART_IMPORT_DISCOVERY_V1.md
+  // reflects the corrected direction (TLV->HKT, per this fix's own FLIGHT_SMART_IMPORT_DISCOVERY.md
   // update), a fresh extraction that reproduces FL-002's OLD (now known-backwards) reading must
   // itself be flagged, not trusted a second time.
   const items=[flightItem('LY087','TLV','HKT','תל אביב - פוקט')];

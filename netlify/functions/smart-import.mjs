@@ -20,8 +20,8 @@ const OPERATIONS={
   analyze_hotel:{schemaName:'familytrips_hotel_import',schema:hotelImportSchema,systemPrompt,instruction:'Extract all readable Hotel information under the frozen FamilyTrips rules.',allowUrl:true,validatePlace:true,place:validateHotelPlace},
   analyze_flight:{schemaName:'familytrips_flight_import',schema:flightImportSchema,systemPrompt:flightSystemPrompt,instruction:'Extract all readable Flight information under the frozen FamilyTrips rules.',allowUrl:false,validatePlace:false,reconcileDirectionByRepetition:true},
   analyze_activity:{schemaName:'familytrips_activity_import',schema:activityImportSchema,systemPrompt:activitySystemPrompt,instruction:'Extract all readable Attraction/Event ticket information under the frozen FamilyTrips rules.',allowUrl:true,validatePlace:true,place:validateActivityPlace},
-  // Insurance (0.6.7): PDF/image only, no URL acquisition in this slice (INSURANCE_SMART_IMPORT_
-  // DISCOVERY_V1.md V3, Decision 7 -- no real insurer-portal URL example exists to validate a
+  // Insurance (0.6.7): PDF/image only, no URL acquisition in this slice
+  // (INSURANCE_SMART_IMPORT_DISCOVERY.md V3, Decision 7 -- no real insurer-portal URL example exists to validate a
   // bounded scope against). No place validation either -- an insurance policy has no venue/address.
   analyze_insurance:{schemaName:'familytrips_insurance_import',schema:insuranceImportSchema,systemPrompt:insuranceSystemPrompt,instruction:'Extract all readable Insurance policy information under the frozen FamilyTrips rules.',allowUrl:false,validatePlace:false},
 };
@@ -129,7 +129,7 @@ async function prepareSource(source,allowUrl=true){
     if(!allowUrl)throw httpError(400,'unsupported_source','A public URL source is not supported for this category.');
     const page=await fetchPublicPage(source.url);return {kind:'url',sourceSize:page.text.length,content:[{type:'input_text',text:`OFFICIAL PUBLIC SOURCE ${page.finalUrl}\n${page.text}`}]}}
   const bytes=Buffer.from(String(source.dataBase64||''),'base64');if(!bytes.length||bytes.length>MAX_BINARY_BYTES)throw httpError(413,'source_too_large','The file is empty or exceeds 4MB.');
-  // V6-F78: never included TIFF, even though Decision 7 (INSURANCE_SMART_IMPORT_DISCOVERY_V1.md)
+  // V6-F78: never included TIFF, even though Decision 7 (INSURANCE_SMART_IMPORT_DISCOVERY.md)
   // explicitly confirms scanned/fax-quality images -- INS-006's own real format -- as in scope.
   // Mirrors the client-side fix (src/v5-app.js's validateSmartSource, src/smart-import-client.js's
   // inferMime) so the full pipeline agrees, not just the client-side alert.

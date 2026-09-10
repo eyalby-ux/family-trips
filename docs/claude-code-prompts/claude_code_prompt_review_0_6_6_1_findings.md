@@ -2,7 +2,7 @@ Session checkpoint: review and close out all outstanding investigation prompts f
 
 ## What's already been resolved (context, not re-work)
 
-`claude_code_prompt_v6f56_f57_followup.md`'s Follow-up 1 and Follow-up 2 have already been completed and reported: `V6-F56` (High — no DNI field anywhere in `ticketHolderSchema`, schema-provable, real defect), `V6-F57` (Low — `ticketHolders`/`amount`/`currency` correctly captured but never rendered in `detailView()`, confirmed unconditional across every Activity case, not case-specific), and `V6-F58` (Low-Medium — the regression suite `tests/v6-6-attraction-event-import.mjs` has fixture data for `AE-005`'s `amount` and `AE-002`/`AE-004`'s `seatOrSection` but never asserts them, a real coverage gap). All three are recorded in `MVP_DELIVERY_PLAN_CURRENT_STATE_V1.md` at `V60`, status `TBD after acceptance completion`. Do not redo this work — confirm it's accurately reflected in the register (see the audit step below) and move on.
+`claude_code_prompt_v6f56_f57_followup.md`'s Follow-up 1 and Follow-up 2 have already been completed and reported: `V6-F56` (High — no DNI field anywhere in `ticketHolderSchema`, schema-provable, real defect), `V6-F57` (Low — `ticketHolders`/`amount`/`currency` correctly captured but never rendered in `detailView()`, confirmed unconditional across every Activity case, not case-specific), and `V6-F58` (Low-Medium — the regression suite `tests/v6-6-attraction-event-import.mjs` has fixture data for `AE-005`'s `amount` and `AE-002`/`AE-004`'s `seatOrSection` but never asserts them, a real coverage gap). All three are recorded in `MVP_DELIVERY_PLAN_CURRENT_STATE.md` at `V60`, status `TBD after acceptance completion`. Do not redo this work — confirm it's accurately reflected in the register (see the audit step below) and move on.
 
 ## What still needs to be done
 
@@ -15,7 +15,7 @@ Go through each of the following and complete whatever that file's own instructi
 
 ## Final step: consolidated audit of the whole first session, not just these four
 
-Once all four above are investigated and registered, produce one consolidated summary covering every finding discovered across this entire first `0.6.6` acceptance session — from the originally-folded-in `V6-F49`–`V6-F51` through whatever new IDs come out of items 1–4 above. For each finding, confirm in `MVP_DELIVERY_PLAN_CURRENT_STATE_V1.md`:
+Once all four above are investigated and registered, produce one consolidated summary covering every finding discovered across this entire first `0.6.6` acceptance session — from the originally-folded-in `V6-F49`–`V6-F51` through whatever new IDs come out of items 1–4 above. For each finding, confirm in `MVP_DELIVERY_PLAN_CURRENT_STATE.md`:
 
 - it has exactly one entry, with a unique ID (no duplicate ID reuse, no two findings silently sharing one ID);
 - its severity, current status (`TBD`/`Assigned`/`Fixed`/`Deferred`/`Accepted`), and target version are all present and consistent with what was actually reported for it during investigation;

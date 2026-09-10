@@ -1,7 +1,7 @@
 # FamilyTrips Attraction/Event Smart Import — Type Contract and Benchmark
 
 **Document revision:** `V4`
-**Target application version:** Alpha 0.6.6 (retargeted from Restaurant — see `MVP_DELIVERY_PLAN_CURRENT_STATE_V1.md` `V49`)
+**Target application version:** Alpha 0.6.6 (retargeted from Restaurant — see `MVP_DELIVERY_PLAN_CURRENT_STATE.md` `V49`)
 **Status:** **FROZEN. Entry gate PASSED.** All Decision 4/7 open questions resolved by explicit Product Owner decision, benchmark matrix (Decision 6) filled with seven real documents including a genuine wild-card and both PDF/image formats, field-by-field expected values written and frozen for all seven cases, and the URL sub-scope decided explicitly (ship URL support; ticket-platform URLs expected to safe-fail; official venue/OTA sites are the real target and untested either way). Ready for implementation package authoring.
 **Date:** 2026-08-31
 

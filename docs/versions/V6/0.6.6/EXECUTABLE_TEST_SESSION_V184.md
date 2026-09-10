@@ -122,4 +122,4 @@ Run one Hotel import and one Flight import (real sources, or the existing QA ben
 
 - [ ] Every finding above recorded with an explicit target/disposition (not left `TBD`).
 - [ ] GO / NO-GO decision recorded, with rationale.
-- [ ] If GO: this document's revision is finalized and referenced from `MVP_DELIVERY_PLAN_CURRENT_STATE_V1.md`'s next change-history row, alongside the actual Production-deploy decision (a separate, explicit action).
+- [ ] If GO: this document's revision is finalized and referenced from `MVP_DELIVERY_PLAN_CURRENT_STATE.md`'s next change-history row, alongside the actual Production-deploy decision (a separate, explicit action).

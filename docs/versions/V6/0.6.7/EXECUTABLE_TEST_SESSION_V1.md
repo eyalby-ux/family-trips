@@ -2,13 +2,13 @@
 
 **Document revision:** `V2`
 **Candidate:** `0.6.7` (Insurance Smart Import, plus `V6-F74` already implemented in `V81`), installed on `version/V6`, deployed to the fixed `qa` alias
-**Instructions:** Run one test at a time, in order. Record the actual observed result under each test, not just PASS/FAIL — a finding is only useful with what you actually saw. Findings are recorded immediately with target `TBD after acceptance completion`, per `VERSION_PACKAGE_AUTHORING_STANDARD_V39.md`; do not assign a finding to a version until the whole session is complete.
+**Instructions:** Run one test at a time, in order. Record the actual observed result under each test, not just PASS/FAIL — a finding is only useful with what you actually saw. Findings are recorded immediately with target `TBD after acceptance completion`, per `VERSION_PACKAGE_AUTHORING_STANDARD_V40.md`; do not assign a finding to a version until the whole session is complete.
 
 ## Document change history
 
 | Document revision | Date | Change |
 |---|---|---|
-| V2 | 2026-09-09 | Session completed by the Product Owner against build `0.6.7-20076681` on `qa` (session number `V1`, opened as a new per-candidate session sequence for `0.6.7`). Result: **10/14 PASS, 4 FAIL. NO-GO** (see below). All 14 results recorded verbatim from the Product Owner's own written report. Seven findings registered, `V6-F75`–`V6-F81` — full detail in `MVP_DELIVERY_PLAN_CURRENT_STATE_V1.md` `V83`'s finding register, not repeated here. A focused correction package, `0.6.7.1`, is now implemented; a new, complete run of this same session against the `0.6.7.1` build is required before GO/NO-GO is reconsidered — this document is not itself re-used for that session (a new candidate build gets a fresh, complete pass, not a retest of only the four original failures). |
+| V2 | 2026-09-09 | Session completed by the Product Owner against build `0.6.7-20076681` on `qa` (session number `V1`, opened as a new per-candidate session sequence for `0.6.7`). Result: **10/14 PASS, 4 FAIL. NO-GO** (see below). All 14 results recorded verbatim from the Product Owner's own written report. Seven findings registered, `V6-F75`–`V6-F81` — full detail in `MVP_DELIVERY_PLAN_CURRENT_STATE.md` `V83`'s finding register, not repeated here. A focused correction package, `0.6.7.1`, is now implemented; a new, complete run of this same session against the `0.6.7.1` build is required before GO/NO-GO is reconsidered — this document is not itself re-used for that session (a new candidate build gets a fresh, complete pass, not a retest of only the four original failures). |
 | V1 | 2026-09-09 | Initial session drafted by the Development Agent, 14 tests, all results blank pending the Product Owner's run. |
 
 ---
@@ -131,7 +131,7 @@ Spot-check one existing Hotel, Flight, and Attraction/Event item each still open
 
 ---
 
-## Finding register (summary — full detail in `MVP_DELIVERY_PLAN_CURRENT_STATE_V1.md` `V83`)
+## Finding register (summary — full detail in `MVP_DELIVERY_PLAN_CURRENT_STATE.md` `V83`)
 
 | Finding | Test | Severity | Disposition |
 |---|---|---|---|
@@ -148,12 +148,12 @@ Spot-check one existing Hotel, Flight, and Attraction/Event item each still open
 - `INS-004` (Phoenix): catalogued customer-service number `03-7338141` was wrong; corrected `03-7332222`. App's extraction was correct.
 - `INS-005` (Wobi): catalogued IDs for Daniel and Amit Ben Yitzhak were swapped. Corrected: Daniel `220990485` (consistent with `INS-002`/`INS-003`), Amit `340255835`. App's extraction was correct.
 
-Both applied to `docs/roadmap/INSURANCE_SMART_IMPORT_DISCOVERY_V1.md`, bumped `V3`→`V4`, independent of the `0.6.7.1` code correction package.
+Both applied to `docs/roadmap/INSURANCE_SMART_IMPORT_DISCOVERY.md`, bumped `V3`→`V4`, independent of the `0.6.7.1` code correction package.
 
 ## GO/NO-GO decision
 
 **NO-GO**, decided by the Product Owner. `V6-F78` (Test 6, the mandatory wild-card) is a hard blocker — the `.tif` format explicitly confirmed in scope by Decision 7 cannot be processed at all, so the mandatory non-canonical wild-card test required by the standard's own wild-card rule cannot be completed. Three additional FAILs (`V6-F75`, `V6-F76`/`V6-F77`, `V6-F81`) are real but non-blocking data-accuracy and UI gaps. `0.6.7` is not promoted to Production; `0.6.6.3` remains the accepted Production baseline, unaffected.
 
-**Next step:** the focused correction package `0.6.7.1`, scoped to `V6-F75`–`V6-F81` plus the two discovery-document corrections, is implemented (`version/V6`, commit — see `MVP_DELIVERY_PLAN_CURRENT_STATE_V1.md` `V83` for the exact commit SHA once recorded). A new, complete acceptance session against the `0.6.7.1` build is required before any GO decision is reconsidered.
+**Next step:** the focused correction package `0.6.7.1`, scoped to `V6-F75`–`V6-F81` plus the two discovery-document corrections, is implemented (`version/V6`, commit — see `MVP_DELIVERY_PLAN_CURRENT_STATE.md` `V83` for the exact commit SHA once recorded). A new, complete acceptance session against the `0.6.7.1` build is required before any GO decision is reconsidered.
 
 **Follow-up:** that Round 2 session ran against build `0.6.7.1-8e41a683` and is recorded in `EXECUTABLE_TEST_SESSION_V2.md` (this session's own per-candidate sequence, session number `V2`) — result 11/14 PASS, 3 FAIL, NO-GO, leading to the `0.6.7.2` correction package.

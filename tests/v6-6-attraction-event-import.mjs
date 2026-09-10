@@ -8,7 +8,7 @@ import {isRobotsDisallowed} from '../netlify/functions/smart-import.mjs';
 
 // Every fixture below is a hand-verified transcription of the real AE-00x benchmark document at
 // benchmark_AE/, taken directly from the frozen field-by-field ground truth in
-// ATTRACTION_EVENT_SMART_IMPORT_DISCOVERY_V1.md V4 -- not synthesized. It represents the JSON a
+// ATTRACTION_EVENT_SMART_IMPORT_DISCOVERY.md V4 -- not synthesized. It represents the JSON a
 // correct extraction (per activityImportSchema/activitySystemPrompt) should produce for that
 // exact source, so these tests exercise the adapter/mapping pipeline end-to-end against all
 // seven real cases. They cannot exercise the live model itself (no API access from this

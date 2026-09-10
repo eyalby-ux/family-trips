@@ -340,7 +340,7 @@ function processingIndicator(message){return `<div class="processing-indicator" 
 function smartImportPanel(source){
   if(ingestBusy)return processingIndicator('מנתח את המקור…');
   // V6-F78: this accept attribute (and its attachmentModal/validateSmartSource counterparts
-  // below) never included TIFF, even though Decision 7 (INSURANCE_SMART_IMPORT_DISCOVERY_V1.md)
+  // below) never included TIFF, even though Decision 7 (INSURANCE_SMART_IMPORT_DISCOVERY.md)
   // explicitly confirms scanned/fax-quality images -- INS-006's own real format -- as in scope.
   const input=source==='link'?'<div class="field"><label>כתובת אתר ציבורי רשמי של המלון</label><input id="source-url" type="text" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://…"></div>':'<div class="field"><label>מסמך (PDF או תמונה)</label><input id="source-file" type="file" accept="application/pdf,.pdf,image/png,image/jpeg,image/webp,image/tiff,.tif,.tiff"></div>';
   return `<div class="smart-import-disclosure"><b>Smart Import:</b> הניתוח מתבצע רק לאחר אישור. עותק העיבוד אינו נשמר בשרת, והמקור המקורי נשמר במכשיר.</div>${input}<fieldset class="processing-choice"><legend>מה לבצע?</legend><label><input type="radio" name="processing-mode" value="analyze" checked> ניתוח והצעת פריט</label><label><input type="radio" name="processing-mode" value="save"> שמירת המקור בלבד — ללא AI</label></fieldset><button class="btn" data-action="smart-ingest">המשך</button>`;

@@ -4,7 +4,7 @@ import {smartImportResultToSuggestion} from '../src/smart-import-adapter.js';
 import {reconcileStaleNeedsReview,suggestionReviewDefaults} from '../src/ingestion.js';
 
 // Real post-launch 0.6.5 Production findings, folded into 0.6.6 per
-// MVP_DELIVERY_PLAN_CURRENT_STATE_V1.md V51 / VERSION_PACKAGE_AUTHORING_STANDARD_V29.md. All
+// MVP_DELIVERY_PLAN_CURRENT_STATE.md V51 / VERSION_PACKAGE_AUTHORING_STANDARD_V29.md. All
 // three trace to one root cause: the model sometimes resolves a conflict into free-text
 // draft.unresolved prose instead of a structured field, and the app only trusts structured
 // fields. Confirmed live on a real Hyatt Regency Phuket Voucher source (2026-08-31).

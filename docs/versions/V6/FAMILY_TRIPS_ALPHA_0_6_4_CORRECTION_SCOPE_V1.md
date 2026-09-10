@@ -6,7 +6,7 @@ Date: 2026-08-24
 Candidate: Alpha 0.6.4, fourth focused correction package on `version/V6`  
 Baseline for installation: 0.6.0, 0.6.1, 0.6.2 or the installed 0.6.3 QA handoff (complete runtime/Functions replacement makes any of these acceptable)  
 Accepted Production baseline (unchanged by this package): Alpha 0.5.6  
-Source of truth for this scope: `EXECUTABLE_TEST_SESSION_V124.md` (internal revision V142, Alpha 0.6.3 acceptance closure) and `claude/VERSION_PACKAGE_AUTHORING_STANDARD_V25.md` (internal revision V26, "For V6" version-naming list) and `claude/MVP_DELIVERY_PLAN_CURRENT_STATE_V1.md` (internal revision V14)
+Source of truth for this scope: `EXECUTABLE_TEST_SESSION_V124.md` (internal revision V142, Alpha 0.6.3 acceptance closure) and `claude/VERSION_PACKAGE_AUTHORING_STANDARD_V25.md` (internal revision V26, "For V6" version-naming list) and `claude/MVP_DELIVERY_PLAN_CURRENT_STATE.md` (internal revision V14)
 
 ## Document change history
 
@@ -158,7 +158,7 @@ Per the mandatory-regression-test rule adopted in `VERSION_PACKAGE_AUTHORING_STA
 ## 5. Excluded scope — explicit, not silent
 
 - **`V6-F14`** (notes field overloaded with a full duplicated dump) and **`V6-F16`** (two-button Photo/PDF add-document selector) are assigned to **Beta 0.8**, not `0.6.4` — both are refinements, not correctness or data-loss defects, per the Feedback Classification Rule. Do not fix them opportunistically inside `0.6.4`; if a `0.6.4` fix incidentally touches the same code path, note it in that finding's implementation record but do not close `V6-F14`/`V6-F16` early.
-- **Flight/boarding-pass Smart Import** is newly approved scope, sequenced as a separate candidate **`0.6.5`**, not bundled into `0.6.4`, per the Product Owner's risk-based decision recorded in `MVP_DELIVERY_PLAN_CURRENT_STATE_V1.md`. `0.6.4` must not include any Flight-type work.
+- **Flight/boarding-pass Smart Import** is newly approved scope, sequenced as a separate candidate **`0.6.5`**, not bundled into `0.6.4`, per the Product Owner's risk-based decision recorded in `MVP_DELIVERY_PLAN_CURRENT_STATE.md`. `0.6.4` must not include any Flight-type work.
 - **Activity Smart Import** remains blocked — Activities do not yet exist as a Trip item type. Out of scope for both `0.6.4` and `0.6.5`.
 - Test 8 (H-005, protected booking URL) and the two untested sub-checks of Test 10 (foreign Trip ID rejection; allowlist removal/redeploy/restore) are **not** findings and are **not** in `0.6.4`'s fix scope — they are re-run as part of `0.6.4`'s acceptance session (section 7) using material or access not available during the 0.6.3 session, not implemented as code changes.
 
@@ -168,7 +168,7 @@ Per the mandatory-regression-test rule adopted in `VERSION_PACKAGE_AUTHORING_STA
 - automated tests: thirteen named regression tests total — one per finding in section 3, plus the retroactive `test_V4_F04_new_item_defaults_to_trip_start`;
 - the current revision of `claude/VERSION_PACKAGE_AUTHORING_STANDARD_V25.md` (V26);
 - `docs/versions/V6/` lifecycle documents, including this scope document and the new executable test session (section 7);
-- the approved delivery plan: `claude/MVP_DELIVERY_PLAN_CURRENT_STATE_V1.md` (current-state document per the current-state/history split rule);
+- the approved delivery plan: `claude/MVP_DELIVERY_PLAN_CURRENT_STATE.md` (current-state document per the current-state/history split rule);
 - a single installation script: `install_V6_0_6_4.ps1`;
 - a rollback script: `rollback_V6_0_6_4.ps1`;
 - an executable test session (section 7).

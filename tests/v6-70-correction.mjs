@@ -3,7 +3,7 @@ import fs from 'node:fs';
 
 // V6-F70: a real ticket-platform URL (tickets.leaan.net) failed with unsupported_source ("The
 // URL did not return an HTML page") instead of the robots_disallowed safe-failure this exact
-// platform was already documented (ATTRACTION_EVENT_SMART_IMPORT_DISCOVERY_V1.md V4) as expected
+// platform was already documented (ATTRACTION_EVENT_SMART_IMPORT_DISCOVERY.md V4) as expected
 // to produce -- its robots.txt genuinely disallows /ticket/, confirmed independently from this
 // environment (direct fetch, matching the exact FamilyTrips-SmartImport/0.6 user-agent), and the
 // site is confirmed to run behind Cloudflare (Server: cloudflare, CF-RAY, cf-cache-status headers
