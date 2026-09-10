@@ -458,6 +458,53 @@ function test_V6_F85_prepareSource_is_wired_to_convertTiffToPng(){
   assert(server.includes("if(source.kind==='image'&&mime==='image/tiff'){outBytes=await convertTiffToPng(bytes);outMime='image/png'}"),'prepareSource must actually call convertTiffToPng and use its PNG output (and image/png mime) for a TIFF source -- the V6-F78 upload-allowlist fix alone is not sufficient, since the vision model itself rejects raw TIFF bytes regardless of what the upload layer allowed through');
   console.log('PASS: V6-F85 prepareSource is wired to convert a TIFF source to PNG before the extraction call, not merely to allow the upload through');
 }
+// ---------------------------------------------------------------------------------------------
+// V6-F86 (0.6.7.3, hard blocker, third consecutive failure on the same mandatory wild-card) --
+// INS-006 now extracts and converts correctly end-to-end (policy number, policyholder, coverage
+// dates all correct per V6-F85), but provider resolved to "Harel Insurance Company Ltd." -- a
+// completely unrelated company that appears nowhere in this document (the real source's own
+// crystal-clear title bar reads "כלל חברה לביטוח בע\"מ", Clal). Confirmed by direct investigation:
+// (1) the extraction pipeline is fully stateless per request (smart-import.mjs's callExtraction
+// builds a fresh `input` array per call, store:false, no previous_response_id/shared context --
+// literal cross-document leakage is not structurally possible); (2) the actual converted PNG was
+// regenerated and visually inspected -- the "כלל חברה לביטוח בע\"מ" title bar is bold white-on-
+// black, near-maximum contrast, unambiguously legible, ruling out V6-F85's TIFF->PNG conversion
+// as a quality-degradation cause. This is a genuine model hallucination/pattern-completion failure
+// (Harel is the provider for INS-002/INS-005 elsewhere in this same benchmark -- a plausible-
+// sounding, real, commonly-seen name substituted for what this specific source actually shows),
+// not a legibility or code-path bug. Fixed with a new insuranceSystemPrompt paragraph, mirroring
+// activitySystemPrompt's own established anti-hallucination discipline: confidence is not
+// evidence, a provider value must be traceable to literal visible text, and heightened scrutiny
+// applies specifically to scanned/fax-quality sources. Deliberately does not name "Harel" or
+// "Clal" in the prompt text itself (unlike this comment) -- naming either would risk biasing the
+// model away from ever correctly reporting Harel on INS-002/INS-005, exactly the kind of
+// overcorrection V6-F84 already demonstrated this exact code path is prone to.
+// ---------------------------------------------------------------------------------------------
+function test_V6_F86_insuranceSystemPrompt_warns_against_confident_provider_hallucination(){
+  assert.match(insuranceSystemPrompt,/A wrong provider reported with confidence is worse than an honest needs_review flag/,'the prompt must explicitly warn that a confident wrong provider is worse than an honest needs_review flag -- V6-F86\'s exact failure mode (Harel reported for INS-006 with no flag at all)');
+  assert.match(insuranceSystemPrompt,/confidence itself is not evidence/,'the prompt must explicitly state that confidence is not evidence, directly countering a fluent-but-wrong hallucination');
+  assert.match(insuranceSystemPrompt,/heightened scrutiny/,'the prompt must call for heightened scrutiny specifically on scanned/fax-quality sources, where pattern-completion from general knowledge is most tempting');
+  assert.doesNotMatch(insuranceSystemPrompt,/Harel|Clal/,'the prompt must not name the specific real companies involved in this bug -- doing so would risk biasing the model away from ever correctly reporting Harel on INS-002/INS-005 elsewhere in this same benchmark, the same overcorrection risk V6-F84 already demonstrated on this exact code path');
+  console.log('PASS: V6-F86 insuranceSystemPrompt explicitly warns against confident provider hallucination, without naming the specific real companies involved (avoiding an INS-002/INS-005 Harel-reporting regression)');
+}
+// ---------------------------------------------------------------------------------------------
+// V6-F87 (0.6.7.3) -- opening a .tif attachment silently downloads it instead of previewing
+// inline, unlike every other supported type (PDF/PNG/JPEG/WebP), all of which every browser
+// already renders inline from a blob: URL opened the same way openSource opens every attachment.
+// No browser renders TIFF natively, so the download itself is correct/unavoidable behavior, not a
+// bug in itself -- the bug is that it happens silently, with no explanation, inconsistent with
+// every other type's working inline preview. Fixed by detecting a TIFF source (by stored MIME type
+// or, mirroring this project's established MIME-or-filename fallback pattern, .tif/.tiff filename)
+// and surfacing an explicit notify() explaining the download, rather than reimplementing the
+// server-side TIFF decoder (V6-F85) a second time inside the client bundle purely for this one
+// narrow, offline-only local-file-viewing path.
+// ---------------------------------------------------------------------------------------------
+function test_V6_F87_openSource_explains_tiff_download_instead_of_silent_inconsistency(){
+  const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
+  assert(app.includes("const isTiff=(record.type||'')==='image/tiff'||/\\.tiff?$/i.test(record.name||'');"),'openSource must detect a TIFF source by stored MIME type or filename fallback (mirroring validateSmartSource/inferMime\'s own established MIME-or-filename pattern), since record.type can be empty depending on browser/OS');
+  assert(app.includes("if(isTiff)notify('קובצי TIFF אינם נתמכים לתצוגה בדפדפן — הקובץ הורד למכשיר');"),'openSource must notify the user when a TIFF download happens instead of an inline preview, explaining why -- V6-F87\'s exact failure mode was the SAME download happening with no explanation at all, inconsistent with every other supported type');
+  console.log('PASS: V6-F87 openSource now explains a TIFF attachment\'s download-instead-of-preview behavior explicitly, rather than leaving it silent and inconsistent with every other supported type');
+}
 function test_relatedItemIds_is_not_in_TYPE_FIELDS(){
   assert(!TYPE_FIELDS.insurance.includes('relatedItemIds'),'relatedItemIds must NOT be in TYPE_FIELDS.insurance -- it needs a dedicated multi-select UI (relatedItemsPanel), not a generic scalar form field, and proposalFields() has no rendering path for an array-of-ids field anyway');
   for(const type of Object.keys(TYPE_FIELDS)){
@@ -585,4 +632,6 @@ test_V6_F84_insuranceSystemPrompt_distinguishes_plan_name_from_second_entity();
 test_V6_F83_insuranceSystemPrompt_reinforces_website_thoroughness();
 test_V6_F85_prepareSource_is_wired_to_convertTiffToPng();
 await test_V6_F85_tiff_conversion_produces_real_decodable_png_from_actual_fixture();
-console.log('ALL PASS: 0.6.7 Insurance Smart Import -- all 8 real INS-001-INS-008 benchmark cases (INS-006 as the mandatory wild-card), the data model (startAt/endAt/website added, schedule unchanged, relatedItemIds insurance-only and never extracted), the two-way relatedItemIds UI, the V6-F66-style per-person merge, and the 0.6.7.1/0.6.7.2 correction findings (V6-F75-V6-F85) all pass');
+test_V6_F86_insuranceSystemPrompt_warns_against_confident_provider_hallucination();
+test_V6_F87_openSource_explains_tiff_download_instead_of_silent_inconsistency();
+console.log('ALL PASS: 0.6.7 Insurance Smart Import -- all 8 real INS-001-INS-008 benchmark cases (INS-006 as the mandatory wild-card), the data model (startAt/endAt/website added, schedule unchanged, relatedItemIds insurance-only and never extracted), the two-way relatedItemIds UI, the V6-F66-style per-person merge, and the 0.6.7.1/0.6.7.2/0.6.7.3 correction findings (V6-F75-V6-F87) all pass');

@@ -361,7 +361,19 @@ function nav(){return `<nav class="nav">${[['today','🏠','Today'],['timeline',
 function render(){normalizeOperationalState(state);const views={today:todayView,timeline,center,detail:detailView,suggestion:suggestionView,games:gamesView,packing:packingView,tasks:tasksView,shopping:shoppingView,locations:locationsView,settings:settingsView},body=(views[state.view]||todayView)();document.querySelector('#app').innerHTML=`<div class="shell">${!navigator.onLine?'<div class="offline">מצב אופליין — המידע המקומי זמין</div>':''}${header()}<main>${body}</main><button class="fab" data-action="create">+</button>${nav()}${modal()}${state.toast?`<div class="toast">${esc(state.toast)}</div>`:''}</div>`}
 
 async function storeOriginal(source,file){const db=await openDb();await new Promise((resolve,reject)=>{const tx=db.transaction('files','readwrite');tx.objectStore('files').put({id:source.id,blob:file,name:file.name,type:file.type});tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});source.storedOffline=true}
-async function openSource(id){const source=sourceById(id);if(!source)return;if(source.kind==='link'){open(source.url,'_blank','noopener');return}try{const db=await openDb(),record=await new Promise((resolve,reject)=>{const tx=db.transaction('files','readonly'),request=tx.objectStore('files').get(id);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});if(!record?.blob){notify('קובץ המקור אינו זמין אופליין במכשיר זה');return}const url=URL.createObjectURL(record.blob);open(url,'_blank','noopener');setTimeout(()=>URL.revokeObjectURL(url),60000)}catch(error){console.error(error);notify('פתיחת המקור נכשלה')}}
+async function openSource(id){const source=sourceById(id);if(!source)return;if(source.kind==='link'){open(source.url,'_blank','noopener');return}try{const db=await openDb(),record=await new Promise((resolve,reject)=>{const tx=db.transaction('files','readonly'),request=tx.objectStore('files').get(id);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});if(!record?.blob){notify('קובץ המקור אינו זמין אופליין במכשיר זה');return}
+  // V6-F87: unlike PDF/PNG/JPEG/WebP -- every one of which every browser already renders inline
+  // from a blob: URL opened this way -- no browser renders TIFF natively, so opening one identically
+  // silently downloads it instead, with no explanation, inconsistent with every other supported
+  // type's working inline preview. Converting for inline preview here would mean duplicating the
+  // server-side TIFF decoder (V6-F85, netlify/functions/smart-import.mjs's convertTiffToPng) into
+  // the client bundle purely for this one narrow case; instead, the download is kept (it already
+  // works, and the file remains reachable) but is now an explained, intentional outcome rather than
+  // a silent, confusing inconsistency.
+  const isTiff=(record.type||'')==='image/tiff'||/\.tiff?$/i.test(record.name||'');
+  const url=URL.createObjectURL(record.blob);open(url,'_blank','noopener');setTimeout(()=>URL.revokeObjectURL(url),60000);
+  if(isTiff)notify('קובצי TIFF אינם נתמכים לתצוגה בדפדפן — הקובץ הורד למכשיר');
+}catch(error){console.error(error);notify('פתיחת המקור נכשלה')}}
 function openDb(){return new Promise((resolve,reject)=>{const request=indexedDB.open('family-trips-v4',1);request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains('files'))request.result.createObjectStore('files',{keyPath:'id'})};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)})}
 async function clearStoredSources(){try{const db=await openDb();await new Promise((resolve,reject)=>{const tx=db.transaction('files','readwrite');tx.objectStore('files').clear();tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)})}catch(error){console.error('Stored source cleanup failed',error);throw new Error('מחיקת קובצי המקור נכשלה. לא בוצע איפוס.') }}
 async function resetCurrentTrip(removeTrip){
