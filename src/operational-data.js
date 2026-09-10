@@ -11,6 +11,11 @@ export function normalizeOperationalState(state){
   state.games=Array.isArray(state.games)?state.games:BUILTIN_GAMES.map(game=>({...game,favorite:false}));
   for(const game of BUILTIN_GAMES)if(!state.games.some(item=>item.id===game.id))state.games.push({...game,favorite:false});
   state.tasks=Array.isArray(state.tasks)?state.tasks:[];
+  // 0.7.1: priority is new -- every task created before this candidate has none stored at all.
+  // Defaulting a missing priority to 'Normal' here (not at read-time in every render call site)
+  // means every task, old or new, has one real, persisted value from the first render onward.
+  for(const task of state.tasks)if(!task.priority)task.priority='Normal';
+  state.taskFilters=state.taskFilters&&typeof state.taskFilters==='object'?state.taskFilters:{priority:'all',due:'all'};
   state.shopping=Array.isArray(state.shopping)?state.shopping:[];
   state.locationRecords=Array.isArray(state.locationRecords)?state.locationRecords:[];
   state.packingCollapsed=state.packingCollapsed&&typeof state.packingCollapsed==='object'?state.packingCollapsed:{};
@@ -101,20 +106,46 @@ export function uniqueRecordsById(candidates,limit=Infinity){
   return records;
 }
 
+// Shared by Today's Quick Access (top 3, urgency only) and the 0.7.1 Tasks-page due-date scope
+// filter (every scope bucket, exact match) -- one ranking definition so "overdue"/"today" mean the
+// exact same thing in both places, never two independently-maintained notions of urgency.
+export function taskDueRank(task,when=today()){
+  if(!task.dueDate)return 3;
+  if(task.dueDate<when)return 0;
+  if(task.dueDate===when)return 1;
+  return 2;
+}
+export const TASK_DUE_SCOPES=['overdue','today','upcoming','undated'];
+// 0.7.1: High/Normal/Low priority, Normal default -- see normalizeOperationalState. Numeric rank
+// only for deterministic sorting (lower sorts first); never persisted or shown to the user as a
+// number.
+export const TASK_PRIORITY_RANK={High:0,Normal:1,Low:2};
 export function quickAccessTasks(tasks,when=today(),limit=3){
   const open=(tasks||[]).filter(task=>task&&!task.done);
-  const rank=task=>{
-    if(!task.dueDate)return 3;
-    if(task.dueDate<when)return 0;
-    if(task.dueDate===when)return 1;
-    return 2;
-  };
   return open.map((task,index)=>({task,index})).sort((left,right)=>{
-    const rankDifference=rank(left.task)-rank(right.task);
+    const rankDifference=taskDueRank(left.task,when)-taskDueRank(right.task,when);
     if(rankDifference)return rankDifference;
     const leftDate=left.task.dueDate||'9999-12-31',rightDate=right.task.dueDate||'9999-12-31';
     return leftDate.localeCompare(rightDate)||left.index-right.index;
   }).slice(0,limit).map(entry=>entry.task);
+}
+// 0.7.1: filters (priority, due-date scope) combine with AND; sort is fully deterministic --
+// due-date urgency first (matching quickAccessTasks' own ranking, so "urgent" means the same thing
+// everywhere in the app), then priority (High before Normal before Low), then due date ascending,
+// then original array position as the final, always-different tiebreaker.
+export function filterAndSortTasks(tasks,filters,when=today()){
+  const list=Array.isArray(tasks)?tasks:[];
+  const priority=filters?.priority||'all',due=filters?.due||'all';
+  const dueScopeName=task=>TASK_DUE_SCOPES[taskDueRank(task,when)];
+  const filtered=list.filter(task=>(priority==='all'||task.priority===priority)&&(due==='all'||dueScopeName(task)===due));
+  return filtered.map((task,index)=>({task,index})).sort((left,right)=>{
+    const dueDifference=taskDueRank(left.task,when)-taskDueRank(right.task,when);
+    if(dueDifference)return dueDifference;
+    const priorityDifference=(TASK_PRIORITY_RANK[left.task.priority]??1)-(TASK_PRIORITY_RANK[right.task.priority]??1);
+    if(priorityDifference)return priorityDifference;
+    const leftDate=left.task.dueDate||'9999-12-31',rightDate=right.task.dueDate||'9999-12-31';
+    return leftDate.localeCompare(rightDate)||left.index-right.index;
+  }).map(entry=>entry.task);
 }
 
 // V6-F26: forcing end=start whenever end-before-start was detected assumed that ordering is

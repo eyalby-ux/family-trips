@@ -43,7 +43,12 @@ assert(app.includes('async function resetCurrentTrip(removeTrip)'));
 assert(app.includes("if(removeTrip)localStorage.removeItem(KEY)"));
 
 assert(app.includes("if(action==='create'){state.modal={type:'intake',source:'manual'};render()}"));
-assert(app.includes("proposalFields({type:'hotel'"));
+// 0.7.1 (V5-F09): category-level Add now presets the current category's item type instead of
+// always defaulting to 'hotel' -- state.category is only ever a genuine ITEM_TYPES key when this
+// form renders from inside a category view (route() resets it to null on every other navigation),
+// so it's safe to use directly, falling through to the original 'hotel' default when unset (the
+// global "+" case). See tests/v6-91-correction.mjs for the full regression coverage.
+assert(app.includes("proposalFields({type:state.category||'hotel'"));
 
 const orderedTasks=quickAccessTasks([
   {id:'undated',done:false,dueDate:''},
