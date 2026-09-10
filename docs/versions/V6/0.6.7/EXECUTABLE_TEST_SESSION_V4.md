@@ -3,7 +3,7 @@
 **Document revision:** `V2`
 **Candidate:** `0.6.7.3` (third correction package for `0.6.7.2`'s `V6-F86`–`V6-F87`), installed on `version/V6`, deployed to the fixed `qa` alias (build `0.6.7.3-54419015`)
 **Session number:** `V4`, continuing the per-candidate session sequence opened for `0.6.7` (`EXECUTABLE_TEST_SESSION_V1.md`–`V3.md`, sessions `V1`–`V3`).
-**Instructions:** Run one test at a time, in order. Record the actual observed result under each test, not just PASS/FAIL. Findings are recorded immediately with target `TBD after acceptance completion`, per `VERSION_PACKAGE_AUTHORING_STANDARD_V38.md`.
+**Instructions:** Run one test at a time, in order. Record the actual observed result under each test, not just PASS/FAIL. Findings are recorded immediately with target `TBD after acceptance completion`, per `VERSION_PACKAGE_AUTHORING_STANDARD_V39.md`.
 
 **Scope note:** per the scoping decision confirmed with the Development Agent after Round 3 (given how narrow the gap had become), this session was scoped to Test 6 plus three adjacent regression spot-checks (`INS-002`, `INS-005`, `INS-004`), not a full 14-test re-run.
 
@@ -37,3 +37,5 @@
 **NO-GO**, decided by the Product Owner. Both findings on Test 6 remain open, unchanged, for a fourth consecutive round. `0.6.7.3` is not promoted to Production; `0.6.6.3` remains the accepted Production baseline, unaffected.
 
 **Next step:** a fourth focused correction package, `0.6.7.4`, addressing both the reported-fix/live-behavior disconnect (see `MVP_DELIVERY_PLAN_CURRENT_STATE_V1.md`'s finding register for the full investigation) and a re-fix of both `V6-F86`/`V6-F87`, is implemented — but is explicitly **not** reported `Fixed` for either finding this round, per the strengthened closure bar this correction package itself introduced. See the Development Agent's own correction report for exactly what live-behavior verification was and was not possible from its environment, and what remains for the Product Owner (or another session with `qa` access) to confirm before either finding can be marked closed.
+
+**Follow-up:** the Product Owner deployed `0.6.7.4` to `qa` and personally performed the live verification, recorded in `EXECUTABLE_TEST_SESSION_V5.md` (session number `V5`) — 14/14 PASS, GO. `0.6.7.4` promoted to Production the same day, closing this candidate's five-round correction cycle.

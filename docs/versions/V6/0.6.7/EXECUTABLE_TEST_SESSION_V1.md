@@ -2,7 +2,7 @@
 
 **Document revision:** `V2`
 **Candidate:** `0.6.7` (Insurance Smart Import, plus `V6-F74` already implemented in `V81`), installed on `version/V6`, deployed to the fixed `qa` alias
-**Instructions:** Run one test at a time, in order. Record the actual observed result under each test, not just PASS/FAIL — a finding is only useful with what you actually saw. Findings are recorded immediately with target `TBD after acceptance completion`, per `VERSION_PACKAGE_AUTHORING_STANDARD_V38.md`; do not assign a finding to a version until the whole session is complete.
+**Instructions:** Run one test at a time, in order. Record the actual observed result under each test, not just PASS/FAIL — a finding is only useful with what you actually saw. Findings are recorded immediately with target `TBD after acceptance completion`, per `VERSION_PACKAGE_AUTHORING_STANDARD_V39.md`; do not assign a finding to a version until the whole session is complete.
 
 ## Document change history
 
