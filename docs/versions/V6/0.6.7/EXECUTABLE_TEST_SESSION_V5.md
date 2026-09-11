@@ -22,4 +22,4 @@
 
 ## GO/NO-GO decision
 
-**GO**, decided by the Product Owner. `0.6.7.4` promoted to Production `2026-09-10` — build `0.6.7.4-4fe16e5c`, deploy `6aa255f515287d85356c634e`, from the exact `qa`-verified artifact (no rebuild), after a timestamped external rollback backup of the prior `0.6.6.3` Production state was preserved. Verified live on the Production URL via a fresh, cache-bypassed fetch. Full promotion record: `MVP_DELIVERY_PLAN_CURRENT_STATE.md` `V87`, `docs/process/VERSION_PACKAGE_AUTHORING_STANDARD_V46.md`'s fourteenth-candidate closure entry.
+**GO**, decided by the Product Owner. `0.6.7.4` promoted to Production `2026-09-10` — build `0.6.7.4-4fe16e5c`, deploy `6aa255f515287d85356c634e`, from the exact `qa`-verified artifact (no rebuild), after a timestamped external rollback backup of the prior `0.6.6.3` Production state was preserved. Verified live on the Production URL via a fresh, cache-bypassed fetch. Full promotion record: `MVP_DELIVERY_PLAN_CURRENT_STATE.md` `V87`, `docs/process/VERSION_PACKAGE_AUTHORING_STANDARD_V47.md`'s fourteenth-candidate closure entry.
