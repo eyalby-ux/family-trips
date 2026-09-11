@@ -59,14 +59,20 @@ function hasLegacyLocalTrip(){try{return Boolean(JSON.parse(localStorage.getItem
 // not treated as absent. This same "create the Trip doc on first use, not lazily inside save()"
 // step is needed by two independent call paths now (save() itself, and any attachment upload
 // before the first save()), so it is extracted here rather than duplicated.
+// Returns true when this call genuinely created the Trip document (false when it already existed
+// or was already synced) -- save() uses this to know when myTrips needs refreshing.
 async function ensureTripDocSynced(tripId,trip){
-  if(lastSyncedSnapshot&&lastSyncedSnapshot.trip?.id===tripId)return;
+  if(lastSyncedSnapshot&&lastSyncedSnapshot.trip?.id===tripId)return false;
   const uid=currentUid();if(!uid)throw new Error('לא מחובר.');
+  let created=true;
   await createTripDoc(tripId,{name:trip.name,startDate:trip.startDate,endDate:trip.endDate,createdAt:trip.createdAt},uid).catch(error=>{
-    // A concurrent tab/session may have already created this exact Trip id -- not a real failure.
+    // A concurrent tab/session may have already created this exact Trip id -- not a real failure,
+    // just means this call didn't create it itself.
     if(error?.code!=='permission-denied')throw error;
+    created=false;
   });
   localStorage.setItem(ACTIVE_TRIP_KEY,tripId);
+  return created;
 }
 function save(){
   const lifecycle=normalizeProposalLifecycle(state.suggestions,state.rejectedSuggestions);
@@ -75,8 +81,17 @@ function save(){
   const tripId=state.trip.id,snapshotForThisSave=clone(state);
   saveInFlight=saveInFlight.then(async()=>{
     try{
-      await ensureTripDocSynced(tripId,snapshotForThisSave.trip);
+      const createdNewTrip=await ensureTripDocSynced(tripId,snapshotForThisSave.trip);
       lastSyncedSnapshot=await syncTripState(tripId,lastSyncedSnapshot,snapshotForThisSave);
+      // A brand-new Trip's own switcher entry doesn't exist anywhere until this point -- myTrips
+      // is otherwise only refreshed at boot() and after migration, so without this a freshly
+      // created second Trip would silently not appear in tripsSection()/tripsView() until the
+      // next full reload, even though it now genuinely exists in Firestore.
+      if(createdNewTrip){
+        const uid=currentUid();
+        if(uid)myTrips=await listMyTrips(uid,currentEmail());
+        render();
+      }
     }catch(error){
       console.error('Firestore sync failed',error);
       notify('שמירת השינויים בענן נכשלה. השינויים נשארים במסך זה בלבד עד לחיבור מחדש.');
@@ -601,9 +616,17 @@ async function readLegacyBlob(id){try{const db=await openLegacyDb(),record=await
 async function resetCurrentTrip(removeTrip){
   const tripName=state.trip?.name||'הטיול הנוכחי',tripId=state.trip?.id;
   if(!tripId)return;
+  // Same bug class as storeOriginal()'s Storage-upload fix: a Trip that was never synced (created
+  // via ensureTrip() but no save()/storeOriginal() has run yet, so its Firestore document does not
+  // exist) has nothing server-side to delete or clear in the first place -- calling
+  // deleteTripCompletely/clearAllTripContent against a nonexistent Trip document would hit the
+  // same permission error, for no reason, since there is nothing there to fail on.
+  const everSynced=lastSyncedSnapshot?.trip?.id===tripId;
   try{
-    if(removeTrip)await deleteTripCompletely(tripId);
-    else await clearAllTripContent(tripId);
+    if(everSynced){
+      if(removeTrip)await deleteTripCompletely(tripId);
+      else await clearAllTripContent(tripId);
+    }
   }catch(error){console.error('Trip deletion/reset failed',error);throw new Error('מחיקת הנתונים בענן נכשלה. לא בוצע שינוי.')}
   if(unsubscribeTrip){unsubscribeTrip();unsubscribeTrip=null}
   lastSyncedSnapshot=null;

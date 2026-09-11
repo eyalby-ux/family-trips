@@ -147,6 +147,39 @@ function test_0_7_2_ensureTripDocSynced_is_shared_by_save_and_storeOriginal_not_
   const callers=[...app.matchAll(/ensureTripDocSynced\(/g)].length;
   assert.equal(callers,3); // its own definition + save()'s call + storeOriginal()'s call
 }
+// A third real gap, found by auditing every other direct Firestore/Storage call site in
+// v5-app.js for the same "operates against a Trip document that may not exist yet" bug class,
+// after the Product Owner's two live findings above -- not itself reported live, but reachable by
+// this candidate's own Test 6 acceptance path (reset/delete a brand-new, never-yet-saved Trip):
+// resetCurrentTrip() called deleteTripCompletely/clearAllTripContent unconditionally, which would
+// hit the exact same permission error against a Trip document that was never created, for no
+// reason -- there is nothing server-side to delete or clear in the first place.
+function test_0_7_2_resetCurrentTrip_skips_the_firestore_calls_for_a_trip_that_was_never_synced(){
+  const start=app.indexOf('async function resetCurrentTrip(');
+  const body=app.slice(start,app.indexOf('async function ingest(',start));
+  assert(body.includes('const everSynced=lastSyncedSnapshot?.trip?.id===tripId;'));
+  const ifIndex=body.indexOf('if(everSynced){');
+  const deleteIndex=body.indexOf('await deleteTripCompletely(tripId)');
+  const clearIndex=body.indexOf('await clearAllTripContent(tripId)');
+  assert(ifIndex>-1&&deleteIndex>ifIndex&&clearIndex>ifIndex);
+}
+// A fourth real gap, found in the same audit: myTrips (backing the Trip switcher) was only ever
+// refreshed at boot() and after migration -- creating a brand-new second Trip via
+// startNewTripFlow() never refreshed it, so the new Trip would silently not appear in
+// tripsSection()/tripsView() until the next full reload, even after it genuinely existed in
+// Firestore. This would have failed this candidate's own Test 2 acceptance criterion
+// ("Confirm Settings lists both") the first time it was actually run.
+function test_0_7_2_save_refreshes_myTrips_when_it_creates_a_brand_new_trip_document(){
+  assert(app.includes('async function ensureTripDocSynced(tripId,trip){'));
+  const start=app.indexOf('async function ensureTripDocSynced(');
+  const helperBody=app.slice(start,app.indexOf('function save(){',start));
+  assert(/return\s+false/.test(helperBody)&&/return\s+created/.test(helperBody));
+  const saveStart=app.indexOf('function save(){');
+  const saveBody=app.slice(saveStart,app.indexOf('async function boot(){',saveStart));
+  assert(saveBody.includes('const createdNewTrip=await ensureTripDocSynced('));
+  assert(saveBody.includes('if(createdNewTrip){'));
+  assert(saveBody.includes('myTrips=await listMyTrips(uid,currentEmail())'));
+}
 function test_0_7_2_attachments_use_firebase_storage_not_indexeddb(){
   assert(app.includes('source.storagePath=await uploadAttachment(state.trip.id,source.id,file)'));
   assert(app.includes('const blob=await downloadAttachment(source.storagePath)'));
@@ -233,6 +266,8 @@ const tests=[
   test_0_7_2_render_passes_a_function_reference_to_its_view_dispatch_not_an_already_called_string,
   test_0_7_2_storeOriginal_creates_the_firestore_trip_doc_before_uploading_not_after,
   test_0_7_2_ensureTripDocSynced_is_shared_by_save_and_storeOriginal_not_duplicated,
+  test_0_7_2_resetCurrentTrip_skips_the_firestore_calls_for_a_trip_that_was_never_synced,
+  test_0_7_2_save_refreshes_myTrips_when_it_creates_a_brand_new_trip_document,
   test_0_7_2_attachments_use_firebase_storage_not_indexeddb,
   test_0_7_2_legacy_indexeddb_access_is_now_read_only_and_migration_scoped,
   test_0_7_2_migration_is_explicit_never_automatic,
