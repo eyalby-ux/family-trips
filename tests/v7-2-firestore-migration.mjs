@@ -81,6 +81,23 @@ function test_0_7_2_firestore_rules_enforce_both_application_invitation_and_trip
   assert(firestoreRules.includes("allow write: if false"));
   assert(!firestoreRules.includes('allow read, write: if false'));
 }
+// A fifth real bug, still on the same qa build the four prior fixes shipped to, caught by the
+// Product Owner attaching a file on a genuinely brand-new Trip: the persistent-overwrite fix
+// (createTripDoc's getDoc() existence pre-check, added before this visible session) introduced a
+// catch-22 in firestore.rules -- the original `allow read, update: if hasTripAccess(resource)`
+// required a Trip to already grant access before it could even be READ to check whether it
+// existed, so the existence check itself was denied for every genuinely new Trip. The client
+// silently treated that denial as "someone else already created it" (its own permission-denied
+// fallback, meant for a real create-race) and gave up without ever creating the document -- so
+// every subsequent Storage upload kept hitting the same 403 the earlier ordering fix was supposed
+// to resolve, because the Trip document it was waiting on was never actually created.
+function test_0_7_2_firestore_rules_allow_a_get_on_a_nonexistent_trip_to_check_existence_safely(){
+  assert(firestoreRules.includes('trip != null'));
+  assert(firestoreRules.includes('allow get: if isInvited() && (resource == null || hasTripAccess(resource));'));
+  // list/update must still require real access -- this fix only touches the single-document
+  // existence-check path (get), never widens who can read a query result or write an update.
+  assert(firestoreRules.includes('allow list, update: if hasTripAccess(resource);'));
+}
 function test_0_7_2_storage_rules_mirror_firestore_trip_access_via_cross_service_get(){
   assert(storageRules.includes('firestore.get('));
   assert(storageRules.includes('trips/{tripId}/sources/{sourceId}/{fileName}'));
@@ -257,6 +274,7 @@ const tests=[
   test_0_7_2_synced_collections_covers_every_state_array_save_used_to_persist,
   test_0_7_2_trip_field_lists_do_not_overlap,
   test_0_7_2_firestore_rules_enforce_both_application_invitation_and_trip_role_layers,
+  test_0_7_2_firestore_rules_allow_a_get_on_a_nonexistent_trip_to_check_existence_safely,
   test_0_7_2_storage_rules_mirror_firestore_trip_access_via_cross_service_get,
   test_0_7_2_firebase_config_enables_firestore_offline_persistence,
   test_0_7_2_save_keeps_its_synchronous_call_signature_but_syncs_to_firestore_internally,

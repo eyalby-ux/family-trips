@@ -16,7 +16,7 @@ service cloud.firestore {
     }
     function isOwner(trip) { return request.auth.uid == trip.data.ownerUid; }
     function isEditor(trip) { return request.auth.token.email in trip.data.editorEmails; }
-    function hasTripAccess(trip) { return isInvited() && (isOwner(trip) || isEditor(trip)); }
+    function hasTripAccess(trip) { return trip != null && isInvited() && (isOwner(trip) || isEditor(trip)); }
 
     // Admin-only, never client-written -- seeded directly (see 0.7.2 implementation report for
     // how). Rules themselves need read access to evaluate isInvited() above.
@@ -27,7 +27,16 @@ service cloud.firestore {
 
     match /trips/{tripId} {
       allow create: if isInvited() && request.resource.data.ownerUid == request.auth.uid;
-      allow read, update: if hasTripAccess(resource);
+      // A plain `get` on a Trip that does not exist yet must succeed (returning exists:false, no
+      // data to leak) rather than being denied -- otherwise the client's own "does this Trip
+      // already exist" check before creating one is itself denied, which is exactly the bug this
+      // comment exists to prevent from being reintroduced: `resource == null` short-circuits
+      // before hasTripAccess ever dereferences trip.data, so a nonexistent Trip is always
+      // gettable (harmlessly empty) while an existing one still requires real access. `list`
+      // (used by the owned/shared-with-me queries) is unaffected -- a query only ever returns
+      // documents that already exist, so `resource` is never null there.
+      allow get: if isInvited() && (resource == null || hasTripAccess(resource));
+      allow list, update: if hasTripAccess(resource);
       allow delete: if isInvited() && isOwner(resource);
 
       match /{subcollection}/{docId} {
