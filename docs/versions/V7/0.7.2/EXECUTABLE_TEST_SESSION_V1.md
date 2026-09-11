@@ -1,24 +1,29 @@
 # Family Trips Alpha 0.7.2 — Executable Acceptance Test Session
 
-**Document revision:** `V2`
-**Candidate:** `0.7.2` (multi-Trip ownership + Shared-Trip Owner/Editor roles, real Firestore/Storage datastore), installed on `version/V7`, deployed to the fixed `qa` alias (build `0.7.2-2217faeb`, deploy `6aa3b5218010f146fc816a68`)
-**Session number:** `V1`, opening a new per-candidate session sequence for `0.7.2`. No test has been run yet — this is still the pre-session document, revised once before the Product Owner begins (see the `V2` change-history row below).
-**Instructions:** Run one test at a time, in order. Record the actual observed result under each test. Findings are recorded immediately with target `TBD after acceptance completion`, per `VERSION_PACKAGE_AUTHORING_STANDARD_V45.md`.
+**Document revision:** `V3`
+**Candidate:** `0.7.2` (multi-Trip ownership + Shared-Trip Owner/Editor roles, real Firestore/Storage datastore), installed on `version/V7`, deployed to the fixed `qa` alias (build `0.7.2-610c0ab0`, deploy `6aa3e90befea9905b2a5a723`)
+**Session number:** `V1`, opening a new per-candidate session sequence for `0.7.2`. No test has been formally recorded yet — this is still the pre-session document (see the `V3` change-history row below for what live testing has already surfaced).
+**Instructions:** Run one test at a time, in order. Record the actual observed result under each test. Findings are recorded immediately with target `TBD after acceptance completion`, per `VERSION_PACKAGE_AUTHORING_STANDARD_V46.md`.
 
-**The two one-time Console actions this session originally required before it could run at all are now complete**, performed directly by the Product Owner on 2026-09-11: `firestore.rules`/`storage.rules` published, and `config/appInvitations` seeded with `{emails: ["eyalby@gmail.com", "paolakohan@gmail.com"]}` (confirmed directly in the Firestore Console — screenshot matched exactly). This session can now actually be run.
+**Live testing has already begun and found four real bugs, all fixed and redeployed to this build**, per this project's standing discipline of fixing and reporting rather than only reporting: (1) a crash immediately after sign-in (`render()` called `empty()` instead of passing it as a reference); (2) a `403` on a brand-new Trip's very first attachment upload (Storage's rule check needs the Trip's Firestore document to exist first, but the upload path never waited for it); (3) the same class of bug in "reset/delete Trip" for a never-yet-synced Trip; (4) the Trip switcher not picking up a newly-created second Trip until the next reload. All four are covered by new regression tests (`tests/v7-2-firestore-migration.mjs`). Please retry from Test 1 on this build.
+
+**The two one-time Console actions this session originally required before it could run at all are complete**, performed directly by the Product Owner on 2026-09-11: `firestore.rules`/`storage.rules` published, and `config/appInvitations` seeded with `{emails: ["eyalby@gmail.com", "paolakohan@gmail.com"]}` (confirmed directly in the Firestore Console — screenshot matched exactly).
 
 **This candidate needs two real accounts, not one** — Owner/Editor role enforcement is only meaningfully testable with a genuine second Google account, unlike every candidate through `0.7.1`. Test accounts:
-- **Account A (Owner)** — the Product Owner's own account, `eyalby@gmail.com`. Already signed into the `qa` build as of 2026-09-11.
+- **Account A (Owner)** — the Product Owner's own account, `eyalby@gmail.com`. Already signed into the `qa` build.
 - **Account B (Editor)** — `paolakohan@gmail.com`. Not yet signed in as of this revision — needed for Tests 3, 4 and 5 specifically; Tests 1, 2, 6, 7 and 8 can be run solo on Account A first.
 
 **Known, pre-existing, unrelated data:** the Firestore project already contains an orphaned `trips/dolomites` document from earlier, unrelated work — it has no `ownerUid`/`editorEmails` fields, so the `0.7.2` security rules cannot grant it access and it will never appear in the app's Trip switcher or any query. No action needed; not in scope for this session.
 
 **Migration note:** if either account has an existing pre-0.7.2 Trip (data saved under this build's predecessor, still sitting in that browser's `localStorage`), Test 6 below covers migrating it. If neither account has pre-existing local data, Test 6 can be skipped and noted as such — not a gap, since a freshly invited account has nothing to migrate.
 
+**Known, non-blocking gap, found during the same round of fixes, not yet closed:** deleting an individual attachment or Item never removes its underlying file from Firebase Storage (`deleteAttachment`, `cloud-store.js`, is only ever called from the whole-Trip-deletion path) — an orphaned-storage-cost hygiene gap, not a functional defect; nothing in this session's 8 tests exercises it. Flagged here rather than left silently unmentioned.
+
 ## Document change history
 
 | Document revision | Date | Change |
 |---|---|---|
+| V3 | 2026-09-11 | Records four bugs found during the Product Owner's own live testing on this build (two reported directly, two more found by the Development Agent proactively auditing the same root-cause class before they could surface the same way) — all fixed, regression-tested, and redeployed; build identifier updated to `0.7.2-610c0ab0`. Adds the known non-blocking Storage-orphan gap. No test result formally recorded yet — testing is in progress against this build. |
 | V2 | 2026-09-11 | Pre-session revision: records that both one-time Console actions (rules deploy, `config/appInvitations` seed) are now complete, performed directly by the Product Owner and confirmed against a Console screenshot; notes the pre-existing, unrelated `trips/dolomites` orphaned document found during that verification; records that Account A is already signed in and suggests running Tests 1/2/6/7/8 solo before bringing in Account B for Tests 3/4/5. No test results changed — session number stays `V1`, no round has been run yet. |
 | V1 | 2026-09-11 | Initial session drafted by the Development Agent for the `0.7.2` candidate, 8 tests, all results blank pending the Product Owner's run and the two Console actions above. |
 
