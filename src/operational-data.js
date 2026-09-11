@@ -7,6 +7,39 @@ export const BUILTIN_GAMES=[
   {id:'game-who-am-i',title:'מי אני?',instructions:'אדם אחד בוחר דמות. האחרים מגלים אותה בשאלות כן/לא.',items:'ללא ציוד',participants:'3 ומעלה',duration:'10 דקות'},
 ];
 
+// 0.7.2: Firestore subcollection sync logic, extracted here (dependency-free) rather than left
+// inline in cloud-store.js, for the same reason resolveSmartImportSubmissionMode/
+// resolveSmartImportErrorMessage already live here -- cloud-store.js imports firebase.js, which
+// touches import.meta.env and throws immediately outside a Vite build, so nothing in cloud-store.js
+// can be exercised directly under this project's plain-Node test harness. diffById is the one
+// genuinely pure, deterministic piece of that module's logic (everything else is a real Firestore/
+// Storage call), so it's the one worth a real function-level test rather than only source-inspection.
+export const SYNCED_COLLECTIONS=[
+  ['items','items'],['sources','sources'],['suggestions','suggestions'],
+  ['rejectedSuggestions','rejectedSuggestions'],['tasks','tasks'],['packing','packingLists'],
+  ['shopping','shopping'],['locationRecords','locationRecords'],['games','games'],
+];
+export const TRIP_NESTED_FIELDS=['name','startDate','endDate','createdAt'];
+export const TRIP_TOP_LEVEL_FIELDS=['timelineCursor','packedCollapsed','packingCollapsed'];
+// Diffs `next` (an array of {id,...}) against `previous` (the same shape, or undefined/null on a
+// first sync) and returns {toSet:[...], toDelete:[id,...]} -- only what actually changed, by id and
+// by a cheap JSON-equality check per record, never a blind delete-everything-then-rewrite. A record
+// missing an id is skipped (never written, never deleted) rather than silently colliding under an
+// 'undefined' key.
+export function diffById(previous,next){
+  const prevById=new Map((previous||[]).map(record=>[record.id,record]));
+  const nextIds=new Set();
+  const toSet=[];
+  for(const record of next||[]){
+    if(record.id===undefined||record.id===null)continue;
+    nextIds.add(record.id);
+    const prior=prevById.get(record.id);
+    if(!prior||JSON.stringify(prior)!==JSON.stringify(record))toSet.push(record);
+  }
+  const toDelete=[...prevById.keys()].filter(id=>!nextIds.has(id));
+  return {toSet,toDelete};
+}
+
 export function normalizeOperationalState(state){
   state.games=Array.isArray(state.games)?state.games:BUILTIN_GAMES.map(game=>({...game,favorite:false}));
   for(const game of BUILTIN_GAMES)if(!state.games.some(item=>item.id===game.id))state.games.push({...game,favorite:false});

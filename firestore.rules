@@ -1,7 +1,38 @@
 rules_version = '2';
+// 0.7.2: design docs/versions/V7/0.7.2/DESIGN_V1.md §2. Two independent layers, matching
+// ARCHITECTURE_CURRENT_STATE.md's "Application access, Trip ownership and revoked-account
+// lifecycle" section: application-level invitation (is this email allowed to use FamilyTrips at
+// all -- config/appInvitations, seeded to match FAMILYTRIPS_ALLOWED_EMAILS, deliberately a
+// separate mirror since rules cannot read a Netlify environment variable) and Trip-level access
+// (Owner: ownerUid; Editor: editorEmails, checked by email since an invited Editor may not have
+// signed in yet at grant time -- see DESIGN_V1.md §1.4 for why email, not uid).
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} { allow read, write: if false; }
+
+    function isInvited() {
+      return request.auth != null &&
+        request.auth.token.email_verified == true &&
+        request.auth.token.email in get(/databases/$(database)/documents/config/appInvitations).data.emails;
+    }
+    function isOwner(trip) { return request.auth.uid == trip.data.ownerUid; }
+    function isEditor(trip) { return request.auth.token.email in trip.data.editorEmails; }
+    function hasTripAccess(trip) { return isInvited() && (isOwner(trip) || isEditor(trip)); }
+
+    // Admin-only, never client-written -- seeded directly (see 0.7.2 implementation report for
+    // how). Rules themselves need read access to evaluate isInvited() above.
+    match /config/{document=**} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    match /trips/{tripId} {
+      allow create: if isInvited() && request.resource.data.ownerUid == request.auth.uid;
+      allow read, update: if hasTripAccess(resource);
+      allow delete: if isInvited() && isOwner(resource);
+
+      match /{subcollection}/{docId} {
+        allow read, write: if hasTripAccess(get(/databases/$(database)/documents/trips/$(tripId)));
+      }
+    }
   }
 }
-

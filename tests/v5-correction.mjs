@@ -40,7 +40,11 @@ assert.deepEqual(normalizeDateRange('2026-01-12T10:00','2026-01-15T10:00'),{star
 assert(app.includes('data-action="reset-trip-data"'));
 assert(app.includes('data-action="delete-current-trip"'));
 assert(app.includes('async function resetCurrentTrip(removeTrip)'));
-assert(app.includes("if(removeTrip)localStorage.removeItem(KEY)"));
+// 0.7.2: trip deletion/reset now deletes the real shared Firestore/Storage records
+// (deleteTripCompletely/clearAllTripContent, cloud-store.js) instead of only clearing the local
+// blob -- see tests/v7-2-firestore-migration.mjs for the full 0.7.2 regression coverage.
+assert(app.includes('if(removeTrip)await deleteTripCompletely(tripId)'));
+assert(app.includes('else await clearAllTripContent(tripId)'));
 
 assert(app.includes("if(action==='create'){state.modal={type:'intake',source:'manual'};render()}"));
 // 0.7.1 (V5-F09): category-level Add now presets the current category's item type instead of

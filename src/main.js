@@ -16,6 +16,14 @@ const authRoot = document.querySelector('#auth-root');
 const accountBar = document.querySelector('#account-bar');
 const appRoot = document.querySelector('#app');
 const LOCAL_DATA_KEY = 'family-trips-alpha-0.2';
+// 0.7.2: a not-yet-migrated Trip's data is still this legacy localStorage blob (LOCAL_DATA_KEY),
+// but a Trip already on Firestore has no such blob at all -- its offline availability now comes
+// from Firestore's own persistent local cache (src/firebase.js), with ACTIVE_TRIP_KEY as the
+// signal that this device has a real Trip to resume (must match v5-app.js's own ACTIVE_TRIP_KEY
+// constant -- duplicated here rather than imported, the same way LOCAL_DATA_KEY/v5-app.js's KEY
+// have always been two independent literals for the same value, since main.js loads before
+// v5-app.js is ever imported and cannot depend on it upfront).
+const ACTIVE_TRIP_KEY = 'family-trips-active-trip';
 let appLoaded = false;
 let currentUser = null;
 
@@ -26,7 +34,7 @@ function escapeHtml(value = '') {
 }
 
 function hasLocalTrip() {
-  return Boolean(localStorage.getItem(LOCAL_DATA_KEY));
+  return Boolean(localStorage.getItem(LOCAL_DATA_KEY) || localStorage.getItem(ACTIVE_TRIP_KEY));
 }
 
 function renderLogin(message = '') {

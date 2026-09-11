@@ -26,7 +26,10 @@ for (const marker of [
   'VITE_FIREBASE_MESSAGING_SENDER_ID',
   'VITE_FIREBASE_APP_ID',
   'getAuth',
-  'getFirestore',
+  // 0.7.2: getFirestore -> initializeFirestore + persistentLocalCache, to enable Firestore's own
+  // offline persistence (see src/firebase.js and docs/versions/V7/0.7.2/DESIGN_V1.md §4.3).
+  'initializeFirestore',
+  'persistentLocalCache',
   'getStorage'
 ]) {
   if (!config.includes(marker)) throw new Error(`Missing Firebase marker: ${marker}`);

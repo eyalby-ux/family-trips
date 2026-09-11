@@ -9,9 +9,18 @@ import {clearResolvedDirectionWarning,smartImportFlightResultToSuggestions} from
 import {smartImportActivityResultToSuggestion} from './activity-import-adapter.js';
 import {smartImportInsuranceResultToSuggestion} from './insurance-import-adapter.js';
 import {appVersionLabel} from './app-version.js';
+import {auth} from './firebase.js';
+import {addEditorByEmail,clearAllTripContent,createTripDoc,currentEmail,currentUid,deleteAttachment,deleteTripCompletely,downloadAttachment,listMyTrips,migrateLocalTripToFirestore,removeEditorByEmail,subscribeToTrip,syncTripState,uploadAttachment} from './cloud-store.js';
 import './v4.css';
 
+// 0.7.2: KEY is now legacy-only -- the pre-Firestore local blob, read solely to detect and offer
+// migration (migrationBanner/runMigration below). ACTIVE_TRIP_KEY remembers which Firestore Trip
+// this device last had open, so a returning user lands back where they were instead of always
+// re-picking from the Trip switcher. Neither key is the source of truth for Trip data anymore --
+// Firestore is (see cloud-store.js), reached through the same synchronous save()/render() call
+// pattern every existing call site in this file already uses.
 const KEY='family-trips-alpha-0.2';
+const ACTIVE_TRIP_KEY='family-trips-active-trip';
 const EMPTY={trip:null,items:[],sources:[],suggestions:[],rejectedSuggestions:[],packing:[],games:[],tasks:[],shopping:[],locationRecords:[],view:'today',category:null,itemId:null,suggestionId:null,modal:null,timelineMode:'all',timelineCursor:'',calendarDate:null,toast:null};
 const qrCollector=new MultipartQrCollector();
 let cameraStream=null,cameraTimer=null;
@@ -22,11 +31,99 @@ let timelineSwipeStartX=null;
 // selected" error while an analysis request is already in flight.
 let pendingSourceFile=null;
 let ingestBusy=false;
-let state=normalizeOperationalState(load());
+let state=clone(EMPTY);
+// Last state actually written to Firestore, used by save() to diff against -- null until either
+// an existing Trip finishes its first subscribeToTrip() load or a brand-new Trip's first save()
+// completes. See syncTripState (cloud-store.js) for why a diff, not a blind overwrite, matters.
+let lastSyncedSnapshot=null;
+let unsubscribeTrip=null;
+let myTrips=[];
+let saveInFlight=Promise.resolve();
 
 function clone(value){return JSON.parse(JSON.stringify(value))}
-function load(){try{const loaded={...clone(EMPTY),...JSON.parse(localStorage.getItem(KEY)||'{}'),view:'today',modal:null,toast:null},lifecycle=normalizeProposalLifecycle(loaded.suggestions,loaded.rejectedSuggestions);return {...loaded,...lifecycle}}catch{return clone(EMPTY)}}
-function save(){const lifecycle=normalizeProposalLifecycle(state.suggestions,state.rejectedSuggestions);state.suggestions=lifecycle.suggestions;state.rejectedSuggestions=lifecycle.rejectedSuggestions;localStorage.setItem(KEY,JSON.stringify({trip:state.trip,items:state.items,sources:state.sources,suggestions:state.suggestions,rejectedSuggestions:state.rejectedSuggestions,packing:state.packing,games:state.games,tasks:state.tasks,shopping:state.shopping,locationRecords:state.locationRecords,packingCollapsed:state.packingCollapsed,packedCollapsed:state.packedCollapsed,timelineCursor:state.timelineCursor}))}
+function legacyLoad(){try{const loaded={...clone(EMPTY),...JSON.parse(localStorage.getItem(KEY)||'{}')};return {...loaded,...normalizeProposalLifecycle(loaded.suggestions,loaded.rejectedSuggestions)}}catch{return clone(EMPTY)}}
+function hasLegacyLocalTrip(){try{return Boolean(JSON.parse(localStorage.getItem(KEY)||'null')?.trip)}catch{return false}}
+// Synchronous call signature, unchanged from every pre-0.7.2 call site's expectations (`mutate
+// state.x; save(); render()`) -- internally now fires an async, un-awaited Firestore sync instead
+// of a synchronous localStorage write, per DESIGN_V1.md §4.2. A brand-new Trip (ensureTrip() just
+// set state.trip in memory, nothing in Firestore yet) is created transparently on its first save()
+// here, so ensureTrip() itself needed no async awareness at all. Writes are serialized through
+// saveInFlight so two rapid saves can never race each other's diff against a stale snapshot.
+function save(){
+  const lifecycle=normalizeProposalLifecycle(state.suggestions,state.rejectedSuggestions);
+  state.suggestions=lifecycle.suggestions;state.rejectedSuggestions=lifecycle.rejectedSuggestions;
+  if(!state.trip)return;
+  const tripId=state.trip.id,snapshotForThisSave=clone(state);
+  saveInFlight=saveInFlight.then(async()=>{
+    try{
+      if(!lastSyncedSnapshot||lastSyncedSnapshot.trip?.id!==tripId){
+        const uid=currentUid();if(!uid)throw new Error('לא מחובר.');
+        await createTripDoc(tripId,{name:snapshotForThisSave.trip.name,startDate:snapshotForThisSave.trip.startDate,endDate:snapshotForThisSave.trip.endDate,createdAt:snapshotForThisSave.trip.createdAt},uid).catch(error=>{
+          // A concurrent tab/session may have already created this exact Trip id -- not a real
+          // failure, the subsequent syncTripState below still applies correctly either way.
+          if(error?.code!=='permission-denied')throw error;
+        });
+        localStorage.setItem(ACTIVE_TRIP_KEY,tripId);
+      }
+      lastSyncedSnapshot=await syncTripState(tripId,lastSyncedSnapshot,snapshotForThisSave);
+    }catch(error){
+      console.error('Firestore sync failed',error);
+      notify('שמירת השינויים בענן נכשלה. השינויים נשארים במסך זה בלבד עד לחיבור מחדש.');
+    }
+  });
+}
+
+// 0.7.2 boot sequence, replacing the old synchronous `let state=normalizeOperationalState(load())`
+// (localStorage is synchronous; Firestore is not). Runs once, at the very bottom of this module,
+// after one render() of the still-empty `state` so the shell paints immediately instead of staying
+// blank while the network round-trip is in flight. Every view function below is untouched by this
+// -- they only ever read the in-memory `state` object, exactly as before 0.7.2.
+async function boot(){
+  const uid=currentUid();
+  if(!uid){render();return}
+  const remembered=localStorage.getItem(ACTIVE_TRIP_KEY);
+  // Offline cold launch (ARCHITECTURE_CURRENT_STATE.md's frozen invariant): listMyTrips() is a
+  // live Firestore query, not a cache-served read, and would simply hang/fail with no network.
+  // Skip it entirely and open the remembered Trip directly -- subscribeToTrip()'s onSnapshot
+  // listener IS cache-served while offline (Firestore's own persistent local cache, enabled in
+  // firebase.js), so this still renders the last-saved Trip with no network round-trip at all,
+  // matching what the old synchronous localStorage read always guaranteed.
+  if(!navigator.onLine&&remembered){openTrip(remembered);return}
+  try{myTrips=await listMyTrips(uid,currentEmail())}
+  catch(error){
+    console.error('Loading Trip list failed',error);
+    if(remembered){openTrip(remembered);return}
+    notify('טעינת רשימת הטיולים נכשלה.');render();return;
+  }
+  const activeTripId=myTrips.some(trip=>trip.id===remembered)?remembered:myTrips.length===1?myTrips[0].id:null;
+  if(activeTripId)openTrip(activeTripId);
+  else{state.view=myTrips.length?'trips':'today';render()}
+}
+// Subscribes to one Trip's live data and keeps `state` assigned to it until switchTrip() moves to
+// a different one. The ephemeral/navigation fields (view, category, modal, etc.) are deliberately
+// preserved across a remote update -- a Firestore listener firing (this device's own write echoing
+// back, or a real Editor's concurrent change) must never yank the user out of whatever screen or
+// open modal they're currently on.
+function openTrip(tripId){
+  if(unsubscribeTrip)unsubscribeTrip();
+  lastSyncedSnapshot=null;
+  localStorage.setItem(ACTIVE_TRIP_KEY,tripId);
+  unsubscribeTrip=subscribeToTrip(tripId,remoteState=>{
+    const {view,category,itemId,suggestionId,modal,timelineMode,calendarDate,toast}=state;
+    state={...clone(EMPTY),...remoteState,view,category,itemId,suggestionId,modal,timelineMode,calendarDate,toast};
+    normalizeOperationalState(state);
+    lastSyncedSnapshot=clone(state);
+    render();
+  });
+}
+function switchTrip(tripId){route('today');openTrip(tripId);notify('הטיול הוחלף')}
+async function startNewTripFlow(){
+  if(unsubscribeTrip){unsubscribeTrip();unsubscribeTrip=null}
+  lastSyncedSnapshot=null;
+  state={...clone(EMPTY),view:'today'};
+  ensureTrip({name:'טיול חדש'});
+  render();
+}
 function uid(prefix='id'){return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`}
 function esc(value=''){return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
 function warningText(value){return typeof value==='string'?value:value?.message||value?.code||JSON.stringify(value)}
@@ -350,7 +447,39 @@ function relatedItemsPanel(item){
 function smartEvidencePanel(p){const fields=p.details?.smartImportFields||[],notes=p.details?.importantNotes||[],place=p.details?.placeValidation;if(!fields.length&&!notes.length&&!place)return '';return `<details class="evidence-panel" open><summary>כל המידע והראיות שנקלטו (${fields.length+notes.length})</summary><div class="evidence-list">${fields.map(field=>`<article><b>${esc(field.label)}</b><p>${esc(field.rawValue)}</p><small>${esc(field.evidence)} · ${field.certainty==='exact'?'מדויק':'דורש בדיקה'}</small></article>`).join('')}${notes.map(note=>`<article><b>${esc(note.title)}</b><p>${esc(note.text)}</p><small>${esc(note.evidence)} · ${note.certainty==='exact'?'מדויק':'דורש בדיקה'}</small></article>`).join('')}${place?`<article><b>אימות מיקום</b><p>${place.state==='validated'?`אומת: ${esc(place.acceptedPlace?.formattedAddress||place.locationDisplayValue)}`:`לא אומת: ${esc(place.reason||'דורש בדיקה')}`}</p></article>`:''}</div></details>`}
 function requiredLabel(label){return `${label} <span class="required" aria-hidden="true">*</span><span class="sr-only">שדה חובה</span>`}
 function proposalFields(p,{alwaysWebsite=false}={}){const type=['link','document'].includes(p.type)?'hotel':p.type||'hotel',fields=new Set(TYPE_FIELDS[type]||[]);if(alwaysWebsite||p.website)fields.add('website');const field=(name,label,input)=>fields.has(name)?`<div class="field"><label>${label}</label>${input}</div>`:'';return `<p class="required-note"><span class="required" aria-hidden="true">*</span> שדה חובה</p><div class="grid two"><div class="field"><label>סוג</label><select name="type" data-action="proposal-type">${Object.entries(ITEM_TYPES).filter(([key])=>!['document','link'].includes(key)).map(([key,itemType])=>`<option value="${key}" ${type===key?'selected':''}>${itemType.icon} ${itemType.label}</option>`).join('')}</select></div><div class="field"><label>${requiredLabel('כותרת')}</label><input name="title" required aria-required="true" value="${esc(p.title||'')}"></div>${field('provider','ספק',`<input name="provider" value="${esc(p.provider||'')}">`)}${field('confirmationNumber','מספר הזמנה',`<input name="confirmationNumber" value="${esc(p.confirmationNumber||'')}">`)}${field('location','מיקום',`<input name="location" value="${esc(p.location||'')}">`)}${field('website','קישור',`<input type="text" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" name="website" value="${esc(p.website||'')}" placeholder="https://…">`)}${field('phone','טלפון',`<input type="tel" name="phone" value="${esc(p.phone||'')}">`)}${field('startAt','תאריך התחלה',`<input type="datetime-local" name="startAt" value="${esc(p.startAt||'')}">`)}${field('endAt','תאריך סיום',`<input type="datetime-local" name="endAt" value="${esc(p.endAt||'')}">`)}${field('participants','משתתפים',`<input name="participants" value="${esc((p.participants||[]).join(', '))}">`)}</div>${field('notes','הערות',`<textarea name="notes">${esc(p.notes||'')}</textarea>`) }`}
-function settingsView(){if(!state.trip)return empty();return `<section class="card"><h2>הגדרות הטיול</h2><form id="trip-form"><p class="required-note"><span class="required" aria-hidden="true">*</span> שדה חובה</p><div class="field"><label>${requiredLabel('שם הטיול')}</label><input name="name" required aria-required="true" value="${esc(state.trip.name)}"></div><div class="grid two"><div class="field"><label>תאריך התחלה</label><input type="date" name="startDate" value="${esc(state.trip.startDate)}"></div><div class="field"><label>תאריך סיום</label><input type="date" name="endDate" value="${esc(state.trip.endDate)}"></div></div><button class="btn">שמירה</button></form></section><section class="card danger-zone"><h2>מחיקה ואיפוס</h2><p class="muted">הפעולות חלות רק על הטיול הנוכחי: <b>${esc(state.trip.name)}</b>.</p><div class="danger-option"><div><h3>מחיקת נתוני הטיול</h3><p class="muted">מוחקת פריטים, מסמכים, משימות, קניות, אריזה ומיקומים; שם הטיול והתאריכים נשארים.</p></div><button class="btn warn" data-action="reset-trip-data">מחיקת נתוני הטיול</button></div><div class="danger-option"><div><h3>מחיקת הטיול הנוכחי</h3><p class="muted">מוחקת את הטיול ואת כל הנתונים המקומיים המשויכים אליו.</p></div><button class="btn danger" data-action="delete-current-trip">מחיקת הטיול</button></div></section><section class="card"><h2>אודות</h2><p class="muted small">${esc(appVersionLabel())}${buildVersionLabel()?` · בנייה ${esc(buildVersionLabel())}`:''}</p></section>`}
+// 0.7.2: Owner-only -- an Editor can view/edit Trip content but Trip Settings' own sharing
+// controls are an Owner-only destructive-adjacent action (granting/revoking another person's
+// access), matching firestore.rules' isOwner()-gated actions. A minimal "add Editor by email"
+// action, per DESIGN_V1.md §1.4/§2.3 -- the polished invitation-management admin UI is 0.7.5's job.
+function sharingSection(){
+  if(!state.trip||state.trip.ownerUid!==currentUid())return '';
+  const editors=state.trip.editorEmails||[];
+  return `<section class="card"><h2>שיתוף הטיול</h2><p class="muted">משתתפים עם הרשאת עריכה יכולים לצפות ולערוך את תוכן הטיול, אך לא לבצע פעולות בעלים (מחיקת הטיול, ניהול שיתוף).</p>${editors.length?`<div class="list">${editors.map(email=>`<div class="row"><span class="row-main"><b>${esc(email)}</b></span><button class="btn ghost" data-action="remove-editor" data-email="${esc(email)}">הסרה</button></div>`).join('')}</div>`:'<p class="muted small">אין עדיין משתתפים עם הרשאת עריכה.</p>'}<form id="add-editor-form"><div class="field"><label>הוספת משתתף לפי אימייל</label><input type="email" name="email" required placeholder="name@example.com"></div><button class="btn secondary">הוספה</button></form></section>`;
+}
+// 0.7.2: reachable from Trip Settings, per the original scope document's recommended Trip-switcher
+// placement. Only rendered when there is more than one Trip (or a legacy local Trip still pending
+// migration) -- a single-Trip account has nothing to switch between.
+function tripsSection(){
+  const others=myTrips.filter(trip=>trip.id!==state.trip?.id);
+  if(!others.length&&!hasLegacyLocalTrip())return '';
+  return `<section class="card"><h2>הטיולים שלי</h2>${others.length?`<div class="list">${others.map(trip=>`<button class="row" data-action="switch-trip" data-id="${trip.id}"><span class="row-main"><b>${esc(trip.name||'טיול')}</b><small class="muted">${trip.ownerUid===currentUid()?'בבעלותי':'משותף איתי'}</small></span></button>`).join('')}</div>`:''}${migrationBanner()}<div class="actions"><button class="btn secondary" data-action="start-new-trip">התחלת טיול חדש</button></div></section>`;
+}
+// 0.7.2 migration, per DESIGN_V1.md §3.2: explicit (never automatic), never run by anything but
+// the signed-in account whose own browser holds the real local data, verified before declaring
+// success (see migrateLocalTripToFirestore, cloud-store.js). The pre-migration local copy is left
+// untouched here -- runMigration() below does not clear it; a one-week retention window before
+// it's eligible to be cleared is a Product Owner decision recorded in the 0.7.2 implementation
+// report, not enforced by this UI yet.
+function migrationBanner(){
+  if(!hasLegacyLocalTrip())return '';
+  return `<div class="danger-option"><div><h3>העברת טיול קיים למערכת המשותפת</h3><p class="muted">נמצא טיול שנשמר במכשיר זה לפני גרסה 0.7.2. ההעברה מעתיקה אותו לאחסון המשותף החדש ומאמתת שכל הנתונים הועתקו במלואם; העותק המקומי נשאר במכשיר ללא שינוי.</p></div><button class="btn" data-action="run-migration">העברת הטיול</button></div>`;
+}
+function settingsView(){if(!state.trip)return empty();return `<section class="card"><h2>הגדרות הטיול</h2><form id="trip-form"><p class="required-note"><span class="required" aria-hidden="true">*</span> שדה חובה</p><div class="field"><label>${requiredLabel('שם הטיול')}</label><input name="name" required aria-required="true" value="${esc(state.trip.name)}"></div><div class="grid two"><div class="field"><label>תאריך התחלה</label><input type="date" name="startDate" value="${esc(state.trip.startDate)}"></div><div class="field"><label>תאריך סיום</label><input type="date" name="endDate" value="${esc(state.trip.endDate)}"></div></div><button class="btn">שמירה</button></form></section>${sharingSection()}${tripsSection()}<section class="card danger-zone"><h2>מחיקה ואיפוס</h2><p class="muted">הפעולות חלות רק על הטיול הנוכחי: <b>${esc(state.trip.name)}</b>.</p><div class="danger-option"><div><h3>מחיקת נתוני הטיול</h3><p class="muted">מוחקת פריטים, מסמכים, משימות, קניות, אריזה ומיקומים; שם הטיול והתאריכים נשארים.</p></div><button class="btn warn" data-action="reset-trip-data">מחיקת נתוני הטיול</button></div><div class="danger-option"><div><h3>מחיקת הטיול הנוכחי</h3><p class="muted">מוחקת את הטיול ואת כל הנתונים המקומיים המשויכים אליו.</p></div><button class="btn danger" data-action="delete-current-trip">מחיקת הטיול</button></div></section><section class="card"><h2>אודות</h2><p class="muted small">${esc(appVersionLabel())}${buildVersionLabel()?` · בנייה ${esc(buildVersionLabel())}`:''}</p></section>`}
+function tripsView(){
+  const owned=myTrips.filter(trip=>trip.ownerUid===currentUid()),shared=myTrips.filter(trip=>trip.ownerUid!==currentUid());
+  const row=trip=>`<button class="row" data-action="switch-trip" data-id="${trip.id}"><span class="row-main"><b>${esc(trip.name||'טיול')}</b></span>${trip.id===state.trip?.id?'<span class="badge blue">נוכחי</span>':''}</button>`;
+  return `<section class="card"><h2>הטיולים שלי</h2>${owned.length?`<h3>בבעלותי</h3><div class="list">${owned.map(row).join('')}</div>`:''}${shared.length?`<h3>משותפים איתי</h3><div class="list">${shared.map(row).join('')}</div>`:''}${!owned.length&&!shared.length?'<p class="muted">אין עדיין טיולים.</p>':''}${migrationBanner()}<div class="actions"><button class="btn" data-action="start-new-trip">התחלת טיול חדש</button></div></section>`;
+}
 
 function intakeModal(){const source=state.modal?.source||'manual',choices=[['manual','✍️ ידני'],['document','📎 מסמך'],['link','🔗 קישור'],['json','⬆️ JSON'],['qr','▦ QR']];let body='';
   // 0.7.1 (V5-F09): category-level Add previously always defaulted the manual-creation type
@@ -403,11 +532,23 @@ function editModal(){const item=state.items.find(candidate=>candidate.id===state
 function duplicateModal(){const {suggestionId,duplicateIds}=state.modal,suggestion=suggestionById(suggestionId),duplicates=state.items.filter(item=>duplicateIds.includes(item.id));return `<div class="modal-bg"><section class="modal"><div class="modal-head"><h2>נמצאה הזמנה דומה</h2><button class="close" data-action="close">✕</button></div><p>ערכים מיובאים ריקים לא ידרסו מידע קיים.</p><div class="list">${duplicates.map(itemRow).join('')}</div><div class="actions"><button class="btn" data-action="duplicate-merge" data-suggestion="${suggestion.id}" data-target="${duplicates[0]?.id||''}">מיזוג</button><button class="btn secondary" data-action="duplicate-keep" data-suggestion="${suggestion.id}">שמירת שניהם</button><button class="btn ghost" data-action="close">ביטול</button></div></section></div>`}
 function simpleFormModal(){const type=state.modal.type;if(type==='task'){const task=state.tasks.find(candidate=>candidate.id===state.modal.taskId)||{title:'',owner:'shared',mode:'date',dueDate:'',priority:'Normal'};return `<div class="modal-bg"><section class="modal"><div class="modal-head"><h2>${state.modal.taskId?'עריכת משימה':'משימה חדשה'}</h2><button class="close" data-action="close">✕</button></div><form id="task-form" data-id="${task.id||''}"><p class="required-note"><span class="required" aria-hidden="true">*</span> שדה חובה</p><label class="field">${requiredLabel('משימה')}<input name="title" required aria-required="true" value="${esc(task.title)}"></label><label class="field">בעלים<input name="owner" placeholder="משותף או שם משתתף" value="${esc(task.owner==='shared'?'':task.owner||'')}"></label><label class="field">מועד<select name="mode"><option value="date" ${task.mode==='date'?'selected':''}>תאריך</option><option value="entire" ${task.mode==='entire'?'selected':''}>לכל הטיול</option><option value="none" ${task.mode==='none'?'selected':''}>ללא תאריך</option></select></label><label class="field">תאריך יעד<input type="date" name="dueDate" value="${esc(task.dueDate||'')}"></label><label class="field">עדיפות<select name="priority"><option value="High" ${task.priority==='High'?'selected':''}>גבוהה</option><option value="Normal" ${(task.priority||'Normal')==='Normal'?'selected':''}>רגילה</option><option value="Low" ${task.priority==='Low'?'selected':''}>נמוכה</option></select></label><button class="btn">שמירה</button></form></section></div>`}if(type==='shopping')return `<div class="modal-bg"><section class="modal"><div class="modal-head"><h2>פריט קניות</h2><button class="close" data-action="close">✕</button></div><form id="shopping-form"><p class="required-note"><span class="required" aria-hidden="true">*</span> שדה חובה</p><label class="field">${requiredLabel('פריט')}<input name="name" required aria-required="true"></label><label class="field">כמות<input name="quantity" value="1"></label><label class="field">בעלים<input name="owner" placeholder="משותף או שם משתתף"></label><label class="field">קישור לצורך אריזה/הכנה<input name="linkedNeed"></label><button class="btn">שמירה</button></form></section></div>`;return `<div class="modal-bg"><section class="modal"><div class="modal-head"><h2>מיקום</h2><button class="close" data-action="close">✕</button></div><form id="location-form" data-id="${state.modal.locationId||''}"><p class="required-note"><span class="required" aria-hidden="true">*</span> שדה חובה</p><label class="field">${requiredLabel('שם מקום')}<input name="placeName" required aria-required="true" value="${esc(state.modal.record?.placeName||'')}"></label><label class="field">${requiredLabel('כתובת / חיפוש')}<input name="address" required aria-required="true" value="${esc(state.modal.record?.address||'')}"></label><div class="grid two"><label class="field">קו רוחב<input name="lat" inputmode="decimal" value="${esc(state.modal.record?.coordinates?.lat||'')}"></label><label class="field">קו אורך<input name="lng" inputmode="decimal" value="${esc(state.modal.record?.coordinates?.lng||'')}"></label></div><label class="field">מקור<input name="source" value="${esc(state.modal.record?.source||'manual')}"></label><label class="field">ביטחון<select name="confidence"><option>high</option><option selected>medium</option><option>low</option></select></label><a class="btn ghost" href="${mapsUrl(state.modal.record?.address||'Thailand')}" target="_blank" rel="noopener">חיפוש / הצבת סיכה במפה</a><button class="btn">אישור ושמירה</button></form></section></div>`}
 function modal(){if(!state.modal)return '';if(state.modal.type==='intake')return intakeModal();if(state.modal.type==='attachment')return attachmentModal();if(state.modal.type==='edit-item')return editModal();if(state.modal.type==='duplicate')return duplicateModal();if(['task','shopping','location'].includes(state.modal.type))return simpleFormModal();return ''}
-function nav(){return `<nav class="nav">${[['today','🏠','Today'],['timeline','🗓️','Timeline'],['center','🗂️','Trip Center'],['settings','⚙️','הגדרות']].map(([key,icon,label])=>`<button class="${state.view===key||(['detail','suggestion','games','packing','tasks','shopping','locations'].includes(state.view)&&key==='center')?'active':''}" data-route="${key}">${icon}<br>${label}</button>`).join('')}</nav>`}
-function render(){normalizeOperationalState(state);const views={today:todayView,timeline,center,detail:detailView,suggestion:suggestionView,games:gamesView,packing:packingView,tasks:tasksView,shopping:shoppingView,locations:locationsView,settings:settingsView},body=(views[state.view]||todayView)();document.querySelector('#app').innerHTML=`<div class="shell">${!navigator.onLine?'<div class="offline">מצב אופליין — המידע המקומי זמין</div>':''}${header()}<main>${body}</main><button class="fab" data-action="create">+</button>${nav()}${modal()}${state.toast?`<div class="toast">${esc(state.toast)}</div>`:''}</div>`}
+function nav(){return `<nav class="nav">${[['today','🏠','Today'],['timeline','🗓️','Timeline'],['center','🗂️','Trip Center'],['settings','⚙️','הגדרות']].map(([key,icon,label])=>`<button class="${state.view===key||(['detail','suggestion','games','packing','tasks','shopping','locations'].includes(state.view)&&key==='center')||(state.view==='trips'&&key==='settings')?'active':''}" data-route="${key}">${icon}<br>${label}</button>`).join('')}</nav>`}
+function render(){normalizeOperationalState(state);const views={today:todayView,timeline,center,detail:detailView,suggestion:suggestionView,games:gamesView,packing:packingView,tasks:tasksView,shopping:shoppingView,locations:locationsView,settings:settingsView,trips:tripsView},body=(!state.trip&&state.view!=='trips'?empty():(views[state.view]||todayView))();document.querySelector('#app').innerHTML=`<div class="shell">${!navigator.onLine?'<div class="offline">מצב אופליין — המידע המקומי זמין</div>':''}${header()}<main>${body}</main><button class="fab" data-action="create">+</button>${nav()}${modal()}${state.toast?`<div class="toast">${esc(state.toast)}</div>`:''}</div>`}
 
-async function storeOriginal(source,file){const db=await openDb();await new Promise((resolve,reject)=>{const tx=db.transaction('files','readwrite');tx.objectStore('files').put({id:source.id,blob:file,name:file.name,type:file.type});tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});source.storedOffline=true}
-async function openSource(id){const source=sourceById(id);if(!source)return;if(source.kind==='link'){open(source.url,'_blank','noopener');return}try{const db=await openDb(),record=await new Promise((resolve,reject)=>{const tx=db.transaction('files','readonly'),request=tx.objectStore('files').get(id);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});if(!record?.blob){notify('קובץ המקור אינו זמין אופליין במכשיר זה');return}
+// 0.7.2: source bytes now go to Firebase Storage (trips/{tripId}/sources/{sourceId}/...), not the
+// old per-device IndexedDB store -- see cloud-store.js's uploadAttachment/downloadAttachment and
+// DESIGN_V1.md §1.3. `source.storedOffline` keeps its pre-existing meaning ("this source's actual
+// bytes are reachable", not merely its metadata), now backed by Storage's own offline cache
+// instead of a bespoke IndexedDB read, so every existing call site that already checks it (sourceRow,
+// etc.) needed no changes.
+async function storeOriginal(source,file){
+  if(!state.trip)throw new Error('לא נמצא טיול פעיל.');
+  source.storagePath=await uploadAttachment(state.trip.id,source.id,file);
+  source.storedOffline=true;
+}
+async function openSource(id){const source=sourceById(id);if(!source)return;if(source.kind==='link'){open(source.url,'_blank','noopener');return}try{
+  if(!source.storagePath){notify('קובץ המקור אינו זמין אופליין במכשיר זה');return}
+  const blob=await downloadAttachment(source.storagePath),record={blob,name:source.name,type:source.type};
   // V6-F87 (0.6.7.3 attempt): unlike PDF/PNG/JPEG/WebP -- every one of which every browser already
   // renders inline from a blob: URL opened this way -- no browser renders TIFF natively, so opening
   // one identically silently downloads it instead, with no explanation, inconsistent with every
@@ -427,15 +568,42 @@ async function openSource(id){const source=sourceById(id);if(!source)return;if(s
   if(isTiff)alert('קובצי TIFF אינם נתמכים לתצוגה בדפדפן — הקובץ יורד למכשיר לאחר אישור זה');
   const url=URL.createObjectURL(record.blob);open(url,'_blank','noopener');setTimeout(()=>URL.revokeObjectURL(url),60000);
 }catch(error){console.error(error);notify('פתיחת המקור נכשלה')}}
-function openDb(){return new Promise((resolve,reject)=>{const request=indexedDB.open('family-trips-v4',1);request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains('files'))request.result.createObjectStore('files',{keyPath:'id'})};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)})}
-async function clearStoredSources(){try{const db=await openDb();await new Promise((resolve,reject)=>{const tx=db.transaction('files','readwrite');tx.objectStore('files').clear();tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)})}catch(error){console.error('Stored source cleanup failed',error);throw new Error('מחיקת קובצי המקור נכשלה. לא בוצע איפוס.') }}
+// 0.7.2: legacy-only, read-only access to the pre-Firestore IndexedDB store, used solely by
+// runMigration()'s readLegacyBlob() to pull a not-yet-migrated source's bytes across. Nothing else
+// in this file opens this database anymore -- a signed-in, post-migration source's real bytes live
+// in Firebase Storage (storeOriginal/openSource above).
+function openLegacyDb(){return new Promise((resolve,reject)=>{const request=indexedDB.open('family-trips-v4',1);request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains('files'))request.result.createObjectStore('files',{keyPath:'id'})};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)})}
+async function readLegacyBlob(id){try{const db=await openLegacyDb(),record=await new Promise((resolve,reject)=>{const tx=db.transaction('files','readonly'),request=tx.objectStore('files').get(id);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});return record?.blob||null}catch{return null}}
+// 0.7.2: "reset trip data" and "delete trip" now operate on the Trip's real Firestore/Storage
+// records, not a local blob -- clearAllTripContent/deleteTripCompletely (cloud-store.js) delete the
+// actual shared records an Editor would otherwise still see. Both remain Owner-only actions (only
+// the Owner ever sees these buttons -- settingsView requires state.trip, and only an Owner/Editor
+// reaches Settings at all, with sharingSection's own Owner-only gate covering the sharing controls
+// specifically; the destructive actions below are a pre-existing UI-only gate, unchanged from
+// before 0.7.2, not a new server-side check this candidate introduces).
 async function resetCurrentTrip(removeTrip){
-  const tripName=state.trip?.name||'הטיול הנוכחי';
-  await clearStoredSources();
-  const preservedTrip=removeTrip?null:clone(state.trip);
-  state=normalizeOperationalState({...clone(EMPTY),trip:preservedTrip,view:removeTrip?'today':'settings'});
+  const tripName=state.trip?.name||'הטיול הנוכחי',tripId=state.trip?.id;
+  if(!tripId)return;
+  try{
+    if(removeTrip)await deleteTripCompletely(tripId);
+    else await clearAllTripContent(tripId);
+  }catch(error){console.error('Trip deletion/reset failed',error);throw new Error('מחיקת הנתונים בענן נכשלה. לא בוצע שינוי.')}
+  if(unsubscribeTrip){unsubscribeTrip();unsubscribeTrip=null}
+  lastSyncedSnapshot=null;
   qrCollector.reset();
-  if(removeTrip)localStorage.removeItem(KEY);else{state.packing=defaultPacking();save()}
+  if(removeTrip){
+    myTrips=myTrips.filter(trip=>trip.id!==tripId);
+    localStorage.removeItem(ACTIVE_TRIP_KEY);
+    state={...clone(EMPTY),view:myTrips.length?'trips':'today'};
+  }else{
+    // Write the fresh default packing list directly and await it before subscribing, rather than
+    // racing an in-flight save() against openTrip()'s own first snapshot -- both would otherwise
+    // independently race to set lastSyncedSnapshot from two different async paths.
+    const preservedTrip=clone(state.trip),seededState={...clone(EMPTY),trip:preservedTrip,packing:defaultPacking()};
+    await syncTripState(tripId,null,seededState).catch(error=>{console.error('Reset re-seed failed',error);throw new Error('שחזור רשימת האריזה ברירת המחדל נכשל.')});
+    state={...seededState,view:'settings'};
+    openTrip(tripId);
+  }
   render();scrollTo(0,0);notify(removeTrip?`הטיול ${tripName} נמחק`:'נתוני הטיול נמחקו; שם הטיול והתאריכים נשמרו');
 }
 async function ingest(){const kind=state.modal.source;if(kind==='link'){alert('קליטת קישור לפריט חדש הוסרה. אפשר להוסיף קישור בעריכת פריט קיים או לייבא אותו דרך QR/JSON מאומת.');return}if(kind==='photo'){alert('קליטה חכמה מתמונה או צילום מושהית עד לתכנון Smart Import מחדש. לא נוצרו מקור, הצעה או פריט.');return}const file=document.querySelector('#source-file')?.files?.[0],validation=validateSource({kind,file});if(!validation.ok){alert(validation.error);return}ensureTrip({name:'טיול חדש'});notify('קורא את תוכן ה־PDF…');const extraction=await extractSourceContent(file,message=>console.info('[extraction]',message)),source={id:uid('src'),kind:'file',name:file.name,type:file.type,size:file.size,status:'ממתין לאישור — PDF ניסיוני',createdAt:new Date().toISOString(),storedOffline:false,text:extraction.text,extractionEngine:extraction.engine,extractionWarnings:['קליטת PDF היא ניסיונית — יש לבדוק כל שדה לפני אישור.',...extraction.warnings],experimental:true,fingerprint:await sha256File(file),tripStartDate:''};state.sources.push(source);try{await storeOriginal(source,file)}catch(error){console.error(error);state.sources=state.sources.filter(item=>item.id!==source.id);alert('שמירת המקור נכשלה. לא נוצרה הצעה.');return}state.suggestions.push(...createSuggestions(source));finishIngest(state.suggestions.filter(item=>item.sourceId===source.id).length>1?'ה־PDF פוצל למספר הצעות ניסיוניות לבדיקה':'ה־PDF נשמר כהצעה ניסיונית לבדיקה')}
@@ -514,9 +682,9 @@ async function analyzeSavedSource(id){
   const source=sourceById(id);if(!source)return;
   let file;
   try{
-    const db=await openDb(),record=await new Promise((resolve,reject)=>{const tx=db.transaction('files','readonly'),request=tx.objectStore('files').get(id);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});
-    if(!record?.blob)throw new Error('קובץ המקור אינו זמין אופליין במכשיר זה. לא ניתן לנתח ללא הקובץ.');
-    file=new File([record.blob],record.name||source.name,{type:record.type||source.type});
+    if(!source.storagePath)throw new Error('קובץ המקור אינו זמין אופליין במכשיר זה. לא ניתן לנתח ללא הקובץ.');
+    const blob=await downloadAttachment(source.storagePath);
+    file=new File([blob],source.name,{type:source.type});
   }catch(error){alert(error.message||'שליפת הקובץ נכשלה.');return}
   ingestBusy=true;
   try{await runSmartAnalysis(source,file)}finally{ingestBusy=false}
@@ -700,11 +868,27 @@ addEventListener('click',async event=>{const routeButton=event.target.closest('[
   else if(action==='shopping-add'){state.modal={type:'shopping'};render()}
   else if(action==='location-add'){state.modal={type:'location'};render()}
   else if(action==='location-approve'){const record=state.locationRecords.find(x=>x.id===button.dataset.id);state.modal={type:'location',locationId:record.id,record};render()}
+  else if(action==='switch-trip')switchTrip(button.dataset.id);
+  else if(action==='start-new-trip')await startNewTripFlow();
+  else if(action==='remove-editor'){if(!confirm(`להסיר את ${button.dataset.email} מהטיול?`))return;try{state.trip.editorEmails=await removeEditorByEmail(state.trip.id,button.dataset.email);render()}catch(error){alert(error.message||'הסרת המשתתף נכשלה.')}}
+  else if(action==='run-migration'){
+    if(!confirm('להעביר את נתוני הטיול המקומי למערכת המשותפת? העותק המקומי יישאר ללא שינוי.'))return;
+    const legacy=legacyLoad();if(!legacy.trip){notify('לא נמצא טיול מקומי להעברה');return}
+    button.disabled=true;button.textContent='מעביר…';
+    try{
+      const uid=currentUid();if(!uid)throw new Error('לא מחובר.');
+      await migrateLocalTripToFirestore(legacy,uid,readLegacyBlob);
+      myTrips=await listMyTrips(uid,currentEmail());
+      switchTrip(legacy.trip.id);
+      notify('הטיול הועבר בהצלחה ואומת מול הנתונים המקוריים');
+    }catch(error){console.error('Migration failed',error);alert(`ההעברה נכשלה: ${error.message||error}\nהעותק המקומי לא נפגע.`)}
+    render();
+  }
 });
 addEventListener('change',async event=>{const action=event.target.dataset.action;if(action==='pack-toggle'){const list=state.packing.find(x=>x.id===event.target.dataset.list),item=list?.items.find(x=>x.id===event.target.dataset.item);if(item){item.done=event.target.checked;save();render()}}else if(action==='task-toggle'){const task=state.tasks.find(x=>x.id===event.target.dataset.id);task.done=event.target.checked;save();render()}else if(action==='shopping-toggle'){const item=state.shopping.find(x=>x.id===event.target.dataset.id);item.purchased=event.target.checked;save();render()}else if(event.target.id==='qr-image'&&event.target.files?.[0])await decodeQrImage(event.target.files[0]);else if(event.target.id==='source-file'){pendingSourceFile=event.target.files?.[0]||null}else if(event.target.id==='calendar-month'){state.calendarDate=`${event.target.value}-01`;state.timelineCursor=state.calendarDate;render()}else if(event.target.id==='task-filter-priority'){state.taskFilters={...state.taskFilters,priority:event.target.value};render()}else if(event.target.id==='task-filter-due'){state.taskFilters={...state.taskFilters,due:event.target.value};render()}else if(['startAt','startDate'].includes(event.target.name)){const form=event.target.closest('form'),endName=event.target.name==='startAt'?'endAt':'endDate',endInput=form?.elements?.namedItem(endName),isFlight=form?.elements?.namedItem('type')?.value==='flight';if(endInput){const range=normalizeDateRange(event.target.value,endInput.value,{allowEndBeforeStart:isFlight});if(range.end!==endInput.value)endInput.value=range.end}}else if(event.target.matches('select[data-action="proposal-type"]')){const form=event.target.closest('form'),current=new FormData(form),values={type:event.target.value,title:current.get('title')||'',provider:current.get('provider')||'',confirmationNumber:current.get('confirmationNumber')||'',location:current.get('location')||'',website:current.get('website')||'',phone:current.get('phone')||'',startAt:current.get('startAt')||'',endAt:current.get('endAt')||'',participants:String(current.get('participants')||'').split(',').map(x=>x.trim()).filter(Boolean),notes:current.get('notes')||''},actions=form.querySelector('.actions')?.outerHTML||form.querySelector('.btn')?.outerHTML||'';form.innerHTML=proposalFields(values,{alwaysWebsite:form.id==='edit-item-form'})+actions}});
 function requiresOutOfRangeConfirmation(values){return isItemOutsideTrip(values,state.trip)}
 function confirmOutOfRangeSave(values){return !requiresOutOfRangeConfirmation(values)||confirm(`התאריך שנבחר מחוץ לטווח הטיול (${state.trip.startDate} עד ${state.trip.endDate}). לשמור בכל זאת?`)}
-addEventListener('submit',event=>{event.preventDefault();const form=event.target,data=new FormData(form);
+addEventListener('submit',async event=>{event.preventDefault();const form=event.target,data=new FormData(form);
   if(form.id==='trip-form'){const range=normalizeDateRange(data.get('startDate'),data.get('endDate')),start=range.start,end=range.end,added=backfillTripDates(state.items,start);state.trip={...state.trip,name:String(data.get('name')).trim(),startDate:start,endDate:end};if(!state.timelineCursor)state.timelineCursor=start;save();render();notify(added?`הטיול נשמר ו־${added} פריטים ללא תאריך קיבלו את תאריך ההתחלה`:'הטיול נשמר')}
   else if(form.id==='manual-form'||form.id==='edit-item-form'){const type=String(data.get('type')),values=buildItemFormValues(data);ensureTrip();if(!confirmOutOfRangeSave(values)){if(form.id==='edit-item-form'){state.modal={type:'edit-item',itemId:form.dataset.id};render()}return}
     if(form.id==='manual-form')state.items.push({id:uid('item'),...values,sourceIds:[]});
@@ -723,7 +907,13 @@ addEventListener('submit',event=>{event.preventDefault();const form=event.target
   else if(form.id==='task-form'){const values={title:String(data.get('title')).trim(),owner:String(data.get('owner')||'shared').trim()||'shared',mode:String(data.get('mode')),dueDate:String(data.get('dueDate')||''),priority:['High','Normal','Low'].includes(data.get('priority'))?data.get('priority'):'Normal'},existing=state.tasks.find(task=>task.id===form.dataset.id);if(existing)Object.assign(existing,values);else state.tasks.push({id:uid('task'),...values,done:false});save();state.modal=null;render()}
   else if(form.id==='shopping-form'){state.shopping.push({id:uid('shop'),name:String(data.get('name')).trim(),quantity:String(data.get('quantity')||'1'),owner:String(data.get('owner')||'shared').trim()||'shared',linkedNeed:String(data.get('linkedNeed')||'').trim(),purchased:false});save();state.modal=null;render()}
   else if(form.id==='location-form'){const id=form.dataset.id||uid('loc'),existing=state.locationRecords.find(x=>x.id===id),record={id,placeName:String(data.get('placeName')).trim(),address:String(data.get('address')).trim(),coordinates:data.get('lat')&&data.get('lng')?{lat:Number(data.get('lat')),lng:Number(data.get('lng'))}:null,source:String(data.get('source')||'manual'),confidence:String(data.get('confidence')||'medium'),approved:true};if(existing)Object.assign(existing,record);else state.locationRecords.push(record);save();state.modal=null;render()}
+  else if(form.id==='add-editor-form'){
+    const email=String(data.get('email')||'').trim();if(!email){alert('יש להזין כתובת אימייל.');return}
+    try{state.trip.editorEmails=await addEditorByEmail(state.trip.id,email);form.reset();render();notify('המשתתף נוסף')}
+    catch(error){alert(error.message||'הוספת המשתתף נכשלה.')}
+  }
 });
 addEventListener('touchstart',event=>{if(event.target.closest('[data-timeline-calendar]'))timelineSwipeStartX=event.changedTouches[0]?.clientX??null},{passive:true});
 addEventListener('touchend',event=>{if(timelineSwipeStartX===null||!event.target.closest('[data-timeline-calendar]'))return;const endX=event.changedTouches[0]?.clientX??timelineSwipeStartX,delta=endX-timelineSwipeStartX;timelineSwipeStartX=null;if(Math.abs(delta)<50||state.timelineMode!=='week')return;state.timelineCursor=shiftCursor(state.timelineCursor,'week',delta<0?1:-1);render()},{passive:true});
-addEventListener('online',render);addEventListener('offline',render);addEventListener('pagehide',stopCamera);render();
+addEventListener('online',render);addEventListener('offline',render);addEventListener('pagehide',stopCamera);
+render();boot();
