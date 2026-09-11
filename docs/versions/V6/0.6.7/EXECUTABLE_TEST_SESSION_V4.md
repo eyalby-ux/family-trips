@@ -3,7 +3,7 @@
 **Document revision:** `V2`
 **Candidate:** `0.6.7.3` (third correction package for `0.6.7.2`'s `V6-F86`–`V6-F87`), installed on `version/V6`, deployed to the fixed `qa` alias (build `0.6.7.3-54419015`)
 **Session number:** `V4`, continuing the per-candidate session sequence opened for `0.6.7` (`EXECUTABLE_TEST_SESSION_V1.md`–`V3.md`, sessions `V1`–`V3`).
-**Instructions:** Run one test at a time, in order. Record the actual observed result under each test, not just PASS/FAIL. Findings are recorded immediately with target `TBD after acceptance completion`, per `VERSION_PACKAGE_AUTHORING_STANDARD_V44.md`.
+**Instructions:** Run one test at a time, in order. Record the actual observed result under each test, not just PASS/FAIL. Findings are recorded immediately with target `TBD after acceptance completion`, per `VERSION_PACKAGE_AUTHORING_STANDARD_V45.md`.
 
 **Scope note:** per the scoping decision confirmed with the Development Agent after Round 3 (given how narrow the gap had become), this session was scoped to Test 6 plus three adjacent regression spot-checks (`INS-002`, `INS-005`, `INS-004`), not a full 14-test re-run.
 

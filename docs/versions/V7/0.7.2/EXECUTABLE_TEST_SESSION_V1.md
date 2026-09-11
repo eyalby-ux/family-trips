@@ -1,19 +1,17 @@
 # Family Trips Alpha 0.7.2 — Executable Acceptance Test Session
 
-**Document revision:** `V1`
+**Document revision:** `V2`
 **Candidate:** `0.7.2` (multi-Trip ownership + Shared-Trip Owner/Editor roles, real Firestore/Storage datastore), installed on `version/V7`, deployed to the fixed `qa` alias (build `0.7.2-2217faeb`, deploy `6aa3b5218010f146fc816a68`)
-**Session number:** `V1`, opening a new per-candidate session sequence for `0.7.2`.
-**Instructions:** Run one test at a time, in order. Record the actual observed result under each test. Findings are recorded immediately with target `TBD after acceptance completion`, per `VERSION_PACKAGE_AUTHORING_STANDARD_V44.md`.
+**Session number:** `V1`, opening a new per-candidate session sequence for `0.7.2`. No test has been run yet — this is still the pre-session document, revised once before the Product Owner begins (see the `V2` change-history row below).
+**Instructions:** Run one test at a time, in order. Record the actual observed result under each test. Findings are recorded immediately with target `TBD after acceptance completion`, per `VERSION_PACKAGE_AUTHORING_STANDARD_V45.md`.
 
-**Before this session can run at all — two one-time Console actions, not yet performed by this Development Agent (see the 0.7.2 implementation report for exactly why and the exact content to paste):**
-1. Deploy `firestore.rules` and `storage.rules` (Firebase Console → Firestore Database → Rules / Storage → Rules → paste → Publish).
-2. Seed `config/appInvitations` with the two invited emails (Firebase Console → Firestore Database → Data → new document).
+**The two one-time Console actions this session originally required before it could run at all are now complete**, performed directly by the Product Owner on 2026-09-11: `firestore.rules`/`storage.rules` published, and `config/appInvitations` seeded with `{emails: ["eyalby@gmail.com", "paolakohan@gmail.com"]}` (confirmed directly in the Firestore Console — screenshot matched exactly). This session can now actually be run.
 
-Until both are done, every Firestore/Storage operation in the app will fail with a permission error (the databases are currently locked down to deny all access, confirmed live) — this is expected, not a defect, and every test below will fail identically until the seeding is complete.
+**This candidate needs two real accounts, not one** — Owner/Editor role enforcement is only meaningfully testable with a genuine second Google account, unlike every candidate through `0.7.1`. Test accounts:
+- **Account A (Owner)** — the Product Owner's own account, `eyalby@gmail.com`. Already signed into the `qa` build as of 2026-09-11.
+- **Account B (Editor)** — `paolakohan@gmail.com`. Not yet signed in as of this revision — needed for Tests 3, 4 and 5 specifically; Tests 1, 2, 6, 7 and 8 can be run solo on Account A first.
 
-**This candidate needs two real accounts, not one** — Owner/Editor role enforcement is only meaningfully testable with a genuine second Google account, unlike every candidate through `0.7.1`. Test accounts needed:
-- **Account A (Owner)** — the Product Owner's own account, `eyalby@gmail.com`.
-- **Account B (Editor)** — the second invited account, `paolakohan@gmail.com`, or any other real Google account already listed in `config/appInvitations`.
+**Known, pre-existing, unrelated data:** the Firestore project already contains an orphaned `trips/dolomites` document from earlier, unrelated work — it has no `ownerUid`/`editorEmails` fields, so the `0.7.2` security rules cannot grant it access and it will never appear in the app's Trip switcher or any query. No action needed; not in scope for this session.
 
 **Migration note:** if either account has an existing pre-0.7.2 Trip (data saved under this build's predecessor, still sitting in that browser's `localStorage`), Test 6 below covers migrating it. If neither account has pre-existing local data, Test 6 can be skipped and noted as such — not a gap, since a freshly invited account has nothing to migrate.
 
@@ -21,6 +19,7 @@ Until both are done, every Firestore/Storage operation in the app will fail with
 
 | Document revision | Date | Change |
 |---|---|---|
+| V2 | 2026-09-11 | Pre-session revision: records that both one-time Console actions (rules deploy, `config/appInvitations` seed) are now complete, performed directly by the Product Owner and confirmed against a Console screenshot; notes the pre-existing, unrelated `trips/dolomites` orphaned document found during that verification; records that Account A is already signed in and suggests running Tests 1/2/6/7/8 solo before bringing in Account B for Tests 3/4/5. No test results changed — session number stays `V1`, no round has been run yet. |
 | V1 | 2026-09-11 | Initial session drafted by the Development Agent for the `0.7.2` candidate, 8 tests, all results blank pending the Product Owner's run and the two Console actions above. |
 
 ---
