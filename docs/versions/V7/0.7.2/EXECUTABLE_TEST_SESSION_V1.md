@@ -1,11 +1,11 @@
 # Family Trips Alpha 0.7.2 — Executable Acceptance Test Session
 
-**Document revision:** `V4`
-**Candidate:** `0.7.2` (multi-Trip ownership + Shared-Trip Owner/Editor roles, real Firestore/Storage datastore), installed on `version/V7`, deployed to the fixed `qa` alias (build `0.7.2-be094295`, deploy `6aa4063635268d10e7772db3`)
-**Session number:** `V1`, opening a new per-candidate session sequence for `0.7.2`. No test has been formally recorded yet — this is still the pre-session document (see the `V3`/`V4` change-history rows below for what live testing has already surfaced).
-**Instructions:** Run one test at a time, in order. Record the actual observed result under each test. Findings are recorded immediately with target `TBD after acceptance completion`, per `VERSION_PACKAGE_AUTHORING_STANDARD_V47.md`.
+**Document revision:** `V5`
+**Candidate:** `0.7.2` (multi-Trip ownership + Shared-Trip Owner/Editor roles, real Firestore/Storage datastore), installed on `version/V7`, deployed to the fixed `qa` alias (build `0.7.2-2504e672`, deploy `6aa40af8e9b537572228c2fe`)
+**Session number:** `V1`, opening a new per-candidate session sequence for `0.7.2`. Tests 1–3 have recorded results (see below); Tests 4–8 remain to run. See the `V5` change-history row and the Finding register for the correction just applied to both blocking findings from Tests 2 and 3.
+**Instructions:** Run one test at a time, in order. Record the actual observed result under each test. Findings are recorded immediately with target `TBD after acceptance completion`, per `VERSION_PACKAGE_AUTHORING_STANDARD_V48.md`.
 
-**Live testing has found and closed five real bugs against this candidate so far**, per this project's standing discipline of fixing and reporting rather than only reporting: (1) a crash immediately after sign-in (`render()` called `empty()` instead of passing it as a reference); (2) a `403` on a brand-new Trip's very first attachment upload (Storage's rule check needs the Trip's Firestore document to exist first, but the upload path never waited for it); (3) the same class of bug in "reset/delete Trip" for a never-yet-synced Trip; (4) the Trip switcher not picking up a newly-created second Trip until the next reload; (5) a `firestore.rules` catch-22 that kept #2 failing even after the ordering fix — the existence-check read used before creating a Trip required the Trip to already exist to be readable at all, so a genuinely new Trip's own creation was silently abandoned. **The Product Owner confirmed #5's fix resolves the attachment-upload flow end-to-end on this build.** All five are covered by new regression tests (`tests/v7-2-firestore-migration.mjs`, 33 tests). Please continue from wherever testing left off.
+**Live testing has found and closed seven real bugs against this candidate so far**, per this project's standing discipline of fixing and reporting rather than only reporting: (1) a crash immediately after sign-in (`render()` called `empty()` instead of passing it as a reference); (2) a `403` on a brand-new Trip's very first attachment upload (Storage's rule check needs the Trip's Firestore document to exist first, but the upload path never waited for it); (3) the same class of bug in "reset/delete Trip" for a never-yet-synced Trip; (4) the Trip switcher not picking up a newly-created second Trip until the next reload; (5) a `firestore.rules` catch-22 that kept #2 failing even after the ordering fix — confirmed working end-to-end by the Product Owner's own live retest; (6) **the two blocking findings below** — no "start a new Trip" entry point anywhere (`tripsSection()` hid its own create-Trip button behind a chicken-and-egg "only show this once you already have another Trip" gate) and no "שיתוף הטיול" sharing section at all (`state.trip.ownerUid` was never populated in memory for a Trip created in the current session, since that only ever happened via the real-time Firestore listener, which a brand-new Trip never goes through). All seven are covered by new regression tests (`tests/v7-2-firestore-migration.mjs`, 35 tests). **Please reload the app fully before resuming from Test 2** — Test 3's fix depends on the real-time listener re-populating `ownerUid` for your existing Trip, which only happens on a fresh load, not just navigating around.
 
 **Both one-time Console actions this session originally required, plus one re-publish following fix #5, are complete** — performed directly by the Product Owner on 2026-09-11: `firestore.rules`/`storage.rules` published; `config/appInvitations` seeded with `{emails: ["eyalby@gmail.com", "paolakohan@gmail.com"]}` (confirmed against a Console screenshot); `firestore.rules` re-published a second time after fix #5, confirmed working by the Product Owner's own live retest.
 
@@ -23,6 +23,7 @@
 
 | Document revision | Date | Change |
 |---|---|---|
+| V5 | 2026-09-11 | Records the correction for both blocking findings from the Product Owner's paused session (Test 2: no start-new-Trip entry point; Test 3: no sharing section) -- both fixed, regression-tested, and deployed (`0.7.2-2504e672`). Finding register dispositions updated from "reported, session paused" to "Fixed, awaiting retest"; session status changed from Paused to Resuming. Adds a reload note: Test 3's fix depends on the real-time Firestore listener re-populating `ownerUid` for an already-existing Trip, which requires a full app reload, not just navigating around. |
 | V4 | 2026-09-11 | Records a fifth bug (`firestore.rules`' create-existence-check catch-22, see the note above) found while the Product Owner continued testing after `V3`'s four fixes — fixed, regression-tested, and **confirmed working end-to-end by the Product Owner's own live retest** of the attachment-upload flow. Build identifier updated to `0.7.2-be094295`; `firestore.rules` re-published a second time (Storage rules unaffected, not re-published). No test result formally recorded yet. |
 | V3 | 2026-09-11 | Records four bugs found during the Product Owner's own live testing on this build (two reported directly, two more found by the Development Agent proactively auditing the same root-cause class before they could surface the same way) — all fixed, regression-tested, and redeployed; build identifier updated to `0.7.2-610c0ab0`. Adds the known non-blocking Storage-orphan gap. No test result formally recorded yet — testing is in progress against this build. |
 | V2 | 2026-09-11 | Pre-session revision: records that both one-time Console actions (rules deploy, `config/appInvitations` seed) are now complete, performed directly by the Product Owner and confirmed against a Console screenshot; notes the pre-existing, unrelated `trips/dolomites` orphaned document found during that verification; records that Account A is already signed in and suggests running Tests 1/2/6/7/8 solo before bringing in Account B for Tests 3/4/5. No test results changed — session number stays `V1`, no round has been run yet. |
@@ -36,7 +37,7 @@ On Account A, sign in and create a new Trip (or use an existing one if already m
 
 **Expect:** Account A can create and use a Trip normally; Account B has zero visibility into it until explicitly granted access.
 
-**Result:** ☐ PASS ☐ FAIL — notes: ___________
+**Result:** ☑ PASS — notes: Confirmed as expected; no notes.
 
 ## Test 2 — Second Trip, Trip switcher
 
@@ -44,7 +45,7 @@ On Account A, create a second, independent Trip (Settings → "התחלת טיו
 
 **Expect:** Multiple Trips coexist, fully isolated, switchable from Trip Settings.
 
-**Result:** ☐ PASS ☐ FAIL — notes: ___________
+**Result:** ☑ FAIL — notes: "There is no option to create a new independent trip." Trip Settings (screenshot) shows only the current Trip's own settings (name/dates), "מחיקה ואיפוס" (delete data / delete trip), and build info — no "התחלת טיול חדש" entry point anywhere. Product Owner: this is a blocker to be fixed.
 
 ## Test 3 — Add an Editor by email
 
@@ -52,7 +53,7 @@ On Account A (Owner), open Trip Settings → "שיתוף הטיול" and add Acc
 
 **Expect:** A minimal, functional Owner→Editor grant by email; the Editor sees the Trip on their next sign-in, per the design's own stated placeholder scope (no invitation-acceptance flow yet — that's `0.7.5`'s job).
 
-**Result:** ☐ PASS ☐ FAIL — notes: ___________
+**Result:** ☑ Blocked — notes: Same Trip Settings screen has no "שיתוף הטיול" (share Trip) section or any invite-by-email entry point at all — reported directly by the Product Owner alongside Test 2's finding. Cannot be tested until this exists. Second blocker.
 
 ## Test 4 — Editor can edit content but not perform Owner-only actions
 
@@ -98,8 +99,13 @@ Spot-check Smart Import still works end-to-end for at least one type (e.g. a Hot
 
 | Finding | Test | Severity | Disposition |
 |---|---|---|---|
-| — | — | — | — |
+| No entry point anywhere in the app to create a second, independent Trip ("התחלת טיול חדש" is missing from Trip Settings — only the current Trip's own settings, delete-data/delete-trip, and build info are shown) | Test 2 | Blocking | Reported by Product Owner 2026-09-11. **Fixed**, build `0.7.2-2504e672`: `tripsSection()` was hiding its own "start a new Trip" button behind a gate meant only for the Trip *list*, not the create action — the button is now always rendered. Regression-tested. Awaiting retest. |
+| No "שיתוף הטיול" (share Trip) section or any invite-Editor-by-email UI anywhere in Trip Settings | Test 3 (also blocks 4, 5) | Blocking | Reported by Product Owner 2026-09-11 alongside the Test 2 finding. **Fixed**, build `0.7.2-2504e672`: the section was correctly wired in, but its own Owner-only gate (`state.trip.ownerUid===currentUid()`) could never pass for a Trip created in the current session, since `ownerUid` was only ever populated by the real-time Firestore listener, which a brand-new Trip never goes through. `ensureTrip()` now sets it directly. Regression-tested. Awaiting retest — **requires a full app reload** for an already-existing Trip (see note above the tests). |
+
+## Session status
+
+**Resuming.** Both blocking findings from the 2026-09-11 pause are fixed, regression-tested, and deployed (`0.7.2-2504e672`) as of this revision. Tests 1 and 2 have recorded results (PASS / FAIL — Test 2's FAIL predates this fix); Tests 3–8 remain to run. Please reload the app and resume from Test 2.
 
 ## GO/NO-GO decision
 
-_To be recorded by the Product Owner after all eight tests above are run. Production promotion additionally requires the same rollback-backup discipline as every prior candidate — and, for this candidate specifically, confirming the deployed security rules and seeded invitation document are the intended production values, not left over from qa-only testing._
+_Not yet reached — session paused with two blocking findings outstanding (see above). To be recorded by the Product Owner once corrections are made and testing resumes/completes. Production promotion additionally requires the same rollback-backup discipline as every prior candidate — and, for this candidate specifically, confirming the deployed security rules and seeded invitation document are the intended production values, not left over from qa-only testing._
