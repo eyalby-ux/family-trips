@@ -113,6 +113,19 @@ function test_0_7_2_boot_skips_the_network_trip_list_query_when_offline_and_a_tr
 function test_0_7_2_main_js_offline_detection_recognizes_a_firestore_only_trip_not_just_the_legacy_blob(){
   assert(mainJs.includes("localStorage.getItem(LOCAL_DATA_KEY) || localStorage.getItem(ACTIVE_TRIP_KEY)"));
 }
+// A real production bug, caught by the Product Owner during 0.7.2 QA testing (white screen +
+// "(intermediate value)(intermediate value)(intermediate value) is not a function" immediately
+// after sign-in): render()'s ternary called empty() itself (producing an HTML string) in its true
+// branch, instead of passing the bare function reference like every other branch, so the trailing
+// "()" that invokes whichever branch won tried to call that string as a function. Triggers
+// specifically whenever there is no active Trip and the view isn't 'trips' -- exactly the state a
+// freshly signed-in account is in before boot() finishes loading, so it hit every real sign-in.
+// Decoded from the minified qa bundle via its build sourcemap (dist/assets/*.js.map, `vite build
+// --sourcemap`) rather than guessed from the stack trace alone.
+function test_0_7_2_render_passes_a_function_reference_to_its_view_dispatch_not_an_already_called_string(){
+  assert(!app.includes("state.view!=='trips'?empty():"));
+  assert(app.includes("state.view!=='trips'?empty:"));
+}
 function test_0_7_2_attachments_use_firebase_storage_not_indexeddb(){
   assert(app.includes('source.storagePath=await uploadAttachment(state.trip.id,source.id,file)'));
   assert(app.includes('const blob=await downloadAttachment(source.storagePath)'));
@@ -196,6 +209,7 @@ const tests=[
   test_0_7_2_a_brand_new_trip_is_created_transparently_inside_save_not_ensureTrip,
   test_0_7_2_boot_skips_the_network_trip_list_query_when_offline_and_a_trip_is_remembered,
   test_0_7_2_main_js_offline_detection_recognizes_a_firestore_only_trip_not_just_the_legacy_blob,
+  test_0_7_2_render_passes_a_function_reference_to_its_view_dispatch_not_an_already_called_string,
   test_0_7_2_attachments_use_firebase_storage_not_indexeddb,
   test_0_7_2_legacy_indexeddb_access_is_now_read_only_and_migration_scoped,
   test_0_7_2_migration_is_explicit_never_automatic,
