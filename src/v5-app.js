@@ -166,7 +166,18 @@ function today(){return new Date().toISOString().slice(0,10)}
 // renders the same way the explicit withTime=false callers already do (day/month/year, no clock),
 // rather than showing a synthetic time that looks indistinguishable from a genuine one.
 function fmt(value,withTime=true,precision=''){if(!value)return 'ללא תאריך';const date=new Date(value.length===10?`${value}T12:00:00`:value);const showYear=date.getFullYear()!==new Date().getFullYear();const showTime=withTime&&precision!=='date';return new Intl.DateTimeFormat('he-IL',showTime?{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',...(showYear?{year:'numeric'}:{})}:{day:'numeric',month:'short',year:'numeric'}).format(date)}
-function ensureTrip(seed={}){if(!state.trip){const dates=sanitizeTripDates(seed);state.trip={id:uid('trip'),name:seed.name||'הטיול המשפחתי שלי',startDate:dates.startDate,endDate:dates.endDate,createdAt:new Date().toISOString()}}if(!state.packing.length)state.packing=defaultPacking();normalizeOperationalState(state)}
+// Real bug, caught by the Product Owner's own live acceptance testing (Test 3, "שיתוף הטיול"
+// section missing entirely): state.trip.ownerUid is otherwise only ever populated by the real-time
+// Firestore listener (openTrip()/subscribeToTrip()) -- but a brand-new Trip created here never goes
+// through that listener at all (it's created purely in memory; openTrip() is only called by boot()
+// and switchTrip(), neither of which runs for a Trip that doesn't exist yet). Without this, a
+// freshly-created Trip's own creator could never see the sharing/Editor-grant section for the rest
+// of that session, even though they genuinely are its Owner -- sharingSection()'s own gate
+// (state.trip.ownerUid===currentUid()) compared the real uid against `undefined` and always lost.
+// Whoever is signed in when a Trip is first created here IS its Owner by definition -- this matches
+// exactly what the eventual Firestore createTripDoc() write assigns, just recorded in memory
+// immediately instead of waiting for a round-trip that never happens for this call path.
+function ensureTrip(seed={}){if(!state.trip){const dates=sanitizeTripDates(seed);state.trip={id:uid('trip'),name:seed.name||'הטיול המשפחתי שלי',startDate:dates.startDate,endDate:dates.endDate,createdAt:new Date().toISOString(),ownerUid:currentUid(),editorEmails:[]}}if(!state.packing.length)state.packing=defaultPacking();normalizeOperationalState(state)}
 function defaultPacking(){return [{id:uid('pl'),name:'מסמכים וכסף',owner:'shared',items:['דרכונים','ביטוח נסיעות','כרטיסי אשראי'].map(name=>({id:uid('pi'),name,done:false,suggested:true,owner:'shared'}))}]}
 function route(view,options={}){stopCamera();if(view==='timeline'&&state.view!=='timeline'){state.timelineMode='all';state.timelineCursor=state.trip?.startDate||today();state.calendarDate=null}state.view=view;state.category=options.category||null;state.itemId=options.itemId||null;state.suggestionId=options.suggestionId||null;render();scrollTo(0,0)}
 function notify(text){state.toast=text;render();setTimeout(()=>{if(state.toast===text){state.toast=null;render()}},2600)}
@@ -483,11 +494,15 @@ function sharingSection(){
   return `<section class="card"><h2>שיתוף הטיול</h2><p class="muted">משתתפים עם הרשאת עריכה יכולים לצפות ולערוך את תוכן הטיול, אך לא לבצע פעולות בעלים (מחיקת הטיול, ניהול שיתוף).</p>${editors.length?`<div class="list">${editors.map(email=>`<div class="row"><span class="row-main"><b>${esc(email)}</b></span><button class="btn ghost" data-action="remove-editor" data-email="${esc(email)}">הסרה</button></div>`).join('')}</div>`:'<p class="muted small">אין עדיין משתתפים עם הרשאת עריכה.</p>'}<form id="add-editor-form"><div class="field"><label>הוספת משתתף לפי אימייל</label><input type="email" name="email" required placeholder="name@example.com"></div><button class="btn secondary">הוספה</button></form></section>`;
 }
 // 0.7.2: reachable from Trip Settings, per the original scope document's recommended Trip-switcher
-// placement. Only rendered when there is more than one Trip (or a legacy local Trip still pending
-// migration) -- a single-Trip account has nothing to switch between.
+// placement. Real bug, caught by the Product Owner's own live acceptance testing (Test 2, no
+// "start a new Trip" entry point anywhere): this whole section, "start a new Trip" button included,
+// used to return '' whenever there was nothing yet to switch to -- a chicken-and-egg gate, since
+// the only way to ever GET a second Trip was through a button that only appeared once a second
+// Trip (or a pending migration) already existed. The "start new Trip" action must always be
+// reachable; only the Trip LIST and the migration banner are genuinely conditional on there being
+// something to show.
 function tripsSection(){
   const others=myTrips.filter(trip=>trip.id!==state.trip?.id);
-  if(!others.length&&!hasLegacyLocalTrip())return '';
   return `<section class="card"><h2>הטיולים שלי</h2>${others.length?`<div class="list">${others.map(trip=>`<button class="row" data-action="switch-trip" data-id="${trip.id}"><span class="row-main"><b>${esc(trip.name||'טיול')}</b><small class="muted">${trip.ownerUid===currentUid()?'בבעלותי':'משותף איתי'}</small></span></button>`).join('')}</div>`:''}${migrationBanner()}<div class="actions"><button class="btn secondary" data-action="start-new-trip">התחלת טיול חדש</button></div></section>`;
 }
 // 0.7.2 migration, per DESIGN_V1.md §3.2: explicit (never automatic), never run by anything but

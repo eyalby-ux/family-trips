@@ -232,6 +232,31 @@ function test_0_7_2_sharing_section_is_owner_only(){
   const sharingBody=app.slice(app.indexOf('function sharingSection()'),app.indexOf('function sharingSection()')+300);
   assert(sharingBody.includes('state.trip.ownerUid!==currentUid()'));
 }
+// A sixth and seventh real bug, both caught by the Product Owner's own live acceptance testing
+// (Test 2 and Test 3), not by this suite -- the two prior tests above only confirmed sharingSection/
+// tripsSection existed and were wired into settingsView, never that their own gating logic could
+// actually be satisfied by a real user in a real session. Both fixed the same way: by asserting the
+// specific logic, not just the presence of code, so a regression here fails loudly next time.
+function test_0_7_2_ensureTrip_sets_ownerUid_so_a_freshly_created_trip_is_not_locked_out_of_its_own_sharing_section(){
+  // sharingSection() gates on state.trip.ownerUid===currentUid() -- but ownerUid was otherwise only
+  // ever populated by the real-time Firestore listener (openTrip()), which a brand-new Trip created
+  // via ensureTrip() never goes through. Without this, ownerUid stayed undefined for the rest of
+  // that session, so its own creator could never see "שיתוף הטിול" until a full reload re-ran
+  // boot()'s openTrip() and the real Firestore data finally arrived.
+  const start=app.indexOf('function ensureTrip(');
+  const body=app.slice(start,app.indexOf('function defaultPacking(',start));
+  assert(body.includes('ownerUid:currentUid(),editorEmails:[]'));
+}
+function test_0_7_2_start_new_trip_button_is_always_reachable_not_gated_on_having_other_trips(){
+  // The old code returned '' from the whole tripsSection() -- "start a new Trip" button included --
+  // whenever there was nothing yet to switch to, a chicken-and-egg gate: the only way to ever get a
+  // second Trip was through a button that only appeared once a second Trip already existed.
+  const start=app.indexOf('function tripsSection(){');
+  const end=app.indexOf('function migrationBanner(',start);
+  const body=app.slice(start,end);
+  assert(!/if\(!others\.length&&!hasLegacyLocalTrip\(\)\)return ''/.test(body));
+  assert(body.includes('data-action="start-new-trip"'));
+}
 function test_0_7_2_reset_and_delete_trip_operate_on_real_firestore_storage_records(){
   assert(app.includes('if(removeTrip)await deleteTripCompletely(tripId)'));
   assert(app.includes('else await clearAllTripContent(tripId)'));
@@ -292,6 +317,8 @@ const tests=[
   test_0_7_2_migration_verifies_before_declaring_success,
   test_0_7_2_trip_switcher_and_editor_grant_are_reachable_from_settings,
   test_0_7_2_sharing_section_is_owner_only,
+  test_0_7_2_ensureTrip_sets_ownerUid_so_a_freshly_created_trip_is_not_locked_out_of_its_own_sharing_section,
+  test_0_7_2_start_new_trip_button_is_always_reachable_not_gated_on_having_other_trips,
   test_0_7_2_reset_and_delete_trip_operate_on_real_firestore_storage_records,
   test_0_7_2_delete_trip_removes_storage_attachments_before_the_trip_document,
   test_0_7_2_ownership_reconciliation_reads_firestore_via_the_callers_own_token_not_a_service_account,
