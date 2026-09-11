@@ -98,6 +98,48 @@ function test_0_7_2_firestore_rules_allow_a_get_on_a_nonexistent_trip_to_check_e
   // existence-check path (get), never widens who can read a query result or write an update.
   assert(firestoreRules.includes('allow list, update: if hasTripAccess(resource);'));
 }
+// Test 5 of the executable acceptance session (docs/versions/V7/0.7.2/EXECUTABLE_TEST_SESSION_V1.md)
+// asks for direct proof that Firestore's own security rules -- not merely hidden client UI --
+// reject a Trip a user has neither ownership of nor Editor access to. The Product Owner deferred
+// this specific test to the Development Agent, since it needs a raw Firestore access attempt
+// rather than a normal UI click-through. This environment has no Firebase emulator and no second
+// real authenticated session to exercise the LIVE deployed rules against (both already-established
+// limitations, see the 0.7.2 design document and every "no Google credentials" note throughout
+// this project) -- so this reimplements hasTripAccess/isOwner/isEditor's exact boolean logic as a
+// pure function, kept honest by asserting the deployed rule TEXT matches what this function
+// mirrors (so a future rules edit that changes the logic without updating this test fails loudly),
+// and exercises it against every access pattern Test 5 cares about. This is logic-equivalent to
+// the deployed rules, not a live execution of them -- stated plainly rather than overclaimed.
+function hasTripAccessReimplementation({authUid,authEmail,emailVerified,invitedEmails,trip}){
+  const isInvited=Boolean(authUid)&&emailVerified===true&&invitedEmails.includes(authEmail);
+  if(!trip)return false;
+  const isOwner=authUid===trip.ownerUid;
+  const isEditor=(trip.editorEmails||[]).includes(authEmail);
+  return isInvited&&(isOwner||isEditor);
+}
+function test_0_7_2_firestore_rules_reject_a_trip_neither_owned_nor_shared_server_side(){
+  // Confirms this reimplementation genuinely mirrors the deployed rule's own structure, not a
+  // hand-waved approximation of it.
+  assert(firestoreRules.includes('function isOwner(trip) { return request.auth.uid == trip.data.ownerUid; }'));
+  assert(firestoreRules.includes('function isEditor(trip) { return request.auth.token.email in trip.data.editorEmails; }'));
+  assert(firestoreRules.includes('function hasTripAccess(trip) { return trip != null && isInvited() && (isOwner(trip) || isEditor(trip)); }'));
+
+  const invitedEmails=['owner@example.com','editor@example.com','outsider@example.com'];
+  const someoneElsesTrip={ownerUid:'owner-uid',editorEmails:['editor@example.com']};
+
+  // The exact scenario Test 5 asks for: an invited, application-authorized user who is neither
+  // this specific Trip's Owner nor one of its Editors -- must be denied.
+  assert.equal(hasTripAccessReimplementation({authUid:'outsider-uid',authEmail:'outsider@example.com',emailVerified:true,invitedEmails,trip:someoneElsesTrip}),false);
+  // The Owner and a granted Editor must both be allowed against that same Trip.
+  assert.equal(hasTripAccessReimplementation({authUid:'owner-uid',authEmail:'owner@example.com',emailVerified:true,invitedEmails,trip:someoneElsesTrip}),true);
+  assert.equal(hasTripAccessReimplementation({authUid:'editor-uid',authEmail:'editor@example.com',emailVerified:true,invitedEmails,trip:someoneElsesTrip}),true);
+  // An uninvited email must be denied even if it somehow matched ownerUid/editorEmails (defense in
+  // depth -- the application-invitation layer is independent of the Trip-role layer).
+  assert.equal(hasTripAccessReimplementation({authUid:'owner-uid',authEmail:'owner@example.com',emailVerified:true,invitedEmails:['someone-else@example.com'],trip:someoneElsesTrip}),false);
+  // A nonexistent Trip must be denied (not error/allow) for every caller, matching the get-rule's
+  // own resource==null short-circuit still requiring real access, not a bypass.
+  assert.equal(hasTripAccessReimplementation({authUid:'owner-uid',authEmail:'owner@example.com',emailVerified:true,invitedEmails,trip:null}),false);
+}
 function test_0_7_2_storage_rules_mirror_firestore_trip_access_via_cross_service_get(){
   assert(storageRules.includes('firestore.get('));
   assert(storageRules.includes('trips/{tripId}/sources/{sourceId}/{fileName}'));
@@ -129,6 +171,25 @@ function test_0_7_2_boot_skips_the_network_trip_list_query_when_offline_and_a_tr
 }
 function test_0_7_2_main_js_offline_detection_recognizes_a_firestore_only_trip_not_just_the_legacy_blob(){
   assert(mainJs.includes("localStorage.getItem(LOCAL_DATA_KEY) || localStorage.getItem(ACTIVE_TRIP_KEY)"));
+}
+// A seventh real bug, caught by the Product Owner's own live acceptance testing (Test 8: offline/
+// airplane-mode cold launch showed an empty Trip, breaking the frozen "installed PWA and last saved
+// Trip available on first cold Offline launch" invariant, ARCHITECTURE_CURRENT_STATE.md). Root
+// cause: boot() (v5-app.js) needs auth.currentUser (via currentUid()) to know which Trip to open,
+// but the offline cold-launch branch here deliberately skipped Firebase Auth initialization
+// entirely -- a shortcut that was safe under the pre-0.7.2 architecture (a pure localStorage read
+// needed no auth dependency at all) but silently broke once boot() started depending on a restored
+// session. Fixed: restoring an already-persisted session from IndexedDB is itself local, not
+// network work, so it must still run here -- unlike getRedirectResult() or the live
+// onAuthStateChanged stream, both still skipped.
+function test_0_7_2_offline_cold_launch_still_restores_the_persisted_auth_session(){
+  const start=mainJs.indexOf('if (!navigator.onLine && hasLocalTrip())');
+  const body=mainJs.slice(start,mainJs.indexOf('await serviceWorkerReady;',start));
+  assert(body.includes('await setPersistence(auth, browserLocalPersistence)'));
+  assert(body.includes('onAuthStateChanged(auth, (user) => { unsubscribe(); currentUser = user; resolve(); })'));
+  // getRedirectResult must still NOT be called in this branch -- it's irrelevant to a returning
+  // offline user and can itself require network, unlike the local persisted-session restore above.
+  assert(!body.includes('getRedirectResult'));
 }
 // A real production bug, caught by the Product Owner during 0.7.2 QA testing (white screen +
 // "(intermediate value)(intermediate value)(intermediate value) is not a function" immediately
@@ -199,10 +260,27 @@ function test_0_7_2_save_refreshes_myTrips_when_it_creates_a_brand_new_trip_docu
 }
 function test_0_7_2_attachments_use_firebase_storage_not_indexeddb(){
   assert(app.includes('source.storagePath=await uploadAttachment(state.trip.id,source.id,file)'));
-  assert(app.includes('const blob=await downloadAttachment(source.storagePath)'));
+  // downloadAttachment now takes the caller's known content type as a second argument (Test 7 fix,
+  // see test_0_7_2_downloadAttachment_avoids_cors_via_getBytes below) -- both real call sites pass
+  // source.type, not a bare storagePath-only call.
+  assert(app.includes('downloadAttachment(source.storagePath,source.type)'));
   const storeOriginalStart=app.indexOf('async function storeOriginal(');
   const storeOriginalBody=app.slice(storeOriginalStart,app.indexOf('async function openSource(',storeOriginalStart));
   assert(!/indexedDB/.test(storeOriginalBody));
+}
+// A sixth real bug, caught by the Product Owner's own live acceptance testing (Test 7, "Can't
+// open" -- console showed a CORS rejection fetching the Storage download URL directly).
+// getDownloadURL()+fetch() is a raw cross-origin browser request to storage.googleapis.com that
+// needs the bucket's own CORS configuration (a separate GCS infrastructure step, not deployable
+// through this repo or Firebase's rules system) -- getBytes() avoids the problem entirely by
+// downloading through the Storage SDK's own network layer, the same mechanism uploadBytes()
+// already used successfully.
+function test_0_7_2_downloadAttachment_avoids_cors_via_getBytes(){
+  assert(cloudStore.includes("import {deleteObject,getBytes,ref,uploadBytes} from 'firebase/storage';"));
+  const start=cloudStore.indexOf('export async function downloadAttachment(');
+  const body=cloudStore.slice(start,cloudStore.indexOf('export async function deleteAttachment(',start));
+  assert(body.includes('const bytes=await getBytes(reference);'));
+  assert(!/\bfetch\(/.test(body));
 }
 function test_0_7_2_legacy_indexeddb_access_is_now_read_only_and_migration_scoped(){
   assert(app.includes('function openLegacyDb()'));
@@ -300,18 +378,21 @@ const tests=[
   test_0_7_2_trip_field_lists_do_not_overlap,
   test_0_7_2_firestore_rules_enforce_both_application_invitation_and_trip_role_layers,
   test_0_7_2_firestore_rules_allow_a_get_on_a_nonexistent_trip_to_check_existence_safely,
+  test_0_7_2_firestore_rules_reject_a_trip_neither_owned_nor_shared_server_side,
   test_0_7_2_storage_rules_mirror_firestore_trip_access_via_cross_service_get,
   test_0_7_2_firebase_config_enables_firestore_offline_persistence,
   test_0_7_2_save_keeps_its_synchronous_call_signature_but_syncs_to_firestore_internally,
   test_0_7_2_a_brand_new_trip_is_created_transparently_inside_save_not_ensureTrip,
   test_0_7_2_boot_skips_the_network_trip_list_query_when_offline_and_a_trip_is_remembered,
   test_0_7_2_main_js_offline_detection_recognizes_a_firestore_only_trip_not_just_the_legacy_blob,
+  test_0_7_2_offline_cold_launch_still_restores_the_persisted_auth_session,
   test_0_7_2_render_passes_a_function_reference_to_its_view_dispatch_not_an_already_called_string,
   test_0_7_2_storeOriginal_creates_the_firestore_trip_doc_before_uploading_not_after,
   test_0_7_2_ensureTripDocSynced_is_shared_by_save_and_storeOriginal_not_duplicated,
   test_0_7_2_resetCurrentTrip_skips_the_firestore_calls_for_a_trip_that_was_never_synced,
   test_0_7_2_save_refreshes_myTrips_when_it_creates_a_brand_new_trip_document,
   test_0_7_2_attachments_use_firebase_storage_not_indexeddb,
+  test_0_7_2_downloadAttachment_avoids_cors_via_getBytes,
   test_0_7_2_legacy_indexeddb_access_is_now_read_only_and_migration_scoped,
   test_0_7_2_migration_is_explicit_never_automatic,
   test_0_7_2_migration_verifies_before_declaring_success,

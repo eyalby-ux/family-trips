@@ -125,8 +125,24 @@ async function registerServiceWorker() {
 async function start() {
   const serviceWorkerReady = registerServiceWorker();
 
-  // Local data must render before Firebase/authentication performs network work.
+  // Local data must render before Firebase/authentication performs network work -- but 0.7.2's
+  // boot() (v5-app.js) needs auth.currentUser populated to know which Trip to open, since Trip
+  // data itself now lives in Firestore's own offline cache, not a single localStorage blob whose
+  // presence alone used to be enough. Restoring an already-persisted session from IndexedDB is a
+  // LOCAL operation, not network work, so it must still run here -- unlike getRedirectResult()
+  // (irrelevant to a returning user, and can itself require network) or subscribing to the live,
+  // ongoing onAuthStateChanged stream (only this cold launch's first, already-cached state is
+  // needed; 'online'/'offline' listeners below already handle re-rendering on a real change).
+  // Real bug, caught by the Product Owner's own live acceptance testing (Test 8): without this,
+  // the app rendered its empty initial state on every offline cold launch, silently discarding the
+  // last-saved Trip that Firestore's own local cache still genuinely had -- a direct violation of
+  // the frozen "installed PWA and last saved Trip available on first cold Offline launch" invariant
+  // (ARCHITECTURE_CURRENT_STATE.md).
   if (!navigator.onLine && hasLocalTrip()) {
+    try { await setPersistence(auth, browserLocalPersistence); } catch (error) { console.error('Offline auth restore failed', error); }
+    await new Promise((resolve) => {
+      const unsubscribe = onAuthStateChanged(auth, (user) => { unsubscribe(); currentUser = user; resolve(); });
+    });
     await renderOfflineSession();
     return;
   }

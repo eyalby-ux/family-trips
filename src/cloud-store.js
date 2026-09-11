@@ -7,7 +7,7 @@
 // the app thinks about its own data.
 import {auth,db,storage} from './firebase.js';
 import {collection,deleteDoc,doc,getDoc,getDocs,onSnapshot,query,setDoc,where,writeBatch} from 'firebase/firestore';
-import {deleteObject,getDownloadURL,ref,uploadBytes} from 'firebase/storage';
+import {deleteObject,getBytes,ref,uploadBytes} from 'firebase/storage';
 import {SYNCED_COLLECTIONS,TRIP_NESTED_FIELDS,TRIP_TOP_LEVEL_FIELDS,diffById} from './operational-data.js';
 
 export {SYNCED_COLLECTIONS};
@@ -166,12 +166,19 @@ export async function uploadAttachment(tripId,sourceId,file){
   await uploadBytes(reference,file,{contentType:file.type||'application/octet-stream'});
   return reference.fullPath;
 }
-export async function downloadAttachment(storagePath){
+// Real bug, caught by the Product Owner's own live acceptance testing (Test 7, "Can't open" --
+// console showed a CORS rejection fetching the Storage download URL directly). getDownloadURL()
+// plus a raw cross-origin fetch() is a browser-to-storage.googleapis.com request that needs the
+// bucket's own CORS configuration to allow the app's origin -- a separate, one-time GCS
+// infrastructure step (gsutil/Cloud Console), unrelated to storage.rules or anything deployable
+// through this repo. getBytes() avoids the problem entirely: it downloads through the Storage
+// SDK's own network layer, the same mechanism uploadBytes() already uses successfully above, so no
+// bucket CORS configuration is needed at all -- this is Firebase's own documented alternative for
+// exactly this browser scenario.
+export async function downloadAttachment(storagePath,contentType){
   const reference=ref(storage,storagePath);
-  const url=await getDownloadURL(reference);
-  const response=await fetch(url);
-  if(!response.ok)throw new Error('הורדת הקובץ מהאחסון נכשלה.');
-  return response.blob();
+  const bytes=await getBytes(reference);
+  return new Blob([bytes],contentType?{type:contentType}:undefined);
 }
 export async function deleteAttachment(storagePath){
   try{await deleteObject(ref(storage,storagePath))}catch(error){if(error?.code!=='storage/object-not-found')throw error}

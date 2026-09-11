@@ -595,7 +595,7 @@ async function storeOriginal(source,file){
 }
 async function openSource(id){const source=sourceById(id);if(!source)return;if(source.kind==='link'){open(source.url,'_blank','noopener');return}try{
   if(!source.storagePath){notify('קובץ המקור אינו זמין אופליין במכשיר זה');return}
-  const blob=await downloadAttachment(source.storagePath),record={blob,name:source.name,type:source.type};
+  const blob=await downloadAttachment(source.storagePath,source.type),record={blob,name:source.name,type:source.type};
   // V6-F87 (0.6.7.3 attempt): unlike PDF/PNG/JPEG/WebP -- every one of which every browser already
   // renders inline from a blob: URL opened this way -- no browser renders TIFF natively, so opening
   // one identically silently downloads it instead, with no explanation, inconsistent with every
@@ -738,7 +738,7 @@ async function analyzeSavedSource(id){
   let file;
   try{
     if(!source.storagePath)throw new Error('קובץ המקור אינו זמין אופליין במכשיר זה. לא ניתן לנתח ללא הקובץ.');
-    const blob=await downloadAttachment(source.storagePath);
+    const blob=await downloadAttachment(source.storagePath,source.type);
     file=new File([blob],source.name,{type:source.type});
   }catch(error){alert(error.message||'שליפת הקובץ נכשלה.');return}
   ingestBusy=true;
