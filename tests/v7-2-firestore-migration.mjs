@@ -191,6 +191,50 @@ function test_0_7_2_offline_cold_launch_still_restores_the_persisted_auth_sessio
   // offline user and can itself require network, unlike the local persisted-session restore above.
   assert(!body.includes('getRedirectResult'));
 }
+// Eighth/ninth/tenth real fixes, all from the SAME live retest: the offline-auth-restore fix above
+// made Test 8 WORSE, not just ineffective -- an empty-Trip screen became a hard crash. Root cause:
+// subscribeToTrip()'s onSnapshot listeners (cloud-store.js) never had an error callback, a gap that
+// existed from this module's first version but was never exercised, since boot() used to bail out
+// before ever reaching openTrip()/subscribeToTrip() while offline. Once the auth-restore fix let
+// boot() reach this code offline for the first time ever, any listener error there was completely
+// uncaught. These three tests assert the actual fix, not just that error-handling code exists
+// somewhere plausible.
+function test_0_7_2_subscribeToTrip_provides_an_error_callback_on_every_listener(){
+  const start=cloudStore.indexOf('export function subscribeToTrip(');
+  const body=cloudStore.slice(start,cloudStore.indexOf('export async function listMyTrips(',start));
+  assert(body.includes('const handleError=error=>{console.error(\'Trip subscription failed\',error);if(onError)onError(error)};'));
+  // Both the single trip-doc listener and the per-collection listeners must wire error:handleError
+  // -- not just the trip doc, which would leave every subcollection listener still silently uncaught.
+  const errorWirings=[...body.matchAll(/error:handleError/g)].length;
+  assert.equal(errorWirings,2); // one on tripRef's own onSnapshot, one shared across the SYNCED_COLLECTIONS .map()
+}
+function test_0_7_2_openTrip_never_leaves_the_page_blank_on_a_subscription_failure(){
+  const start=app.indexOf('function openTrip(tripId){');
+  const body=app.slice(start,app.indexOf('function switchTrip(',start));
+  assert(body.includes('subscribeToTrip(tripId,remoteState=>{'));
+  // The second (error) callback must itself call render() -- a caught error that never renders
+  // anything is just a slower, quieter version of the same blank-page failure.
+  const errorCallbackStart=body.indexOf('},error=>{');
+  assert(errorCallbackStart>-1);
+  const errorCallbackBody=body.slice(errorCallbackStart);
+  assert(errorCallbackBody.includes('notify(') && errorCallbackBody.includes('render();'));
+}
+function test_0_7_2_boot_has_a_top_level_backstop_so_no_uncaught_error_can_blank_the_page(){
+  // boot() is invoked fire-and-forget (no caller awaits or .catch()es it) -- an uncaught rejection
+  // anywhere in its body would otherwise surface as a silent unhandled rejection with no render()
+  // ever called. bootInner() carries the real logic; boot() itself is purely this backstop.
+  assert(app.includes('async function boot(){\n  try{await bootInner()}'));
+  const start=app.indexOf('async function boot(){');
+  const body=app.slice(start,app.indexOf('async function bootInner(){',start));
+  assert(body.includes('catch(error){') && body.includes('render();'));
+}
+function test_0_7_2_qa_only_debug_hook_exposes_auth_db_storage_gated_by_origin_not_a_build_flag(){
+  // qa and Production share the exact same build artifact (the point of promoting the untouched
+  // qa-tested dist/ output, never a separate rebuild) -- a build-time env var could not
+  // distinguish them at runtime the way an origin check can. Never exposed on Production.
+  assert(firebaseConfig.includes("location.hostname.startsWith('qa--')"));
+  assert(firebaseConfig.includes('window.__ft = { auth, db, storage };'));
+}
 // A real production bug, caught by the Product Owner during 0.7.2 QA testing (white screen +
 // "(intermediate value)(intermediate value)(intermediate value) is not a function" immediately
 // after sign-in): render()'s ternary called empty() itself (producing an HTML string) in its true
@@ -386,6 +430,10 @@ const tests=[
   test_0_7_2_boot_skips_the_network_trip_list_query_when_offline_and_a_trip_is_remembered,
   test_0_7_2_main_js_offline_detection_recognizes_a_firestore_only_trip_not_just_the_legacy_blob,
   test_0_7_2_offline_cold_launch_still_restores_the_persisted_auth_session,
+  test_0_7_2_subscribeToTrip_provides_an_error_callback_on_every_listener,
+  test_0_7_2_openTrip_never_leaves_the_page_blank_on_a_subscription_failure,
+  test_0_7_2_boot_has_a_top_level_backstop_so_no_uncaught_error_can_blank_the_page,
+  test_0_7_2_qa_only_debug_hook_exposes_auth_db_storage_gated_by_origin_not_a_build_flag,
   test_0_7_2_render_passes_a_function_reference_to_its_view_dispatch_not_an_already_called_string,
   test_0_7_2_storeOriginal_creates_the_firestore_trip_doc_before_uploading_not_after,
   test_0_7_2_ensureTripDocSynced_is_shared_by_save_and_storeOriginal_not_duplicated,

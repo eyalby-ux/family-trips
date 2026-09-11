@@ -54,7 +54,19 @@ export async function syncTripState(tripId,previousSnapshot,nextState){
 // subsequent remote change (another device, an Editor, or this device's own write echoing back).
 // Returns an unsubscribe function. 0.7.2's own scope stops here -- it does not attempt merge or
 // conflict resolution for a genuinely concurrent edit; that is 0.7.3's job, per DESIGN_V1.md §4.2.
-export function subscribeToTrip(tripId,onUpdate){
+//
+// Real bug, caught by the Product Owner's own live acceptance retest (Test 8 got WORSE after the
+// offline-auth-restore fix -- an empty-Trip screen became a hard crash): none of the onSnapshot
+// calls below ever provided an error callback. That gap existed from this module's very first
+// version, but was never exercised, because boot() (v5-app.js) used to bail out before ever
+// reaching openTrip()/subscribeToTrip() while offline (auth.currentUser was never populated
+// there). Once that was fixed, boot() started reaching this code offline for the first time ever
+// -- and any listener error here was, and still is without this fix, completely uncaught: an
+// unhandled promise-adjacent exception with no page ever rendering, which is a plausible, direct
+// explanation for "a hard white-page crash" replacing what used to be a merely-empty one. onError
+// is now required and wired through to a real, visible fallback in v5-app.js's openTrip() instead
+// of leaving a failure silent or fatal.
+export function subscribeToTrip(tripId,onUpdate,onError){
   // Shape matches the app's own in-memory `state` exactly (state.trip.{name,startDate,endDate,
   // createdAt,ownerUid,editorEmails} nested; timelineCursor/packedCollapsed/packingCollapsed and
   // every SYNCED_COLLECTIONS array top-level) so v5-app.js's openTrip() can assign this straight
@@ -65,18 +77,25 @@ export function subscribeToTrip(tripId,onUpdate){
   let tripLoaded=false;
   const loadedCollections=new Set();
   const maybeEmit=()=>{if(tripLoaded&&loadedCollections.size===SYNCED_COLLECTIONS.length)onUpdate(JSON.parse(JSON.stringify(assembled)))};
+  const handleError=error=>{console.error('Trip subscription failed',error);if(onError)onError(error)};
   const unsubscribers=[
-    onSnapshot(tripRef(tripId),snapshot=>{
-      if(!snapshot.exists())return;
-      const data=snapshot.data();
-      for(const field of TRIP_NESTED_FIELDS)assembled.trip[field]=data[field];
-      assembled.trip.ownerUid=data.ownerUid;assembled.trip.editorEmails=data.editorEmails||[];
-      for(const field of TRIP_TOP_LEVEL_FIELDS)assembled[field]=data[field];
-      tripLoaded=true;maybeEmit();
+    onSnapshot(tripRef(tripId),{
+      next:snapshot=>{
+        if(!snapshot.exists())return;
+        const data=snapshot.data();
+        for(const field of TRIP_NESTED_FIELDS)assembled.trip[field]=data[field];
+        assembled.trip.ownerUid=data.ownerUid;assembled.trip.editorEmails=data.editorEmails||[];
+        for(const field of TRIP_TOP_LEVEL_FIELDS)assembled[field]=data[field];
+        tripLoaded=true;maybeEmit();
+      },
+      error:handleError,
     }),
-    ...SYNCED_COLLECTIONS.map(([stateKey,collectionName])=>onSnapshot(subRef(tripId,collectionName),snapshot=>{
-      assembled[stateKey]=snapshot.docs.map(document=>document.data());
-      loadedCollections.add(stateKey);maybeEmit();
+    ...SYNCED_COLLECTIONS.map(([stateKey,collectionName])=>onSnapshot(subRef(tripId,collectionName),{
+      next:snapshot=>{
+        assembled[stateKey]=snapshot.docs.map(document=>document.data());
+        loadedCollections.add(stateKey);maybeEmit();
+      },
+      error:handleError,
     })),
   ];
   return ()=>unsubscribers.forEach(unsubscribe=>unsubscribe());

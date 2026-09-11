@@ -104,7 +104,24 @@ function save(){
 // after one render() of the still-empty `state` so the shell paints immediately instead of staying
 // blank while the network round-trip is in flight. Every view function below is untouched by this
 // -- they only ever read the in-memory `state` object, exactly as before 0.7.2.
+// Wrapped in a top-level try/catch as a defensive backstop, not just the already-caught
+// listMyTrips() call below: boot() is invoked fire-and-forget at the bottom of this module (no
+// caller ever awaits or .catch()es it), so ANY uncaught exception or rejection anywhere in this
+// function's body -- including one this specific review did not anticipate -- would otherwise
+// surface as a silent unhandled-rejection with no render() ever called, which on a cold launch
+// means a genuinely blank page with no visible explanation at all. Real bug, caught by the Product
+// Owner's own live acceptance retest (Test 8 got WORSE after the offline-auth-restore fix -- an
+// empty-Trip screen became a hard crash): see subscribeToTrip's own onError fix (cloud-store.js)
+// for the specific, now-fixed gap this backstop also guards against more generally.
 async function boot(){
+  try{await bootInner()}
+  catch(error){
+    console.error('boot() failed',error);
+    notify(`טעינת האפליקציה נכשלה (${error?.code||error?.message||'שגיאה לא צפויה'}).`);
+    render();
+  }
+}
+async function bootInner(){
   const uid=currentUid();
   if(!uid){render();return}
   const remembered=localStorage.getItem(ACTIVE_TRIP_KEY);
@@ -139,6 +156,13 @@ function openTrip(tripId){
     state={...clone(EMPTY),...remoteState,view,category,itemId,suggestionId,modal,timelineMode,calendarDate,toast};
     normalizeOperationalState(state);
     lastSyncedSnapshot=clone(state);
+    render();
+  },error=>{
+    // A subscription failure (offline with nothing cached yet, a genuine permission problem, or
+    // anything else) must never leave the page blank/uncaught -- render whatever state already
+    // exists (the initial empty shell, on a first-ever cold launch) with a visible, honest error
+    // instead. Worse than working, never worse than a crash.
+    notify(`טעינת נתוני הטיול נכשלה (${error?.code||'שגיאה'}). ${navigator.onLine?'נסו שוב.':'אין חיבור לאינטרנט וייתכן שהנתונים לא נשמרו במטמון המקומי.'}`);
     render();
   });
 }
