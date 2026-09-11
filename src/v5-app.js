@@ -49,6 +49,25 @@ function hasLegacyLocalTrip(){try{return Boolean(JSON.parse(localStorage.getItem
 // set state.trip in memory, nothing in Firestore yet) is created transparently on its first save()
 // here, so ensureTrip() itself needed no async awareness at all. Writes are serialized through
 // saveInFlight so two rapid saves can never race each other's diff against a stale snapshot.
+// Real bug, caught by the Product Owner during 0.7.2 qa testing: a brand-new Trip's very first
+// attachment upload got a 403 from Firebase Storage. Root cause: storage.rules authorizes an
+// upload only by checking the Trip's OWN Firestore document (firestore.get(...).data.ownerUid) --
+// but ensureTrip() only ever sets state.trip in memory, and storeOriginal()/uploadAttachment() (in
+// the ingest()/smartIngest()/attachIngest() flows) run BEFORE the first save() call, not after --
+// so on a brand-new Trip, the Firestore Trip document genuinely did not exist yet at the moment of
+// upload, and a Storage rules evaluation against a nonexistent cross-service document is denied,
+// not treated as absent. This same "create the Trip doc on first use, not lazily inside save()"
+// step is needed by two independent call paths now (save() itself, and any attachment upload
+// before the first save()), so it is extracted here rather than duplicated.
+async function ensureTripDocSynced(tripId,trip){
+  if(lastSyncedSnapshot&&lastSyncedSnapshot.trip?.id===tripId)return;
+  const uid=currentUid();if(!uid)throw new Error('לא מחובר.');
+  await createTripDoc(tripId,{name:trip.name,startDate:trip.startDate,endDate:trip.endDate,createdAt:trip.createdAt},uid).catch(error=>{
+    // A concurrent tab/session may have already created this exact Trip id -- not a real failure.
+    if(error?.code!=='permission-denied')throw error;
+  });
+  localStorage.setItem(ACTIVE_TRIP_KEY,tripId);
+}
 function save(){
   const lifecycle=normalizeProposalLifecycle(state.suggestions,state.rejectedSuggestions);
   state.suggestions=lifecycle.suggestions;state.rejectedSuggestions=lifecycle.rejectedSuggestions;
@@ -56,15 +75,7 @@ function save(){
   const tripId=state.trip.id,snapshotForThisSave=clone(state);
   saveInFlight=saveInFlight.then(async()=>{
     try{
-      if(!lastSyncedSnapshot||lastSyncedSnapshot.trip?.id!==tripId){
-        const uid=currentUid();if(!uid)throw new Error('לא מחובר.');
-        await createTripDoc(tripId,{name:snapshotForThisSave.trip.name,startDate:snapshotForThisSave.trip.startDate,endDate:snapshotForThisSave.trip.endDate,createdAt:snapshotForThisSave.trip.createdAt},uid).catch(error=>{
-          // A concurrent tab/session may have already created this exact Trip id -- not a real
-          // failure, the subsequent syncTripState below still applies correctly either way.
-          if(error?.code!=='permission-denied')throw error;
-        });
-        localStorage.setItem(ACTIVE_TRIP_KEY,tripId);
-      }
+      await ensureTripDocSynced(tripId,snapshotForThisSave.trip);
       lastSyncedSnapshot=await syncTripState(tripId,lastSyncedSnapshot,snapshotForThisSave);
     }catch(error){
       console.error('Firestore sync failed',error);
@@ -543,6 +554,12 @@ function render(){normalizeOperationalState(state);const views={today:todayView,
 // etc.) needed no changes.
 async function storeOriginal(source,file){
   if(!state.trip)throw new Error('לא נמצא טיול פעיל.');
+  // Must happen before the Storage upload, not after -- see ensureTripDocSynced's own comment.
+  // This call site runs before save() ever does (createLocalSource, called from ingest()/
+  // smartIngest()/attachIngest(), always precedes the state.sources.push(source);save() that
+  // follows it), so without this the very first attachment on a brand-new Trip always raced
+  // ahead of the Firestore Trip document that Storage's own rules require to exist first.
+  await ensureTripDocSynced(state.trip.id,state.trip);
   source.storagePath=await uploadAttachment(state.trip.id,source.id,file);
   source.storedOffline=true;
 }

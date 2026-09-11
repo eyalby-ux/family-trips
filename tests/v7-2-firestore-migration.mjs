@@ -126,6 +126,27 @@ function test_0_7_2_render_passes_a_function_reference_to_its_view_dispatch_not_
   assert(!app.includes("state.view!=='trips'?empty():"));
   assert(app.includes("state.view!=='trips'?empty:"));
 }
+// A second real production bug, caught by the Product Owner in the same qa round: a brand-new
+// Trip's very first attachment upload got a live 403 from Firebase Storage. Root cause:
+// storage.rules authorizes an upload only by checking the Trip's OWN Firestore document
+// (firestore.get(...).data.ownerUid), but storeOriginal()/uploadAttachment() (reached from
+// ingest()/smartIngest()/attachIngest(), all of which call createLocalSource() before the
+// state.sources.push(source);save() that follows it) ran before save() ever created that
+// document -- so on a brand-new Trip, the Firestore Trip document genuinely did not exist yet at
+// the moment of upload, and Storage denies a rules evaluation against a nonexistent cross-service
+// document rather than treating it as simply absent.
+function test_0_7_2_storeOriginal_creates_the_firestore_trip_doc_before_uploading_not_after(){
+  const start=app.indexOf('async function storeOriginal(');
+  const body=app.slice(start,app.indexOf('async function openSource(',start));
+  const ensureIndex=body.indexOf('await ensureTripDocSynced(');
+  const uploadIndex=body.indexOf('await uploadAttachment(');
+  assert(ensureIndex>-1&&uploadIndex>-1&&ensureIndex<uploadIndex);
+}
+function test_0_7_2_ensureTripDocSynced_is_shared_by_save_and_storeOriginal_not_duplicated(){
+  assert(app.includes('async function ensureTripDocSynced(tripId,trip){'));
+  const callers=[...app.matchAll(/ensureTripDocSynced\(/g)].length;
+  assert.equal(callers,3); // its own definition + save()'s call + storeOriginal()'s call
+}
 function test_0_7_2_attachments_use_firebase_storage_not_indexeddb(){
   assert(app.includes('source.storagePath=await uploadAttachment(state.trip.id,source.id,file)'));
   assert(app.includes('const blob=await downloadAttachment(source.storagePath)'));
@@ -210,6 +231,8 @@ const tests=[
   test_0_7_2_boot_skips_the_network_trip_list_query_when_offline_and_a_trip_is_remembered,
   test_0_7_2_main_js_offline_detection_recognizes_a_firestore_only_trip_not_just_the_legacy_blob,
   test_0_7_2_render_passes_a_function_reference_to_its_view_dispatch_not_an_already_called_string,
+  test_0_7_2_storeOriginal_creates_the_firestore_trip_doc_before_uploading_not_after,
+  test_0_7_2_ensureTripDocSynced_is_shared_by_save_and_storeOriginal_not_duplicated,
   test_0_7_2_attachments_use_firebase_storage_not_indexeddb,
   test_0_7_2_legacy_indexeddb_access_is_now_read_only_and_migration_scoped,
   test_0_7_2_migration_is_explicit_never_automatic,
