@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
-import { initializeFirestore, persistentLocalCache, persistentSingleTabManager } from 'firebase/firestore';
+import { doc, getDoc, initializeFirestore, persistentLocalCache, persistentSingleTabManager, updateDoc } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
@@ -30,15 +30,42 @@ export const storage = getStorage(firebaseApp);
 // qa-only debug hook, requested directly for Test 5 of the 0.7.2 acceptance session (server-side
 // rule enforcement): this app uses the modern modular Firebase SDK, which has no global
 // `firebase`/`db` object for DevTools to reach on its own -- every prior "open the console and try
-// a raw Firestore call" attempt hit that tooling gap, not a rules result. Gated on the deployed
-// origin, not a build-time flag, since qa and Production share the exact same build artifact (the
-// whole point of promoting the untouched qa-tested dist/ output, never a separate rebuild) -- a
-// build-time env var could not tell them apart at runtime the way this can. Never exposed on
-// Production. Usage from the qa DevTools console:
-//   const {doc,getDoc} = await import('firebase/firestore');
-//   await getDoc(doc(__ft.db,'trips','someTripIdNotOwnedOrShared'));  // should reject
+// a raw Firestore call" attempt hit that tooling gap, not a rules result. The first version of this
+// hook (raw auth/db/storage instances only) hit a second, subtler tooling gap on the Product
+// Owner's own live retest: a separately, freshly imported copy of `firebase/firestore` (e.g. via a
+// CDN dynamic import() in DevTools) is a DIFFERENT module instance than the one already bundled
+// into this app, and the modular SDK's own internal type checks reject a reference built from one
+// copy against a Firestore instance from another ("Expected first argument to collection() to be a
+// CollectionReference...") -- an SDK-instance-mismatch artifact, not a rules result. Fixed by
+// exposing ready-made helpers bound to this bundle's own already-imported doc/getDoc/updateDoc, so
+// no separate import is ever needed. Gated on the deployed origin, not a build-time flag, since qa
+// and Production share the exact same build artifact (the whole point of promoting the untouched
+// qa-tested dist/ output, never a separate rebuild) -- a build-time env var could not tell them
+// apart at runtime the way this can. Never exposed on Production. Usage from the qa DevTools
+// console, Test 5's exact scenario (a Trip neither owned nor shared) -- both calls are expected to
+// reject with a permission error:
+//   await __ft.tryGetTrip('someTripIdNotOwnedOrShared');
+//   await __ft.tryWriteTrip('someTripIdNotOwnedOrShared');
 if (typeof location !== 'undefined' && location.hostname.startsWith('qa--')) {
-  window.__ft = { auth, db, storage };
-  console.info('[qa debug] window.__ft = {auth, db, storage} -- see src/firebase.js for usage.');
+  window.__ft = {
+    auth, db, storage,
+    tryGetTrip: async (tripId) => {
+      try {
+        const snapshot = await getDoc(doc(db, 'trips', tripId));
+        return { exists: snapshot.exists(), data: snapshot.exists() ? snapshot.data() : null };
+      } catch (error) {
+        return { rejected: true, code: error.code, message: error.message };
+      }
+    },
+    tryWriteTrip: async (tripId) => {
+      try {
+        await updateDoc(doc(db, 'trips', tripId), { __qaDebugProbe: new Date().toISOString() });
+        return { wrote: true };
+      } catch (error) {
+        return { rejected: true, code: error.code, message: error.message };
+      }
+    },
+  };
+  console.info('[qa debug] window.__ft = {auth, db, storage, tryGetTrip, tryWriteTrip} -- see src/firebase.js for usage.');
 }
 

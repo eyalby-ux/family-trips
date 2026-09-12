@@ -233,7 +233,25 @@ function test_0_7_2_qa_only_debug_hook_exposes_auth_db_storage_gated_by_origin_n
   // qa-tested dist/ output, never a separate rebuild) -- a build-time env var could not
   // distinguish them at runtime the way an origin check can. Never exposed on Production.
   assert(firebaseConfig.includes("location.hostname.startsWith('qa--')"));
-  assert(firebaseConfig.includes('window.__ft = { auth, db, storage };'));
+  assert(firebaseConfig.includes('window.__ft = {'));
+  assert(firebaseConfig.includes('auth, db, storage,'));
+}
+// Second version of the debug hook, requested after the Product Owner's own live retest hit a
+// second, subtler tooling gap: a freshly imported copy of firebase/firestore in DevTools is a
+// DIFFERENT module instance than the one already bundled into this app, and the modular SDK's own
+// internal checks reject a reference built from one copy against a Firestore instance from
+// another -- an SDK-instance-mismatch artifact, not a rules result. Fixed by exposing ready-made
+// helpers bound to this bundle's own doc/getDoc/updateDoc, so no separate import is ever needed.
+function test_0_7_2_debug_hook_exposes_ready_made_helpers_bound_to_the_bundles_own_sdk_instance(){
+  assert(firebaseConfig.includes("import { doc, getDoc, initializeFirestore, persistentLocalCache, persistentSingleTabManager, updateDoc } from 'firebase/firestore';"));
+  const start=firebaseConfig.indexOf('window.__ft = {');
+  const body=firebaseConfig.slice(start,firebaseConfig.indexOf('console.info(',start));
+  assert(body.includes('tryGetTrip:'));
+  assert(body.includes('tryWriteTrip:'));
+  // Both helpers must use doc()/getDoc()/updateDoc() imported directly into this module (the app's
+  // own bundled SDK copy), never a re-import inside the helper itself.
+  assert(body.includes('await getDoc(doc(db, \'trips\', tripId));'));
+  assert(body.includes('await updateDoc(doc(db, \'trips\', tripId),'));
 }
 // A real production bug, caught by the Product Owner during 0.7.2 QA testing (white screen +
 // "(intermediate value)(intermediate value)(intermediate value) is not a function" immediately
@@ -434,6 +452,7 @@ const tests=[
   test_0_7_2_openTrip_never_leaves_the_page_blank_on_a_subscription_failure,
   test_0_7_2_boot_has_a_top_level_backstop_so_no_uncaught_error_can_blank_the_page,
   test_0_7_2_qa_only_debug_hook_exposes_auth_db_storage_gated_by_origin_not_a_build_flag,
+  test_0_7_2_debug_hook_exposes_ready_made_helpers_bound_to_the_bundles_own_sdk_instance,
   test_0_7_2_render_passes_a_function_reference_to_its_view_dispatch_not_an_already_called_string,
   test_0_7_2_storeOriginal_creates_the_firestore_trip_doc_before_uploading_not_after,
   test_0_7_2_ensureTripDocSynced_is_shared_by_save_and_storeOriginal_not_duplicated,
