@@ -3,7 +3,7 @@
 **Document revision:** `V2`
 **Candidate:** `0.6.7.2` (second correction package for `0.6.7.1`'s `V6-F83`–`V6-F85`), installed on `version/V6`, deployed to the fixed `qa` alias (build `0.6.7.2-6eb553d3`)
 **Session number:** `V3`, continuing the per-candidate session sequence opened for `0.6.7` (`EXECUTABLE_TEST_SESSION_V1.md` session `V1`, `EXECUTABLE_TEST_SESSION_V2.md` session `V2`).
-**Instructions:** Run one test at a time, in order. Record the actual observed result under each test, not just PASS/FAIL. Findings are recorded immediately with target `TBD after acceptance completion`, per `VERSION_PACKAGE_AUTHORING_STANDARD_V49.md`.
+**Instructions:** Run one test at a time, in order. Record the actual observed result under each test, not just PASS/FAIL. Findings are recorded immediately with target `TBD after acceptance completion`, per `VERSION_PACKAGE_AUTHORING_STANDARD_V50.md`.
 
 **Honest scope note on this document:** as with `EXECUTABLE_TEST_SESSION_V2.md`, the Development Agent received this session's outcome as a summary from the Product Owner (result totals and full detail on the one failing test's two findings), not the complete per-test observed-notes write-up. This document records exactly what was verified — Test 6's full detail, and the aggregate PASS/FAIL counts — and marks the rest honestly rather than fabricating notes for tests not individually detailed to the Development Agent.
 
