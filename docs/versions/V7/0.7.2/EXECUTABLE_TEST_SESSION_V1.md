@@ -3,7 +3,7 @@
 **Document revision:** `V9`
 **Candidate:** `0.7.2` (multi-Trip ownership + Shared-Trip Owner/Editor roles, real Firestore/Storage datastore), installed on `version/V7`, deployed to the fixed `qa` alias (build `0.7.2-08d11fd8`, deploy `6aa4e5ee31cf6b1f17195519`)
 **Session number:** `V1`. **All 8 tests now PASS. GO recorded by the Product Owner, 2026-09-12** — see the `V9` change-history row, the completed Test 5 result, and the GO/NO-GO decision at the bottom of this document. `0.7.2` is cleared for Production promotion as a separate, explicit action, with one open item to confirm first (Test 4's scope reading — see the GO decision's own note).
-**Instructions:** Run one test at a time, in order. Record the actual observed result under each test. Findings are recorded immediately with target `TBD after acceptance completion`, per `VERSION_PACKAGE_AUTHORING_STANDARD_V54.md`.
+**Instructions:** Run one test at a time, in order. Record the actual observed result under each test. Findings are recorded immediately with target `TBD after acceptance completion`, per `VERSION_PACKAGE_AUTHORING_STANDARD_V55.md`.
 
 **The `V6` round's two "fixed and regression-tested" claims did not survive the Product Owner's retest** — recorded honestly rather than glossed over: Test 7's `getBytes()` change was based on a wrong assumption (that the Storage SDK's download path is exempt from CORS the way uploads appear to be — it is not), and Test 8's fix made the failure worse (an empty-Trip screen became a hard crash), because it unblocked a code path — Firestore's real-time listeners — that had never run offline before and had its own separate, pre-existing gap (no error handling at all). Both are now genuinely resolved:
 
