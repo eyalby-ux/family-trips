@@ -47,8 +47,11 @@ function hasLegacyLocalTrip(){try{return Boolean(JSON.parse(localStorage.getItem
 // state.x; save(); render()`) -- internally now fires an async, un-awaited Firestore sync instead
 // of a synchronous localStorage write, per DESIGN_V1.md §4.2. A brand-new Trip (ensureTrip() just
 // set state.trip in memory, nothing in Firestore yet) is created transparently on its first save()
-// here, so ensureTrip() itself needed no async awareness at all. Writes are serialized through
-// saveInFlight so two rapid saves can never race each other's diff against a stale snapshot.
+// here, so ensureTrip() itself needed no async awareness at all. 0.7.2.1: each save()'s own
+// diff-and-commit is issued immediately, not serialized behind an earlier save's -- see save()'s
+// own comment for why (fixes docs/versions/V7/0.7.3/DESIGN_V1.md §0.1/§3.2's offline-data-loss
+// finding). Only lastSyncedSnapshot's own advancement stays serialized through saveInFlight, in
+// call order.
 // Real bug, caught by the Product Owner during 0.7.2 qa testing: a brand-new Trip's very first
 // attachment upload got a 403 from Firebase Storage. Root cause: storage.rules authorizes an
 // upload only by checking the Trip's OWN Firestore document (firestore.get(...).data.ownerUid) --
@@ -79,23 +82,43 @@ function save(){
   state.suggestions=lifecycle.suggestions;state.rejectedSuggestions=lifecycle.rejectedSuggestions;
   if(!state.trip)return;
   const tripId=state.trip.id,snapshotForThisSave=clone(state);
-  saveInFlight=saveInFlight.then(async()=>{
-    try{
-      const createdNewTrip=await ensureTripDocSynced(tripId,snapshotForThisSave.trip);
-      lastSyncedSnapshot=await syncTripState(tripId,lastSyncedSnapshot,snapshotForThisSave);
-      // A brand-new Trip's own switcher entry doesn't exist anywhere until this point -- myTrips
-      // is otherwise only refreshed at boot() and after migration, so without this a freshly
-      // created second Trip would silently not appear in tripsSection()/tripsView() until the
-      // next full reload, even though it now genuinely exists in Firestore.
-      if(createdNewTrip){
-        const uid=currentUid();
-        if(uid)myTrips=await listMyTrips(uid,currentEmail());
-        render();
-      }
-    }catch(error){
-      console.error('Firestore sync failed',error);
-      notify('שמירת השינויים בענן נכשלה. השינויים נשארים במסך זה בלבד עד לחיבור מחדש.');
+  // 0.7.2.1: diff-and-commit is issued right here, synchronously with this call, against
+  // lastSyncedSnapshot's value captured into diffBaseline at this exact moment -- never queued
+  // behind an earlier save's still-unresolved commit(). Per Firestore's own documented behavior,
+  // batch.commit() durably journals the write into its IndexedDB-backed offline queue the moment
+  // it's called, independent of when the returned Promise resolves -- but the OLD code chained
+  // that entire await behind saveInFlight, so
+  // while offline only the very first queued save() ever reached commit() at all; every save()
+  // after it sat waiting in memory for a Promise that (per the SDK's own type docs) "won't resolve
+  // while you're offline," and was lost outright on reload. Two rapid saves' diffs can now both be
+  // computed against the same not-yet-advanced baseline -- harmless, since every write here is a
+  // full-record overwrite (diffById/syncTripState's own semantics, unchanged by this fix): at worst
+  // a record already included in one save's diff is redundantly re-sent by the next, never lost.
+  const diffBaseline=lastSyncedSnapshot;
+  const writeAttempt=(async()=>{
+    const createdNewTrip=await ensureTripDocSynced(tripId,snapshotForThisSave.trip);
+    const committedSnapshot=await syncTripState(tripId,diffBaseline,snapshotForThisSave);
+    return {createdNewTrip,committedSnapshot};
+  })();
+  // saveInFlight now only serializes the narrow step of advancing lastSyncedSnapshot (plus the
+  // created-new-trip follow-up) once each save's own write settles -- in call order, exactly as
+  // before -- rather than serializing the write itself. Ends in .catch(), never left to reject, so
+  // one save's failure can never leave every later save() permanently stuck against a rejected
+  // chain.
+  saveInFlight=saveInFlight.then(()=>writeAttempt).then(async({createdNewTrip,committedSnapshot})=>{
+    lastSyncedSnapshot=committedSnapshot;
+    // A brand-new Trip's own switcher entry doesn't exist anywhere until this point -- myTrips
+    // is otherwise only refreshed at boot() and after migration, so without this a freshly
+    // created second Trip would silently not appear in tripsSection()/tripsView() until the
+    // next full reload, even though it now genuinely exists in Firestore.
+    if(createdNewTrip){
+      const uid=currentUid();
+      if(uid)myTrips=await listMyTrips(uid,currentEmail());
+      render();
     }
+  }).catch(error=>{
+    console.error('Firestore sync failed',error);
+    notify('שמירת השינויים בענן נכשלה. השינויים נשארים במסך זה בלבד עד לחיבור מחדש.');
   });
 }
 

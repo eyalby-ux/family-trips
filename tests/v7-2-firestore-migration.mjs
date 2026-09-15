@@ -156,7 +156,54 @@ function test_0_7_2_save_keeps_its_synchronous_call_signature_but_syncs_to_fires
   // "await save(" call site, which must not exist anywhere in this file.
   assert(app.includes('function save(){'));
   assert(!/await save\(/.test(app));
-  assert(app.includes('syncTripState(tripId,lastSyncedSnapshot,snapshotForThisSave)'));
+  // 0.7.2.1: syncTripState is now called against diffBaseline (lastSyncedSnapshot's value captured
+  // synchronously at save() call time), not against lastSyncedSnapshot read later -- see
+  // test_0_7_2_1_save_issues_each_writes_commit_immediately_not_queued_behind_an_earlier_saves below
+  // for why.
+  assert(app.includes('syncTripState(tripId,diffBaseline,snapshotForThisSave)'));
+}
+// 0.7.2.1 correction: a real, already-shipped bug found during 0.7.3's design verification
+// (DESIGN_V1.md §0.1), live in Production. The OLD save() chained the ENTIRE write --
+// ensureTripDocSynced, syncTripState, and its internal await batch.commit() -- behind
+// saveInFlight.then(async()=>{...}). Per Firestore's own type docs, batch.commit()'s returned
+// Promise "won't resolve while you're offline" -- so while offline, only the very first queued
+// save() ever reached commit() at all; every save() after it sat waiting in memory for a Promise
+// that would never resolve until reconnection, and was lost outright if the app closed/reloaded
+// first. The fix (DESIGN_V1.md §3.2): issue each save()'s diff-and-commit immediately, and only
+// serialize the narrow step of advancing lastSyncedSnapshot once each write's own Promise
+// resolves, in order. These three tests assert the actual fixed structure, not just that
+// diffBaseline/writeAttempt exist somewhere plausible.
+function test_0_7_2_1_save_issues_each_writes_commit_immediately_not_queued_behind_an_earlier_saves(){
+  const saveStart=app.indexOf('function save(){');
+  const saveBody=app.slice(saveStart,app.indexOf('async function boot(){',saveStart));
+  const writeAttemptIndex=saveBody.indexOf('const writeAttempt=(async()=>{');
+  const saveInFlightAssignIndex=saveBody.indexOf('saveInFlight=saveInFlight.then(');
+  assert(writeAttemptIndex>-1&&saveInFlightAssignIndex>-1);
+  // The write must be issued (writeAttempt's IIFE called) BEFORE it is ever handed to saveInFlight
+  // -- i.e. outside/ahead of the saveInFlight chain, not nested inside a callback passed to it.
+  // This is exactly what the OLD buggy code got backwards.
+  assert(writeAttemptIndex<saveInFlightAssignIndex);
+  // The old buggy pattern -- the entire write wrapped inside saveInFlight's own .then(async()=>{ --
+  // must not exist anywhere in save()'s body.
+  assert(!saveBody.includes('saveInFlight=saveInFlight.then(async()=>{'));
+}
+function test_0_7_2_1_diffBaseline_is_captured_synchronously_before_the_write_is_issued(){
+  const saveStart=app.indexOf('function save(){');
+  const saveBody=app.slice(saveStart,app.indexOf('async function boot(){',saveStart));
+  const diffBaselineIndex=saveBody.indexOf('const diffBaseline=lastSyncedSnapshot;');
+  const writeAttemptIndex=saveBody.indexOf('const writeAttempt=(async()=>{');
+  assert(diffBaselineIndex>-1&&writeAttemptIndex>-1&&diffBaselineIndex<writeAttemptIndex);
+}
+function test_0_7_2_1_saveInFlight_only_serializes_advancing_lastSyncedSnapshot_not_the_write_itself(){
+  const saveStart=app.indexOf('function save(){');
+  const saveBody=app.slice(saveStart,app.indexOf('async function boot(){',saveStart));
+  assert(saveBody.includes('saveInFlight=saveInFlight.then(()=>writeAttempt).then('));
+  const advanceIndex=saveBody.indexOf('lastSyncedSnapshot=committedSnapshot;');
+  const chainIndex=saveBody.indexOf('saveInFlight=saveInFlight.then(()=>writeAttempt).then(');
+  assert(advanceIndex>chainIndex); // the advance happens inside that .then(), not before it
+  // The chain must still end in .catch() -- one save's failure must never leave saveInFlight
+  // itself a rejected promise, which would permanently break every save() called after it.
+  assert(saveBody.includes('}).catch(error=>{'));
 }
 function test_0_7_2_a_brand_new_trip_is_created_transparently_inside_save_not_ensureTrip(){
   // ensureTrip() itself needed no async awareness -- ensureTrip still only sets state.trip in
@@ -427,6 +474,47 @@ function test_0_7_2_ownership_check_never_falls_back_for_a_trip_that_exists_in_f
   const foundBranch=body.slice(body.indexOf("status==='found'"),body.indexOf("if(firestoreResult.status==='forbidden')"));
   assert(foundBranch.includes('return'));
 }
+// Behavioral regression test for the specific 0.7.2.1 failure mode: multiple sequential
+// offline-queued writes must each reach their own commit() immediately, without waiting for an
+// earlier write's Promise to resolve first. v5-app.js's real save() cannot be invoked directly
+// under this harness -- it imports firebase.js, which touches import.meta.env and throws outside
+// a Vite build (the same limitation the top of this file already notes for cloud-store.js) -- so
+// this mirrors save()'s own fixed control-flow shape (asserted by source-inspection in the three
+// tests above) against a mock commit() standing in for Firestore's real batch.commit(), whose
+// Promise, per its own type docs, "won't resolve while you're offline." This is a genuine
+// behavioral test of the algorithm's shape, not of the real Firestore SDK -- no emulator is
+// available in this environment to verify actual offline persistence behavior; that remains
+// unverified from here, same as noted for the rest of this suite.
+async function test_0_7_2_1_offline_writes_after_the_first_still_reach_commit_without_waiting_for_the_prior_write(){
+  function flush(){return new Promise(resolve=>setTimeout(resolve,0))}
+  const committedCalls=[];
+  let resolveFirstCommit;
+  const firstCommitPromise=new Promise(resolve=>{resolveFirstCommit=resolve});
+  // Simulates Firestore while offline: call 0's "commit" is issued (committedCalls captures that)
+  // but its Promise stays unresolved until the test explicitly resolves it, standing in for
+  // reconnection. Calls 1 and 2 resolve immediately, standing in for edits queued afterward.
+  function mockCommit(callIndex){committedCalls.push(callIndex);return callIndex===0?firstCommitPromise:Promise.resolve()}
+  let saveInFlight=Promise.resolve();
+  const advancedInOrder=[];
+  // Mirrors save()'s own fixed shape exactly: writeAttempt's IIFE runs (and calls mockCommit)
+  // immediately when mockSave() is called, never nested inside a callback handed to saveInFlight.
+  function mockSave(callIndex){
+    const writeAttempt=(async()=>{await mockCommit(callIndex);return callIndex})();
+    saveInFlight=saveInFlight.then(()=>writeAttempt).then(committedIndex=>{advancedInOrder.push(committedIndex)});
+  }
+  mockSave(0);mockSave(1);mockSave(2);
+  await flush();
+  // The actual fix, demonstrated: all three commits were issued immediately -- under the OLD
+  // buggy shape (the whole write chained behind saveInFlight.then(async()=>{...})), calls 1 and 2
+  // would never have reached mockCommit at all until call 0's Promise resolved.
+  assert.deepEqual(committedCalls,[0,1,2]);
+  // Nothing has advanced yet -- call 0 is still "offline" (its commit Promise unresolved), and
+  // advancing lastSyncedSnapshot stays serialized in call order behind it, as designed.
+  assert.deepEqual(advancedInOrder,[]);
+  resolveFirstCommit(0);
+  await flush();
+  assert.deepEqual(advancedInOrder,[0,1,2]);
+}
 
 const tests=[
   test_0_7_2_diffById_detects_additions,
@@ -444,6 +532,9 @@ const tests=[
   test_0_7_2_storage_rules_mirror_firestore_trip_access_via_cross_service_get,
   test_0_7_2_firebase_config_enables_firestore_offline_persistence,
   test_0_7_2_save_keeps_its_synchronous_call_signature_but_syncs_to_firestore_internally,
+  test_0_7_2_1_save_issues_each_writes_commit_immediately_not_queued_behind_an_earlier_saves,
+  test_0_7_2_1_diffBaseline_is_captured_synchronously_before_the_write_is_issued,
+  test_0_7_2_1_saveInFlight_only_serializes_advancing_lastSyncedSnapshot_not_the_write_itself,
   test_0_7_2_a_brand_new_trip_is_created_transparently_inside_save_not_ensureTrip,
   test_0_7_2_boot_skips_the_network_trip_list_query_when_offline_and_a_trip_is_remembered,
   test_0_7_2_main_js_offline_detection_recognizes_a_firestore_only_trip_not_just_the_legacy_blob,
@@ -472,6 +563,7 @@ const tests=[
   test_0_7_2_ownership_reconciliation_reads_firestore_via_the_callers_own_token_not_a_service_account,
   test_0_7_2_ownership_check_falls_back_to_legacy_blobs_record_for_a_not_yet_migrated_trip,
   test_0_7_2_ownership_check_never_falls_back_for_a_trip_that_exists_in_firestore,
+  test_0_7_2_1_offline_writes_after_the_first_still_reach_commit_without_waiting_for_the_prior_write,
 ];
-for(const test of tests){test();console.log(`PASS: ${test.name}`)}
+for(const test of tests){await test();console.log(`PASS: ${test.name}`)}
 console.log(`ALL PASS: 0.7.2 -- Firestore datastore wiring, security rules, migration, ownership reconciliation (${tests.length} tests). Real Firestore/Storage network behavior is NOT exercised by this suite -- no emulator is available in this environment; see the 0.7.2 implementation report for what remains unverified.`);
