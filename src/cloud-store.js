@@ -6,7 +6,7 @@
 // (diff-and-write on save(), listen-and-assemble on subscribe()), not to change how the rest of
 // the app thinks about its own data.
 import {auth,db,storage} from './firebase.js';
-import {collection,deleteDoc,doc,getDoc,getDocs,onSnapshot,query,setDoc,where,writeBatch} from 'firebase/firestore';
+import {collection,deleteDoc,deleteField,doc,getDoc,getDocs,onSnapshot,query,setDoc,where,writeBatch} from 'firebase/firestore';
 import {deleteObject,getBytes,ref,uploadBytes} from 'firebase/storage';
 import {SYNCED_COLLECTIONS,TRIP_NESTED_FIELDS,TRIP_TOP_LEVEL_FIELDS,diffById} from './operational-data.js';
 
@@ -18,6 +18,19 @@ function subRef(tripId,collectionName){return collection(db,'trips',tripId,colle
 // Applies every collection's diff plus any changed trip-scalar fields in one Firestore batch.
 // Firestore batches cap at 500 operations -- realistic for this app's data at household-Trip
 // scale (see DESIGN_V1.md §4.4), but chunked defensively rather than assumed safe forever.
+// 0.7.3 (DESIGN_V1.md §2.2): record writes are now field-level (batch.update(), only the fields
+// diffById says actually changed) instead of whole-document overwrites (batch.set(...,
+// {merge:false})) -- see diffById's own comment (operational-data.js) for the silent-loss bug this
+// closes. A brand-new record still needs a full batch.set() (update() fails against a document
+// that doesn't exist yet); an existing record's deleted fields are cleared via Firestore's own
+// deleteField() sentinel, not just omitted -- omitting a field from an update() call leaves it
+// untouched server-side, it does not remove it.
+// syncedAt/syncedByUid (NOT the app's own pre-existing, domain-meaningful `updatedAt` field some
+// records already carry, e.g. suggestions' proposal-lifecycle timestamp -- reusing that name here
+// would silently conflate two unrelated meanings under one field) give each record a cheap,
+// attributable "last synced by" pair, per DESIGN_V1.md §2.2's recommendation: same-field-same-record
+// concurrent edits stay last-write-wins by design (no automatic merge is meaningful there), but are
+// now at least attributable after the fact instead of a complete mystery.
 export async function syncTripState(tripId,previousSnapshot,nextState){
   const writes=[];
   const tripPatch={};
@@ -30,15 +43,22 @@ export async function syncTripState(tripId,previousSnapshot,nextState){
     if(JSON.stringify(prior)!==JSON.stringify(next))tripPatch[field]=next===undefined?null:next;
   }
   if(Object.keys(tripPatch).length)writes.push({type:'set',ref:tripRef(tripId),data:tripPatch,merge:true});
+  const syncedAt=new Date().toISOString(),syncedByUid=currentUid();
   for(const [stateKey,collectionName] of SYNCED_COLLECTIONS){
-    const {toSet,toDelete}=diffById(previousSnapshot?.[stateKey],nextState[stateKey]);
-    for(const record of toSet)writes.push({type:'set',ref:doc(subRef(tripId,collectionName),String(record.id)),data:record,merge:false});
+    const {toCreate,toUpdate,toDelete}=diffById(previousSnapshot?.[stateKey],nextState[stateKey]);
+    for(const record of toCreate)writes.push({type:'set',ref:doc(subRef(tripId,collectionName),String(record.id)),data:{...record,syncedAt,syncedByUid}});
+    for(const {id,changedFields,deletedFields} of toUpdate){
+      const data={...changedFields,syncedAt,syncedByUid};
+      for(const field of deletedFields)data[field]=deleteField();
+      writes.push({type:'update',ref:doc(subRef(tripId,collectionName),String(id)),data});
+    }
     for(const id of toDelete)writes.push({type:'delete',ref:doc(subRef(tripId,collectionName),String(id))});
   }
   for(let start=0;start<writes.length;start+=450){
     const batch=writeBatch(db);
     for(const write of writes.slice(start,start+450)){
       if(write.type==='delete')batch.delete(write.ref);
+      else if(write.type==='update')batch.update(write.ref,write.data);
       else batch.set(write.ref,write.data,write.merge?{merge:true}:{});
     }
     await batch.commit();

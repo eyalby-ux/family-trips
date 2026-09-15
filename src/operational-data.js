@@ -22,22 +22,48 @@ export const SYNCED_COLLECTIONS=[
 export const TRIP_NESTED_FIELDS=['name','startDate','endDate','createdAt'];
 export const TRIP_TOP_LEVEL_FIELDS=['timelineCursor','packedCollapsed','packingCollapsed'];
 // Diffs `next` (an array of {id,...}) against `previous` (the same shape, or undefined/null on a
-// first sync) and returns {toSet:[...], toDelete:[id,...]} -- only what actually changed, by id and
-// by a cheap JSON-equality check per record, never a blind delete-everything-then-rewrite. A record
-// missing an id is skipped (never written, never deleted) rather than silently colliding under an
-// 'undefined' key.
+// first sync) and returns {toCreate:[fullRecord,...], toUpdate:[{id,changedFields,deletedFields},...],
+// toDelete:[id,...]} -- only what actually changed, by id, and at FIELD granularity for a record that
+// already existed, not just "this record differs". A record missing an id is skipped (never written,
+// never deleted) rather than silently colliding under an 'undefined' key.
+// 0.7.3 (DESIGN_V1.md §2.2): previously this returned whole changed records under `toSet`, and
+// syncTripState (cloud-store.js) wrote each one back with a full-document overwrite (`set(...,
+// {merge:false})`) -- so if device A (offline) changed an Item's `notes` while device B concurrently
+// changed the SAME Item's `title`, A's reconnect-time write carried A's stale `title` alongside A's
+// new `notes` and silently reverted B's change, even though A and B never touched the same field.
+// Field-level deltas let syncTripState write only the fields that actually changed (Firestore
+// updateDoc()), so two devices editing different fields of the same record both survive, even across
+// an offline/reconnect boundary -- same-field-same-record is still last-write-wins (no meaningful
+// automatic merge is possible there), unchanged and accepted by design.
+// A brand-new record (no `prior`) has nothing to diff against and goes to `toCreate` for a full
+// write -- Firestore's updateDoc()/batch.update() fails outright against a document that doesn't
+// exist yet, so this distinction is load-bearing, not cosmetic.
+// deletedFields is populated whenever a key present on `prior` is absent from `record` -- the
+// caller is expected to write these back via Firestore's deleteField() sentinel; a plain field
+// write does NOT remove a field on its own under updateDoc()'s own merge semantics.
 export function diffById(previous,next){
   const prevById=new Map((previous||[]).map(record=>[record.id,record]));
   const nextIds=new Set();
-  const toSet=[];
+  const toCreate=[];
+  const toUpdate=[];
   for(const record of next||[]){
     if(record.id===undefined||record.id===null)continue;
     nextIds.add(record.id);
     const prior=prevById.get(record.id);
-    if(!prior||JSON.stringify(prior)!==JSON.stringify(record))toSet.push(record);
+    if(!prior){toCreate.push(record);continue}
+    const changedFields={};
+    const deletedFields=[];
+    for(const key of new Set([...Object.keys(prior),...Object.keys(record)])){
+      if(key==='id')continue;
+      const priorHas=Object.prototype.hasOwnProperty.call(prior,key);
+      const nextHas=Object.prototype.hasOwnProperty.call(record,key);
+      if(!nextHas&&priorHas){deletedFields.push(key);continue}
+      if(JSON.stringify(prior[key])!==JSON.stringify(record[key]))changedFields[key]=record[key];
+    }
+    if(Object.keys(changedFields).length||deletedFields.length)toUpdate.push({id:record.id,changedFields,deletedFields});
   }
   const toDelete=[...prevById.keys()].filter(id=>!nextIds.has(id));
-  return {toSet,toDelete};
+  return {toCreate,toUpdate,toDelete};
 }
 
 export function normalizeOperationalState(state){

@@ -37,6 +37,13 @@ let state=clone(EMPTY);
 // completes. See syncTripState (cloud-store.js) for why a diff, not a blind overwrite, matters.
 let lastSyncedSnapshot=null;
 let unsubscribeTrip=null;
+// 0.7.3 (DESIGN_V1.md §0.2/§2.3): holds at most one not-yet-applied remote snapshot while a form is
+// open, so render()'s own full-DOM replacement can't silently wipe unsaved input mid-edit -- see
+// mergeRemoteState()/openTrip()/render() below. Always null while no form-carrying modal is open.
+let bufferedRemoteState=null;
+// 0.7.3 (DESIGN_V1.md §4): count of save() calls issued but not yet settled (synced or failed).
+// Drives the minimal "pending sync" banner in render() -- see save()'s own comment.
+let pendingSyncCount=0;
 let myTrips=[];
 let saveInFlight=Promise.resolve();
 
@@ -86,15 +93,20 @@ function save(){
   // lastSyncedSnapshot's value captured into diffBaseline at this exact moment -- never queued
   // behind an earlier save's still-unresolved commit(). Per Firestore's own documented behavior,
   // batch.commit() durably journals the write into its IndexedDB-backed offline queue the moment
-  // it's called, independent of when the returned Promise resolves -- but the OLD code chained
-  // that entire await behind saveInFlight, so
-  // while offline only the very first queued save() ever reached commit() at all; every save()
-  // after it sat waiting in memory for a Promise that (per the SDK's own type docs) "won't resolve
-  // while you're offline," and was lost outright on reload. Two rapid saves' diffs can now both be
-  // computed against the same not-yet-advanced baseline -- harmless, since every write here is a
-  // full-record overwrite (diffById/syncTripState's own semantics, unchanged by this fix): at worst
-  // a record already included in one save's diff is redundantly re-sent by the next, never lost.
+  // it's called, independent of when the returned Promise resolves -- but the OLD code chained that
+  // entire await behind saveInFlight, so while offline only the very first queued save() ever
+  // reached commit() at all; every save() after it sat waiting in memory for a Promise that (per the
+  // SDK's own type docs) "won't resolve while you're offline," and was lost outright on reload. Two
+  // rapid saves' diffs can now both be computed against the same not-yet-advanced baseline --
+  // harmless, since every write here is a field-level delta (diffById/syncTripState's own semantics,
+  // 0.7.3 DESIGN_V1.md §2.2): at worst a field already included in one save's diff is redundantly
+  // re-sent by the next, never lost.
   const diffBaseline=lastSyncedSnapshot;
+  // 0.7.3 (DESIGN_V1.md §4): pendingSyncCount is the "information that already exists in
+  // saveInFlight's own state" the design refers to -- saveInFlight itself is just a Promise chain
+  // with no synchronously-readable pending/settled state, so this counter is what actually answers
+  // "is there a local write not yet confirmed synced" for the banner in render().
+  pendingSyncCount++;
   const writeAttempt=(async()=>{
     const createdNewTrip=await ensureTripDocSynced(tripId,snapshotForThisSave.trip);
     const committedSnapshot=await syncTripState(tripId,diffBaseline,snapshotForThisSave);
@@ -104,7 +116,10 @@ function save(){
   // created-new-trip follow-up) once each save's own write settles -- in call order, exactly as
   // before -- rather than serializing the write itself. Ends in .catch(), never left to reject, so
   // one save's failure can never leave every later save() permanently stuck against a rejected
-  // chain.
+  // chain. .finally() decrements pendingSyncCount and re-renders regardless of outcome, so the
+  // pending-sync indicator clears the moment this write settles even if nothing else happens to
+  // trigger a render() around when that occurs (e.g. right after reconnecting, with no other user
+  // action in progress).
   saveInFlight=saveInFlight.then(()=>writeAttempt).then(async({createdNewTrip,committedSnapshot})=>{
     lastSyncedSnapshot=committedSnapshot;
     // A brand-new Trip's own switcher entry doesn't exist anywhere until this point -- myTrips
@@ -119,7 +134,7 @@ function save(){
   }).catch(error=>{
     console.error('Firestore sync failed',error);
     notify('שמירת השינויים בענן נכשלה. השינויים נשארים במסך זה בלבד עד לחיבור מחדש.');
-  });
+  }).finally(()=>{pendingSyncCount--;render()});
 }
 
 // 0.7.2 boot sequence, replacing the old synchronous `let state=normalizeOperationalState(load())`
@@ -170,15 +185,33 @@ async function bootInner(){
 // preserved across a remote update -- a Firestore listener firing (this device's own write echoing
 // back, or a real Editor's concurrent change) must never yank the user out of whatever screen or
 // open modal they're currently on.
+// Merges one assembled remote snapshot (from subscribeToTrip) into the live in-memory `state`,
+// preserving the same ephemeral/navigation fields openTrip's own comment above already documents.
+// Does NOT call render() itself -- openTrip's listener calls it directly for the no-modal-open
+// case; render() calls it itself when flushing a buffered update, so the merge happens inline with
+// the same render pass that's about to run rather than needing its own extra render() call.
+function mergeRemoteState(remoteState){
+  const {view,category,itemId,suggestionId,modal,timelineMode,calendarDate,toast}=state;
+  state={...clone(EMPTY),...remoteState,view,category,itemId,suggestionId,modal,timelineMode,calendarDate,toast};
+  normalizeOperationalState(state);
+  lastSyncedSnapshot=clone(state);
+}
 function openTrip(tripId){
   if(unsubscribeTrip)unsubscribeTrip();
   lastSyncedSnapshot=null;
+  bufferedRemoteState=null;
   localStorage.setItem(ACTIVE_TRIP_KEY,tripId);
   unsubscribeTrip=subscribeToTrip(tripId,remoteState=>{
-    const {view,category,itemId,suggestionId,modal,timelineMode,calendarDate,toast}=state;
-    state={...clone(EMPTY),...remoteState,view,category,itemId,suggestionId,modal,timelineMode,calendarDate,toast};
-    normalizeOperationalState(state);
-    lastSyncedSnapshot=clone(state);
+    // 0.7.3 (DESIGN_V1.md §0.2/§2.3): a live remote update must never silently destroy an open,
+    // unsubmitted edit form -- render()'s own unconditional full-DOM replacement would otherwise
+    // wipe whatever the user is mid-typing the moment ANY remote snapshot lands (this device's own
+    // write echoing back, another Editor's concurrent edit, or another tab on this device). While a
+    // form-carrying modal is open, buffer the update instead of applying it now; render()'s own top
+    // flushes exactly one buffered update the moment the modal closes. Real risk this closes, not
+    // hypothetical: two-device sync (this candidate's own headline feature) makes remote updates
+    // arrive routinely during normal use, not just in rare edge cases.
+    if(state.modal){bufferedRemoteState=remoteState;return}
+    mergeRemoteState(remoteState);
     render();
   },error=>{
     // A subscription failure (offline with nothing cached yet, a genuine permission problem, or
@@ -193,6 +226,7 @@ function switchTrip(tripId){route('today');openTrip(tripId);notify('הטיול �
 async function startNewTripFlow(){
   if(unsubscribeTrip){unsubscribeTrip();unsubscribeTrip=null}
   lastSyncedSnapshot=null;
+  bufferedRemoteState=null;
   state={...clone(EMPTY),view:'today'};
   ensureTrip({name:'טיול חדש'});
   render();
@@ -621,7 +655,23 @@ function duplicateModal(){const {suggestionId,duplicateIds}=state.modal,suggesti
 function simpleFormModal(){const type=state.modal.type;if(type==='task'){const task=state.tasks.find(candidate=>candidate.id===state.modal.taskId)||{title:'',owner:'shared',mode:'date',dueDate:'',priority:'Normal'};return `<div class="modal-bg"><section class="modal"><div class="modal-head"><h2>${state.modal.taskId?'עריכת משימה':'משימה חדשה'}</h2><button class="close" data-action="close">✕</button></div><form id="task-form" data-id="${task.id||''}"><p class="required-note"><span class="required" aria-hidden="true">*</span> שדה חובה</p><label class="field">${requiredLabel('משימה')}<input name="title" required aria-required="true" value="${esc(task.title)}"></label><label class="field">בעלים<input name="owner" placeholder="משותף או שם משתתף" value="${esc(task.owner==='shared'?'':task.owner||'')}"></label><label class="field">מועד<select name="mode"><option value="date" ${task.mode==='date'?'selected':''}>תאריך</option><option value="entire" ${task.mode==='entire'?'selected':''}>לכל הטיול</option><option value="none" ${task.mode==='none'?'selected':''}>ללא תאריך</option></select></label><label class="field">תאריך יעד<input type="date" name="dueDate" value="${esc(task.dueDate||'')}"></label><label class="field">עדיפות<select name="priority"><option value="High" ${task.priority==='High'?'selected':''}>גבוהה</option><option value="Normal" ${(task.priority||'Normal')==='Normal'?'selected':''}>רגילה</option><option value="Low" ${task.priority==='Low'?'selected':''}>נמוכה</option></select></label><button class="btn">שמירה</button></form></section></div>`}if(type==='shopping')return `<div class="modal-bg"><section class="modal"><div class="modal-head"><h2>פריט קניות</h2><button class="close" data-action="close">✕</button></div><form id="shopping-form"><p class="required-note"><span class="required" aria-hidden="true">*</span> שדה חובה</p><label class="field">${requiredLabel('פריט')}<input name="name" required aria-required="true"></label><label class="field">כמות<input name="quantity" value="1"></label><label class="field">בעלים<input name="owner" placeholder="משותף או שם משתתף"></label><label class="field">קישור לצורך אריזה/הכנה<input name="linkedNeed"></label><button class="btn">שמירה</button></form></section></div>`;return `<div class="modal-bg"><section class="modal"><div class="modal-head"><h2>מיקום</h2><button class="close" data-action="close">✕</button></div><form id="location-form" data-id="${state.modal.locationId||''}"><p class="required-note"><span class="required" aria-hidden="true">*</span> שדה חובה</p><label class="field">${requiredLabel('שם מקום')}<input name="placeName" required aria-required="true" value="${esc(state.modal.record?.placeName||'')}"></label><label class="field">${requiredLabel('כתובת / חיפוש')}<input name="address" required aria-required="true" value="${esc(state.modal.record?.address||'')}"></label><div class="grid two"><label class="field">קו רוחב<input name="lat" inputmode="decimal" value="${esc(state.modal.record?.coordinates?.lat||'')}"></label><label class="field">קו אורך<input name="lng" inputmode="decimal" value="${esc(state.modal.record?.coordinates?.lng||'')}"></label></div><label class="field">מקור<input name="source" value="${esc(state.modal.record?.source||'manual')}"></label><label class="field">ביטחון<select name="confidence"><option>high</option><option selected>medium</option><option>low</option></select></label><a class="btn ghost" href="${mapsUrl(state.modal.record?.address||'Thailand')}" target="_blank" rel="noopener">חיפוש / הצבת סיכה במפה</a><button class="btn">אישור ושמירה</button></form></section></div>`}
 function modal(){if(!state.modal)return '';if(state.modal.type==='intake')return intakeModal();if(state.modal.type==='attachment')return attachmentModal();if(state.modal.type==='edit-item')return editModal();if(state.modal.type==='duplicate')return duplicateModal();if(['task','shopping','location'].includes(state.modal.type))return simpleFormModal();return ''}
 function nav(){return `<nav class="nav">${[['today','🏠','Today'],['timeline','🗓️','Timeline'],['center','🗂️','Trip Center'],['settings','⚙️','הגדרות']].map(([key,icon,label])=>`<button class="${state.view===key||(['detail','suggestion','games','packing','tasks','shopping','locations'].includes(state.view)&&key==='center')||(state.view==='trips'&&key==='settings')?'active':''}" data-route="${key}">${icon}<br>${label}</button>`).join('')}</nav>`}
-function render(){normalizeOperationalState(state);const views={today:todayView,timeline,center,detail:detailView,suggestion:suggestionView,games:gamesView,packing:packingView,tasks:tasksView,shopping:shoppingView,locations:locationsView,settings:settingsView,trips:tripsView},body=(!state.trip&&state.view!=='trips'?empty:(views[state.view]||todayView))();document.querySelector('#app').innerHTML=`<div class="shell">${!navigator.onLine?'<div class="offline">מצב אופליין — המידע המקומי זמין</div>':''}${header()}<main>${body}</main><button class="fab" data-action="create">+</button>${nav()}${modal()}${state.toast?`<div class="toast">${esc(state.toast)}</div>`:''}</div>`}
+// 0.7.3 (DESIGN_V1.md §4, Product Owner decision: option 2, the minimal pending-sync indicator).
+// Extends the existing offline banner's own pattern rather than introducing a new one: offline
+// takes priority when both are true (there's nothing more specific to say while offline than that),
+// otherwise a pending-sync backlog gets its own line once back online. Empty when neither applies.
+function syncBanner(){
+  if(!navigator.onLine)return '<div class="offline">מצב אופליין — המידע המקומי זמין</div>';
+  if(pendingSyncCount>0)return '<div class="offline">שינויים ממתינים לסנכרון</div>';
+  return '';
+}
+function render(){
+  // 0.7.3 (DESIGN_V1.md §0.2/§2.3): flush exactly one buffered remote update, if any, the moment
+  // render() is called with no form-carrying modal open -- this is what "apply it once the form
+  // closes" actually means in practice, since every place that closes a modal already calls
+  // render() right afterward (mergeRemoteState() itself never calls render() to avoid a redundant
+  // extra render pass here).
+  if(bufferedRemoteState&&!state.modal){const remoteState=bufferedRemoteState;bufferedRemoteState=null;mergeRemoteState(remoteState)}
+  normalizeOperationalState(state);const views={today:todayView,timeline,center,detail:detailView,suggestion:suggestionView,games:gamesView,packing:packingView,tasks:tasksView,shopping:shoppingView,locations:locationsView,settings:settingsView,trips:tripsView},body=(!state.trip&&state.view!=='trips'?empty:(views[state.view]||todayView))();document.querySelector('#app').innerHTML=`<div class="shell">${syncBanner()}${header()}<main>${body}</main><button class="fab" data-action="create">+</button>${nav()}${modal()}${state.toast?`<div class="toast">${esc(state.toast)}</div>`:''}</div>`}
 
 // 0.7.2: source bytes now go to Firebase Storage (trips/{tripId}/sources/{sourceId}/...), not the
 // old per-device IndexedDB store -- see cloud-store.js's uploadAttachment/downloadAttachment and
@@ -692,6 +742,7 @@ async function resetCurrentTrip(removeTrip){
   }catch(error){console.error('Trip deletion/reset failed',error);throw new Error('מחיקת הנתונים בענן נכשלה. לא בוצע שינוי.')}
   if(unsubscribeTrip){unsubscribeTrip();unsubscribeTrip=null}
   lastSyncedSnapshot=null;
+  bufferedRemoteState=null;
   qrCollector.reset();
   if(removeTrip){
     myTrips=myTrips.filter(trip=>trip.id!==tripId);

@@ -1,54 +1,14 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {diffById,SYNCED_COLLECTIONS,TRIP_NESTED_FIELDS,TRIP_TOP_LEVEL_FIELDS} from '../src/operational-data.js';
+import {SYNCED_COLLECTIONS,TRIP_NESTED_FIELDS,TRIP_TOP_LEVEL_FIELDS} from '../src/operational-data.js';
 
-// diffById is the one genuinely pure, deterministic piece of 0.7.2's Firestore sync logic --
-// everything else in cloud-store.js is a real network call and cannot be exercised under this
-// project's plain-Node test harness (it imports firebase.js, which touches import.meta.env and
-// throws outside a Vite build -- the same reason smart-import-client.js has never been importable
-// here either). v5-app.js and cloud-store.js's own wiring is verified by source-inspection below,
-// matching the established pattern for every other module this harness cannot import directly.
+// diffById's own regression tests moved to tests/v7-3-sync-engine.mjs -- its contract changed under
+// 0.7.3 (DESIGN_V1.md §2.2: whole-changed-record `toSet` became field-level `toCreate`/`toUpdate`),
+// so testing it here against its pre-0.7.3 shape would just be testing stale behavior. Everything
+// below is what 0.7.2 itself still genuinely owns (SYNCED_COLLECTIONS/TRIP_*_FIELDS as constants,
+// and v5-app.js/cloud-store.js's own wiring, verified by source-inspection since cloud-store.js
+// imports firebase.js, which touches import.meta.env and throws outside a Vite build).
 
-function test_0_7_2_diffById_detects_additions(){
-  const {toSet,toDelete}=diffById([],[{id:'a',name:'A'}]);
-  assert.deepEqual(toSet,[{id:'a',name:'A'}]);
-  assert.deepEqual(toDelete,[]);
-}
-function test_0_7_2_diffById_detects_removals(){
-  const {toSet,toDelete}=diffById([{id:'a',name:'A'}],[]);
-  assert.deepEqual(toSet,[]);
-  assert.deepEqual(toDelete,['a']);
-}
-function test_0_7_2_diffById_detects_changed_field(){
-  const {toSet,toDelete}=diffById([{id:'a',name:'A'}],[{id:'a',name:'A2'}]);
-  assert.deepEqual(toSet,[{id:'a',name:'A2'}]);
-  assert.deepEqual(toDelete,[]);
-}
-function test_0_7_2_diffById_is_a_no_op_for_identical_records(){
-  const {toSet,toDelete}=diffById([{id:'a',name:'A'}],[{id:'a',name:'A'}]);
-  assert.deepEqual(toSet,[]);
-  assert.deepEqual(toDelete,[]);
-}
-function test_0_7_2_diffById_handles_add_change_and_remove_together(){
-  const previous=[{id:'a',name:'A'},{id:'b',name:'B'}];
-  const next=[{id:'a',name:'A'},{id:'b',name:'B2'},{id:'c',name:'C'}];
-  const {toSet,toDelete}=diffById(previous,next);
-  assert.deepEqual(toSet.map(r=>r.id).sort(),['b','c']);
-  assert.deepEqual(toDelete,[]);
-  const {toSet:toSet2,toDelete:toDelete2}=diffById(next,[{id:'a',name:'A'}]);
-  assert.deepEqual(toSet2,[]);
-  assert.deepEqual(toDelete2.sort(),['b','c']);
-}
-function test_0_7_2_diffById_treats_a_null_previous_snapshot_as_empty_not_a_crash(){
-  const {toSet,toDelete}=diffById(null,[{id:'a',name:'A'}]);
-  assert.deepEqual(toSet,[{id:'a',name:'A'}]);
-  assert.deepEqual(toDelete,[]);
-}
-function test_0_7_2_diffById_skips_records_with_no_id(){
-  const {toSet,toDelete}=diffById([],[{name:'no id'},{id:'a',name:'A'}]);
-  assert.deepEqual(toSet,[{id:'a',name:'A'}]);
-  assert.deepEqual(toDelete,[]);
-}
 function test_0_7_2_synced_collections_covers_every_state_array_save_used_to_persist(){
   // Cross-check against the pre-0.7.2 localStorage save() payload this replaces (the exact
   // literal list is preserved in git history at commit 2795f2a's src/v5-app.js) -- every array
@@ -517,13 +477,6 @@ async function test_0_7_2_1_offline_writes_after_the_first_still_reach_commit_wi
 }
 
 const tests=[
-  test_0_7_2_diffById_detects_additions,
-  test_0_7_2_diffById_detects_removals,
-  test_0_7_2_diffById_detects_changed_field,
-  test_0_7_2_diffById_is_a_no_op_for_identical_records,
-  test_0_7_2_diffById_handles_add_change_and_remove_together,
-  test_0_7_2_diffById_treats_a_null_previous_snapshot_as_empty_not_a_crash,
-  test_0_7_2_diffById_skips_records_with_no_id,
   test_0_7_2_synced_collections_covers_every_state_array_save_used_to_persist,
   test_0_7_2_trip_field_lists_do_not_overlap,
   test_0_7_2_firestore_rules_enforce_both_application_invitation_and_trip_role_layers,
