@@ -32,6 +32,16 @@ let timelineSwipeStartX=null;
 let pendingSourceFile=null;
 let ingestBusy=false;
 let state=clone(EMPTY);
+// 0.7.3.1: false only during the brief window between the very first synchronous render() (fired
+// before boot() has resolved anything at all -- state.trip is still null, its EMPTY default, not
+// because there's genuinely no Trip yet) and boot() actually determining the real initial state.
+// Distinguishes "nothing has loaded yet" from "you genuinely have no active Trip" -- without it,
+// render()'s own !state.trip check can't tell the two apart, so every app launch or page refresh
+// briefly flashed the "start with an empty Trip" call-to-action before the real Trip data (already
+// on its way) replaced it. Real bug, found live by the Product Owner. A one-time latch, never
+// reset after boot's first real answer -- switching Trips has its own separate, already-correct
+// behavior (the previous Trip's data stays visible while the new one loads, not `empty()`).
+let bootResolved=false;
 // Last state actually written to Firestore, used by save() to diff against -- null until either
 // an existing Trip finishes its first subscribeToTrip() load or a brand-new Trip's first save()
 // completes. See syncTripState (cloud-store.js) for why a diff, not a blind overwrite, matters.
@@ -155,13 +165,14 @@ async function boot(){
   try{await bootInner()}
   catch(error){
     console.error('boot() failed',error);
+    bootResolved=true; // an error IS a real, known answer -- must not leave the UI stuck loading
     notify(`טעינת האפליקציה נכשלה (${error?.code||error?.message||'שגיאה לא צפויה'}).`);
     render();
   }
 }
 async function bootInner(){
   const uid=currentUid();
-  if(!uid){render();return}
+  if(!uid){bootResolved=true;render();return}
   const remembered=localStorage.getItem(ACTIVE_TRIP_KEY);
   // Offline cold launch (ARCHITECTURE_CURRENT_STATE.md's frozen invariant): listMyTrips() is a
   // live Firestore query, not a cache-served read, and would simply hang/fail with no network.
@@ -174,11 +185,11 @@ async function bootInner(){
   catch(error){
     console.error('Loading Trip list failed',error);
     if(remembered){openTrip(remembered);return}
-    notify('טעינת רשימת הטיולים נכשלה.');render();return;
+    bootResolved=true;notify('טעינת רשימת הטיולים נכשלה.');render();return;
   }
   const activeTripId=myTrips.some(trip=>trip.id===remembered)?remembered:myTrips.length===1?myTrips[0].id:null;
   if(activeTripId)openTrip(activeTripId);
-  else{state.view=myTrips.length?'trips':'today';render()}
+  else{bootResolved=true;state.view=myTrips.length?'trips':'today';render()}
 }
 // Subscribes to one Trip's live data and keeps `state` assigned to it until switchTrip() moves to
 // a different one. The ephemeral/navigation fields (view, category, modal, etc.) are deliberately
@@ -195,6 +206,7 @@ function mergeRemoteState(remoteState){
   state={...clone(EMPTY),...remoteState,view,category,itemId,suggestionId,modal,timelineMode,calendarDate,toast};
   normalizeOperationalState(state);
   lastSyncedSnapshot=clone(state);
+  bootResolved=true; // this IS the real initial Trip data boot() was waiting on, wherever it came from
 }
 function openTrip(tripId){
   if(unsubscribeTrip)unsubscribeTrip();
@@ -211,6 +223,14 @@ function openTrip(tripId){
     // hypothetical: two-device sync (this candidate's own headline feature) makes remote updates
     // arrive routinely during normal use, not just in rare edge cases.
     if(state.modal){bufferedRemoteState=remoteState;return}
+    // 0.7.3.1: a leftover buffered snapshot from BEFORE the modal closed is now obsolete the
+    // moment a fresher update is about to be applied directly -- without this, render()'s own
+    // flush (below) could re-apply that stale buffer immediately after this call's own render(),
+    // silently reverting what was just correctly applied. Real bug, found live by the Product
+    // Owner: a source's "מנתח…" (analyzing) badge stayed stuck long after analysis had actually
+    // finished, because the fresh 'proposal_ready' echo applied here got undone by a stale
+    // 'processing' snapshot still sitting in the buffer from earlier in the same intake flow.
+    bufferedRemoteState=null;
     mergeRemoteState(remoteState);
     render();
   },error=>{
@@ -218,6 +238,7 @@ function openTrip(tripId){
     // anything else) must never leave the page blank/uncaught -- render whatever state already
     // exists (the initial empty shell, on a first-ever cold launch) with a visible, honest error
     // instead. Worse than working, never worse than a crash.
+    bootResolved=true; // an error IS a real answer too -- must not leave the UI stuck loading
     notify(`טעינת נתוני הטיול נכשלה (${error?.code||'שגיאה'}). ${navigator.onLine?'נסו שוב.':'אין חיבור לאינטרנט וייתכן שהנתונים לא נשמרו במטמון המקומי.'}`);
     render();
   });
@@ -268,8 +289,22 @@ function conflict(item){return isItemOutsideTrip(item,state.trip)}
 // ambiguously as a search query (observed landing on the ARRIVAL airport instead) -- search the
 // departure airport specifically, the endpoint a traveler would actually navigate to before the
 // flight. Falls back to the raw location string if no departure airport was captured.
+// 0.7.3.1: that fallback ran unconditionally, so once the user actually EDITED location (the only
+// location-shaped field the edit form exposes for Flight -- departureAirport/arrivalAirport have
+// no edit UI at all, per TYPE_FIELDS.flight), the map link silently kept using the original,
+// now-stale departure airport from Smart Import extraction, ignoring the edit entirely with no way
+// for the user to tell. Real bug, found live by the Product Owner: editing a Flight's location
+// updated the displayed address text but not the map link -- confirmed Flight-specific (Hotel's
+// mapSearchLocation is just item.location directly, no override). Fix: departureAirport only wins
+// while location still equals the exact route string Smart Import generated from it -- the moment
+// it diverges (a real user edit), the edit wins, matching every other type's behavior.
 function mapSearchLocation(item){
-  if(item.type==='flight')return item.details?.departureAirport?.code||item.details?.departureAirport?.name||item.location;
+  if(item.type==='flight'){
+    const departure=item.details?.departureAirport,arrival=item.details?.arrivalAirport;
+    const importedRoute=[departure?.code,arrival?.code].filter(Boolean).join(' → ');
+    if(item.location&&item.location===importedRoute)return departure?.code||departure?.name||item.location;
+    return item.location||departure?.code||departure?.name||'';
+  }
   return item.location;
 }
 // V6-F31/V6-F52: appVersionLabel lives in its own module (app-version.js), shared with
@@ -284,6 +319,9 @@ function suggestionById(id){return state.suggestions.find(suggestion=>suggestion
 
 function header(){return `<header class="top"><div class="top-in"><div class="brand"><img src="/assets/icons/icon-192.png" alt=""><div><h1>${esc(state.trip?.name||'Family Trips')}</h1><p>${state.trip?.startDate?`${fmt(state.trip.startDate,false)} — ${state.trip.endDate?fmt(state.trip.endDate,false):'ללא סיום'}`:`${appVersionLabel()} · Hotel + Flight Smart Import`}</p></div></div><span class="status">${status()}</span></div></header>`}
 function empty(){return '<section class="card hero empty"><div class="big">🧭</div><h2>מתחילים מטיול ריק</h2><p class="muted">העלה מקור, ייבא JSON/QR או הזן פריט ידנית.</p><div class="actions center-actions"><button class="btn" data-action="create">הוספה</button></div></section>'}
+// 0.7.3.1: shown only before bootResolved -- see its own declaration for why this is a distinct
+// state from empty() rather than reusing it.
+function loading(){return '<section class="card hero empty"><div class="big">⏳</div><h2>טוען…</h2></section>'}
 function itemRow(item){return `<button class="row ${conflict(item)?'conflict':''}" data-route="detail" data-id="${item.id}"><span class="row-main"><b>${ITEM_TYPES[item.type]?.icon||'📌'} ${esc(item.title)}</b><small class="muted">${item.provider?`${esc(item.provider)} · `:''}${item.schedule==='entire'?'לכל הטיול':item.schedule==='none'?'ללא תאריך':item.schedule==='range'?`${fmt(item.startAt,true,item.dateMeta?.startPrecision)} — ${fmt(item.endAt,true,item.dateMeta?.endPrecision)}`:fmt(item.startAt,true,item.dateMeta?.startPrecision)}</small></span>${conflict(item)?'<span class="badge warn">מחוץ לטווח</span>':`<span class="badge">${ITEM_TYPES[item.type]?.label||item.type}</span>`}</button>`}
 function suggestionRow(suggestion){const source=sourceById(suggestion.sourceId);return `<button class="row suggestion-row" data-route="suggestion" data-id="${suggestion.id}"><span class="row-main"><b>✨ ${esc(suggestion.proposed.title)}</b><small class="muted">${esc(source?.name||'ייבוא חיצוני')} · ביטחון ${confidenceLabel(suggestion.confidence)}</small></span><span class="badge ${suggestion.status==='pending'?'warn':'blue'}">${({pending:'ממתין לאישור',deferred:'אחר כך',rejected:'נדחה',approved:'אושר'})[suggestion.status]||suggestion.status}</span></button>`}
 function archivedSuggestionRow(suggestion){const source=sourceById(suggestion.sourceId);return `<div class="row suggestion-row archived-suggestion"><span class="row-main"><b>🗄️ ${esc(suggestion.proposed.title)}</b><small class="muted">${esc(source?.name||'ייבוא חיצוני')} · הועבר לארכיון</small></span><span class="badge">נדחה</span></div>`}
@@ -670,8 +708,17 @@ function render(){
   // closes" actually means in practice, since every place that closes a modal already calls
   // render() right afterward (mergeRemoteState() itself never calls render() to avoid a redundant
   // extra render pass here).
-  if(bufferedRemoteState&&!state.modal){const remoteState=bufferedRemoteState;bufferedRemoteState=null;mergeRemoteState(remoteState)}
-  normalizeOperationalState(state);const views={today:todayView,timeline,center,detail:detailView,suggestion:suggestionView,games:gamesView,packing:packingView,tasks:tasksView,shopping:shoppingView,locations:locationsView,settings:settingsView,trips:tripsView},body=(!state.trip&&state.view!=='trips'?empty:(views[state.view]||todayView))();document.querySelector('#app').innerHTML=`<div class="shell">${syncBanner()}${header()}<main>${body}</main><button class="fab" data-action="create">+</button>${nav()}${modal()}${state.toast?`<div class="toast">${esc(state.toast)}</div>`:''}</div>`}
+  // 0.7.3.1: only flush it while pendingSyncCount is 0. A buffered snapshot can predate a local
+  // edit made (and save()d) WHILE the modal was still open but hasn't round-tripped through
+  // Firestore yet -- applying it anyway would silently revert that not-yet-confirmed local edit
+  // back to whatever the buffer captured earlier. Discarding it here is safe: pendingSyncCount>0
+  // means a fresher echo reflecting this device's own edit is already on its way and will apply
+  // (directly or via its own buffering) once it arrives.
+  if(bufferedRemoteState&&!state.modal){
+    const remoteState=bufferedRemoteState;bufferedRemoteState=null;
+    if(pendingSyncCount===0)mergeRemoteState(remoteState);
+  }
+  normalizeOperationalState(state);const views={today:todayView,timeline,center,detail:detailView,suggestion:suggestionView,games:gamesView,packing:packingView,tasks:tasksView,shopping:shoppingView,locations:locationsView,settings:settingsView,trips:tripsView},body=(!bootResolved?loading:!state.trip&&state.view!=='trips'?empty:(views[state.view]||todayView))();document.querySelector('#app').innerHTML=`<div class="shell">${syncBanner()}${header()}<main>${body}</main><button class="fab" data-action="create">+</button>${nav()}${modal()}${state.toast?`<div class="toast">${esc(state.toast)}</div>`:''}</div>`}
 
 // 0.7.2: source bytes now go to Firebase Storage (trips/{tripId}/sources/{sourceId}/...), not the
 // old per-device IndexedDB store -- see cloud-store.js's uploadAttachment/downloadAttachment and

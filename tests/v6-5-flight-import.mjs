@@ -987,12 +987,18 @@ test_V6_F43_invalid_value_warning_scoped_to_its_own_field();
 // --- V6-F41: a Flight's item.location is a route string ("BKK → TLV"), which Google Maps
 // resolved ambiguously as a search query (observed landing on the arrival airport instead of the
 // departure one). Search the departure airport specifically. ---
+// 0.7.3.1 refined this: departureAirport is still preferred, but only while item.location still
+// equals the exact generated route string -- the moment a user actually EDITS location (found
+// live, a real 0.7.3.1 finding), their edit wins instead of the map link silently staying pinned
+// to stale import-time airport data with no edit UI of its own. See tests/v7-3-1-correction.mjs
+// for that fix's own dedicated regression tests; this test only confirms V6-F41's original intent
+// (departure over arrival/raw-route by default) still holds.
 function test_V6_F41_map_search_wiring(){
   const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
   assert.match(app,/function mapSearchLocation\(item\)\{/,'a dedicated helper must decide the map-search query');
-  assert.match(app,/if\(item\.type==='flight'\)return item\.details\?\.departureAirport\?\.code\|\|item\.details\?\.departureAirport\?\.name\|\|item\.location/,'a Flight must search its DEPARTURE airport specifically, not the raw combined route string');
+  assert.match(app,/if\(item\.location&&item\.location===importedRoute\)return departure\?\.code\|\|departure\?\.name\|\|item\.location;/,'a Flight must still search its DEPARTURE airport specifically by default, not the raw combined route string');
   assert.match(app,/mapsUrl\(mapSearchLocation\(item\)\)/,'the detail view\'s map-search link must use the new helper instead of the raw item.location');
-  console.log('PASS: V6-F41 the map-search action uses a Flight\'s departure airport specifically, not the ambiguous combined route string');
+  console.log('PASS: V6-F41 the map-search action uses a Flight\'s departure airport specifically by default, not the ambiguous combined route string');
 }
 test_V6_F41_map_search_wiring();
 
