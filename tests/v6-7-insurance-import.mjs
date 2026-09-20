@@ -613,15 +613,19 @@ function test_suggestionToItem_uses_field_aware_merge_for_insurance(){
 // project's plain-Node harness, a CSS import makes it unimportable, the same constraint every
 // prior correction test file documents).
 // ---------------------------------------------------------------------------------------------
+// 0.7.4 (V6-F82): insuranceCoveringItem() returned only the FIRST matching policy (.find()) --
+// an item covered by more than one policy silently had every additional one hidden from the
+// reverse-lookup. Renamed insuranceCoveringItems() (plural), .filter() instead of .find(), and
+// detailView renders one "insured by" line per match instead of at most one.
 function test_relatedItemsPanel_and_reverse_lookup_are_wired(){
   const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
-  assert.match(app,/function insuranceCoveringItem\(item\)\{return state\.items\.find\(candidate=>candidate\.type==='insurance'&&\(candidate\.relatedItemIds\|\|\[\]\)\.includes\(item\.id\)\)\}/,'insuranceCoveringItem must scan the trip\'s insurance items for one whose relatedItemIds includes this item\'s id -- the computed reverse lookup, not a stored field on the covered item');
-  assert.match(app,/const insuredBy=item\.type!=='insurance'\?insuranceCoveringItem\(item\):null;/,'detailView must compute the reverse lookup for every non-insurance item');
-  assert.match(app,/insuredBy\?`<button class="row" data-route="detail" data-id="\$\{insuredBy\.id\}">🛡️ מבוטח באמצעות \$\{esc\(insuredBy\.title\)\}<\/button>`:''/,'a non-insurance item covered by a policy must show a tappable "insured by" line that navigates to that insurance item');
+  assert.match(app,/function insuranceCoveringItems\(item\)\{return state\.items\.filter\(candidate=>candidate\.type==='insurance'&&\(candidate\.relatedItemIds\|\|\[\]\)\.includes\(item\.id\)\)\}/,'insuranceCoveringItems must scan the trip\'s insurance items for EVERY one whose relatedItemIds includes this item\'s id (V6-F82: not just the first)');
+  assert.match(app,/const insuredByList=item\.type!=='insurance'\?insuranceCoveringItems\(item\):\[\];/,'detailView must compute the reverse lookup for every non-insurance item');
+  assert.match(app,/insuredByList\.map\(policy=>`<button class="row" data-route="detail" data-id="\$\{policy\.id\}">🛡️ מבוטח באמצעות \$\{esc\(policy\.title\)\}<\/button>`\)\.join\(''\)/,'a non-insurance item covered by one or more policies must show a tappable "insured by" line for EACH one, not just the first');
   assert.match(app,/function relatedItemsPanel\(item\)\{/,'relatedItemsPanel must exist to render the insurance item\'s own linked-items list and edit control');
   assert.match(app,/data-action="toggle-related-item"/,'relatedItemsPanel must offer a control to add/remove a linked item, wired through the toggle-related-item action');
   assert.match(app,/item\.type==='insurance'\?relatedItemsPanel\(item\):''/,'detailView must render relatedItemsPanel specifically for insurance items');
-  console.log('PASS: relatedItemsPanel (edit) and insuranceCoveringItem (reverse lookup) are both wired into detailView, with a tappable two-way link in each direction');
+  console.log('PASS: V6-F82 relatedItemsPanel (edit) and insuranceCoveringItems (reverse lookup, ALL matches) are both wired into detailView, with a tappable two-way link in each direction');
 }
 function test_toggle_related_item_click_handler_mutates_relatedItemIds(){
   const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');

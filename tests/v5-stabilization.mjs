@@ -23,7 +23,9 @@ const main=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
 const sw=fs.readFileSync(new URL('../public/service-worker.js',import.meta.url),'utf8');
 assert(app.includes('rejectedSuggestions'));
 assert(app.includes('ארכיון הצעות שנדחו'));
-assert(app.includes("!['document','link'].includes(key)"));
+// 0.7.4 also excludes 'participant' from the create-type dropdown (see v5-correction.mjs's own
+// updated visibleTypes assertion for the matching Trip Center tile exclusion).
+assert(app.includes("!['document','link','participant'].includes(key)"));
 assert(app.includes('function smartImportPanel(source)'));
 assert(app.includes('כתובת אתר ציבורי רשמי של המלון'));
 assert(!app.includes("suggestion.status='rejected'"));

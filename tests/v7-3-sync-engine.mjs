@@ -167,10 +167,12 @@ function test_0_7_3_bufferedRemoteState_is_reset_everywhere_lastSyncedSnapshot_i
   const resetBody=app.slice(resetStart,app.indexOf('async function ingest(',resetStart));
   assert(resetBody.includes('lastSyncedSnapshot=null;')&&resetBody.includes('bufferedRemoteState=null;'));
 }
+// 0.7.4 added packingParticipantView to the preserved ephemeral fields (which participant's
+// packing view is currently showing shouldn't reset just because a remote update landed).
 function test_0_7_3_mergeRemoteState_preserves_the_same_ephemeral_fields_as_before(){
   const start=app.indexOf('function mergeRemoteState(remoteState){');
   const body=app.slice(start,app.indexOf('function openTrip(',start));
-  assert(body.includes('const {view,category,itemId,suggestionId,modal,timelineMode,calendarDate,toast}=state;'));
+  assert(body.includes('const {view,category,itemId,suggestionId,modal,timelineMode,calendarDate,toast,packingParticipantView}=state;'));
   assert(body.includes('normalizeOperationalState(state);'));
   assert(body.includes('lastSyncedSnapshot=clone(state);'));
   // mergeRemoteState itself must NOT call render() -- render() calls it (for the buffered-flush

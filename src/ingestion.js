@@ -4,11 +4,25 @@ import {mergeInsuranceDetails} from './insurance-import-adapter.js';
 import {isValidCalendarDate,normalizeDateRange,today} from './operational-data.js';
 import {MERGE_CONFLICT_WARNING_PREFIX} from './smart-import-adapter.js';
 
+// 0.7.4: first-class Transport items (MVP scope: "transfers, rail, ferry/boat, rental vehicles and
+// other local transport"). Verified before implementing, not assumed: `car` already existed here
+// (label "רכב שכור" -- rental car) and was already a fully working item type -- selectable in the
+// manual-creation dropdown, its own Trip Center tile, TYPE_FIELDS entry, QR/JSON import (already in
+// external-import.js's own TYPES allowlist). FAMILYTRIPS_EXTERNAL_INGESTION_MODEL_INSTRUCTIONS_V5.md
+// already described it as covering rental car AND transfer together ("רכב שכור/הסעה"). Decision:
+// broaden `car` in place into the first-class Transport type (relabeled, new TRANSPORT_MODES
+// sub-type field added to TYPE_FIELDS.car below) rather than add separate new type(s) alongside it
+// -- renaming the type KEY itself would need a data migration for any already-synced `car` item
+// with no real benefit (every mode shares the same natural field set: provider, confirmation
+// number, pickup/drop-off location, phone, start/end time, participants, notes), so the existing
+// key is kept and only its scope/label/fields grow. AI Smart Import extraction remains explicitly
+// out of scope for this candidate -- manual entry and QR/JSON import only, per the scope document.
+export const TRANSPORT_MODES={transfer:'הסעה',rail:'רכבת',ferry:'מעבורת',car:'רכב שכור',other:'אחר'};
 export const ITEM_TYPES = {
-  flight:{label:'טיסה',icon:'✈️',schedule:'single'},hotel:{label:'מלון',icon:'🏨',schedule:'range'},car:{label:'רכב שכור',icon:'🚗',schedule:'range'},activity:{label:'אטרקציה',icon:'🎟️',schedule:'single'},restaurant:{label:'מסעדה',icon:'🍽️',schedule:'single'},insurance:{label:'ביטוח',icon:'🛡️',schedule:'entire'},link:{label:'קישור',icon:'🔗',schedule:'none'},document:{label:'מסמך',icon:'📄',schedule:'none'},contact:{label:'איש קשר',icon:'☎️',schedule:'none'},participant:{label:'משתתף',icon:'👨‍👩‍👧‍👦',schedule:'none'},
+  flight:{label:'טיסה',icon:'✈️',schedule:'single'},hotel:{label:'מלון',icon:'🏨',schedule:'range'},car:{label:'תחבורה',icon:'🚐',schedule:'range'},activity:{label:'אטרקציה',icon:'🎟️',schedule:'single'},restaurant:{label:'מסעדה',icon:'🍽️',schedule:'single'},insurance:{label:'ביטוח',icon:'🛡️',schedule:'entire'},link:{label:'קישור',icon:'🔗',schedule:'none'},document:{label:'מסמך',icon:'📄',schedule:'none'},contact:{label:'איש קשר',icon:'☎️',schedule:'none'},participant:{label:'משתתף',icon:'👨‍👩‍👧‍👦',schedule:'none'},
 };
 export const TYPE_FIELDS={
-  flight:['provider','confirmationNumber','location','startAt','endAt','participants','notes'],hotel:['provider','confirmationNumber','location','website','phone','startAt','endAt','participants','notes'],car:['provider','confirmationNumber','location','phone','startAt','endAt','participants','notes'],activity:['provider','confirmationNumber','location','website','startAt','participants','notes'],restaurant:['provider','confirmationNumber','location','website','phone','startAt','participants','notes'],insurance:['provider','confirmationNumber','website','phone','startAt','endAt','participants','notes'],link:['website','notes'],contact:['provider','phone','website','location','notes'],participant:['phone','notes'],
+  flight:['provider','confirmationNumber','location','startAt','endAt','participants','notes'],hotel:['provider','confirmationNumber','location','website','phone','startAt','endAt','participants','notes'],car:['transportMode','provider','confirmationNumber','location','phone','startAt','endAt','participants','notes'],activity:['provider','confirmationNumber','location','website','startAt','participants','notes'],restaurant:['provider','confirmationNumber','location','website','phone','startAt','participants','notes'],insurance:['provider','confirmationNumber','website','phone','startAt','endAt','participants','notes'],link:['website','notes'],contact:['provider','phone','website','location','notes'],participant:['phone','notes'],
 };
 // 0.6.7 (Insurance discovery doc, Section 3/3a): coverage start/end dates are captured and shown
 // on the item for reference and validity checking, but insurance.schedule stays fixed at 'entire'
@@ -366,7 +380,14 @@ export function suggestionReviewDefaults(proposed,tripStartDate,isNewItem){
 // completely different code path from manual item creation, which never called it at all).
 export function buildItemFormValues(data){
   const type=String(data.get('type')),range=normalizeDateRange(data.get('startAt'),data.get('endAt'),{allowEndBeforeStart:type==='flight'});
-  return {type,title:String(data.get('title')||'').trim(),provider:String(data.get('provider')||'').trim(),confirmationNumber:String(data.get('confirmationNumber')||'').trim(),location:String(data.get('location')||'').trim(),website:normalizeUrlInput(data.get('website')),phone:String(data.get('phone')||'').trim(),startAt:range.start,endAt:range.end,participants:String(data.get('participants')||'').split(',').map(x=>x.trim()).filter(Boolean),notes:String(data.get('notes')||'').trim(),schedule:ITEM_TYPES[type]?.schedule||'none',updatedAt:new Date().toISOString()};
+  // 0.7.4: participantScope/participantIds are the real participant-relationship fields (per
+  // MVP scope: an item "may apply to one participant, several participants, all participants, or
+  // no specific participant") -- deliberately separate from the pre-existing free-text
+  // `participants` field above (a plain comma-separated name list with no relationship to real
+  // Participant records at all), left completely untouched to avoid conflating two different
+  // things under one field name or needing to migrate/reinterpret any of its existing data.
+  const participantScope=['none','all','specific'].includes(String(data.get('participantScope')))?String(data.get('participantScope')):'none';
+  return {type,title:String(data.get('title')||'').trim(),provider:String(data.get('provider')||'').trim(),confirmationNumber:String(data.get('confirmationNumber')||'').trim(),location:String(data.get('location')||'').trim(),website:normalizeUrlInput(data.get('website')),phone:String(data.get('phone')||'').trim(),startAt:range.start,endAt:range.end,participants:String(data.get('participants')||'').split(',').map(x=>x.trim()).filter(Boolean),notes:String(data.get('notes')||'').trim(),transportMode:String(data.get('transportMode')||'').trim(),participantScope,participantIds:participantScope==='specific'?data.getAll('participantIds').map(String):[],schedule:ITEM_TYPES[type]?.schedule||'none',updatedAt:new Date().toISOString()};
 }
 export function validateSource({kind,file,url}){
   if(kind==='link'){try{const parsed=new URL(url);if(!['http:','https:'].includes(parsed.protocol))throw new Error();return {ok:true}}catch{return {ok:false,error:'יש להזין קישור HTTP או HTTPS תקין'}}}

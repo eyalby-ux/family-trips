@@ -14,12 +14,32 @@ export const BUILTIN_GAMES=[
 // can be exercised directly under this project's plain-Node test harness. diffById is the one
 // genuinely pure, deterministic piece of that module's logic (everything else is a real Firestore/
 // Storage call), so it's the one worth a real function-level test rather than only source-inspection.
+// 0.7.4: participants added -- a genuinely separate collection from `items`, not a repurposing of
+// the existing `participant` ITEM_TYPE. Verified before deciding, not assumed: `participant` was
+// already a full ITEM_TYPES/TYPE_FIELDS entry (['phone','notes']) -- selectable in the manual
+// create-type dropdown and its own Trip Center tile (only 'link'/'document' were ever excluded) --
+// meaning generic type:'participant' items may already exist server-side beneath the missing UI,
+// exactly the gap this candidate's kickoff asked to check rather than assume clean. That existing
+// stub is a poor fit for what real participant management needs (role, avatar, active/inactive
+// status, item/ticket/packing relationships -- none of which the generic Item shape has any concept
+// of, and forcing them in would pollute it for every unrelated type) and reads as leftover
+// scaffolding from before the V24 decision moved participant management out of Trip Center into
+// Trip Settings. Decision: build participants as their own collection; keep the old
+// ITEM_TYPES.participant entry defined (so any already-existing legacy item renders its icon/label
+// correctly rather than becoming visually orphaned) but remove it from the create-type dropdown and
+// Trip Center's own tile grid (see proposalFields()/center() in v5-app.js) so no NEW one can be
+// created through the old path and no Trip Center UI advertises it -- satisfying "no standalone
+// Trip Center participant UI" without risking any already-real legacy data silently disappearing.
 export const SYNCED_COLLECTIONS=[
   ['items','items'],['sources','sources'],['suggestions','suggestions'],
   ['rejectedSuggestions','rejectedSuggestions'],['tasks','tasks'],['packing','packingLists'],
-  ['shopping','shopping'],['locationRecords','locationRecords'],['games','games'],
+  ['shopping','shopping'],['locationRecords','locationRecords'],['games','games'],['participants','participants'],
 ];
-export const TRIP_NESTED_FIELDS=['name','startDate','endDate','createdAt'];
+// 0.7.4: destinationCountries added -- an ordered array of country names, per MVP scope's binding
+// "Destination Countries as an ordered list of one or more countries" (Trip Settings requirement).
+// Trip-level like name/startDate/endDate, not its own subcollection -- one Trip has one ordered
+// list, not a per-record relationship needing individual document identity.
+export const TRIP_NESTED_FIELDS=['name','startDate','endDate','createdAt','destinationCountries'];
 export const TRIP_TOP_LEVEL_FIELDS=['timelineCursor','packedCollapsed','packingCollapsed'];
 // Diffs `next` (an array of {id,...}) against `previous` (the same shape, or undefined/null on a
 // first sync) and returns {toCreate:[fullRecord,...], toUpdate:[{id,changedFields,deletedFields},...],
@@ -74,12 +94,17 @@ export function normalizeOperationalState(state){
   // Defaulting a missing priority to 'Normal' here (not at read-time in every render call site)
   // means every task, old or new, has one real, persisted value from the first render onward.
   for(const task of state.tasks)if(!task.priority)task.priority='Normal';
-  state.taskFilters=state.taskFilters&&typeof state.taskFilters==='object'?state.taskFilters:{priority:'all',due:'all'};
+  state.taskFilters=state.taskFilters&&typeof state.taskFilters==='object'?state.taskFilters:{priority:'all',due:'all',status:'all'};
   state.shopping=Array.isArray(state.shopping)?state.shopping:[];
   state.locationRecords=Array.isArray(state.locationRecords)?state.locationRecords:[];
+  state.participants=Array.isArray(state.participants)?state.participants:[];
   state.packingCollapsed=state.packingCollapsed&&typeof state.packingCollapsed==='object'?state.packingCollapsed:{};
   state.packedCollapsed=state.packedCollapsed!==false;
   state.timelineCursor=state.timelineCursor||state.trip?.startDate||today();
+  // 0.7.4: every Trip document synced before this candidate has no destinationCountries field at
+  // all -- default it to an empty array here (not just at Trip-creation time in ensureTrip()) so
+  // every existing Trip, not just brand-new ones, gets a real array to add to from its first load.
+  if(state.trip&&!Array.isArray(state.trip.destinationCountries))state.trip.destinationCountries=[];
   return state;
 }
 
@@ -192,11 +217,16 @@ export function quickAccessTasks(tasks,when=today(),limit=3){
 // due-date urgency first (matching quickAccessTasks' own ranking, so "urgent" means the same thing
 // everywhere in the app), then priority (High before Normal before Low), then due date ascending,
 // then original array position as the final, always-different tiebreaker.
+// 0.7.4 (V7-F02, registered during 0.7.1's own acceptance session): a third filter dimension,
+// status ('all'|'open'), combines with priority/due the same way those two already combine (AND,
+// not OR). Defaults to 'all' -- closed tasks stay visible unless the user explicitly narrows to
+// open-only, never silently hidden with no on-screen indication a filter is active (tasksView's
+// own isFiltered check already covers any non-default filter, this one included).
 export function filterAndSortTasks(tasks,filters,when=today()){
   const list=Array.isArray(tasks)?tasks:[];
-  const priority=filters?.priority||'all',due=filters?.due||'all';
+  const priority=filters?.priority||'all',due=filters?.due||'all',status=filters?.status||'all';
   const dueScopeName=task=>TASK_DUE_SCOPES[taskDueRank(task,when)];
-  const filtered=list.filter(task=>(priority==='all'||task.priority===priority)&&(due==='all'||dueScopeName(task)===due));
+  const filtered=list.filter(task=>(priority==='all'||task.priority===priority)&&(due==='all'||dueScopeName(task)===due)&&(status==='all'||!task.done));
   return filtered.map((task,index)=>({task,index})).sort((left,right)=>{
     const dueDifference=taskDueRank(left.task,when)-taskDueRank(right.task,when);
     if(dueDifference)return dueDifference;

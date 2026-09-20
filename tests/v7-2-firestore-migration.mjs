@@ -9,12 +9,15 @@ import {SYNCED_COLLECTIONS,TRIP_NESTED_FIELDS,TRIP_TOP_LEVEL_FIELDS} from '../sr
 // and v5-app.js/cloud-store.js's own wiring, verified by source-inspection since cloud-store.js
 // imports firebase.js, which touches import.meta.env and throws outside a Vite build).
 
+// 0.7.4 added 'participants' as a genuinely new synced collection -- see its own comment
+// (operational-data.js) for why participant management needed a separate collection rather than
+// reusing the old generic ITEM_TYPES.participant stub.
 function test_0_7_2_synced_collections_covers_every_state_array_save_used_to_persist(){
   // Cross-check against the pre-0.7.2 localStorage save() payload this replaces (the exact
   // literal list is preserved in git history at commit 2795f2a's src/v5-app.js) -- every array
   // that used to go into the single localStorage blob now has a real Firestore subcollection.
   const stateKeys=SYNCED_COLLECTIONS.map(([stateKey])=>stateKey).sort();
-  assert.deepEqual(stateKeys,['games','items','locationRecords','packing','rejectedSuggestions','shopping','sources','suggestions','tasks'].sort());
+  assert.deepEqual(stateKeys,['games','items','locationRecords','packing','participants','rejectedSuggestions','shopping','sources','suggestions','tasks'].sort());
   assert(SYNCED_COLLECTIONS.some(([stateKey,collectionName])=>stateKey==='packing'&&collectionName==='packingLists'));
 }
 function test_0_7_2_trip_field_lists_do_not_overlap(){

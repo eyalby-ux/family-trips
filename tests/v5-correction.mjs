@@ -71,7 +71,10 @@ assert(app.includes("proposalFields(item,{alwaysWebsite:true})"));
 assert(!app.includes('פעולה זו אינה משפיעה על טיולים אחרים'));
 assert(styles.includes('overflow-wrap:anywhere'));
 assert.match(netlify,/Cross-Origin-Opener-Policy\s*=\s*"same-origin-allow-popups"/);
-assert(app.includes("const visibleTypes=Object.entries(ITEM_TYPES).filter(([key])=>key!=='link')"));
+// 0.7.4: 'participant' also excluded now -- see SYNCED_COLLECTIONS' own comment
+// (operational-data.js) for why the old generic ITEM_TYPES.participant stub no longer gets a Trip
+// Center tile once real participant management (Trip Settings) exists.
+assert(app.includes("const visibleTypes=Object.entries(ITEM_TYPES).filter(([key])=>!['link','participant'].includes(key))"));
 assert(!app.includes("['locations','📍','מיקומים'"));
 assert(!app.includes('source-link-title'));
 assert(app.includes("['link','🔗 קישור']"));

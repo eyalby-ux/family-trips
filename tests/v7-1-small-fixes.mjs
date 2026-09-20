@@ -105,16 +105,20 @@ function test_0_7_1_filterAndSortTasks_combines_filters_with_AND(){
   assert.deepEqual(filterAndSortTasks(tasks,{priority:'Low',due:'overdue'},when),[],'a combination matching nothing must return an empty list, not fall back to an unfiltered one');
   console.log('PASS: 0.7.1 item 4c -- filterAndSortTasks combines priority and due-date-scope filters with AND, with deterministic due-date-then-priority-then-date sorting');
 }
+// 0.7.4 (V7-F02) added a third filter, status ('all'/'open') -- this test now also confirms that
+// one's wiring, alongside the original two this test already covered.
 function test_0_7_1_tasksView_wires_filters_and_clear_action(){
   const viewFn=app.slice(app.indexOf('function tasksView(){'),app.indexOf('function taskRow('));
   assert(viewFn.includes('id="task-filter-priority"'),'tasksView must render a priority filter select');
   assert(viewFn.includes('id="task-filter-due"'),'tasksView must render a due-date-scope filter select');
+  assert(viewFn.includes('id="task-filter-status"'),'tasksView must render a status (open-only) filter select (V7-F02)');
   assert(viewFn.includes("filterAndSortTasks(state.tasks,filters)"),'tasksView must actually apply the combined filter/sort to what it displays, not just render the controls decoratively');
   assert(viewFn.includes("isFiltered?'<button class=\"btn ghost\" data-action=\"task-filter-clear\">איפוס</button>':''"),'a clear/reset control must appear once a filter is active');
-  assert(app.includes("else if(action==='task-filter-clear'){state.taskFilters={priority:'all',due:'all'};render()}"),'the clear action must reset both filters back to \'all\', not just one');
-  assert(app.includes("else if(event.target.id==='task-filter-priority'){state.taskFilters={...state.taskFilters,priority:event.target.value};render()}"),'the priority select\'s change handler must update state.taskFilters without clobbering the due-date filter already set');
-  assert(app.includes("else if(event.target.id==='task-filter-due'){state.taskFilters={...state.taskFilters,due:event.target.value};render()}"),'the due-date select\'s change handler must update state.taskFilters without clobbering the priority filter already set');
-  console.log('PASS: 0.7.1 item 4d -- the Tasks page wires both filter selects and the clear action to state.taskFilters, and actually applies the combined result to the displayed list');
+  assert(app.includes("else if(action==='task-filter-clear'){state.taskFilters={priority:'all',due:'all',status:'all'};render()}"),'the clear action must reset all three filters back to \'all\', not just some');
+  assert(app.includes("else if(event.target.id==='task-filter-priority'){state.taskFilters={...state.taskFilters,priority:event.target.value};render()}"),'the priority select\'s change handler must update state.taskFilters without clobbering the other filters already set');
+  assert(app.includes("else if(event.target.id==='task-filter-due'){state.taskFilters={...state.taskFilters,due:event.target.value};render()}"),'the due-date select\'s change handler must update state.taskFilters without clobbering the other filters already set');
+  assert(app.includes("else if(event.target.id==='task-filter-status'){state.taskFilters={...state.taskFilters,status:event.target.value};render()}"),'the status select\'s change handler must update state.taskFilters without clobbering the other filters already set');
+  console.log('PASS: 0.7.1 item 4d + 0.7.4 V7-F02 -- the Tasks page wires all three filter selects and the clear action to state.taskFilters, and actually applies the combined result to the displayed list');
 }
 function test_0_7_1_taskRow_shows_priority_alongside_due_date(){
   const rowFn=app.slice(app.indexOf('function taskRow(task){'));
