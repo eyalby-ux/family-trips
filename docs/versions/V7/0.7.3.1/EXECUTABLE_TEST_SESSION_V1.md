@@ -48,4 +48,4 @@ With an existing Trip open, refresh the page (or fully close and reopen the app/
 
 ## GO/NO-GO decision
 
-*To be recorded by the Product Owner. All three tests now PASS (Test 3's initial FAIL was resolved as a one-time SW-propagation testing artifact, not a real gap, confirmed by retest).*
+**GO.** Recorded by the Product Owner (Eyal), 2026-09-20. All three tests PASS — Test 3's initial FAIL was resolved as a one-time SW-propagation testing artifact, not a real gap, confirmed by the Product Owner's own close-and-relaunch retest. `0.7.3.1` may proceed to Production promotion as a separate, explicit action.
