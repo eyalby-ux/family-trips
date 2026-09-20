@@ -20,7 +20,7 @@ Open an existing Flight item (or create one with a known departure airport, e.g.
 
 **Expect:** The map link now reflects your edited location, not the original departure airport. (For a Flight whose location you *haven't* edited, the map link should still correctly use the departure airport, per the original `V6-F41` fix — worth a quick sanity check on an unedited Flight too, if convenient.)
 
-**Result:** ☐ PASS / ☐ FAIL — notes:
+**Result:** ☑ PASS — notes: Confirmed as expected; no notes.
 
 ## Test 2 — The analyzing badge clears correctly once analysis finishes (Finding 2)
 
@@ -28,7 +28,7 @@ Start a Smart Import analysis on a source (Add a new document, or attach-and-ext
 
 **Expect:** The source's badge reflects the real final state — "מנתח…" cleared, replaced by whatever the source's actual status is now (e.g. no badge if a proposal is ready, or "ניתוח נכשל" if it failed) — not stuck showing "מנתח…" indefinitely.
 
-**Result:** ☐ PASS / ☐ FAIL — notes:
+**Result:** ☑ PASS — notes: Confirmed as expected — new Smart Import analyses clear the "מנתח…" badge correctly once finished. Product Owner also noted (screenshot) that source rows written under the *old*, pre-fix logic can still carry a stale "מנתח…" badge left over from before this correction — this residual, pre-existing data state doesn't self-correct retroactively. Product Owner's own call: not a defect in this fix, deferred to Beta.
 
 ## Test 3 — No empty-trip flash on app launch or page refresh (Finding 3)
 
@@ -36,7 +36,7 @@ With an existing Trip open, refresh the page (or fully close and reopen the app/
 
 **Expect:** No brief flash of "מתחילים מטיול ריק" (start with an empty Trip) before your real Trip data appears — either a neutral loading state briefly shows first, or your Trip data appears directly with no empty-state flash at all.
 
-**Result:** ☐ PASS / ☐ FAIL — notes:
+**Result:** ☑ PASS — notes: Initial retest showed the empty-trip flash on a brand-new session (first load, not a refresh), recorded FAIL and sent back to the Development Agent. On re-inspection, the Development Agent found the `bootResolved` fix itself gates every `render()` correctly and found no code path allowing `empty()` to show early — instead diagnosed the initial failure as a Service Worker cache-propagation artifact: the first post-deploy visit was very likely still served by the old `0.7.3` SW's cached shell (cache-first navigation, a deliberate frozen invariant for this app's offline-launch guarantee, per `ARCHITECTURE_CURRENT_STATE.md` — not something to alter for a cosmetic fix) while the new `0.7.3.1` SW installed and activated in the background; the refresh was the first navigation the new SW actually controlled. Product Owner retested with a full close-and-relaunch (after the new SW had a chance to activate) — confirmed clean, no empty-trip flash. Hypothesis confirmed; no code change needed. No code was touched or redeployed for this retest.
 
 ---
 
@@ -44,7 +44,8 @@ With an existing Trip open, refresh the page (or fully close and reopen the app/
 
 | Finding | Test | Severity | Disposition |
 |---|---|---|---|
+| Initial Test 3 retest showed a brand-new session's first load still flashing the empty-Trip state, despite the `bootResolved` fix. Resolved as a false alarm, not a code defect: diagnosed by the Development Agent as a Service Worker cache-propagation artifact (first post-deploy visit served by the old, pre-fix SW's cached shell while the new SW activated in the background) and confirmed by the Product Owner's own close-and-relaunch retest coming back clean. | Test 3 | N/A — not a defect | Reported by Product Owner 2026-09-20, investigated by the Development Agent without touching code, confirmed resolved by Product Owner retest 2026-09-20. No fix needed; no code changed. |
 
 ## GO/NO-GO decision
 
-*To be recorded by the Product Owner after this session.*
+*To be recorded by the Product Owner. All three tests now PASS (Test 3's initial FAIL was resolved as a one-time SW-propagation testing artifact, not a real gap, confirmed by retest).*
