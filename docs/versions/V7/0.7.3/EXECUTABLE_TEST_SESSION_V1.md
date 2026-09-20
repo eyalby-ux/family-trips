@@ -22,7 +22,7 @@ Both accounts online, both viewing the QA Test Trip. Account A edits an item (e.
 
 **Expect:** The change appears on B within a few seconds at most (Firestore's own normal propagation latency on a live connection — record the actual observed delay, this document can't assert a precise number from this environment).
 
-**Result:** ☐ PASS / ☐ FAIL — notes:
+**Result:** ☑ PASS — notes: Confirmed as expected; no notes.
 
 ## Test B — Offline edit, single device, then reconnect
 
@@ -30,7 +30,7 @@ Account A goes offline (airplane mode), edits an item. Confirm Account B (online
 
 **Expect:** The edit is invisible to B while A is offline, then arrives correctly once A reconnects.
 
-**Result:** ☐ PASS / ☐ FAIL — notes:
+**Result:** ☑ PASS — notes: Confirmed as expected; no notes.
 
 ## Test C — Concurrent edits, different records
 
@@ -38,7 +38,7 @@ Both accounts go offline, each edits a *different* item, both reconnect around t
 
 **Expect:** Both edits survive and are visible on both devices — validates that per-record write ordering (already correct since `0.7.2`, per `DESIGN_V1.md` §2.1) still holds under real offline/reconnect conditions, not just in theory.
 
-**Result:** ☐ PASS / ☐ FAIL — notes:
+**Result:** ☑ PASS — notes: Confirmed as expected; no notes. (Tested by the Product Owner without computer access; recorded in-session and written to the repo once reconnected.)
 
 ## Test D — Concurrent edits, same record, different fields (validates §2.2's fix directly)
 
@@ -46,7 +46,7 @@ Both accounts go offline. Both edit **different fields of the exact same item** 
 
 **Expect:** **Both field changes survive on both devices** — this is the specific silent-loss bug `0.7.3` fixes. Before this candidate, A's reconnect-time write would have carried A's stale copy of B's field and silently reverted it.
 
-**Result:** ☐ PASS / ☐ FAIL — notes:
+**Result:** ☑ PASS — notes: Confirmed as expected — both field changes survived on both devices. (Tested by the Product Owner without computer access; recorded in-session and written to the repo once reconnected.)
 
 ## Test E — Concurrent edits, same record, same field (expected last-write-wins, not a defect)
 
@@ -54,7 +54,7 @@ Both accounts go offline. Both edit the **same field of the same item** with dif
 
 **Expect:** No crash, no data corruption. One value wins (last-write-wins, by design — no automatic merge is meaningful for two different values in the same field). **This is an expected, non-blocking result, not a defect** — the only thing that would actually be a defect here is the two devices converging to *different* final values instead of the same one.
 
-**Result:** ☐ PASS / ☐ FAIL — notes (record which value won, and confirm both devices show the SAME final value):
+**Result:** ☑ PASS — notes: No crash, no data corruption — one value won (last-write-wins) and both devices converged to the same final value. Which value won was not specifically recorded. (Tested by the Product Owner without computer access; recorded in-session and written to the repo once reconnected.)
 
 ## Test F — Reload while offline with pending edits (validates `0.7.2.1`'s fix directly)
 
@@ -62,7 +62,7 @@ Account A goes offline, makes **two or more edits in sequence** (don't wait betw
 
 **Expect:** All edits survive the offline reload and reach Account B after reconnecting. `0.7.2.1` already fixed and closed this specific bug in Production (`docs/versions/V7/0.7.2.1/EXECUTABLE_TEST_SESSION_V1.md`, GO 2026-09-15) — this test re-confirms it holds under this candidate's own build, since `0.7.3` builds directly on top of that same `save()` fix rather than reimplementing it.
 
-**Result:** ☐ PASS / ☐ FAIL — notes:
+**Result:** ☑ PASS — notes: Confirmed as expected; no notes.
 
 ## Test G — Open form survives a concurrent remote update (validates §2.3's fix directly)
 
@@ -70,7 +70,7 @@ Account A opens an edit form (e.g. editing an Item's fields) and **types into a 
 
 **Expect:** Account A's in-progress, unsubmitted form is **not** wiped — either the incoming update is visibly deferred until A closes the form, or some other explicit behavior occurs, but never silent loss of what A was typing.
 
-**Result:** ☐ PASS / ☐ FAIL — notes:
+**Result:** ☑ PASS — notes: "Pass, I have updated the same item (other field) and it was updated once saved in user A" (Product Owner's own words) — Account B's edit to a different field of the same item was correctly merged in once Account A saved their own open form; no silent loss of either side's change. (Tested by the Product Owner without computer access; recorded in-session and written to the repo once reconnected.)
 
 ## Sync status visibility check
 
@@ -78,7 +78,7 @@ Confirm the minimal pending-sync indicator (extending the existing offline banne
 
 **Expect:** The indicator is not just present, but accurate — no false "everything synced" while a write is still pending, no indicator stuck on after everything has actually synced.
 
-**Result:** ☐ PASS / ☐ FAIL — notes:
+**Result:** ☑ PASS — notes: Confirmed via screenshot evidence provided by the Product Owner — the offline banner ("מצב אופליין — המידע המקומי זמין") displays correctly while offline, with the QA Test Trip's Hotel item (Panvaree Resort) still visible/available from local cache. Evidence submitted as confirmation for this check specifically, per the Product Owner ("Evidance for the sync status indication").
 
 ---
 
@@ -86,7 +86,17 @@ Confirm the minimal pending-sync indicator (extending the existing offline banne
 
 | Finding | Test | Severity | Disposition |
 |---|---|---|---|
+| Flight item location: editing the location updates the displayed address text correctly, but the item's map link stays stale — it continues pointing at the original location, not the edited one. Confirmed Flight-specific: the same edit-location flow works correctly on Hotel items, so this is isolated to Flight's own handling, not a shared location-component bug. | Pre-existing (found live by Product Owner, not part of this session's own tests A–G) | Medium-high (6/10, Product Owner's own rating) | Reported by Product Owner 2026-09-15, held back and folded in here per the Product Owner's own instruction, to avoid updating documents in parallel with `0.7.3`'s implementation. Build observed on: `0.7.2.1-19ff2b6b`. Not yet triaged by the Development Agent — needs root-cause and a scope decision (narrow correction vs. folded into a future candidate), same as `0.7.2.1`'s own bug was handled. |
+| Minor display bug: a source/attachment row's "מנתח..." (analyzing...) label stays visible long after the analysis itself has actually finished — screenshot shows multiple rows stuck showing "מנתח..." rather than settling into a final state (e.g. alongside rows already showing "בניתוח" done or a specific result). | Pre-existing (found live by Product Owner, not part of this session's own tests A–G) | Minor (cosmetic/display only, no functional or data-loss impact — Product Owner's own characterization) | Reported by Product Owner 2026-09-17, with screenshot evidence. Not yet triaged by the Development Agent. |
+| Minor display bug: on app entry or page refresh, an empty "new trip" state flashes briefly (roughly the first second) before the actual Trip data finishes loading in. | Pre-existing (found live by Product Owner, not part of this session's own tests A–G) | Minor (cosmetic/timing only, no data-loss impact — Product Owner's own characterization) | Reported by Product Owner 2026-09-17. Not yet triaged by the Development Agent. |
 
 ## GO/NO-GO decision
 
-*To be recorded by the Product Owner after this session.*
+**GO.** Recorded by the Product Owner (Eyal), 2026-09-20. All tests (A–G) plus the Sync status visibility check PASS. `0.7.3` may proceed to Production promotion as a separate, explicit action. The three pre-existing findings above are non-blocking and are carried forward for a future fix, per the suggested target version below.
+
+**Suggested fix version for the findings (Claude's suggestion, pending the Product Owner's own decision on scope):** a narrow correction package, `0.7.3.1`, mirroring how `0.7.2.1` was scoped as a single-purpose correction rather than waiting for a full next candidate. Rationale: all three findings are already fully described (root cause not yet confirmed, but reproduction steps and scope are clear) and none of them touch `0.7.3`'s own sync-engine changes, so bundling them into a small, fast correction avoids delaying a fix behind a larger `0.7.4` feature candidate. Suggested grouping within that correction:
+- Flight location-link stale-map-link bug (medium-high, 6/10) — the one item here with real functional impact; worth root-causing first since it may share code with other item types even though Hotel tested clean.
+- Stuck "מנתח..." label (minor/cosmetic) — bundle in only if it's a quick fix; otherwise fine to defer further without blocking the other two.
+- Empty-trip flash on load (minor/cosmetic) — same as above, bundle if cheap, otherwise defer.
+
+This is a suggestion only — the Product Owner may instead choose to fold all three into `0.7.4`'s own scope, split them across different targets, or defer any of them to the backlog.
