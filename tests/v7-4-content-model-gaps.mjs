@@ -134,11 +134,13 @@ function test_0_7_4_participant_toggle_active_flips_status_without_deleting_the_
 
 // --- Item/document-participant relationship (per MVP scope: one, several, all, or no participant) --
 
+// 0.7.4.1: the pre-existing free-text `participants` field (comma-separated names, no relationship
+// to real Participant records) was originally left untouched here to avoid conflating it with the
+// new relationship fields -- but the Product Owner found it left a genuine duplicate control on
+// item edit forms once participantAssignmentField existed. Removed for real in 0.7.4.1: see
+// tests/v7-4-1-correction.mjs for that correction's own regression coverage.
 function test_0_7_4_item_participant_relationship_is_a_separate_field_from_the_old_free_text_one(){
   const ingestion=fs.readFileSync(new URL('../src/ingestion.js',import.meta.url),'utf8');
-  // The pre-existing free-text `participants` field (comma-separated names, no relationship to
-  // real Participant records) is deliberately left untouched, not repurposed or migrated.
-  assert(ingestion.includes("participants:String(data.get('participants')||'').split(',')"));
   assert(ingestion.includes("participantScope,participantIds:participantScope==='specific'?data.getAll('participantIds').map(String):[]"));
 }
 function test_0_7_4_participantAssignmentField_offers_none_all_and_specific_scopes(){

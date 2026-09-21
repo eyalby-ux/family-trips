@@ -383,11 +383,19 @@ export function buildItemFormValues(data){
   // 0.7.4: participantScope/participantIds are the real participant-relationship fields (per
   // MVP scope: an item "may apply to one participant, several participants, all participants, or
   // no specific participant") -- deliberately separate from the pre-existing free-text
-  // `participants` field above (a plain comma-separated name list with no relationship to real
-  // Participant records at all), left completely untouched to avoid conflating two different
-  // things under one field name or needing to migrate/reinterpret any of its existing data.
+  // `participants` field, which the 0.7.4.1 correction below removes the edit surface for.
   const participantScope=['none','all','specific'].includes(String(data.get('participantScope')))?String(data.get('participantScope')):'none';
-  return {type,title:String(data.get('title')||'').trim(),provider:String(data.get('provider')||'').trim(),confirmationNumber:String(data.get('confirmationNumber')||'').trim(),location:String(data.get('location')||'').trim(),website:normalizeUrlInput(data.get('website')),phone:String(data.get('phone')||'').trim(),startAt:range.start,endAt:range.end,participants:String(data.get('participants')||'').split(',').map(x=>x.trim()).filter(Boolean),notes:String(data.get('notes')||'').trim(),transportMode:String(data.get('transportMode')||'').trim(),participantScope,participantIds:participantScope==='specific'?data.getAll('participantIds').map(String):[],schedule:ITEM_TYPES[type]?.schedule||'none',updatedAt:new Date().toISOString()};
+  // 0.7.4.1: the old free-text 'participants' field is gone from the form -- deliberately NOT
+  // included in this returned object at all (not even as []), so the edit-item-form's own
+  // Object.assign(item,values,...) (v5-app.js) can never overwrite whatever value already sits in
+  // item.participants with an empty array just because a user edited some unrelated field. Checked
+  // before removing, not assumed empty: Flight/Activity/Insurance items created via Smart Import do
+  // carry real extracted names here (flight-import-adapter.js's participantNames;
+  // activity-/insurance-import-adapter.js's own union-merge treatment) -- but that data is always
+  // redundant with details.passengers/ticketHolders/insuredPersons, already shown in full elsewhere
+  // (flightSummaryBlock/activitySummaryBlock/insuranceSummaryBlock), and was never itself rendered
+  // anywhere. Whatever already exists in Firestore for any item now simply survives untouched.
+  return {type,title:String(data.get('title')||'').trim(),provider:String(data.get('provider')||'').trim(),confirmationNumber:String(data.get('confirmationNumber')||'').trim(),location:String(data.get('location')||'').trim(),website:normalizeUrlInput(data.get('website')),phone:String(data.get('phone')||'').trim(),startAt:range.start,endAt:range.end,notes:String(data.get('notes')||'').trim(),transportMode:String(data.get('transportMode')||'').trim(),participantScope,participantIds:participantScope==='specific'?data.getAll('participantIds').map(String):[],schedule:ITEM_TYPES[type]?.schedule||'none',updatedAt:new Date().toISOString()};
 }
 export function validateSource({kind,file,url}){
   if(kind==='link'){try{const parsed=new URL(url);if(!['http:','https:'].includes(parsed.protocol))throw new Error();return {ok:true}}catch{return {ok:false,error:'יש להזין קישור HTTP או HTTPS תקין'}}}
