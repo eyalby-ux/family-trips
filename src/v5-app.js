@@ -323,16 +323,25 @@ function suggestionById(id){return state.suggestions.find(suggestion=>suggestion
 // src/ before this candidate), so the MVP scope bullet's "Destination Countries, destination/route
 // summary" names one feature, not two: the ordered list itself IS the route summary. Shown in the
 // header (every view, not buried in Trip Settings) so reordering has a real, visible effect.
-// 0.7.4.1: joined with '←' (leftward), not '→' (rightward) -- found live by the Product Owner: a
-// rightward arrow between Hebrew (strong-RTL) country names visually reads backwards, since the
-// arrow glyph itself does not auto-mirror for RTL context the way this app's own existing "TLV →
-// BKK"-style flight routes do (those work correctly today only because airport codes are Latin/
-// LTR, an entirely different bidi scenario -- an arrow between two Hebrew words resolves within
-// an RTL-embedded run instead). Verified empirically in a live browser, not assumed from bidi
-// theory alone: with the array kept in its natural add order (first destination first),
-// '←' correctly places the first destination on the right (where RTL reading begins) with the
-// arrow pointing left, toward each next destination -- matching this app's own RTL reading flow.
-function destinationSummary(){const countries=state.trip?.destinationCountries||[];return countries.length?countries.map(esc).join(' ← '):''}
+// 0.7.4.1 round 1: hardcoded the separator to '←' after finding a plain '→' reads backwards
+// between Hebrew (strong-RTL) country names. That held for Hebrew, but broke the Trip's own free
+// text right back -- Destination Countries is a plain input, nothing requires Hebrew, and a
+// hardcoded '←' reads backwards for English/Latin names the same way '→' did for Hebrew ones
+// (found live by the Product Owner testing with "Thailand"/"Laos"). Neither arrow works for both
+// scripts; this needs to adapt to what was actually typed, not assume the app's own primary
+// language. Verified empirically in a live browser (not assumed from bidi theory) for both
+// scripts before choosing this fix: a plain '→' between two Latin/LTR names already renders
+// correctly with no wrapping needed, even embedded inside this RTL page, the same way this app's
+// existing "TLV → BKK"-style flight routes already do (pure-LTR content auto-resolves as its own
+// island); a plain '←' is what's needed for Hebrew instead, per the round-1 finding. Both facts
+// combine into a per-render pick: '←' only when the country names actually contain Hebrew, '→'
+// otherwise -- not a single hardcoded direction either way.
+// Checks by code point (0x590-0x5FF, the Hebrew Unicode block), not a regex \u-escape range --
+// avoids a literal, hard-to-read Hebrew character silently ending up in source code, which is
+// exactly what happened here on a first attempt (the edit itself resolved the \u escapes into the
+// literal glyphs, functionally identical but nearly invisible/unreadable as source).
+function isHebrewText(text){return [...String(text)].some(char=>{const code=char.codePointAt(0);return code>=0x590&&code<=0x5FF})}
+function destinationSummary(){const countries=state.trip?.destinationCountries||[];if(!countries.length)return '';const arrow=isHebrewText(countries.join(''))?'←':'→';return countries.map(esc).join(` ${arrow} `)}
 function header(){const destination=destinationSummary();return `<header class="top"><div class="top-in"><div class="brand"><img src="/assets/icons/icon-192.png" alt=""><div><h1>${esc(state.trip?.name||'Family Trips')}</h1><p>${destination?`${destination} · `:''}${state.trip?.startDate?`${fmt(state.trip.startDate,false)} — ${state.trip.endDate?fmt(state.trip.endDate,false):'ללא סיום'}`:`${appVersionLabel()} · Hotel + Flight Smart Import`}</p></div></div><span class="status">${status()}</span></div></header>`}
 function empty(){return '<section class="card hero empty"><div class="big">🧭</div><h2>מתחילים מטיול ריק</h2><p class="muted">העלה מקור, ייבא JSON/QR או הזן פריט ידנית.</p><div class="actions center-actions"><button class="btn" data-action="create">הוספה</button></div></section>'}
 // 0.7.3.1: shown only before bootResolved -- see its own declaration for why this is a distinct

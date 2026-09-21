@@ -14,6 +14,15 @@ const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
 
 // --- Destination Countries -------------------------------------------------------------------
 
+// Mirrors isHebrewText()'s actual algorithm (v5-app.js can't be imported here) to exercise the
+// real logic, not just its source text -- 0x590-0x5FF is the Hebrew Unicode block.
+function isHebrewText(text){return [...String(text)].some(char=>{const code=char.codePointAt(0);return code>=0x590&&code<=0x5FF})}
+function test_0_7_4_isHebrewText_correctly_distinguishes_hebrew_from_latin_country_names(){
+  assert.equal(isHebrewText('תאילנד'),true);
+  assert.equal(isHebrewText('Thailand'),false);
+  assert.equal(isHebrewText('תאילנד,Laos'.split(',').join('')),true); // mixed -- Hebrew present anywhere counts
+  assert.equal(isHebrewText(''),false);
+}
 function test_0_7_4_destinationCountries_is_a_real_trip_level_synced_field(){
   assert(TRIP_NESTED_FIELDS.includes('destinationCountries'));
 }
@@ -22,11 +31,15 @@ function test_0_7_4_destinationSummary_renders_the_ordered_list_as_the_apps_own_
   // concept anywhere before this candidate -- the MVP scope bullet names one feature, not two.
   const start=app.indexOf('function destinationSummary(){');
   const body=app.slice(start,app.indexOf('function header(',start));
-  // Joined with '←', not '→' -- found live by the Product Owner: a rightward arrow between Hebrew
-  // (strong-RTL) country names visually reads backwards, unlike this app's own existing "TLV →
-  // BKK"-style flight routes, which only work because airport codes are Latin/LTR (an entirely
-  // different bidi scenario). Verified empirically in a live browser before fixing.
-  assert(body.includes("countries.map(esc).join(' ← ')"));
+  // Round 1 hardcoded '←' after Hebrew country names read backwards with '→' -- broke right back
+  // for English ones (Destination Countries is plain free text, not Hebrew-only), found live by
+  // the Product Owner testing "Thailand"/"Laos". Neither arrow direction is correct for both
+  // scripts, so the separator must be chosen per-render from what was actually typed.
+  assert(body.includes("const arrow=isHebrewText(countries.join(''))?'←':'→';"));
+  assert(body.includes('return countries.map(esc).join(`'));
+  // Code-point comparison (0x590-0x5FF, the Hebrew Unicode block), not a regex with a literal
+  // Hebrew character sitting in source -- exactly what a first attempt here produced by accident.
+  assert(app.includes('function isHebrewText(text){return [...String(text)].some(char=>{const code=char.codePointAt(0);return code>=0x590&&code<=0x5FF})}'));
   assert(app.includes('function header(){const destination=destinationSummary();'));
 }
 function test_0_7_4_destinationsSection_supports_add_move_and_remove_in_order(){
@@ -207,6 +220,7 @@ function test_0_7_4_packingParticipantView_is_preserved_as_an_ephemeral_field_ac
 }
 
 const tests=[
+  test_0_7_4_isHebrewText_correctly_distinguishes_hebrew_from_latin_country_names,
   test_0_7_4_destinationCountries_is_a_real_trip_level_synced_field,
   test_0_7_4_destinationSummary_renders_the_ordered_list_as_the_apps_own_route_summary,
   test_0_7_4_destinationsSection_supports_add_move_and_remove_in_order,
