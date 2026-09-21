@@ -58,3 +58,7 @@ On any item, set its participant assignment to a specific participant, save, and
 ## GO/NO-GO decision
 
 **GO.** Recorded by the Product Owner (Eyal), 2026-09-21. All 4 tests PASS (Test 3 recorded as not verifiable — no test data existed — and accepted on the Development Agent's own code-level evidence instead). `0.7.4.1` may proceed to Production promotion as a separate, explicit action. One new gap logged, deliberately left unscoped for future planning: Tasks aren't linked to the participant system.
+
+## Production promotion
+
+**`0.7.4.1` is live in Production**, confirmed 2026-09-21. Build `0.7.4.1-72557e8b`, deploy `6ab11cc9f2b83f4e311ee39e`, verified via a fresh cache-bypassed fetch as byte-identical to the accepted `qa` build. Rollback backup preserved at `production-promotion-backup-20260921-150116/` — low-risk, no data model or security-rules change. The leftover duplicate participants field is gone from every item type's edit form in Production, and the silent-overwrite risk on the save path is closed. The Tasks-participant-linking gap remains open, unscoped, pending the Product Owner's own scheduling decision.
