@@ -111,4 +111,4 @@ Re-invite Account B (undo Test 3's revocation, if it's still revoked from there 
 
 ## Production promotion
 
-Not yet — recorded here once GO is confirmed.
+**`0.7.5` is live in Production**, confirmed 2026-09-21. Build `0.7.5-8508e0cc`, deploy `6ab1933c16a639a05c338320`, verified via a fresh cache-bypassed fetch as byte-identical to the accepted `qa` build (the second `qa` deploy — see this document's own header note about the first `qa` deploy's unrelated, now-fixed API-key build issue). Rollback backup preserved at `production-promotion-backup-20260921-232546/`. The Firestore/Storage rules and `invitations` collection were already live for both `qa` and Production before this promotion (one shared backend); this promotion carried the client bundle and Netlify Functions, including the `admin-delete-account.mjs` fix, live for real users. Four non-blocking findings remain open, unscoped, pending the Product Owner's own future scheduling: quarantine re-activate enhancement, the new-account-blocked-by-Settings gap, and the `0.7.4` family-ticket gap (Test 8's own doc/UI mismatch needs no product fix).
