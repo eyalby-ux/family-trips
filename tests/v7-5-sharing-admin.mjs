@@ -109,6 +109,18 @@ function test_0_7_5_registerOrVerifyTrip_accepts_an_editor_not_only_the_owner(){
   assert(foundBranch.includes('firestoreResult.editorEmails.includes(user.email)'));
   assert(quotaShared.includes('editorEmails'));
 }
+function test_0_7_5_admin_delete_account_never_imports_firebase_admin_auth(){
+  // 0.7.5 correction, found live during the qa deploy: firebase-admin/auth crashes every
+  // invocation in Netlify's actual bundled Function runtime (ERR_REQUIRE_ESM, jwks-rsa's own
+  // unfixed require('jose') against this project's ESM-only jose 6.x) -- confirmed via a live 502
+  // on this exact endpoint, not reproducible in plain Node. Fixed by resolving targetEmail -> uid
+  // via a direct Identity Toolkit REST call instead. This guards the regression from silently
+  // coming back.
+  assert(!adminFn.includes("from 'firebase-admin/auth'"));
+  assert(adminFn.includes('resolveUidByEmail'));
+  assert(adminFn.includes('identitytoolkit.googleapis.com'));
+  assert(adminFn.includes('oauth2.googleapis.com/token'));
+}
 function test_0_7_5_admin_delete_account_requires_explicit_target_and_confirmation(){
   assert(adminFn.includes("body.confirm!==true"));
   assert(adminFn.includes('targetEmail'));
@@ -186,6 +198,7 @@ const tests=[
   test_0_7_5_storage_rules_read_the_same_invitations_collection,
   test_0_7_5_smart_import_auth_reads_invitations_collection_not_the_env_var_allowlist,
   test_0_7_5_registerOrVerifyTrip_accepts_an_editor_not_only_the_owner,
+  test_0_7_5_admin_delete_account_never_imports_firebase_admin_auth,
   test_0_7_5_admin_delete_account_requires_explicit_target_and_confirmation,
   test_0_7_5_admin_delete_account_reverifies_eligibility_and_caller_admin_status_server_side,
   test_0_7_5_admin_delete_account_never_touches_trips_it_does_not_own,

@@ -1,7 +1,7 @@
 import {cert,getApps,initializeApp} from 'firebase-admin/app';
-import {getAuth} from 'firebase-admin/auth';
 import {getFirestore} from 'firebase-admin/firestore';
 import {getStorage} from 'firebase-admin/storage';
+import {SignJWT,importPKCS8} from 'jose';
 import {authorize,httpError} from './_shared/smart-import-auth.mjs';
 
 // 0.7.5 (DESIGN_V1.md §5): the one function in this project allowed a Firebase Admin SDK
@@ -19,13 +19,64 @@ import {authorize,httpError} from './_shared/smart-import-auth.mjs';
 // ever needed (see smart-import-auth.mjs's own FAMILYTRIPS_ALLOWED_EMAILS history). Until that
 // variable is set, this function refuses every request with missing_server_configuration rather
 // than silently failing partway through a deletion.
-function adminApp(){
-  if(getApps().length)return getApps()[0];
+let cachedServiceAccount;
+function serviceAccount(){
+  if(cachedServiceAccount)return cachedServiceAccount;
   const raw=Netlify.env.get('FIREBASE_ADMIN_SERVICE_ACCOUNT');
   if(!raw)throw httpError(424,'missing_server_configuration','Server admin credentials are not configured.');
-  let serviceAccount;
-  try{serviceAccount=JSON.parse(raw)}catch{throw httpError(424,'missing_server_configuration','Server admin credentials are malformed.')}
-  return initializeApp({credential:cert(serviceAccount)},'admin-delete-account');
+  try{cachedServiceAccount=JSON.parse(raw)}catch{throw httpError(424,'missing_server_configuration','Server admin credentials are malformed.')}
+  return cachedServiceAccount;
+}
+function adminApp(){
+  if(getApps().length)return getApps()[0];
+  return initializeApp({credential:cert(serviceAccount())},'admin-delete-account');
+}
+
+// 0.7.5 correction (found live during the qa deploy itself, not by design review or the local
+// quality gate -- neither could reproduce this): firebase-admin/auth cannot be imported at all
+// inside Netlify's actual bundled Function runtime. It unconditionally `require`s jwks-rsa at
+// jwt.js's own top level (part of its token-VERIFICATION machinery -- something this function
+// never used; the only thing ever called from firebase-admin/auth was getUserByEmail), and every
+// published jwks-rsa 4.x version has its own unfixed upstream bug: it `require`s this project's
+// own jose 6.x (already a real, working, unrelated dependency of smart-import-auth.mjs's JWT
+// verification), which is ESM-only -- crashing every invocation with ERR_REQUIRE_ESM the instant
+// firebase-admin/auth is imported, confirmed via a live 502 on this exact endpoint, not merely a
+// theoretical incompatibility. Plain Node (this repo's own test harness, and a bare `node -e`
+// import check) does NOT reproduce this -- it is specific to how Netlify's esbuild bundling
+// resolves this exact require() chain. firebase-admin/app, /firestore and /storage do not carry
+// this same broken import and are unaffected. Fixed by resolving targetEmail -> uid via a direct,
+// hand-signed REST call to Google's Identity Toolkit accounts:lookup endpoint instead of
+// firebase-admin/auth -- the same "plain REST over heavy SDK surface, using the same credential
+// already in hand" pattern this project already established in smart-import-quota.mjs's own
+// ownership-reconciliation read (0.7.2 DESIGN_V1.md §2.4), not a new philosophy invented just for
+// this fix. jose is already a proven, working dependency for exactly this kind of JWT signing --
+// used here for a standard Google OAuth2 service-account JWT-bearer token exchange.
+async function accessToken(){
+  const account=serviceAccount();
+  const now=Math.floor(Date.now()/1000);
+  const key=await importPKCS8(account.private_key,'RS256');
+  const assertion=await new SignJWT({scope:'https://www.googleapis.com/auth/identitytoolkit'})
+    .setProtectedHeader({alg:'RS256',typ:'JWT'})
+    .setIssuer(account.client_email)
+    .setAudience('https://oauth2.googleapis.com/token')
+    .setIssuedAt(now)
+    .setExpirationTime(now+3600)
+    .sign(key);
+  const response=await fetch('https://oauth2.googleapis.com/token',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({grant_type:'urn:ietf:params:oauth:grant-type:jwt-bearer',assertion})});
+  if(!response.ok)throw httpError(502,'admin_sdk_error','Could not authenticate the server admin credential.');
+  const body=await response.json();
+  return body.access_token;
+}
+// Identity Toolkit's accounts:lookup returns 200 with no `users` field (not a 404) when the email
+// matches no account -- an invited-but-never-signed-in target is a legitimate, expected case here,
+// not an error; resolveUidByEmail returns null for it, exactly like admin-delete-account's own
+// caller already expected from the removed firebase-admin/auth path.
+async function resolveUidByEmail(targetEmail){
+  const token=await accessToken();
+  const response=await fetch('https://identitytoolkit.googleapis.com/v1/accounts:lookup',{method:'POST',headers:{Authorization:`Bearer ${token}`,'content-type':'application/json'},body:JSON.stringify({email:[targetEmail]})});
+  if(!response.ok)throw httpError(502,'admin_sdk_error','Could not resolve the target account.');
+  const body=await response.json();
+  return body?.users?.[0]?.localId||null;
 }
 
 // 0.7.5 (DESIGN_V1.md §4): the 30-day quarantine-to-deletion-eligibility check, restated here
@@ -71,15 +122,7 @@ export default async function handler(request){
     const targetInvitation=targetInvitationSnap.exists?targetInvitationSnap.data():null;
     if(!isDeletionEligible(targetInvitation))throw httpError(409,'not_eligible','This account is not yet eligible for deletion (must be revoked for at least 30 days).');
 
-    let targetUid;
-    try{targetUid=(await getAuth(app).getUserByEmail(targetEmail)).uid}
-    catch(error){
-      // No Firebase Auth account for this email at all (e.g. invited but never signed in) -- there
-      // is no owned Trip data to find via ownerUid in that case either, so this is a legitimate,
-      // low-risk empty-deletion outcome, not an error to surface as a failure.
-      if(error?.code==='auth/user-not-found')targetUid=null;
-      else throw httpError(502,'admin_sdk_error','Could not resolve the target account.');
-    }
+    const targetUid=await resolveUidByEmail(targetEmail);
 
     const deletedTripIds=[];
     if(targetUid){
