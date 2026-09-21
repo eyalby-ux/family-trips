@@ -241,6 +241,30 @@ export async function revokeInvitation(email){
   const normalized=String(email||'').trim().toLowerCase();
   await setDoc(invitationRef(normalized),{email:normalized,state:'revoked',revokedAt:new Date().toISOString()},{merge:true});
 }
+// 0.7.5.1 (V7-F11): reverses a revoke on the SAME still-quarantined record -- the same
+// isAdmin()-gated write path invite/revoke already use, no new rule needed (confirmed by direct
+// code inspection: firestore.rules' isInvited()/hasTripAccess() and storage.rules' own isInvited()
+// both key off nothing but this document's `state` field, so flipping it back to 'active' restores
+// access immediately, with no other change needed -- verified against the actual rule text, not
+// assumed). revokedAt is cleared (not left as history) -- a re-activated account should read as
+// genuinely active, not carry a stale "revoked N days ago" timestamp forward; isDeletionEligible
+// already refuses on state alone (`invitation.state!=='revoked'`) so a leftover revokedAt was never
+// load-bearing for safety either way, but clearing it keeps the record itself honest.
+export async function reactivateInvitation(email){
+  const normalized=String(email||'').trim().toLowerCase();
+  await setDoc(invitationRef(normalized),{email:normalized,state:'active',revokedAt:null},{merge:true});
+}
+// 0.7.5.1 (V7-F12): general-purpose, unlike getMyInvitation() above (which only ever reads the
+// signed-in caller's own record) -- used by sharingSection()'s add-editor flow to check whether a
+// newly-added Editor has an active application invitation at all, per firestore.rules' own
+// `allow read: if request.auth != null` (any invited caller may read any invitations/{email}
+// document, not just their own -- see that rule's own comment for why this is intentionally broad).
+export async function getInvitation(email){
+  const normalized=String(email||'').trim().toLowerCase();
+  if(!normalized)return null;
+  const snapshot=await getDoc(invitationRef(normalized));
+  return snapshot.exists()?snapshot.data():null;
+}
 
 // Storage layout: trips/{tripId}/sources/{sourceId}/{filename}, per DESIGN_V1.md §1.3 -- mirrors
 // the pre-existing separation between source metadata (Firestore) and source bytes (previously

@@ -10,7 +10,7 @@ import {smartImportActivityResultToSuggestion} from './activity-import-adapter.j
 import {smartImportInsuranceResultToSuggestion} from './insurance-import-adapter.js';
 import {appVersionLabel} from './app-version.js';
 import {auth} from './firebase.js';
-import {addEditorByEmail,clearAllTripContent,createTripDoc,currentEmail,currentUid,deleteAttachment,deleteTripCompletely,downloadAttachment,getMyInvitation,inviteByEmail,listEditorHistory,listInvitations,listMyTrips,migrateLocalTripToFirestore,removeEditorByEmail,revokeInvitation,subscribeToTrip,syncTripState,uploadAttachment} from './cloud-store.js';
+import {addEditorByEmail,clearAllTripContent,createTripDoc,currentEmail,currentUid,deleteAttachment,deleteTripCompletely,downloadAttachment,getInvitation,getMyInvitation,inviteByEmail,listEditorHistory,listInvitations,listMyTrips,migrateLocalTripToFirestore,reactivateInvitation,removeEditorByEmail,revokeInvitation,subscribeToTrip,syncTripState,uploadAttachment} from './cloud-store.js';
 import './v4.css';
 
 // 0.7.2: KEY is now legacy-only -- the pre-Firestore local blob, read solely to detect and offer
@@ -810,13 +810,18 @@ function adminView(){
 // remaining-days count) even though its delete button stays disabled -- visibility into the
 // countdown is itself part of the frozen requirement ("the 30-day countdown is visible in the
 // admin UI per quarantined account"), not just the eventual delete action.
+// 0.7.5.1 (V7-F11): re-activate is a direct action on this SAME still-quarantined record -- not a
+// re-invite. Offered next to every quarantined account regardless of eligibility (an account 5
+// days into quarantine is exactly as reversible as one at day 29 -- the 30-day window only ever
+// gated deletion, never reversibility), distinct from the delete button beside it, which stays
+// eligibility-gated.
 function quarantineSection(revoked){
   if(!revoked.length)return '';
-  return `<section class="card danger-zone"><h2>הסגר -- חשבונות שבוטלו</h2><p class="muted">חשבון שבוטל חסום מיידית מכל גישה. לאחר 30 יום ניתן למחוק לצמיתות את הנתונים בבעלותו -- אך ורק באישור מפורש, נפרד, לכל חשבון בנפרד.</p><div class="list">${revoked.map(invitation=>{
+  return `<section class="card danger-zone"><h2>הסגר -- חשבונות שבוטלו</h2><p class="muted">חשבון שבוטל חסום מיידית מכל גישה. ניתן להפעיל מחדש בכל שלב לפני מחיקה. לאחר 30 יום ניתן למחוק לצמיתות את הנתונים בבעלותו -- אך ורק באישור מפורש, נפרד, לכל חשבון בנפרד.</p><div class="list">${revoked.map(invitation=>{
     const daysSinceRevoked=invitation.revokedAt?Math.max(0,Math.floor((Date.now()-new Date(invitation.revokedAt).getTime())/(24*60*60*1000))):0;
     const eligible=isDeletionEligible(invitation);
     const remaining=Math.max(0,QUARANTINE_DELETION_ELIGIBLE_DAYS-daysSinceRevoked);
-    return `<div class="row"><span class="row-main"><b>${esc(invitation.email)}</b><small class="muted">בוטל לפני ${daysSinceRevoked} ימים${eligible?' · ניתן למחיקה':` · ניתן למחיקה בעוד ${remaining} ימים`}</small></span><button class="btn danger" data-action="admin-delete-account" data-email="${esc(invitation.email)}" ${eligible?'':'disabled aria-disabled="true"'}>מחיקה לצמיתות</button></div>`;
+    return `<div class="row"><span class="row-main"><b>${esc(invitation.email)}</b><small class="muted">בוטל לפני ${daysSinceRevoked} ימים${eligible?' · ניתן למחיקה':` · ניתן למחיקה בעוד ${remaining} ימים`}</small></span><div class="actions"><button class="btn secondary" data-action="admin-reactivate" data-email="${esc(invitation.email)}">הפעלה מחדש</button><button class="btn danger" data-action="admin-delete-account" data-email="${esc(invitation.email)}" ${eligible?'':'disabled aria-disabled="true"'}>מחיקה לצמיתות</button></div></div>`;
   }).join('')}</div></section>`;
 }
 function tripsView(){
@@ -1293,6 +1298,7 @@ addEventListener('click',async event=>{const routeButton=event.target.closest('[
   else if(action==='start-new-trip')await startNewTripFlow();
   else if(action==='remove-editor'){if(!confirm(`להסיר את ${button.dataset.email} מהטיול?`))return;try{state.trip.editorEmails=await removeEditorByEmail(state.trip.id,button.dataset.email);render();refreshEditorHistory()}catch(error){alert(error.message||'הסרת המשתתף נכשלה.')}}
   else if(action==='admin-revoke'){if(!confirm(`לבטל את ההרשאה של ${button.dataset.email}? הגישה לאפליקציה תיחסם מיידית.`))return;try{await revokeInvitation(button.dataset.email);notify('ההרשאה בוטלה');refreshAdminInvitations()}catch(error){alert(error.message||'ביטול ההרשאה נכשל.')}}
+  else if(action==='admin-reactivate'){if(!confirm(`להפעיל מחדש את ${button.dataset.email}? הגישה לטיולים ולנתונים הקודמים שבבעלות החשבון תשוחזר מיידית.`))return;try{await reactivateInvitation(button.dataset.email);notify('החשבון הופעל מחדש');refreshAdminInvitations()}catch(error){alert(error.message||'ההפעלה מחדש נכשלה.')}}
   else if(action==='admin-delete-account'){
     try{const result=await deleteAccountViaAdmin(button.dataset.email);if(result){notify('החשבון נמחק לצמיתות');refreshAdminInvitations()}}
     catch(error){alert(error.message||'המחיקה נכשלה.')}
@@ -1355,7 +1361,20 @@ addEventListener('submit',async event=>{event.preventDefault();const form=event.
   else if(form.id==='location-form'){const id=form.dataset.id||uid('loc'),existing=state.locationRecords.find(x=>x.id===id),record={id,placeName:String(data.get('placeName')).trim(),address:String(data.get('address')).trim(),coordinates:data.get('lat')&&data.get('lng')?{lat:Number(data.get('lat')),lng:Number(data.get('lng'))}:null,source:String(data.get('source')||'manual'),confidence:String(data.get('confidence')||'medium'),approved:true};if(existing)Object.assign(existing,record);else state.locationRecords.push(record);save();state.modal=null;render()}
   else if(form.id==='add-editor-form'){
     const email=String(data.get('email')||'').trim();if(!email){alert('יש להזין כתובת אימייל.');return}
-    try{state.trip.editorEmails=await addEditorByEmail(state.trip.id,email);form.reset();render();notify('המשתתף נוסף')}
+    try{
+      state.trip.editorEmails=await addEditorByEmail(state.trip.id,email);form.reset();render();
+      // 0.7.5.1 (V7-F12): this Trip-level grant alone is not enough -- firestore.rules' own
+      // isInvited() (checked by listMyTrips' "shared with me" query, among everything else) also
+      // requires an active invitations/{email} document, a SEPARATE, admin-only grant. Adding
+      // someone here who hasn't been application-invited yet used to succeed silently, leaving them
+      // unable to see this Trip (or anything else) the first time they sign in -- landing on the
+      // empty-Trip screen with no explanation, whose only action creates an unrelated Trip of their
+      // own. Surfaced here, at the point the gap is created, rather than left for the invited
+      // person to discover with no explanation.
+      const invitation=await getInvitation(email);
+      if(!invitation||invitation.state!=='active')alert(`המשתתף נוסף לטיול, אך הכתובת ${email} טרם הוזמנה לשימוש באפליקציה עצמה. יש לבקש ממנהל המערכת להזמין אותה (הגדרות ← ניהול הרשאות גישה), אחרת לא תוכל לגשת לטיול בכניסתה הראשונה.`);
+      else notify('המשתתף נוסף');
+    }
     catch(error){alert(error.message||'הוספת המשתתף נכשלה.')}
   }
   else if(form.id==='admin-invite-form'){
