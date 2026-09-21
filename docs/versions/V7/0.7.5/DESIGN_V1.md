@@ -33,11 +33,11 @@ Scope input: `FAMILY_TRIPS_ALPHA_0_7_5_SCOPE_V1.md` (same handoff, `0_7_5_design
 
 ### New open question 5 — who is `isAdmin`?
 
-Given finding §0.2: **recommended default** — `isAdmin: true` is seeded by hand on exactly one `invitations/{emailHash}` document (the Product Owner's own, `eyalby@gmail.com`), the same one-time Console action already used to seed `config/appInvitations` today. No self-service admin promotion exists or is needed — a two-person family app has one administrator, and adding one by hand once is simpler and safer than building a role-assignment UI for a role that will almost certainly never have a second holder. If that assumption is wrong, flag it — the data model supports more than one `isAdmin:true` document without any further change.
+Given finding §0.2: **recommended default** — `isAdmin: true` is seeded by hand on exactly one `invitations/{email}` document (the Product Owner's own, `eyalby@gmail.com`), the same one-time Console action already used to seed `config/appInvitations` today. No self-service admin promotion exists or is needed — a two-person family app has one administrator, and adding one by hand once is simpler and safer than building a role-assignment UI for a role that will almost certainly never have a second holder. If that assumption is wrong, flag it — the data model supports more than one `isAdmin:true` document without any further change.
 
 ## 3. Quarantine data model and security-rules enforcement
 
-Quarantine is not a new collection — it is the `revoked` state on the `invitations/{emailHash}` document from §2, plus what the rules do with it:
+Quarantine is not a new collection — it is the `revoked` state on the `invitations/{email}` document from §2, plus what the rules do with it:
 
 ```
 function invitation() {
