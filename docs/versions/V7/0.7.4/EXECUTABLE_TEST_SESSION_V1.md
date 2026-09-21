@@ -21,7 +21,7 @@ Create two separate Insurance items. Link both of them to the same non-insurance
 
 **Expect:** Both insurance policies appear as separate "🛡️ מבוטח באמצעות..." lines, each tappable to navigate to its own policy — not just the first one.
 
-**Result:** ☐ PASS / ☐ FAIL — notes:
+**Result:** ☑ PASS — notes: Confirmed as expected; no notes.
 
 ## Test 2 — V7-F02: "open tasks only" filter
 
@@ -29,7 +29,7 @@ Go to Tasks. Mark at least one task as done (checked). Confirm it's still visibl
 
 **Expect:** The completed task disappears from the list while the filter is active; switching the status filter back to "כל המשימות" (all tasks) brings it back. The status filter combines with priority/due-date the same way those two already combine (e.g. set status to open-only AND a priority — only open tasks of that priority show).
 
-**Result:** ☐ PASS / ☐ FAIL — notes:
+**Result:** ☑ PASS — notes: Confirmed as expected; no notes.
 
 ## Test 3 — Destination Countries: ordered list, visible as the Trip's own route summary
 
@@ -37,7 +37,7 @@ Go to Trip Settings. Add at least two Destination Countries in a specific order 
 
 **Expect:** Add/remove/reorder all work correctly, and the header always reflects the current stored order — not just on the Settings page.
 
-**Result:** ☐ PASS / ☐ FAIL — notes:
+**Result:** ☐ FAIL — notes: Add/reorder/remove and the header's live update all worked correctly (order confirmed correct, per screenshot: "1. תאילנד" then "2. לאוס", header shows "תאילנד → לאוס"). However, **the header's " → " arrow points the wrong direction for Hebrew's right-to-left reading order** — the arrow glyph itself is an LTR-style arrow, not flipped/mirrored for RTL context, so it reads backwards in the app's primary language. Product Owner's own call: recorded FAIL, to be logged as a finding and fixed before this candidate gets a GO, not accepted as non-blocking.
 
 ## Test 4 — First-class Transport items
 
@@ -45,7 +45,7 @@ Create a new item, selecting "תחבורה" (Transport) as the type. Set its sub
 
 **Expect:** Transport behaves like every other item type — dynamic form, correct Timeline/Today placement, manual creation and QR/JSON import both work. No AI Smart Import option should be offered for it (expected — explicitly out of scope for this candidate).
 
-**Result:** ☐ PASS / ☐ FAIL — notes:
+**Result:** ☑ PASS — notes: Confirmed as expected, including the expected absence of AI Smart Import for Transport (explicitly out of scope for this candidate — confirmed not offered, as intended, not a defect). Product Owner saved benchmark example documents at `tests/fixtures/Trans_benchmark` in the repo, for whenever Transport Smart Import is built in a future candidate.
 
 ## Test 5 — Participant management: add, edit, deactivate
 
@@ -53,7 +53,7 @@ Go to Trip Settings → Participants. Add a new participant with a name, relatio
 
 **Expect:** All fields save and reload correctly; deactivating clearly marks the participant as inactive without deleting their record (their data survives reactivation). No participant management UI appears anywhere in Trip Center — Trip Settings is the only place this lives.
 
-**Result:** ☐ PASS / ☐ FAIL — notes:
+**Result:** ☑ PASS — notes: Confirmed as expected; no notes.
 
 ## Test 6 — Item-participant relationship: none / all / specific
 
@@ -61,7 +61,7 @@ Add at least two participants if you haven't already. Create or edit an item (e.
 
 **Expect:** All three states (none/all/specific) work and are clearly visible on the item's own detail page.
 
-**Result:** ☐ PASS / ☐ FAIL — notes:
+**Result:** ☑ PASS — notes: Confirmed as expected; no notes.
 
 ## Test 7 — Tickets and passes
 
@@ -69,7 +69,7 @@ Open a Flight, Activity, or Transport item. Add a ticket for one participant, op
 
 **Expect:** Tickets are per-item, per-participant, each independently markable as used/not-used, removable, and the remaining-participants hint stays accurate throughout. (Note: tickets display as a plain list, not a swipeable carousel, and any entered code shows as plain text, not a rendered scannable barcode/QR image — both deliberate simplifications given this codebase has no existing infrastructure for either; flag if this feels insufficient for real use.)
 
-**Result:** ☐ PASS / ☐ FAIL — notes:
+**Result:** ☑ PASS — notes: Confirmed as expected — per-participant tickets, used/not-used state, remaining-participants hint, and removal all worked correctly. Plain-list ticket display and plain-text code display (the two stated deliberate simplifications) were not flagged as insufficient. Product Owner enhancement request, logged below: when a document is attached to an item, the system should recognize which participant it belongs to and link it to them automatically.
 
 ## Test 8 — Packing: shared list + personal list per participant
 
@@ -77,7 +77,7 @@ Go to Packing Lists. Confirm a participant switcher appears (if you have active 
 
 **Expect:** The shared/personal distinction behaves as described; switching views is immediate and doesn't lose any data.
 
-**Result:** ☐ PASS / ☐ FAIL — notes:
+**Result:** ☑ PASS — notes: Confirmed as expected; no notes.
 
 ## Test 9 — Regression: `0.7.1`–`0.7.3.1`'s existing feature set undisturbed
 
@@ -85,7 +85,7 @@ Spot-check a few things unrelated to this candidate's own scope: create/edit a H
 
 **Expect:** Nothing from prior candidates regressed.
 
-**Result:** ☐ PASS / ☐ FAIL — notes:
+**Result:** ☑ PASS — notes: No other regression found. One leftover issue: editing a Hotel item now shows both the old free-text "משתתפים" (participants) field and the new participant-assignment dropdown/checkboxes — duplicated in the same form, with the old field no longer relevant now that real participant management exists. Product Owner's own call: non-blocking, logged as a cleanup finding rather than held against this candidate's GO.
 
 ---
 
@@ -93,7 +93,10 @@ Spot-check a few things unrelated to this candidate's own scope: create/edit a H
 
 | Finding | Test | Severity | Disposition |
 |---|---|---|---|
+| Destination Countries header shows the route with an LTR-style " → " arrow, which reads backwards in Hebrew's right-to-left context — the arrow glyph needs to visually flip (or use a direction-aware separator) for RTL. The underlying data/order itself is correct; this is a display-only issue. | Test 3 | Not yet rated by Product Owner (display/RTL correctness bug) | Reported by Product Owner 2026-09-21, with screenshot. Product Owner's own call: FAIL, blocking — needs a fix before this candidate can get a GO. Not yet triaged by the Development Agent. |
+| Enhancement request: when a document is attached to an item, the system should recognize which participant it belongs to and link it to them automatically (currently no such auto-recognition/auto-link exists). | Test 7 | Enhancement | Reported by Product Owner 2026-09-21. Not a defect in this candidate's own scope — candidate for a future correction package or backlog item. |
+| Leftover UI duplication: editing a Hotel item's form still shows the old free-text "משתתפים" (participants) field alongside the new participant-assignment dropdown/checkboxes built in this candidate. The old field is no longer relevant and should be removed. | Test 9 | Minor (cosmetic/UI clutter only, no functional or data-loss impact) | Reported by Product Owner 2026-09-21, with screenshot. Product Owner's own call: non-blocking, logged as a cleanup finding. Not yet triaged by the Development Agent — likely applies to other item types too (Flight, Activity, etc.), worth checking during triage. |
 
 ## GO/NO-GO decision
 
-*To be recorded by the Product Owner after this session.*
+*To be recorded by the Product Owner after this session. Tests 1, 2, 4, 5, 6, 7, 8, 9 all PASS. Test 3 recorded FAIL (blocking, per Product Owner's own call) — Destination Countries header arrow reads backwards in Hebrew RTL context. Two additional non-blocking findings logged: an enhancement request (auto-link attached documents to participants) and a leftover UI duplication (old participants field still shown alongside the new one on item edit forms).*
