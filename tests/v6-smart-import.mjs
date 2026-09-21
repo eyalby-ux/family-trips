@@ -34,7 +34,11 @@ assert.match(server,/MAX_BINARY_BYTES=4\*1024\*1024/);
 assert.match(server,/assertPublicHost/);
 assert.doesNotMatch(quota,/dataBase64|output_text|full extracted/i);
 assert.match(auth,/email_verified/);
-assert.match(auth,/FAMILYTRIPS_ALLOWED_EMAILS/);
+// 0.7.5: the allowlist check moved from the FAMILYTRIPS_ALLOWED_EMAILS env var to a Firestore
+// invitations/{email} read (isActivelyInvited) -- see tests/v7-5-sharing-admin.mjs for the real
+// assertions on that new mechanism; this file's own job is just confirming the module still wires
+// email_verified and the allowlist gate together at all, not the mechanism's internals.
+assert.match(auth,/isActivelyInvited/);
 assert.match(quota,/trip_not_owned/);
 assert.match(quota,/daily_quota_exceeded/);
 

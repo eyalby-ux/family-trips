@@ -69,7 +69,10 @@ function test_0_7_3_1_render_only_flushes_a_buffered_update_while_no_local_write
 function test_0_7_3_1_render_shows_loading_not_empty_before_bootResolved(){
   const start=app.indexOf('function render(){');
   const body=app.slice(start,app.indexOf('function ',start+20));
-  assert(body.includes("body=(!bootResolved?loading:!state.trip&&state.view!=='trips'?empty:(views[state.view]||todayView))();"));
+  // 0.7.5: the Trip-independent exception list grew from a bare `!=='trips'` check to
+  // `!['trips','admin'].includes(...)` (admin panel added, DESIGN_V1.md §6) -- the literal
+  // string changed, but !bootResolved still gates loading() first, unchanged.
+  assert(body.includes("body=(!bootResolved?loading:!state.trip&&!['trips','admin'].includes(state.view)?empty:(views[state.view]||todayView))();"));
 }
 function test_0_7_3_1_bootResolved_is_set_on_every_real_answer_boot_can_reach(){
   // Not signed in.

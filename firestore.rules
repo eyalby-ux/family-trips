@@ -2,27 +2,51 @@ rules_version = '2';
 // 0.7.2: design docs/versions/V7/0.7.2/DESIGN_V1.md §2. Two independent layers, matching
 // ARCHITECTURE_CURRENT_STATE.md's "Application access, Trip ownership and revoked-account
 // lifecycle" section: application-level invitation (is this email allowed to use FamilyTrips at
-// all -- config/appInvitations, seeded to match FAMILYTRIPS_ALLOWED_EMAILS, deliberately a
-// separate mirror since rules cannot read a Netlify environment variable) and Trip-level access
-// (Owner: ownerUid; Editor: editorEmails, checked by email since an invited Editor may not have
-// signed in yet at grant time -- see DESIGN_V1.md §1.4 for why email, not uid).
+// all) and Trip-level access (Owner: ownerUid; Editor: editorEmails, checked by email since an
+// invited Editor may not have signed in yet at grant time -- see DESIGN_V1.md §1.4 for why email,
+// not uid).
+// 0.7.5 (DESIGN_V1.md §2/§3): the application-invitation layer moved from a single flat
+// config/appInvitations document (seeded to mirror the FAMILYTRIPS_ALLOWED_EMAILS Netlify env var,
+// a separate, unsynced store) to a real invitations/{email} collection -- keyed by the plain
+// lowercased email (Firestore rules cannot compute SHA-256, and an email is already a valid
+// document ID), each document {email, state:'active'|'revoked', isAdmin, invitedAt, revokedAt}.
+// isInvited() now reads this collection directly, so revoking an account (setting state:'revoked')
+// blocks Trips/Storage/Smart Import (netlify/functions/_shared/smart-import-auth.mjs, same
+// collection via Firestore REST) with this one write -- no per-Trip fan-out needed, and Editor
+// access on OTHER people's Trips is blocked for free too, since hasTripAccess() below requires
+// isInvited() regardless of editorEmails membership (DESIGN_V1.md §3, open question 3).
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    function callerInvitationPath() {
+      return /databases/$(database)/documents/invitations/$(request.auth.token.email);
+    }
+    // exists() guarded explicitly, not left to fail-closed-on-missing-document semantics: every
+    // email that was never invited at all (not just one that was later revoked) hits this path --
+    // unlike the predecessor config/appInvitations single document, which always existed once
+    // seeded, invitations/{email} genuinely may not exist for an arbitrary caller.
     function isInvited() {
       return request.auth != null &&
         request.auth.token.email_verified == true &&
-        request.auth.token.email in get(/databases/$(database)/documents/config/appInvitations).data.emails;
+        exists(callerInvitationPath()) &&
+        get(callerInvitationPath()).data.state == 'active';
+    }
+    function isAdmin() {
+      return isInvited() && get(callerInvitationPath()).data.isAdmin == true;
     }
     function isOwner(trip) { return request.auth.uid == trip.data.ownerUid; }
     function isEditor(trip) { return request.auth.token.email in trip.data.editorEmails; }
     function hasTripAccess(trip) { return trip != null && isInvited() && (isOwner(trip) || isEditor(trip)); }
 
-    // Admin-only, never client-written -- seeded directly (see 0.7.2 implementation report for
-    // how). Rules themselves need read access to evaluate isInvited() above.
-    match /config/{document=**} {
+    // Every invited user may read the collection (rules themselves need get() access to evaluate
+    // isInvited()/isAdmin() above; matches the read-broad/write-narrow pattern already proven in
+    // production for the predecessor config/appInvitations document). Only an existing admin may
+    // write -- grant, revoke, or seed a new record; admin-delete-account.mjs's own Firebase Admin
+    // SDK credential bypasses this entirely for the one destructive action rules can't safely gate
+    // (deleting another account's data), per DESIGN_V1.md §5.
+    match /invitations/{email} {
       allow read: if request.auth != null;
-      allow write: if false;
+      allow write: if isAdmin();
     }
 
     match /trips/{tripId} {

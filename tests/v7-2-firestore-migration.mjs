@@ -36,13 +36,16 @@ const quotaShared=fs.readFileSync(new URL('../netlify/functions/_shared/smart-im
 
 function test_0_7_2_firestore_rules_enforce_both_application_invitation_and_trip_role_layers(){
   assert(firestoreRules.includes('function isInvited()'));
-  assert(firestoreRules.includes('config/appInvitations'));
+  // 0.7.5: the application-invitation layer moved from a single flat config/appInvitations
+  // document to a real invitations/{email} collection -- see tests/v7-5-sharing-admin.mjs for the
+  // full assertions on that new collection's own rules (isAdmin(), read/write gating). This test's
+  // own job stays what it always was: confirm both layers (application-level + Trip-level) are
+  // still wired together, not the invitation layer's internal shape.
+  assert(firestoreRules.includes('invitations/$(request.auth.token.email)'));
   assert(firestoreRules.includes('function isOwner(trip)'));
   assert(firestoreRules.includes('function isEditor(trip)'));
   assert(firestoreRules.includes('ownerUid'));
   assert(firestoreRules.includes('editorEmails'));
-  assert(firestoreRules.includes("allow write: if false"));
-  assert(!firestoreRules.includes('allow read, write: if false'));
 }
 // A fifth real bug, still on the same qa build the four prior fixes shipped to, caught by the
 // Product Owner attaching a file on a genuinely brand-new Trip: the persistent-overwrite fix
@@ -273,8 +276,12 @@ function test_0_7_2_debug_hook_exposes_ready_made_helpers_bound_to_the_bundles_o
 // Decoded from the minified qa bundle via its build sourcemap (dist/assets/*.js.map, `vite build
 // --sourcemap`) rather than guessed from the stack trace alone.
 function test_0_7_2_render_passes_a_function_reference_to_its_view_dispatch_not_an_already_called_string(){
-  assert(!app.includes("state.view!=='trips'?empty():"));
-  assert(app.includes("state.view!=='trips'?empty:"));
+  // 0.7.5: the Trip-independent exception list grew from a bare `!=='trips'` check to
+  // `!['trips','admin'].includes(...)` (admin panel added, DESIGN_V1.md §6) -- the literal
+  // string changed, but the invariant this test guards (empty passed as a bare reference, never
+  // called here) is unchanged and still the point of this test.
+  assert(!app.includes("!['trips','admin'].includes(state.view)?empty():"));
+  assert(app.includes("!['trips','admin'].includes(state.view)?empty:"));
 }
 // A second real production bug, caught by the Product Owner in the same qa round: a brand-new
 // Trip's very first attachment upload got a live 403 from Firebase Storage. Root cause:

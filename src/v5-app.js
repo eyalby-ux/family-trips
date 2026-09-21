@@ -1,7 +1,7 @@
 import {ITEM_TYPES,TRANSPORT_MODES,TYPE_FIELDS,buildItemFormValues,confirmNeedsReviewField,createSuggestions,findPossibleDuplicates,flagReversedFlightDirection,isDismissibleWarning,manualCreateDefaults,mapsUrl,normalizeUrlInput,reconcileStaleNeedsReview,resolveMergeCandidate,suggestionReviewDefaults,suggestionToItem,validateSource} from './ingestion.js';
 import {extractSourceContent,sha256File} from './content-extraction.js';
 import {MultipartQrCollector,decodeExternalText,importBatchToApp} from './external-import.js';
-import {availableTimelineModes,backfillTripDates,currentOperational,filterAndSortTasks,isItemOutsideTrip,normalizeDateRange,normalizeOperationalState,packingDuplicate,periodBounds,quickAccessTasks,sanitizeTripDates,shiftCursor,sortItemsByStartAt,TASK_DUE_SCOPES,uniqueRecordsById} from './operational-data.js';
+import {availableTimelineModes,backfillTripDates,currentOperational,filterAndSortTasks,isDeletionEligible,isItemOutsideTrip,normalizeDateRange,normalizeOperationalState,packingDuplicate,periodBounds,QUARANTINE_DELETION_ELIGIBLE_DAYS,quickAccessTasks,sanitizeTripDates,shiftCursor,sortItemsByStartAt,TASK_DUE_SCOPES,uniqueRecordsById} from './operational-data.js';
 import {normalizeProposalLifecycle,rejectProposal} from './proposal-lifecycle.js';
 import {analyzeActivitySource,analyzeFlightSource,analyzeHotelSource,analyzeInsuranceSource,analyzeSource} from './smart-import-client.js';
 import {MERGE_CONFLICT_WARNING_PREFIX,saveOnlySource,smartImportResultToSuggestion,preserveTrustedFieldsOnMerge} from './smart-import-adapter.js';
@@ -10,7 +10,7 @@ import {smartImportActivityResultToSuggestion} from './activity-import-adapter.j
 import {smartImportInsuranceResultToSuggestion} from './insurance-import-adapter.js';
 import {appVersionLabel} from './app-version.js';
 import {auth} from './firebase.js';
-import {addEditorByEmail,clearAllTripContent,createTripDoc,currentEmail,currentUid,deleteAttachment,deleteTripCompletely,downloadAttachment,listMyTrips,migrateLocalTripToFirestore,removeEditorByEmail,subscribeToTrip,syncTripState,uploadAttachment} from './cloud-store.js';
+import {addEditorByEmail,clearAllTripContent,createTripDoc,currentEmail,currentUid,deleteAttachment,deleteTripCompletely,downloadAttachment,getMyInvitation,inviteByEmail,listEditorHistory,listInvitations,listMyTrips,migrateLocalTripToFirestore,removeEditorByEmail,revokeInvitation,subscribeToTrip,syncTripState,uploadAttachment} from './cloud-store.js';
 import './v4.css';
 
 // 0.7.2: KEY is now legacy-only -- the pre-Firestore local blob, read solely to detect and offer
@@ -55,6 +55,12 @@ let bufferedRemoteState=null;
 // Drives the minimal "pending sync" banner in render() -- see save()'s own comment.
 let pendingSyncCount=0;
 let myTrips=[];
+// 0.7.5 (DESIGN_V1.md §6): account-level, not Trip-level, so these live alongside myTrips rather
+// than in `state` (which mergeRemoteState()/EMPTY reset on every Trip switch -- these must not
+// reset just because the signed-in account switched which Trip it's looking at).
+let myInvitation=null;
+let adminInvitations=[];
+let editorHistory=[];
 let saveInFlight=Promise.resolve();
 
 function clone(value){return JSON.parse(JSON.stringify(value))}
@@ -173,6 +179,11 @@ async function boot(){
 async function bootInner(){
   const uid=currentUid();
   if(!uid){bootResolved=true;render();return}
+  // 0.7.5: account-level, independent of which Trip (if any) ends up active below -- fire-and-
+  // forget, never awaited, so a slow or failed invitation read can never delay or block the Trip
+  // boot path itself (matching this function's own established "an auxiliary concern must never
+  // hold up the core render" discipline, e.g. the offline early-return just below).
+  refreshMyInvitation();
   const remembered=localStorage.getItem(ACTIVE_TRIP_KEY);
   // Offline cold launch (ARCHITECTURE_CURRENT_STATE.md's frozen invariant): listMyTrips() is a
   // live Firestore query, not a cache-served read, and would simply hang/fail with no network.
@@ -701,14 +712,48 @@ function participantAssignmentField(p){
 // logic that writes this field during attach-and-extract is untouched -- a real, separate code
 // path, out of this narrow correction's own scope.
 function proposalFields(p,{alwaysWebsite=false}={}){const type=['link','document'].includes(p.type)?'hotel':p.type||'hotel',fields=new Set(TYPE_FIELDS[type]||[]);if(alwaysWebsite||p.website)fields.add('website');const field=(name,label,input)=>fields.has(name)?`<div class="field"><label>${label}</label>${input}</div>`:'';return `<p class="required-note"><span class="required" aria-hidden="true">*</span> שדה חובה</p><div class="grid two"><div class="field"><label>סוג</label><select name="type" data-action="proposal-type">${Object.entries(ITEM_TYPES).filter(([key])=>!['document','link','participant'].includes(key)).map(([key,itemType])=>`<option value="${key}" ${type===key?'selected':''}>${itemType.icon} ${itemType.label}</option>`).join('')}</select></div><div class="field"><label>${requiredLabel('כותרת')}</label><input name="title" required aria-required="true" value="${esc(p.title||'')}"></div>${field('transportMode','סוג תחבורה',`<select name="transportMode">${Object.entries(TRANSPORT_MODES).map(([value,label])=>`<option value="${value}" ${(p.transportMode||'car')===value?'selected':''}>${label}</option>`).join('')}</select>`)}${field('provider','ספק',`<input name="provider" value="${esc(p.provider||'')}">`)}${field('confirmationNumber','מספר הזמנה',`<input name="confirmationNumber" value="${esc(p.confirmationNumber||'')}">`)}${field('location','מיקום',`<input name="location" value="${esc(p.location||'')}">`)}${field('website','קישור',`<input type="text" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" name="website" value="${esc(p.website||'')}" placeholder="https://…">`)}${field('phone','טלפון',`<input type="tel" name="phone" value="${esc(p.phone||'')}">`)}${field('startAt','תאריך התחלה',`<input type="datetime-local" name="startAt" value="${esc(p.startAt||'')}">`)}${field('endAt','תאריך סיום',`<input type="datetime-local" name="endAt" value="${esc(p.endAt||'')}">`)}</div>${participantAssignmentField(p)}${field('notes','הערות',`<textarea name="notes">${esc(p.notes||'')}</textarea>`) }`}
+// 0.7.5 (DESIGN_V1.md §6): account-level admin/history data, refreshed on demand (entering the
+// relevant view, or right after an action that changes it) rather than kept live -- these are
+// low-frequency admin actions, not Trip content, so a real-time listener would be unjustified
+// complexity (unlike subscribeToTrip's own onSnapshot, which backs this app's actual headline
+// two-device sync feature). Every refresh re-renders once its data arrives, same as every other
+// async-then-render() pattern already used throughout this file (e.g. runMigration()).
+async function refreshMyInvitation(){try{myInvitation=await getMyInvitation()}catch(error){console.error('Loading admin status failed',error)}render()}
+async function refreshAdminInvitations(){try{adminInvitations=await listInvitations()}catch(error){console.error('Loading invitations failed',error);notify('טעינת רשימת ההזמנות נכשלה')}render()}
+async function refreshEditorHistory(){if(!state.trip)return;try{editorHistory=await listEditorHistory(state.trip.id)}catch(error){console.error('Loading editor history failed',error)}render()}
+
+// 0.7.5 (DESIGN_V1.md §5/§6): "typing the account's email to confirm, not just a single click" --
+// this project's own established pattern for a destructive action is a plain confirm() (see
+// reset-trip-data/delete-current-trip above), but this one is materially higher-stakes (another
+// account's data, not the caller's own, and genuinely irreversible), so it gets prompt()'s stronger
+// exact-text confirmation instead, one level up from every other destructive action in this app.
+// Returns null (not an error) for an outright cancel or a non-matching typed value -- the caller
+// distinguishes "nothing happened, say nothing further" from a real failure worth alert()ing.
+async function deleteAccountViaAdmin(targetEmail){
+  const typed=prompt(`פעולה זו בלתי הפיכה ומוחקת לצמיתות את כל נתוני הטיולים בבעלות ${targetEmail}.\nכדי לאשר, יש להקליד את כתובת האימייל המדויקת:`);
+  if(typed===null)return null;
+  if(String(typed).trim().toLowerCase()!==targetEmail.toLowerCase()){alert('הכתובת שהוקלדה אינה תואמת. המחיקה בוטלה.');return null}
+  const user=auth.currentUser;if(!user)throw new Error('נדרשת התחברות פעילה.');
+  const token=await user.getIdToken();
+  const response=await fetch('/api/familytrips-admin-delete-account',{method:'POST',headers:{authorization:`Bearer ${token}`,'content-type':'application/json'},body:JSON.stringify({targetEmail,confirm:true})});
+  const payload=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(payload.message||'המחיקה נכשלה.');
+  return payload;
+}
+
 // 0.7.2: Owner-only -- an Editor can view/edit Trip content but Trip Settings' own sharing
 // controls are an Owner-only destructive-adjacent action (granting/revoking another person's
 // access), matching firestore.rules' isOwner()-gated actions. A minimal "add Editor by email"
 // action, per DESIGN_V1.md §1.4/§2.3 -- the polished invitation-management admin UI is 0.7.5's job.
+// 0.7.5 (DESIGN_V1.md §6): extended, not replaced -- editorEmails stays the live list this section
+// has always shown; editorHistory (fetched by refreshEditorHistory(), called on entering Settings
+// and again right after add/remove-editor below) adds a revoked-history panel underneath, so a
+// removed Editor doesn't just silently vanish with no record for the Trip Owner to see later.
 function sharingSection(){
   if(!state.trip||state.trip.ownerUid!==currentUid())return '';
   const editors=state.trip.editorEmails||[];
-  return `<section class="card"><h2>שיתוף הטיול</h2><p class="muted">משתתפים עם הרשאת עריכה יכולים לצפות ולערוך את תוכן הטיול, אך לא לבצע פעולות בעלים (מחיקת הטיול, ניהול שיתוף).</p>${editors.length?`<div class="list">${editors.map(email=>`<div class="row"><span class="row-main"><b>${esc(email)}</b></span><button class="btn ghost" data-action="remove-editor" data-email="${esc(email)}">הסרה</button></div>`).join('')}</div>`:'<p class="muted small">אין עדיין משתתפים עם הרשאת עריכה.</p>'}<form id="add-editor-form"><div class="field"><label>הוספת משתתף לפי אימייל</label><input type="email" name="email" required placeholder="name@example.com"></div><button class="btn secondary">הוספה</button></form></section>`;
+  const revokedHistory=editorHistory.filter(entry=>entry.state==='revoked'&&!editors.includes(entry.email));
+  return `<section class="card"><h2>שיתוף הטיול</h2><p class="muted">משתתפים עם הרשאת עריכה יכולים לצפות ולערוך את תוכן הטיול, אך לא לבצע פעולות בעלים (מחיקת הטיול, ניהול שיתוף).</p>${editors.length?`<div class="list">${editors.map(email=>`<div class="row"><span class="row-main"><b>${esc(email)}</b></span><button class="btn ghost" data-action="remove-editor" data-email="${esc(email)}">הסרה</button></div>`).join('')}</div>`:'<p class="muted small">אין עדיין משתתפים עם הרשאת עריכה.</p>'}<form id="add-editor-form"><div class="field"><label>הוספת משתתף לפי אימייל</label><input type="email" name="email" required placeholder="name@example.com"></div><button class="btn secondary">הוספה</button></form>${revokedHistory.length?`<details class="proposal-archive"><summary>היסטוריית הרשאות שהוסרו (${revokedHistory.length})</summary><div class="list">${revokedHistory.map(entry=>`<div class="row"><span class="row-main"><b>${esc(entry.email)}</b><small class="muted">הוסר ${entry.revokedAt?fmt(entry.revokedAt):''}</small></span></div>`).join('')}</div></details>`:''}</section>`;
 }
 // 0.7.2: reachable from Trip Settings, per the original scope document's recommended Trip-switcher
 // placement. Real bug, caught by the Product Owner's own live acceptance testing (Test 2, no
@@ -747,11 +792,41 @@ function participantsSection(){
   const participants=state.participants||[];
   return `<section class="card"><h2>משתתפים</h2><p class="muted">ניהול משתתפי הטיול; קובע גם שיוך פריטים, כרטיסים ורשימות אריזה אישיות.</p><div class="list">${participants.length?participants.map(participant=>`<article class="row ${participant.active===false?'inactive':''}"><span class="row-main"><b>${participant.avatarInitials?`${esc(participant.avatarInitials)} · `:''}${esc(participant.name)}</b><small class="muted">${participant.relationship?esc(participant.relationship)+' · ':''}${participant.active===false?'לא פעיל':'פעיל'}</small></span><div class="actions"><button class="btn ghost" data-action="participant-edit" data-id="${participant.id}">עריכה</button><button class="btn ${participant.active===false?'':'warn'}" data-action="participant-toggle-active" data-id="${participant.id}">${participant.active===false?'הפעלה':'השבתה'}</button></div></article>`).join(''):'<p class="muted">לא נוספו משתתפים.</p>'}</div><button class="btn" data-action="participant-add">משתתף חדש</button></section>`;
 }
-function settingsView(){if(!state.trip)return empty();return `<section class="card"><h2>הגדרות הטיול</h2><form id="trip-form"><p class="required-note"><span class="required" aria-hidden="true">*</span> שדה חובה</p><div class="field"><label>${requiredLabel('שם הטיול')}</label><input name="name" required aria-required="true" value="${esc(state.trip.name)}"></div><div class="grid two"><div class="field"><label>תאריך התחלה</label><input type="date" name="startDate" value="${esc(state.trip.startDate)}"></div><div class="field"><label>תאריך סיום</label><input type="date" name="endDate" value="${esc(state.trip.endDate)}"></div></div><button class="btn">שמירה</button></form></section>${destinationsSection()}${participantsSection()}${sharingSection()}${tripsSection()}<section class="card danger-zone"><h2>מחיקה ואיפוס</h2><p class="muted">הפעולות חלות רק על הטיול הנוכחי: <b>${esc(state.trip.name)}</b>.</p><div class="danger-option"><div><h3>מחיקת נתוני הטיול</h3><p class="muted">מוחקת פריטים, מסמכים, משימות, קניות, אריזה, מיקומים ומשתתפים; שם הטיול והתאריכים נשארים.</p></div><button class="btn warn" data-action="reset-trip-data">מחיקת נתוני הטיול</button></div><div class="danger-option"><div><h3>מחיקת הטיול הנוכחי</h3><p class="muted">מוחקת את הטיול ואת כל הנתונים המקומיים המשויכים אליו.</p></div><button class="btn danger" data-action="delete-current-trip">מחיקת הטיול</button></div></section><section class="card"><h2>אודות</h2><p class="muted small">${esc(appVersionLabel())}${buildVersionLabel()?` · בנייה ${esc(buildVersionLabel())}`:''}</p></section>`}
+function settingsView(){if(!state.trip)return empty();return `<section class="card"><h2>הגדרות הטיול</h2><form id="trip-form"><p class="required-note"><span class="required" aria-hidden="true">*</span> שדה חובה</p><div class="field"><label>${requiredLabel('שם הטיול')}</label><input name="name" required aria-required="true" value="${esc(state.trip.name)}"></div><div class="grid two"><div class="field"><label>תאריך התחלה</label><input type="date" name="startDate" value="${esc(state.trip.startDate)}"></div><div class="field"><label>תאריך סיום</label><input type="date" name="endDate" value="${esc(state.trip.endDate)}"></div></div><button class="btn">שמירה</button></form></section>${destinationsSection()}${participantsSection()}${sharingSection()}${tripsSection()}${myInvitation?.isAdmin?`<section class="card"><h2>ניהול מערכת</h2><p class="muted">ניהול הזמנות שימוש באפליקציה ברמת החשבון, נפרד מהרשאות עריכה של טיול ספציפי.</p><button class="btn secondary" data-route="admin">ניהול הרשאות גישה</button></section>`:''}<section class="card danger-zone"><h2>מחיקה ואיפוס</h2><p class="muted">הפעולות חלות רק על הטיול הנוכחי: <b>${esc(state.trip.name)}</b>.</p><div class="danger-option"><div><h3>מחיקת נתוני הטיול</h3><p class="muted">מוחקת פריטים, מסמכים, משימות, קניות, אריזה, מיקומים ומשתתפים; שם הטיול והתאריכים נשארים.</p></div><button class="btn warn" data-action="reset-trip-data">מחיקת נתוני הטיול</button></div><div class="danger-option"><div><h3>מחיקת הטיול הנוכחי</h3><p class="muted">מוחקת את הטיול ואת כל הנתונים המקומיים המשויכים אליו.</p></div><button class="btn danger" data-action="delete-current-trip">מחיקת הטיול</button></div></section><section class="card"><h2>אודות</h2><p class="muted small">${esc(appVersionLabel())}${buildVersionLabel()?` · בנייה ${esc(buildVersionLabel())}`:''}</p></section>`}
+// 0.7.5 (DESIGN_V1.md §6): the Product-Owner-only application-invitation admin panel -- distinct
+// from sharingSection() above, which is the per-Trip Owner-facing Editor panel every Trip Owner
+// (not just the admin) already had since 0.7.2. Gated purely client-side on myInvitation.isAdmin
+// (a convenience, matching this project's standing "client-hidden UI is not an authorization
+// boundary" rule); the real boundary is firestore.rules' own isAdmin()-gated invitations
+// collection and admin-delete-account.mjs's own server-side admin check, both independent of
+// whatever this function decides to render.
+function adminView(){
+  if(!myInvitation?.isAdmin)return `<section class="card"><button class="btn ghost" data-route="settings">חזרה</button><p class="muted">מסך זה זמין למנהלי המערכת בלבד.</p></section>`;
+  const active=adminInvitations.filter(invitation=>invitation.state==='active');
+  const revoked=adminInvitations.filter(invitation=>invitation.state==='revoked');
+  return `<section class="card"><button class="btn ghost" data-route="settings">חזרה</button><h2>ניהול הרשאות גישה</h2><p class="muted">מי מורשה להשתמש באפליקציה בכלל -- נפרד מהרשאת עריכה לטיול ספציפי (זו מנוהלת מהגדרות הטיול עצמו).</p><div class="list">${active.length?active.map(invitation=>`<div class="row"><span class="row-main"><b>${esc(invitation.email)}</b>${invitation.isAdmin?' <span class="badge blue">מנהל</span>':''}</span>${invitation.isAdmin?'':`<button class="btn warn" data-action="admin-revoke" data-email="${esc(invitation.email)}">ביטול הרשאה</button>`}</div>`).join(''):'<p class="muted small">אין הזמנות פעילות.</p>'}</div><form id="admin-invite-form"><div class="field"><label>הזמנת משתמש חדש לפי אימייל</label><input type="email" name="email" required placeholder="name@example.com"></div><button class="btn secondary">הזמנה</button></form></section>${quarantineSection(revoked)}`;
+}
+// 0.7.5 (DESIGN_V1.md §4/§5/§8): a revoked-not-yet-eligible account still shows here (with its own
+// remaining-days count) even though its delete button stays disabled -- visibility into the
+// countdown is itself part of the frozen requirement ("the 30-day countdown is visible in the
+// admin UI per quarantined account"), not just the eventual delete action.
+function quarantineSection(revoked){
+  if(!revoked.length)return '';
+  return `<section class="card danger-zone"><h2>הסגר -- חשבונות שבוטלו</h2><p class="muted">חשבון שבוטל חסום מיידית מכל גישה. לאחר 30 יום ניתן למחוק לצמיתות את הנתונים בבעלותו -- אך ורק באישור מפורש, נפרד, לכל חשבון בנפרד.</p><div class="list">${revoked.map(invitation=>{
+    const daysSinceRevoked=invitation.revokedAt?Math.max(0,Math.floor((Date.now()-new Date(invitation.revokedAt).getTime())/(24*60*60*1000))):0;
+    const eligible=isDeletionEligible(invitation);
+    const remaining=Math.max(0,QUARANTINE_DELETION_ELIGIBLE_DAYS-daysSinceRevoked);
+    return `<div class="row"><span class="row-main"><b>${esc(invitation.email)}</b><small class="muted">בוטל לפני ${daysSinceRevoked} ימים${eligible?' · ניתן למחיקה':` · ניתן למחיקה בעוד ${remaining} ימים`}</small></span><button class="btn danger" data-action="admin-delete-account" data-email="${esc(invitation.email)}" ${eligible?'':'disabled aria-disabled="true"'}>מחיקה לצמיתות</button></div>`;
+  }).join('')}</div></section>`;
+}
 function tripsView(){
   const owned=myTrips.filter(trip=>trip.ownerUid===currentUid()),shared=myTrips.filter(trip=>trip.ownerUid!==currentUid());
   const row=trip=>`<button class="row" data-action="switch-trip" data-id="${trip.id}"><span class="row-main"><b>${esc(trip.name||'טיול')}</b></span>${trip.id===state.trip?.id?'<span class="badge blue">נוכחי</span>':''}</button>`;
-  return `<section class="card"><h2>הטיולים שלי</h2>${owned.length?`<h3>בבעלותי</h3><div class="list">${owned.map(row).join('')}</div>`:''}${shared.length?`<h3>משותפים איתי</h3><div class="list">${shared.map(row).join('')}</div>`:''}${!owned.length&&!shared.length?'<p class="muted">אין עדיין טיולים.</p>':''}${migrationBanner()}<div class="actions"><button class="btn" data-action="start-new-trip">התחלת טיול חדש</button></div></section>`;
+  // 0.7.5: also reachable from here, not just Settings -- Settings itself requires an active Trip
+  // (settingsView() returns empty() without one), but the admin panel is account-level and must
+  // stay reachable even for an admin with zero Trips yet; this is the one Trip-independent screen
+  // that already exists for exactly that reason (migrationBanner/start-new-trip below).
+  return `<section class="card"><h2>הטיולים שלי</h2>${owned.length?`<h3>בבעלותי</h3><div class="list">${owned.map(row).join('')}</div>`:''}${shared.length?`<h3>משותפים איתי</h3><div class="list">${shared.map(row).join('')}</div>`:''}${!owned.length&&!shared.length?'<p class="muted">אין עדיין טיולים.</p>':''}${migrationBanner()}<div class="actions"><button class="btn" data-action="start-new-trip">התחלת טיול חדש</button>${myInvitation?.isAdmin?'<button class="btn ghost" data-route="admin">ניהול הרשאות גישה</button>':''}</div></section>`;
 }
 
 function intakeModal(){const source=state.modal?.source||'manual',choices=[['manual','✍️ ידני'],['document','📎 מסמך'],['link','🔗 קישור'],['json','⬆️ JSON'],['qr','▦ QR']];let body='';
@@ -824,7 +899,7 @@ function packingItemModal(){
   return `<div class="modal-bg"><section class="modal"><div class="modal-head"><h2>${state.modal.itemId?'עריכת פריט אריזה':'פריט אריזה חדש'}</h2><button class="close" data-action="close">✕</button></div><form id="packing-item-form" data-list-id="${state.modal.listId}" data-item-id="${state.modal.itemId||''}"><p class="required-note"><span class="required" aria-hidden="true">*</span> שדה חובה</p><label class="field">${requiredLabel('שם הפריט')}<input name="name" required aria-required="true" value="${esc(item.name)}"></label>${state.participants.length?`<div class="field"><label>שיוך למשתתפים (ריק = משותף)</label><div class="participant-picker">${state.participants.map(participant=>`<label class="checkbox-field"><input type="checkbox" name="participantIds" value="${participant.id}" ${ids.has(participant.id)?'checked':''}> ${esc(participant.name)}</label>`).join('')}</div></div>`:''}<button class="btn">שמירה</button></form></section></div>`;
 }
 function modal(){if(!state.modal)return '';if(state.modal.type==='intake')return intakeModal();if(state.modal.type==='attachment')return attachmentModal();if(state.modal.type==='edit-item')return editModal();if(state.modal.type==='duplicate')return duplicateModal();if(state.modal.type==='participant')return participantModal();if(state.modal.type==='packing-item')return packingItemModal();if(['task','shopping','location'].includes(state.modal.type))return simpleFormModal();return ''}
-function nav(){return `<nav class="nav">${[['today','🏠','Today'],['timeline','🗓️','Timeline'],['center','🗂️','Trip Center'],['settings','⚙️','הגדרות']].map(([key,icon,label])=>`<button class="${state.view===key||(['detail','suggestion','games','packing','tasks','shopping','locations'].includes(state.view)&&key==='center')||(state.view==='trips'&&key==='settings')?'active':''}" data-route="${key}">${icon}<br>${label}</button>`).join('')}</nav>`}
+function nav(){return `<nav class="nav">${[['today','🏠','Today'],['timeline','🗓️','Timeline'],['center','🗂️','Trip Center'],['settings','⚙️','הגדרות']].map(([key,icon,label])=>`<button class="${state.view===key||(['detail','suggestion','games','packing','tasks','shopping','locations'].includes(state.view)&&key==='center')||(['trips','admin'].includes(state.view)&&key==='settings')?'active':''}" data-route="${key}">${icon}<br>${label}</button>`).join('')}</nav>`}
 // 0.7.3 (DESIGN_V1.md §4, Product Owner decision: option 2, the minimal pending-sync indicator).
 // Extends the existing offline banner's own pattern rather than introducing a new one: offline
 // takes priority when both are true (there's nothing more specific to say while offline than that),
@@ -850,7 +925,12 @@ function render(){
     const remoteState=bufferedRemoteState;bufferedRemoteState=null;
     if(pendingSyncCount===0)mergeRemoteState(remoteState);
   }
-  normalizeOperationalState(state);const views={today:todayView,timeline,center,detail:detailView,suggestion:suggestionView,games:gamesView,packing:packingView,tasks:tasksView,shopping:shoppingView,locations:locationsView,settings:settingsView,trips:tripsView},body=(!bootResolved?loading:!state.trip&&state.view!=='trips'?empty:(views[state.view]||todayView))();document.querySelector('#app').innerHTML=`<div class="shell">${syncBanner()}${header()}<main>${body}</main><button class="fab" data-action="create">+</button>${nav()}${modal()}${state.toast?`<div class="toast">${esc(state.toast)}</div>`:''}</div>`}
+  // 0.7.5: 'admin' added to the Trip-independent exception list alongside 'trips' -- the admin
+  // panel is account-level (per §0.2/§6, "the app doesn't know who the Product Owner is" until
+  // isAdmin is checked, and that has nothing to do with whether a Trip happens to exist yet), so an
+  // admin with no Trip at all must still be able to reach it, exactly like the Trip switcher/
+  // start-new-trip view already could with no Trip.
+  normalizeOperationalState(state);const views={today:todayView,timeline,center,detail:detailView,suggestion:suggestionView,games:gamesView,packing:packingView,tasks:tasksView,shopping:shoppingView,locations:locationsView,settings:settingsView,trips:tripsView,admin:adminView},body=(!bootResolved?loading:!state.trip&&!['trips','admin'].includes(state.view)?empty:(views[state.view]||todayView))();document.querySelector('#app').innerHTML=`<div class="shell">${syncBanner()}${header()}<main>${body}</main><button class="fab" data-action="create">+</button>${nav()}${modal()}${state.toast?`<div class="toast">${esc(state.toast)}</div>`:''}</div>`}
 
 // 0.7.2: source bytes now go to Firebase Storage (trips/{tripId}/sources/{sourceId}/...), not the
 // old per-device IndexedDB store -- see cloud-store.js's uploadAttachment/downloadAttachment and
@@ -1110,7 +1190,7 @@ function approveSuggestion(suggestion,mode='check',targetId=''){if(!suggestion||
   }else state.items.push(suggestionToItem(suggestion,{},state.trip?.startDate||''));
   suggestion.status='approved';for(const sourceId of suggestion.sourceIds||[suggestion.sourceId]){const source=sourceById(sourceId);if(source)source.status='משויך לפריט'}save();state.modal=null;route(mode==='merge'?'detail':'center',mode==='merge'?{itemId:targetId}:{category:suggestion.proposed.type});notify(mode==='merge'?(mergeHadConflict?'העדכון אושר ומוזג — נמצאו ערכים סותרים, הערך הקיים נשמר והערך החדש סומן לבדיקה בפרטי הפריט':'העדכון אושר ומוזג בלי לדרוס ערכים קיימים בערכים ריקים'):'ההצעה אושרה ונוצר פריט')}
 
-addEventListener('click',async event=>{const routeButton=event.target.closest('[data-route]');if(routeButton){route(routeButton.dataset.route,{category:routeButton.dataset.cat,itemId:routeButton.dataset.id,suggestionId:routeButton.dataset.id});return}const button=event.target.closest('[data-action]');if(!button)return;const action=button.dataset.action;
+addEventListener('click',async event=>{const routeButton=event.target.closest('[data-route]');if(routeButton){const view=routeButton.dataset.route;route(view,{category:routeButton.dataset.cat,itemId:routeButton.dataset.id,suggestionId:routeButton.dataset.id});if(view==='settings'&&state.trip?.ownerUid===currentUid())refreshEditorHistory();else if(view==='admin')refreshAdminInvitations();return}const button=event.target.closest('[data-action]');if(!button)return;const action=button.dataset.action;
   if(action==='create'){state.modal={type:'intake',source:'manual'};render()}
   else if(action==='close'){stopCamera();pendingSourceFile=null;state.modal=null;render()}
   else if(action==='source'){stopCamera();pendingSourceFile=null;state.modal.source=button.dataset.source;render()}
@@ -1211,7 +1291,12 @@ addEventListener('click',async event=>{const routeButton=event.target.closest('[
   else if(action==='location-approve'){const record=state.locationRecords.find(x=>x.id===button.dataset.id);state.modal={type:'location',locationId:record.id,record};render()}
   else if(action==='switch-trip')switchTrip(button.dataset.id);
   else if(action==='start-new-trip')await startNewTripFlow();
-  else if(action==='remove-editor'){if(!confirm(`להסיר את ${button.dataset.email} מהטיול?`))return;try{state.trip.editorEmails=await removeEditorByEmail(state.trip.id,button.dataset.email);render()}catch(error){alert(error.message||'הסרת המשתתף נכשלה.')}}
+  else if(action==='remove-editor'){if(!confirm(`להסיר את ${button.dataset.email} מהטיול?`))return;try{state.trip.editorEmails=await removeEditorByEmail(state.trip.id,button.dataset.email);render();refreshEditorHistory()}catch(error){alert(error.message||'הסרת המשתתף נכשלה.')}}
+  else if(action==='admin-revoke'){if(!confirm(`לבטל את ההרשאה של ${button.dataset.email}? הגישה לאפליקציה תיחסם מיידית.`))return;try{await revokeInvitation(button.dataset.email);notify('ההרשאה בוטלה');refreshAdminInvitations()}catch(error){alert(error.message||'ביטול ההרשאה נכשל.')}}
+  else if(action==='admin-delete-account'){
+    try{const result=await deleteAccountViaAdmin(button.dataset.email);if(result){notify('החשבון נמחק לצמיתות');refreshAdminInvitations()}}
+    catch(error){alert(error.message||'המחיקה נכשלה.')}
+  }
   else if(action==='run-migration'){
     if(!confirm('להעביר את נתוני הטיול המקומי למערכת המשותפת? העותק המקומי יישאר ללא שינוי.'))return;
     const legacy=legacyLoad();if(!legacy.trip){notify('לא נמצא טיול מקומי להעברה');return}
@@ -1272,6 +1357,11 @@ addEventListener('submit',async event=>{event.preventDefault();const form=event.
     const email=String(data.get('email')||'').trim();if(!email){alert('יש להזין כתובת אימייל.');return}
     try{state.trip.editorEmails=await addEditorByEmail(state.trip.id,email);form.reset();render();notify('המשתתף נוסף')}
     catch(error){alert(error.message||'הוספת המשתתף נכשלה.')}
+  }
+  else if(form.id==='admin-invite-form'){
+    const email=String(data.get('email')||'').trim();if(!email){alert('יש להזין כתובת אימייל.');return}
+    try{await inviteByEmail(email);form.reset();notify('ההזמנה נוספה');refreshAdminInvitations()}
+    catch(error){alert(error.message||'הוספת ההזמנה נכשלה.')}
   }
 });
 addEventListener('touchstart',event=>{if(event.target.closest('[data-timeline-calendar]'))timelineSwipeStartX=event.changedTouches[0]?.clientX??null},{passive:true});

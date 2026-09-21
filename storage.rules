@@ -3,13 +3,18 @@ rules_version = '2';
 // so an attachment's access rule can never drift from the Firestore Trip document that actually
 // owns the authorization decision. Layout: trips/{tripId}/sources/{sourceId}/{filename}, per
 // docs/versions/V7/0.7.2/DESIGN_V1.md §1.3.
+// 0.7.5 (DESIGN_V1.md §2/§3): isInvited() reads the same invitations/{email} collection
+// firestore.rules now reads, replacing the old config/appInvitations mirror -- see that file's own
+// comment for the full data-model note. Kept in sync by hand (Storage rules cannot import
+// Firestore rules functions across files), same as every prior revision of this rule.
 service firebase.storage {
   match /b/{bucket}/o {
 
     function isInvited() {
       return request.auth != null &&
         request.auth.token.email_verified == true &&
-        request.auth.token.email in firestore.get(/databases/(default)/documents/config/appInvitations).data.emails;
+        firestore.exists(/databases/(default)/documents/invitations/$(request.auth.token.email)) &&
+        firestore.get(/databases/(default)/documents/invitations/$(request.auth.token.email)).data.state == 'active';
     }
     function hasTripAccess(tripId) {
       let trip = firestore.get(/databases/(default)/documents/trips/$(tripId));

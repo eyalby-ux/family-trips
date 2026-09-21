@@ -108,6 +108,22 @@ export function normalizeOperationalState(state){
   return state;
 }
 
+// 0.7.5 (DESIGN_V1.md §4): the 30-day quarantine-to-deletion-eligibility check, computed on demand
+// rather than via a scheduled job -- there is nothing this needs to do proactively the moment day
+// 30 arrives, only ever refuse deletion before it. Pure and dependency-free like diffById above, so
+// it gets a real function-level test rather than only source-inspection; the admin panel (client)
+// uses this to show "eligible in N days", and admin-delete-account.mjs (Netlify Function) restates
+// the same check independently, server-side, rather than trusting whatever the client displayed --
+// deliberate duplication, not an oversight (see that function's own comment).
+export const QUARANTINE_DELETION_ELIGIBLE_DAYS=30;
+export function isDeletionEligible(invitation,nowIso=new Date().toISOString()){
+  if(!invitation||invitation.state!=='revoked'||!invitation.revokedAt)return false;
+  const revokedAt=new Date(invitation.revokedAt).getTime();
+  const now=new Date(nowIso).getTime();
+  if(!Number.isFinite(revokedAt)||!Number.isFinite(now))return false;
+  return now-revokedAt>=QUARANTINE_DELETION_ELIGIBLE_DAYS*24*60*60*1000;
+}
+
 export function backfillTripDates(items,tripStartDate){
   if(!tripStartDate)return 0;
   let changed=0;
@@ -409,7 +425,9 @@ export function resolveSmartImportSubmissionMode(url,file,allowUrl){
 // (Hebrew, not English) rather than merely confirming a dictionary entry exists.
 const SMART_IMPORT_ERROR_MESSAGES={
   not_invited:'החשבון אינו נמצא ברשימת המוזמנים.',
-  trip_not_owned:'הטיול אינו בבעלות החשבון הפעיל.',
+  // 0.7.5: updated wording -- an Editor may now trigger Smart Import too (DESIGN_V1.md §7), so
+  // this code now also covers "not an Editor either", not just "not the Owner".
+  trip_not_owned:'לחשבון הפעיל אין הרשאת בעלים או עריכה לטיול זה.',
   daily_quota_exceeded:'מכסת הניתוח היומית הסתיימה.',
   unsupported_source:'סוג המקור אינו נתמך.',
   protected_or_private_url:'הקישור אינו ציבורי או דורש גישה פרטית.',

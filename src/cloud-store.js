@@ -174,6 +174,17 @@ export async function deleteTripCompletely(tripId){
   await deleteDoc(tripRef(tripId));
 }
 
+// 0.7.5 (DESIGN_V1.md §2): editorHistory is a plain-write audit trail alongside the live,
+// rules-checked editorEmails array -- written best-effort, after the real access-granting write
+// above already succeeded, so a history-write failure never blocks the actual grant/revoke itself
+// (the array is what rules and hasTripAccess() actually check; history is display-only, for the
+// Trip Owner's own sharingSection() panel).
+function editorHistoryRef(tripId,email){return doc(collection(db,'trips',tripId,'editorHistory'),email)}
+async function recordEditorHistory(tripId,email,state){
+  try{await setDoc(editorHistoryRef(tripId,email),{email,state,...(state==='active'?{grantedAt:new Date().toISOString()}:{revokedAt:new Date().toISOString()})},{merge:true})}
+  catch(error){console.error('editorHistory write failed',error)}
+}
+
 export async function addEditorByEmail(tripId,email){
   const normalized=String(email||'').trim().toLowerCase();
   if(!normalized)throw new Error('יש להזין כתובת אימייל.');
@@ -182,6 +193,7 @@ export async function addEditorByEmail(tripId,email){
   const current=new Set(snapshot.data().editorEmails||[]);
   current.add(normalized);
   await setDoc(tripRef(tripId),{editorEmails:[...current]},{merge:true});
+  await recordEditorHistory(tripId,normalized,'active');
   return [...current];
 }
 
@@ -192,7 +204,42 @@ export async function removeEditorByEmail(tripId,email){
   const current=new Set(snapshot.data().editorEmails||[]);
   current.delete(normalized);
   await setDoc(tripRef(tripId),{editorEmails:[...current]},{merge:true});
+  await recordEditorHistory(tripId,normalized,'revoked');
   return [...current];
+}
+
+// 0.7.5 (DESIGN_V1.md §2/§3/§6): admin invitation-management CRUD, all direct client writes gated
+// by firestore.rules' own isAdmin() check (mirrors addEditorByEmail/removeEditorByEmail's own
+// direct-write-gated-by-rules pattern above -- no separate Netlify Function needed for these,
+// unlike admin-delete-account.mjs, which needs a privileged credential rules can't grant safely).
+function invitationRef(email){return doc(db,'invitations',email)}
+export async function listEditorHistory(tripId){
+  const snapshot=await getDocs(collection(db,'trips',tripId,'editorHistory'));
+  return snapshot.docs.map(document=>document.data());
+}
+export async function listInvitations(){
+  const snapshot=await getDocs(collection(db,'invitations'));
+  return snapshot.docs.map(document=>document.data());
+}
+export async function getMyInvitation(){
+  const email=currentEmail();
+  if(!email)return null;
+  const snapshot=await getDoc(invitationRef(email));
+  return snapshot.exists()?snapshot.data():null;
+}
+// isAdmin is deliberately never written here -- omitted entirely, not set to false, so
+// merge:true leaves a genuinely re-invited former admin's isAdmin flag exactly as it was
+// (per DESIGN_V1.md §2's "New open question 5": isAdmin is only ever hand-seeded directly in the
+// Console, never through this or any other app write path). A brand-new invitation simply has no
+// isAdmin field at all, which the rules' own `== true` check already treats as not-admin.
+export async function inviteByEmail(email){
+  const normalized=String(email||'').trim().toLowerCase();
+  if(!normalized)throw new Error('יש להזין כתובת אימייל.');
+  await setDoc(invitationRef(normalized),{email:normalized,state:'active',invitedAt:new Date().toISOString(),revokedAt:null},{merge:true});
+}
+export async function revokeInvitation(email){
+  const normalized=String(email||'').trim().toLowerCase();
+  await setDoc(invitationRef(normalized),{email:normalized,state:'revoked',revokedAt:new Date().toISOString()},{merge:true});
 }
 
 // Storage layout: trips/{tripId}/sources/{sourceId}/{filename}, per DESIGN_V1.md §1.3 -- mirrors
