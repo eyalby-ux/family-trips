@@ -21,7 +21,7 @@ Edit an existing Hotel item (or create a new one). Confirm the old free-text "מ
 
 **Expect:** No duplicate participants control. Save the item and confirm it still saves correctly.
 
-**Result:** ☐ PASS / ☐ FAIL — notes:
+**Result:** ☑ PASS — notes: Confirmed as expected; no notes.
 
 ## Test 2 — Old field is gone from every other item type too
 
@@ -29,7 +29,7 @@ Repeat the same check on at least two other item types — e.g. Flight and Activ
 
 **Expect:** The old field is absent everywhere, not just Hotel — confirming it was a shared fix, not a per-type patch.
 
-**Result:** ☐ PASS / ☐ FAIL — notes:
+**Result:** ☑ PASS — notes: Confirmed as expected; no notes.
 
 ## Test 3 — Existing item data isn't silently lost by editing
 
@@ -37,7 +37,7 @@ If you have an existing Flight or Activity item from before this correction (ide
 
 **Expect:** The passenger/ticket-holder names are still there after the edit, exactly as before — nothing about them changed just because you edited a different field.
 
-**Result:** ☐ PASS / ☐ FAIL — notes:
+**Result:** ☐ Not verifiable in this session — notes: Product Owner has no existing Flight/Activity item on the QA Test Trip with real old-field passenger/ticket-holder data to retest against (the sort of item that would exist only from before this correction, via Smart Import). Product Owner's own call: accept on the Development Agent's own code-level evidence instead — a genuine behavioral test confirming the save function never outputs the old field's key, for every item type — rather than block this candidate on a live-data check that has no test case to run. Not a defect; simply not independently re-verified live.
 
 ## Test 4 — The real participant-assignment picker (from `0.7.4`) still works normally
 
@@ -45,7 +45,7 @@ On any item, set its participant assignment to a specific participant, save, and
 
 **Expect:** Works exactly as it did in `0.7.4`.
 
-**Result:** ☐ PASS / ☐ FAIL — notes:
+**Result:** ☑ PASS — notes: Confirmed on an actual Item (not a Task, which has its own separate, unrelated free-text "בעלים" owner field) — participant assignment set, saved, and correctly shown as "משויך ל: [name]" on the item's detail page. Product Owner also identified a real product gap while testing: Tasks are not linked to the participant system at all (their "owner" field is free text, unrelated to `0.7.4`'s participant-assignment model). Logged as a new finding below.
 
 ---
 
@@ -53,7 +53,8 @@ On any item, set its participant assignment to a specific participant, save, and
 
 | Finding | Test | Severity | Disposition |
 |---|---|---|---|
+| Product gap: Tasks are not linked to the participant system built in `0.7.4` — a Task's "בעלים" (owner) field is free text, unrelated to the item-level participant-assignment model (none/all/specific). Tasks should be linkable to participants too. | Test 4 | Gap (feature scope, not a defect in this candidate) | Reported by Product Owner 2026-09-21. **Left unscoped, deliberately** — Product Owner will schedule this for a specific target version with the planning assistant separately. Not part of `0.7.4.1`. |
 
 ## GO/NO-GO decision
 
-*To be recorded by the Product Owner after this session.*
+**GO.** Recorded by the Product Owner (Eyal), 2026-09-21. All 4 tests PASS (Test 3 recorded as not verifiable — no test data existed — and accepted on the Development Agent's own code-level evidence instead). `0.7.4.1` may proceed to Production promotion as a separate, explicit action. One new gap logged, deliberately left unscoped for future planning: Tasks aren't linked to the participant system.
