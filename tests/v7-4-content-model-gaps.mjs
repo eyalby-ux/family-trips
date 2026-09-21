@@ -22,7 +22,11 @@ function test_0_7_4_destinationSummary_renders_the_ordered_list_as_the_apps_own_
   // concept anywhere before this candidate -- the MVP scope bullet names one feature, not two.
   const start=app.indexOf('function destinationSummary(){');
   const body=app.slice(start,app.indexOf('function header(',start));
-  assert(body.includes("countries.map(esc).join(' → ')"));
+  // Joined with '←', not '→' -- found live by the Product Owner: a rightward arrow between Hebrew
+  // (strong-RTL) country names visually reads backwards, unlike this app's own existing "TLV →
+  // BKK"-style flight routes, which only work because airport codes are Latin/LTR (an entirely
+  // different bidi scenario). Verified empirically in a live browser before fixing.
+  assert(body.includes("countries.map(esc).join(' ← ')"));
   assert(app.includes('function header(){const destination=destinationSummary();'));
 }
 function test_0_7_4_destinationsSection_supports_add_move_and_remove_in_order(){

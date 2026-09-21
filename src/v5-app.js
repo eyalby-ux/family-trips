@@ -323,7 +323,16 @@ function suggestionById(id){return state.suggestions.find(suggestion=>suggestion
 // src/ before this candidate), so the MVP scope bullet's "Destination Countries, destination/route
 // summary" names one feature, not two: the ordered list itself IS the route summary. Shown in the
 // header (every view, not buried in Trip Settings) so reordering has a real, visible effect.
-function destinationSummary(){const countries=state.trip?.destinationCountries||[];return countries.length?countries.map(esc).join(' → '):''}
+// 0.7.4.1: joined with '←' (leftward), not '→' (rightward) -- found live by the Product Owner: a
+// rightward arrow between Hebrew (strong-RTL) country names visually reads backwards, since the
+// arrow glyph itself does not auto-mirror for RTL context the way this app's own existing "TLV →
+// BKK"-style flight routes do (those work correctly today only because airport codes are Latin/
+// LTR, an entirely different bidi scenario -- an arrow between two Hebrew words resolves within
+// an RTL-embedded run instead). Verified empirically in a live browser, not assumed from bidi
+// theory alone: with the array kept in its natural add order (first destination first),
+// '←' correctly places the first destination on the right (where RTL reading begins) with the
+// arrow pointing left, toward each next destination -- matching this app's own RTL reading flow.
+function destinationSummary(){const countries=state.trip?.destinationCountries||[];return countries.length?countries.map(esc).join(' ← '):''}
 function header(){const destination=destinationSummary();return `<header class="top"><div class="top-in"><div class="brand"><img src="/assets/icons/icon-192.png" alt=""><div><h1>${esc(state.trip?.name||'Family Trips')}</h1><p>${destination?`${destination} · `:''}${state.trip?.startDate?`${fmt(state.trip.startDate,false)} — ${state.trip.endDate?fmt(state.trip.endDate,false):'ללא סיום'}`:`${appVersionLabel()} · Hotel + Flight Smart Import`}</p></div></div><span class="status">${status()}</span></div></header>`}
 function empty(){return '<section class="card hero empty"><div class="big">🧭</div><h2>מתחילים מטיול ריק</h2><p class="muted">העלה מקור, ייבא JSON/QR או הזן פריט ידנית.</p><div class="actions center-actions"><button class="btn" data-action="create">הוספה</button></div></section>'}
 // 0.7.3.1: shown only before bootResolved -- see its own declaration for why this is a distinct
