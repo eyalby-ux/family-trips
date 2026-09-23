@@ -355,7 +355,10 @@ function test_0_7_2_attachments_use_firebase_storage_not_indexeddb(){
 // downloading through the Storage SDK's own network layer, the same mechanism uploadBytes()
 // already used successfully.
 function test_0_7_2_downloadAttachment_avoids_cors_via_getBytes(){
-  assert(cloudStore.includes("import {deleteObject,getBytes,ref,uploadBytes} from 'firebase/storage';"));
+  // 0.7.6 added listAll to this same import line (deleteAllAttachments, V7-F08) -- checking for
+  // getBytes' own presence in the firebase/storage import, not the exact historical import text.
+  const storageImportLine=cloudStore.split('\n').find(line=>line.includes("from 'firebase/storage'"));
+  assert(storageImportLine&&storageImportLine.includes('getBytes'));
   const start=cloudStore.indexOf('export async function downloadAttachment(');
   const body=cloudStore.slice(start,cloudStore.indexOf('export async function deleteAttachment(',start));
   assert(body.includes('const bytes=await getBytes(reference);'));
@@ -419,10 +422,15 @@ function test_0_7_2_reset_and_delete_trip_operate_on_real_firestore_storage_reco
   assert(app.includes('else await clearAllTripContent(tripId)'));
 }
 function test_0_7_2_delete_trip_removes_storage_attachments_before_the_trip_document(){
-  const order=cloudStore.indexOf('deleteAttachment(storagePath)');
-  const clearOrder=cloudStore.indexOf('await clearAllTripContent(tripId)',cloudStore.indexOf('export async function deleteTripCompletely'));
-  const docOrder=cloudStore.indexOf('await deleteDoc(tripRef(tripId))');
-  assert(order>-1&&clearOrder>order&&docOrder>clearOrder);
+  // 0.7.6 (V7-F08): deleteTripCompletely's own per-source deleteAttachment(storagePath) loop was
+  // replaced by clearAllTripContent's own deleteAllAttachments() call (a prefix-based sweep) --
+  // the ordering guarantee this test actually cares about (Storage cleanup before the Trip
+  // document comes down) still holds, just through the new call shape.
+  const deleteTripStart=cloudStore.indexOf('export async function deleteTripCompletely');
+  const clearOrder=cloudStore.indexOf('await clearAllTripContent(tripId)',deleteTripStart);
+  const docOrder=cloudStore.indexOf('await deleteDoc(tripRef(tripId))',deleteTripStart);
+  const cleanupOrder=cloudStore.indexOf('await deleteAllAttachments(tripId)',cloudStore.indexOf('export async function clearAllTripContent'));
+  assert(cleanupOrder>-1&&clearOrder>-1&&docOrder>clearOrder,'clearAllTripContent (which cleans up Storage first) must run before the Trip document is deleted');
 }
 function test_0_7_2_ownership_reconciliation_reads_firestore_via_the_callers_own_token_not_a_service_account(){
   // Decision 4's literal wording asked for a Firebase Admin/service-account client; this reuses

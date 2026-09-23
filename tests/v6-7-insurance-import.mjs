@@ -540,7 +540,9 @@ function test_V6_F86_insuranceSystemPrompt_requires_literal_quoted_evidence_for_
 // ---------------------------------------------------------------------------------------------
 function test_V6_F87_openSource_explains_tiff_download_instead_of_silent_inconsistency(){
   const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
-  const fn=app.slice(app.indexOf('async function openSource(id){'),app.indexOf('async function openSource(id){')+2500);
+  // 0.7.6: openSource() gained a few extra comment lines (DESIGN_V1.md §2's message-wording fix) --
+  // widened from 2500 to keep both the isTiff/alert() logic and the open() call inside this window.
+  const fn=app.slice(app.indexOf('async function openSource(id){'),app.indexOf('async function openSource(id){')+2900);
   assert(fn.includes("const isTiff=(record.type||'')==='image/tiff'||/\\.tiff?$/i.test(record.name||'');"),'openSource must detect a TIFF source by stored MIME type or filename fallback (mirroring validateSmartSource/inferMime\'s own established MIME-or-filename pattern), since record.type can be empty depending on browser/OS');
   assert(fn.includes("if(isTiff)alert('קובצי TIFF אינם נתמכים לתצוגה בדפדפן — הקובץ יורד למכשיר לאחר אישור זה');"),'openSource must alert() (a blocking, cannot-be-missed dialog -- this codebase\'s own established pattern) the user when a TIFF will download instead of preview inline -- 0.6.7.3\'s notify()-based fix was confirmed present in that build\'s live deployed bundle yet still went unnoticed, so this round upgrades to a mechanism that cannot be missed regardless of tab-focus timing');
   const alertIndex=fn.indexOf("if(isTiff)alert(");

@@ -943,6 +943,17 @@ function render(){
 // bytes are reachable", not merely its metadata), now backed by Storage's own offline cache
 // instead of a bespoke IndexedDB read, so every existing call site that already checks it (sourceRow,
 // etc.) needed no changes.
+// 0.7.6 (DESIGN_V1.md §5): a genuinely offline file upload is a known, accepted limitation, not a
+// silent gap -- uploadAttachment() below is a real Firebase Storage network call with no offline
+// queueing (Storage's SDK has no equivalent to Firestore's own offline persistence, which is
+// specific to documents, not binaries). While offline, this call simply rejects; every caller
+// (ingest()/smartIngest()/attachIngest()) already wraps it in try/catch and shows a clear alert()
+// on failure -- no suggestion or item is silently created, satisfying the frozen "no silent data
+// loss" invariant even though there is no retry-on-reconnect the way a structured-data edit gets.
+// Deliberately not built further for this candidate (0.7.6 DESIGN_V1.md §5, Product Owner decision,
+// 2026-09-23) -- real offline-queued binary upload is materially different work, closer in size to
+// 0.7.3's own sync-engine design effort, and stays a possible future candidate if it turns out to
+// matter in real use.
 async function storeOriginal(source,file){
   if(!state.trip)throw new Error('לא נמצא טיול פעיל.');
   // Must happen before the Storage upload, not after -- see ensureTripDocSynced's own comment.
@@ -955,7 +966,12 @@ async function storeOriginal(source,file){
   source.storedOffline=true;
 }
 async function openSource(id){const source=sourceById(id);if(!source)return;if(source.kind==='link'){open(source.url,'_blank','noopener');return}try{
-  if(!source.storagePath){notify('קובץ המקור אינו זמין אופליין במכשיר זה');return}
+  // 0.7.6 (DESIGN_V1.md §2): reworded from "...unavailable offline on this device" -- cross-device
+  // retrieval via downloadAttachment()/getBytes() is confirmed working (any device with Trip access
+  // can fetch a synced source's real Storage bytes, not just the device that uploaded it), so a
+  // missing storagePath here means the source itself was never successfully uploaded, not a
+  // per-device availability gap.
+  if(!source.storagePath){notify('קובץ המקור אינו זמין — ייתכן שהוא לא הועלה בהצלחה');return}
   const blob=await downloadAttachment(source.storagePath,source.type),record={blob,name:source.name,type:source.type};
   // V6-F87 (0.6.7.3 attempt): unlike PDF/PNG/JPEG/WebP -- every one of which every browser already
   // renders inline from a blob: URL opened this way -- no browser renders TIFF natively, so opening
@@ -1099,7 +1115,9 @@ async function analyzeSavedSource(id){
   const source=sourceById(id);if(!source)return;
   let file;
   try{
-    if(!source.storagePath)throw new Error('קובץ המקור אינו זמין אופליין במכשיר זה. לא ניתן לנתח ללא הקובץ.');
+    // 0.7.6 (DESIGN_V1.md §2): same reasoning as openSource()'s own message above -- reworded to
+    // stop implying a per-device gap that cross-device retrieval already closes.
+    if(!source.storagePath)throw new Error('קובץ המקור אינו זמין — ייתכן שהוא לא הועלה בהצלחה. לא ניתן לנתח ללא הקובץ.');
     const blob=await downloadAttachment(source.storagePath,source.type);
     file=new File([blob],source.name,{type:source.type});
   }catch(error){alert(error.message||'שליפת הקובץ נכשלה.');return}

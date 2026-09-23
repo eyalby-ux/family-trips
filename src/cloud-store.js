@@ -7,7 +7,7 @@
 // the app thinks about its own data.
 import {auth,db,storage} from './firebase.js';
 import {collection,deleteDoc,deleteField,doc,getDoc,getDocs,onSnapshot,query,setDoc,where,writeBatch} from 'firebase/firestore';
-import {deleteObject,getBytes,ref,uploadBytes} from 'firebase/storage';
+import {deleteObject,getBytes,listAll,ref,uploadBytes} from 'firebase/storage';
 import {SYNCED_COLLECTIONS,TRIP_NESTED_FIELDS,TRIP_TOP_LEVEL_FIELDS,diffById} from './operational-data.js';
 
 export {SYNCED_COLLECTIONS};
@@ -146,10 +146,30 @@ export async function createTripDoc(tripId,seed,ownerUid){
   await setDoc(tripRef(tripId),{...seed,ownerUid,editorEmails:[]});
 }
 
+// 0.7.6 (DESIGN_V1.md §4.1, V7-F08): a single prefix-based sweep, not a per-source
+// Firestore-driven iteration like the old deleteTripCompletely loop this replaces -- catches any
+// Storage object under this Trip even if its owning source's Firestore record is already gone
+// (exactly clearAllTripContent's own case below, which deletes every sources record first), and
+// mirrors admin-delete-account.mjs's own already-correct bucket-prefix-delete pattern rather than
+// leaving two independently-maintained deletion-cleanup mechanisms in this codebase.
+async function deleteAllAttachments(tripId){
+  const {items}=await listAll(ref(storage,`trips/${tripId}/sources/`));
+  for(const item of items)await deleteAttachment(item.fullPath);
+}
+
 // Clears every record in every subcollection but leaves the Trip document itself (name/dates)
 // intact -- backs the existing "מחיקת נתוני הטיול" danger-zone action, which has always preserved
 // the Trip's own identity while wiping its content.
+// 0.7.6 (V7-F08): this was the real, currently-reachable orphan-Storage bug -- every attachment
+// survived in Firebase Storage with no Firestore record left to ever reference it again, since
+// neither sourceRow() (no delete action, only open/analyze) nor delete-item (unlinks, never
+// deletes, its sources) can reach a single-attachment-delete path at all; "reset Trip data" was
+// the only currently-reachable way a source's Firestore record was ever removed without its
+// Storage file going with it. Storage cleanup runs first, before the Firestore batch deletes
+// below, matching this project's own established ordering discipline (Storage before Firestore,
+// so a failure partway through never leaves an orphaned file with nothing left to explain it).
 export async function clearAllTripContent(tripId){
+  await deleteAllAttachments(tripId);
   for(const [,collectionName] of SYNCED_COLLECTIONS){
     const snapshot=await getDocs(subRef(tripId,collectionName));
     for(let start=0;start<snapshot.docs.length;start+=450){
@@ -160,16 +180,13 @@ export async function clearAllTripContent(tripId){
   }
 }
 
-// Full, permanent removal -- backs "מחיקת הטיול הנוכחי". Deletes every subcollection record, every
-// Storage attachment under this Trip, and the Trip document itself, in that order (attachments and
-// content before the Trip doc, so a failure partway through never leaves an orphaned Storage file
-// with no Trip document left to explain what it belonged to).
+// Full, permanent removal -- backs "מחיקת הטיול הנוכחי". Deletes every Storage attachment under
+// this Trip, every subcollection record, and the Trip document itself, in that order. 0.7.6: the
+// old per-source deleteAttachment loop that used to live here is gone -- clearAllTripContent's own
+// deleteAllAttachments() call above already covers this exact case (Storage cleanup before the
+// Firestore document tree comes down), so there is now one single deletion-cleanup mechanism in
+// this file, not two.
 export async function deleteTripCompletely(tripId){
-  const sourcesSnapshot=await getDocs(subRef(tripId,'sources'));
-  for(const document of sourcesSnapshot.docs){
-    const storagePath=document.data()?.storagePath;
-    if(storagePath)await deleteAttachment(storagePath);
-  }
   await clearAllTripContent(tripId);
   await deleteDoc(tripRef(tripId));
 }
@@ -269,6 +286,15 @@ export async function getInvitation(email){
 // Storage layout: trips/{tripId}/sources/{sourceId}/{filename}, per DESIGN_V1.md §1.3 -- mirrors
 // the pre-existing separation between source metadata (Firestore) and source bytes (previously
 // IndexedDB, now Storage), rather than introducing a new shape.
+// 0.7.6 (DESIGN_V1.md §3, the frozen contract's deferred "encryption and retention" decision for a
+// synced original -- confirmed, not left open, so a future reader doesn't reopen this): encryption
+// is satisfied by Firebase Storage's own at-rest default, a Google Cloud platform guarantee this
+// project's code does not and need not control. Retention is satisfied by the already-frozen
+// explicit-deletion-only rule -- an original persists until deleteAllAttachments()/deleteAttachment()
+// removes it (via clearAllTripContent/deleteTripCompletely or admin-delete-account.mjs), never on a
+// time-based expiry. The Storage bucket itself has been confirmed to carry no GCS-level lifecycle/
+// object-expiry rule (Product Owner, Google Cloud Console, 2026-09-23) that could silently
+// undermine this from outside this file's own code.
 function attachmentRef(tripId,sourceId,filename){return ref(storage,`trips/${tripId}/sources/${sourceId}/${filename}`)}
 
 export async function uploadAttachment(tripId,sourceId,file){
