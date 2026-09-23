@@ -68,4 +68,4 @@ As Account A, add Account B (already application-invited from Test 1's re-activa
 
 ## Production promotion
 
-Not yet — recorded here once GO is confirmed.
+**`0.7.5.1` is live in Production**, confirmed 2026-09-23. Build `0.7.5.1-0b2a2037`, deploy `6ab418dd1c45e7fd93eadf2d`, verified via a fresh cache-bypassed fetch as byte-identical to the accepted `qa` build (`0` files and `0` functions uploaded during promotion). Rollback backup preserved at `production-promotion-backup-20260923-212131/` — low-risk, no data model or security-rules change. Quarantined accounts can now be re-activated directly, and a newly-invited Trip-less account is warned at the point of the gap instead of being left silently stuck. The revoked-account local-session messaging finding remains open, unscoped, pending the Product Owner's own future scheduling.
