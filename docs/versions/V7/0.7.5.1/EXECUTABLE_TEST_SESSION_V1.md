@@ -24,7 +24,7 @@
 
 **Expect:** Re-activate restores access immediately with no other action needed; `revokedAt` is cleared to `null`.
 
-**Result:** ☐ — notes:
+**Result:** ☑ PASS — notes: Flow works as expected — revoke, re-activate via the admin panel button, and Account B regained access without re-inviting or signing out/in. Product Owner's own note: the revoked-state messaging Account B sees isn't clear enough — it only says the cloud isn't available and data is saved locally, without stating that the account was removed from the app. Product Owner's own call: PASS with a non-blocking finding, logged below, left unscoped for now.
 
 ## Test 2 — Re-activate is available before 30 days, independent of the deletion-eligibility window
 
@@ -32,7 +32,7 @@ While Account B is still within its 30-day quarantine window (freshly revoked, w
 
 **Expect:** Re-activate works regardless of how recently the account was revoked.
 
-**Result:** ☐ — notes:
+**Result:** ☑ PASS — notes: Confirmed from Test 1's own observation, per Product Owner's agreement — Account B was re-activated and regained access immediately, well within its 30-day quarantine window and long before deletion-eligibility. Not repeated as a separate action.
 
 ## Test 3 — A newly-invited account without an application invitation is warned, not silently left stuck (`V7-F12`)
 
@@ -44,7 +44,7 @@ While Account B is still within its 30-day quarantine window (freshly revoked, w
 
 **Expect:** Step 2's warning appears; step 5 confirms the actual fix — once both layers are done, Account D reaches the real Trip, no dead end.
 
-**Result:** ☐ — notes:
+**Result:** ☑ PASS — notes: Confirmed as expected; no notes.
 
 ## Test 4 — Adding an already-invited Editor still works exactly as before, no new friction
 
@@ -52,7 +52,7 @@ As Account A, add Account B (already application-invited from Test 1's re-activa
 
 **Expect:** No behavior change for the common case (an already-invited person being added as Editor) — the warning is specific to the gap case only.
 
-**Result:** ☐ — notes:
+**Result:** ☑ PASS — notes: Confirmed as expected; no notes.
 
 ---
 
@@ -60,10 +60,11 @@ As Account A, add Account B (already application-invited from Test 1's re-activa
 
 | Finding | Test | Severity | Disposition |
 |---|---|---|---|
+| A revoked account's local session shows only a generic "cloud unavailable, data saved locally" message — it doesn't state that the account was actually removed/revoked from the app, which could leave the person confused about why sync stopped. | Test 1 | Non-blocking (UX clarity) | Reported by Product Owner 2026-09-23. **Left unscoped, deliberately** — logged as a non-blocking finding, not part of this correction's scope. |
 
 ## GO/NO-GO decision
 
-**Pending.** Recorded here once every test above has a result.
+**GO.** Recorded by the Product Owner (Eyal), 2026-09-23. All 4 tests PASS. `V7-F11` (quarantine re-activate) and `V7-F12` (newly-invited Trip-less account no longer left stuck) are both confirmed fixed as scoped. One new non-blocking finding logged: a revoked account's local session shows only a generic "cloud unavailable, data saved locally" message rather than stating the account was actually removed — left unscoped for now. `0.7.5.1` may proceed to Production promotion as a separate, explicit action.
 
 ## Production promotion
 
