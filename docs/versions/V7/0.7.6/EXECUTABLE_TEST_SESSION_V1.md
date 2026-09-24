@@ -18,7 +18,7 @@ On device A, attach a document/photo to an item (or use an existing one). On dev
 
 **Expect:** Works. This should already have worked before `0.7.6` — recorded here as a baseline, not evidence of new functionality.
 
-**Result:** ☐ — notes:
+**Result:** ☑ PASS — notes: Worked well, as expected.
 
 ## Test 2 — `V7-F08` fix: "reset Trip data" now cleans up Storage (the real, currently-reachable bug this candidate fixes)
 
@@ -28,7 +28,7 @@ On device A, attach a document/photo to an item (or use an existing one). On dev
 
 **Expect:** The Storage object no longer exists after the reset — this is the actual bug this candidate fixes, previously every attachment would have survived silently as an orphaned, billed file with nothing left able to reference or clean it up.
 
-**Result:** ☐ — notes:
+**Result:** ☒ FAIL — notes: The "reset Trip data" action itself failed outright — clicking "מחיקת נתוני הטיול" produced an error dialog: "מחיקת הנתונים בטיול נכשלה. לא בוצע שינוי" ("Trip data deletion failed. No change was made."), confirmed by screenshot. This is a regression in the action itself, not just the Storage-cleanup verification — no change was made at all, so the underlying `V7-F08` fix couldn't even be exercised.
 
 ## Test 3 — Full Trip deletion still works correctly (regression check, not new behavior)
 
@@ -36,7 +36,7 @@ On a disposable test Trip (not a real one — this is a permanent delete), attac
 
 **Expect:** Unchanged from before this candidate — `deleteTripCompletely` already did this correctly; this confirms the refactor (replacing its old per-source loop with the same helper "reset Trip data" now uses) didn't break it.
 
-**Result:** ☐ — notes:
+**Result:** ☒ FAIL — notes: Same failure as Test 2 — deleting the current Trip ("מחיקת הטיול הנוכחי") also produces the error "מחיקת הנתונים בטיול נכשלה. לא בוצע שינוי" ("Trip data deletion failed. No change was made."), confirmed by screenshot. Both delete-style actions fail identically, confirming the shared new helper itself (`deleteAllAttachments()`/its call site) is broken, not something isolated to the "reset" path.
 
 ## Test 4 — Cross-device deletion visibility (confirms existing sync behavior, not new code)
 
@@ -44,7 +44,7 @@ On device A, delete a source's owning Trip content (Test 2's reset, or delete a 
 
 **Expect:** Already works via `0.7.3`'s existing real-time sync of the `sources` collection — confirming it holds for this specific deletion path too, not new mechanism.
 
-**Result:** ☐ — notes:
+**Result:** ☐ Blocked — notes: Cannot be run — both actions this test could piggyback on (Test 2's reset, Test 3's Trip deletion) fail outright, so there is no successful delete to check cross-device visibility against. Blocked on the same root cause as Tests 2 and 3.
 
 ## Test 5 — Offline file upload fails clearly, not silently (documents existing, unchanged behavior)
 
@@ -60,6 +60,8 @@ Go offline (airplane mode / DevTools offline throttling), then attempt to attach
 
 | Finding | Test | Severity | Disposition |
 |---|---|---|---|
+| "Reset Trip data" ("מחיקת נתוני הטיול") fails outright with the error "מחיקת הנתונים בטיול נכשלה. לא בוצע שינוי" ("Trip data deletion failed. No change was made.") — the action this candidate's own `V7-F08` fix is built on top of no longer completes at all. | Test 2 | Blocking | Reported by Product Owner 2026-09-24. Sent back to the Development Agent for a fix — needs a root-cause diagnosis before retest. |
+| Full Trip deletion ("מחיקת הטיול הנוכחי") fails with the identical error message as Test 2 — confirms both delete-style actions now share a broken code path (most likely the new `deleteAllAttachments()` helper or its call site introduced by this candidate). | Test 3 | Blocking | Reported by Product Owner 2026-09-24. Same root cause as Test 2 — one fix, one retest of both. |
 
 ## GO/NO-GO decision
 
