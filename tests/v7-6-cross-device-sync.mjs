@@ -14,6 +14,20 @@ import fs from 'node:fs';
 // project.
 const cloudStore=fs.readFileSync(new URL('../src/cloud-store.js',import.meta.url),'utf8');
 const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
+const storageRules=fs.readFileSync(new URL('../storage.rules',import.meta.url),'utf8');
+
+// 0.7.6 correction, found live during this candidate's own acceptance session (Tests 2/3, both
+// delete-style actions failing identically): `list` is a distinct Storage Rules permission from
+// `read`/`write`, evaluated against the PREFIX being listed -- the original rules only ever
+// granted read/write on a fully-qualified .../{sourceId}/{fileName} path, never list on the
+// trips/{tripId}/sources folder itself that deleteAllAttachments()'s listAll() call requests,
+// so it fell through to the deny-all wildcard unconditionally, on every Trip.
+function test_0_7_6_storage_rules_grant_list_on_the_sources_prefix_deleteAllAttachments_needs(){
+  assert(storageRules.includes('match /trips/{tripId}/sources {'));
+  const start=storageRules.indexOf('match /trips/{tripId}/sources {');
+  const body=storageRules.slice(start,storageRules.indexOf('\n    }',start)+6);
+  assert(body.includes('allow list: if hasTripAccess(tripId);'));
+}
 
 function test_0_7_6_deleteAllAttachments_is_a_prefix_based_sweep_not_a_per_source_iteration(){
   const start=cloudStore.indexOf('async function deleteAllAttachments');
@@ -81,6 +95,7 @@ function test_0_7_6_admin_delete_account_was_not_touched_confirmed_already_corre
 }
 
 const tests=[
+  test_0_7_6_storage_rules_grant_list_on_the_sources_prefix_deleteAllAttachments_needs,
   test_0_7_6_deleteAllAttachments_is_a_prefix_based_sweep_not_a_per_source_iteration,
   test_0_7_6_clearAllTripContent_cleans_up_storage_before_deleting_firestore_records,
   test_0_7_6_deleteTripCompletely_no_longer_has_its_own_per_source_storage_loop,
