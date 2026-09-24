@@ -60,8 +60,21 @@ Go offline (airplane mode / DevTools offline throttling), then attempt to attach
 
 | Finding | Test | Severity | Disposition |
 |---|---|---|---|
-| "Reset Trip data" ("מחיקת נתוני הטיול") fails outright with the error "מחיקת הנתונים בטיול נכשלה. לא בוצע שינוי" ("Trip data deletion failed. No change was made.") — the action this candidate's own `V7-F08` fix is built on top of no longer completes at all. | Test 2 | Blocking | Reported by Product Owner 2026-09-24. Sent back to the Development Agent for a fix — needs a root-cause diagnosis before retest. |
-| Full Trip deletion ("מחיקת הטיול הנוכחי") fails with the identical error message as Test 2 — confirms both delete-style actions now share a broken code path (most likely the new `deleteAllAttachments()` helper or its call site introduced by this candidate). | Test 3 | Blocking | Reported by Product Owner 2026-09-24. Same root cause as Test 2 — one fix, one retest of both. |
+| "Reset Trip data" ("מחיקת נתוני הטיול") fails outright with the error "מחיקת הנתונים בטיול נכשלה. לא בוצע שינוי" ("Trip data deletion failed. No change was made.") — the action this candidate's own `V7-F08` fix is built on top of no longer completes at all. | Test 2 | Blocking | Reported by Product Owner 2026-09-24. **Root-caused and fixed** (commit `9c2f67d`) — see note below. |
+| Full Trip deletion ("מחיקת הטיול הנוכחי") fails with the identical error message as Test 2 — confirms both delete-style actions now share a broken code path (most likely the new `deleteAllAttachments()` helper or its call site introduced by this candidate). | Test 3 | Blocking | Reported by Product Owner 2026-09-24. Same root cause as Test 2 — one fix, one retest of both. **Fixed** (commit `9c2f67d`). |
+
+## Round 1 root cause and fix
+
+**Confirmed root cause:** `deleteAllAttachments()` (this candidate's own new code) calls `listAll()` on the `trips/{tripId}/sources` folder — Firebase Storage Rules treat `list` as a permission distinct from `read`/`write`, evaluated against the *prefix* being listed, not a descendant file. `storage.rules` only ever granted `read`/`write` on the fully-qualified `.../{sourceId}/{fileName}` path, never `list` on the folder itself, so every call fell through to the deny-all wildcard — unconditionally, on every Trip, exactly matching both delete-style actions failing identically and immediately.
+
+**Fixed** (commit `9c2f67d`) by adding the missing rule to `storage.rules`:
+```
+match /trips/{tripId}/sources {
+  allow list: if hasTripAccess(tripId);
+}
+```
+
+**No new `qa` build is needed** — nothing in the deployable client/function bundle changed, only `storage.rules`, which isn't part of it. **This requires the Product Owner to republish `storage.rules` in the Firebase Console** (same one-time action every prior rules change in this project has needed) before Tests 2–4 can be retried. Once republished, please retry Tests 2, 3, and 4 (build `0.7.6-5ffdac5b` is still the correct build — nothing to redeploy).
 
 ## GO/NO-GO decision
 
