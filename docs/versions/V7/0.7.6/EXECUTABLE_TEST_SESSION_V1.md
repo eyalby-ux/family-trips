@@ -60,21 +60,52 @@ Go offline (airplane mode / DevTools offline throttling), then attempt to attach
 
 | Finding | Test | Severity | Disposition |
 |---|---|---|---|
-| "Reset Trip data" ("מחיקת נתוני הטיול") fails outright with the error "מחיקת הנתונים בטיול נכשלה. לא בוצע שינוי" ("Trip data deletion failed. No change was made.") — the action this candidate's own `V7-F08` fix is built on top of no longer completes at all. | Test 2 | Blocking | Reported by Product Owner 2026-09-24. **Root-caused and fixed** (commit `9c2f67d`) — see note below. |
-| Full Trip deletion ("מחיקת הטיול הנוכחי") fails with the identical error message as Test 2 — confirms both delete-style actions now share a broken code path (most likely the new `deleteAllAttachments()` helper or its call site introduced by this candidate). | Test 3 | Blocking | Reported by Product Owner 2026-09-24. Same root cause as Test 2 — one fix, one retest of both. **Fixed** (commit `9c2f67d`). |
+| "Reset Trip data" ("מחיקת נתוני הטיול") fails outright with the error "מחיקת הנתונים בטיול נכשלה. לא בוצע שינוי" ("Trip data deletion failed. No change was made.") — the action this candidate's own `V7-F08` fix is built on top of no longer completes at all. | Test 2 | Blocking | Reported by Product Owner 2026-09-24. Round 1 fix (`9c2f67d`) did not resolve it. **Root-caused for real and fixed in round 2** (commit `820c100`) — see notes below. |
+| Full Trip deletion ("מחיקת הטיול הנוכחי") fails with the identical error message as Test 2 — confirms both delete-style actions now share a broken code path (most likely the new `deleteAllAttachments()` helper or its call site introduced by this candidate). | Test 3 | Blocking | Reported by Product Owner 2026-09-24. Same root cause as Test 2 — one fix, one retest of both. **Fixed in round 2** (commit `820c100`). |
 
-## Round 1 root cause and fix
+## Round 1 root cause and fix (did not resolve the failure — see round 2)
 
-**Confirmed root cause:** `deleteAllAttachments()` (this candidate's own new code) calls `listAll()` on the `trips/{tripId}/sources` folder — Firebase Storage Rules treat `list` as a permission distinct from `read`/`write`, evaluated against the *prefix* being listed, not a descendant file. `storage.rules` only ever granted `read`/`write` on the fully-qualified `.../{sourceId}/{fileName}` path, never `list` on the folder itself, so every call fell through to the deny-all wildcard — unconditionally, on every Trip, exactly matching both delete-style actions failing identically and immediately.
+**Diagnosed root cause:** `deleteAllAttachments()` calls `listAll()` on the `trips/{tripId}/sources` folder — Firebase Storage Rules treat `list` as a permission distinct from `read`/`write`, evaluated against the *prefix* being listed. `storage.rules` only granted `read`/`write` on the fully-qualified `.../{sourceId}/{fileName}` path, never `list` on the folder itself.
 
-**Fixed** (commit `9c2f67d`) by adding the missing rule to `storage.rules`:
+**Attempted fix** (commit `9c2f67d`): added `match /trips/{tripId}/sources { allow list: if hasTripAccess(tripId); }`. The Product Owner republished `storage.rules` in the Firebase Console and confirmed the published text matched exactly — **but the failure persisted.** This ruled out "rules weren't actually published" and pointed at a deeper problem, investigated in round 2.
+
+## Round 2 — the real root cause and fix
+
+Two independent problems, both in `deleteAllAttachments()` itself, not the rules:
+
+1. **`listAll()` is not recursive.** Files live at `trips/{tripId}/sources/{sourceId}/{fileName}` — one path segment *deeper* than the `trips/{tripId}/sources/` prefix the code listed. A non-recursive list at that prefix returns an empty `items` array (the real files, nested one level further in, only show up as `prefixes`, which the code never read) — so even with the `list` permission granted, the function would have found nothing to delete.
+2. **The `list` permission itself was never safely grantable at this depth.** Per Firebase's own documentation, a Storage `list` rule must hold for the *entire* potential result set of the request — round 1's rule couldn't actually guarantee that here.
+
+**Fixed for real** (commit `820c100`) by abandoning the `listAll()`-based approach entirely: `deleteAllAttachments()` now reads each source's already-known `storagePath` directly from its Firestore record (the same read `clearAllTripContent`'s own existing loop already makes) and deletes that one exact, known path — the exact pattern `deleteTripCompletely` used successfully before this candidate touched it. This needs **no Storage `list` permission at all**.
+
+**Action needed: please revert `storage.rules` in the Firebase Console back to its original text** (remove the `list` block round 1 added — it's no longer used and `storage.rules` in the repo is back to byte-identical with what it was before this candidate started):
+
 ```
-match /trips/{tripId}/sources {
-  allow list: if hasTripAccess(tripId);
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isInvited() {
+      return request.auth != null &&
+        request.auth.token.email_verified == true &&
+        firestore.exists(/databases/(default)/documents/invitations/$(request.auth.token.email)) &&
+        firestore.get(/databases/(default)/documents/invitations/$(request.auth.token.email)).data.state == 'active';
+    }
+    function hasTripAccess(tripId) {
+      let trip = firestore.get(/databases/(default)/documents/trips/$(tripId));
+      return isInvited() &&
+        (request.auth.uid == trip.data.ownerUid || request.auth.token.email in trip.data.editorEmails);
+    }
+
+    match /trips/{tripId}/sources/{sourceId}/{fileName} {
+      allow read, write: if hasTripAccess(tripId);
+    }
+    match /{allPaths=**} { allow read, write: if false; }
+  }
 }
 ```
 
-**No new `qa` build is needed** — nothing in the deployable client/function bundle changed, only `storage.rules`, which isn't part of it. **This requires the Product Owner to republish `storage.rules` in the Firebase Console** (same one-time action every prior rules change in this project has needed) before Tests 2–4 can be retried. Once republished, please retry Tests 2, 3, and 4 (build `0.7.6-5ffdac5b` is still the correct build — nothing to redeploy).
+**A new `qa` build was deployed** (build `0.7.6-820c100d`, deploy `6ab68b1098a66050cef65cb7`) — this round's fix touched real client code (`cloud-store.js`), not just rules. Once `storage.rules` is reverted, please retry Tests 2, 3, and 4 against this new build.
 
 ## GO/NO-GO decision
 
