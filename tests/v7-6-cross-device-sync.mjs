@@ -16,29 +16,29 @@ const cloudStore=fs.readFileSync(new URL('../src/cloud-store.js',import.meta.url
 const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
 const storageRules=fs.readFileSync(new URL('../storage.rules',import.meta.url),'utf8');
 
-// 0.7.6 correction, found live during this candidate's own acceptance session (Tests 2/3, both
-// delete-style actions failing identically): `list` is a distinct Storage Rules permission from
-// `read`/`write`, evaluated against the PREFIX being listed -- the original rules only ever
-// granted read/write on a fully-qualified .../{sourceId}/{fileName} path, never list on the
-// trips/{tripId}/sources folder itself that deleteAllAttachments()'s listAll() call requests,
-// so it fell through to the deny-all wildcard unconditionally, on every Trip.
-function test_0_7_6_storage_rules_grant_list_on_the_sources_prefix_deleteAllAttachments_needs(){
-  assert(storageRules.includes('match /trips/{tripId}/sources {'));
-  const start=storageRules.indexOf('match /trips/{tripId}/sources {');
-  const body=storageRules.slice(start,storageRules.indexOf('\n    }',start)+6);
-  assert(body.includes('allow list: if hasTripAccess(tripId);'));
+// 0.7.6 correction, round 2 (found live, Tests 2/3, after round 1's own rules fix didn't resolve
+// it either): the original listAll()-based prefix sweep was wrong for two independent reasons --
+// (1) listAll() is not recursive, and files live one segment deeper than the prefix it listed
+// (trips/{tripId}/sources/{sourceId}/{fileName}), so it always found zero items; (2) Firebase
+// Storage evaluates a `list` rule against its ENTIRE potential result set, which round 1's own
+// attempted rules fix still couldn't safely satisfy at this depth. Reverted to reading each
+// source's already-known storagePath directly from Firestore -- the exact pattern
+// deleteTripCompletely used successfully before 0.7.6 touched it. This needs no `list` Storage
+// permission at all, so storage.rules is back to its pre-0.7.6 text, confirmed here.
+function test_0_7_6_storage_rules_have_no_list_permission_the_reverted_approach_does_not_need(){
+  assert(!storageRules.includes('allow list:'));
 }
 
-function test_0_7_6_deleteAllAttachments_is_a_prefix_based_sweep_not_a_per_source_iteration(){
+function test_0_7_6_deleteAllAttachments_reads_each_sources_storagePath_from_firestore(){
   const start=cloudStore.indexOf('async function deleteAllAttachments');
   assert(start>-1);
   const body=cloudStore.slice(start,cloudStore.indexOf('\n}',start)+2);
-  assert(body.includes('listAll(ref(storage,`trips/${tripId}/sources/`))'));
-  assert(body.includes('deleteAttachment(item.fullPath)'));
-  // Deliberately not driven by a Firestore query of source records -- this is exactly what lets it
-  // catch an orphaned object whose owning Firestore record is already gone (clearAllTripContent's
-  // own case, below).
-  assert(!body.includes('getDocs'));
+  assert(body.includes("getDocs(subRef(tripId,'sources'))"));
+  assert(body.includes('document.data()?.storagePath'));
+  assert(body.includes('await deleteAttachment(storagePath)'));
+  // No listAll()/Storage-side listing of any kind -- deleteAttachment() only ever touches one
+  // exact, already-known file path, already covered by the existing file-level read/write rule.
+  assert(!body.includes('listAll'));
 }
 function test_0_7_6_clearAllTripContent_cleans_up_storage_before_deleting_firestore_records(){
   const start=cloudStore.indexOf('export async function clearAllTripContent');
@@ -58,10 +58,12 @@ function test_0_7_6_deleteTripCompletely_no_longer_has_its_own_per_source_storag
   assert(body.includes('await clearAllTripContent(tripId)'));
   assert(body.includes('await deleteDoc(tripRef(tripId))'));
 }
-function test_0_7_6_the_old_per_source_storage_loop_pattern_does_not_exist_anywhere_in_this_file(){
-  // Guards against the fix having been duplicated rather than replaced -- there should be exactly
-  // one deletion-cleanup mechanism in this file now, not two.
-  assert(!cloudStore.includes("document.data()?.storagePath"));
+function test_0_7_6_only_one_storagePath_cleanup_mechanism_exists_not_duplicated(){
+  // Guards against the fix having been duplicated rather than shared -- deleteAllAttachments()
+  // should be the ONLY place this pattern appears (called from both clearAllTripContent and,
+  // via that, deleteTripCompletely), not re-inlined a second time anywhere.
+  const occurrences=(cloudStore.match(/document\.data\(\)\?\.storagePath/g)||[]).length;
+  assert.equal(occurrences,1);
 }
 function test_0_7_6_open_source_message_no_longer_implies_a_per_device_availability_gap(){
   assert(!app.includes('קובץ המקור אינו זמין אופליין במכשיר זה'));
@@ -95,11 +97,11 @@ function test_0_7_6_admin_delete_account_was_not_touched_confirmed_already_corre
 }
 
 const tests=[
-  test_0_7_6_storage_rules_grant_list_on_the_sources_prefix_deleteAllAttachments_needs,
-  test_0_7_6_deleteAllAttachments_is_a_prefix_based_sweep_not_a_per_source_iteration,
+  test_0_7_6_storage_rules_have_no_list_permission_the_reverted_approach_does_not_need,
+  test_0_7_6_deleteAllAttachments_reads_each_sources_storagePath_from_firestore,
   test_0_7_6_clearAllTripContent_cleans_up_storage_before_deleting_firestore_records,
   test_0_7_6_deleteTripCompletely_no_longer_has_its_own_per_source_storage_loop,
-  test_0_7_6_the_old_per_source_storage_loop_pattern_does_not_exist_anywhere_in_this_file,
+  test_0_7_6_only_one_storagePath_cleanup_mechanism_exists_not_duplicated,
   test_0_7_6_open_source_message_no_longer_implies_a_per_device_availability_gap,
   test_0_7_6_encryption_and_retention_are_documented_as_already_satisfied,
   test_0_7_6_offline_upload_is_documented_as_a_known_limitation_not_left_unexplained,

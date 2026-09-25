@@ -25,18 +25,6 @@ service firebase.storage {
     match /trips/{tripId}/sources/{sourceId}/{fileName} {
       allow read, write: if hasTripAccess(tripId);
     }
-    // 0.7.6 correction (V7-F08 regression, found live during this candidate's own acceptance
-    // session): `list` is a distinct permission from `read`/`write` in Storage Rules, evaluated
-    // against the PREFIX being listed, not a descendant file -- the rule above only ever
-    // authorized `read`/`write` on a fully-qualified `.../{sourceId}/{fileName}` path, never
-    // `list` on the `trips/{tripId}/sources` folder itself. deleteAllAttachments()'s own
-    // listAll() call (cloud-store.js) is exactly that kind of list request, and with no matching
-    // rule here it fell through to the `{allPaths=**}` deny-all below -- unconditionally, on
-    // every Trip, regardless of whether it had any attachments at all, which is why both
-    // "reset Trip data" and "delete Trip" failed identically and immediately.
-    match /trips/{tripId}/sources {
-      allow list: if hasTripAccess(tripId);
-    }
     match /{allPaths=**} { allow read, write: if false; }
   }
 }

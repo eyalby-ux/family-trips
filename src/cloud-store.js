@@ -7,7 +7,7 @@
 // the app thinks about its own data.
 import {auth,db,storage} from './firebase.js';
 import {collection,deleteDoc,deleteField,doc,getDoc,getDocs,onSnapshot,query,setDoc,where,writeBatch} from 'firebase/firestore';
-import {deleteObject,getBytes,listAll,ref,uploadBytes} from 'firebase/storage';
+import {deleteObject,getBytes,ref,uploadBytes} from 'firebase/storage';
 import {SYNCED_COLLECTIONS,TRIP_NESTED_FIELDS,TRIP_TOP_LEVEL_FIELDS,diffById} from './operational-data.js';
 
 export {SYNCED_COLLECTIONS};
@@ -152,9 +152,23 @@ export async function createTripDoc(tripId,seed,ownerUid){
 // (exactly clearAllTripContent's own case below, which deletes every sources record first), and
 // mirrors admin-delete-account.mjs's own already-correct bucket-prefix-delete pattern rather than
 // leaving two independently-maintained deletion-cleanup mechanisms in this codebase.
+// 0.7.6 correction (round 2, found live): the listAll()-based prefix sweep this replaced never
+// actually worked, for two independent reasons -- (1) listAll() is NOT recursive; files live at
+// trips/{tripId}/sources/{sourceId}/{fileName}, one segment deeper than the trips/{tripId}/sources/
+// prefix it was called on, so `items` was always empty and the `prefixes` (the real sourceId
+// subfolders) were never touched, and (2) Firebase Storage evaluates a `list` rule against its
+// entire potential result set, which the `list` permission this round's own attempted rules fix
+// added still couldn't safely satisfy for this depth. Reverted to reading the known storagePath
+// directly from each Firestore `sources` record instead -- the exact pattern deleteTripCompletely
+// used successfully before 0.7.6 touched it, just now shared with clearAllTripContent too. This
+// needs no `list` Storage permission at all: deleteAttachment() only ever touches one exact,
+// already-known file path, covered by the existing file-level read/write rule.
 async function deleteAllAttachments(tripId){
-  const {items}=await listAll(ref(storage,`trips/${tripId}/sources/`));
-  for(const item of items)await deleteAttachment(item.fullPath);
+  const snapshot=await getDocs(subRef(tripId,'sources'));
+  for(const document of snapshot.docs){
+    const storagePath=document.data()?.storagePath;
+    if(storagePath)await deleteAttachment(storagePath);
+  }
 }
 
 // Clears every record in every subcollection but leaves the Trip document itself (name/dates)
