@@ -1103,7 +1103,14 @@ async function smartIngest(){
   // dead click. Rendering immediately, before the await, is what actually shows it.
   ingestBusy=true;render();
   try{
-    const source=await createLocalSource(kind,file,url);if(!source)return;state.sources.push(source);save();
+    // 0.7.6 round 5 (Test 5, found live): a null source (createLocalSource's own alert already
+    // shown) used to just `return` here, leaving ingestBusy flipped back false by the finally
+    // below but never re-rendered -- the busy spinner round 4 just made visible stayed stuck on
+    // screen forever, looking exactly like a hung analysis step. Every other exit from this
+    // function (the mode==='save' branch below, runSmartAnalysis's own catch) already closes the
+    // modal and routes away on completion/failure; this path needs the identical treatment.
+    const source=await createLocalSource(kind,file,url);if(!source){pendingSourceFile=null;state.modal=null;route('center',{category:'document'});return}
+    state.sources.push(source);save();
     if(mode==='save'){Object.assign(source,saveOnlySource(source));save();pendingSourceFile=null;state.modal=null;route('center',{category:'document'});notify('המקור נשמר ללא ניתוח');return}
     await runSmartAnalysis(source,file);
     pendingSourceFile=null;state.modal=null;
@@ -1117,7 +1124,10 @@ async function attachIngest(itemId){
   // own busy indicator actually shows during the upload, instead of only after it finishes.
   ingestBusy=true;render();
   try{
-    const source=await createLocalSource(kind,file,'');if(!source)return;source.status=mode==='attach'?'מצורף לפריט':'בניתוח';source.processingState=mode==='attach'?'attached_only':'processing';state.sources.push(source);item.sourceIds=[...new Set([...(item.sourceIds||[]),source.id])];save();
+    // 0.7.6 round 5: same fix as smartIngest() above -- a null source must close the modal and
+    // route away, not just return, or the busy spinner round 4 made visible stays stuck forever.
+    const source=await createLocalSource(kind,file,'');if(!source){pendingSourceFile=null;state.modal=null;route('detail',{itemId:item.id});return}
+    source.status=mode==='attach'?'מצורף לפריט':'בניתוח';source.processingState=mode==='attach'?'attached_only':'processing';state.sources.push(source);item.sourceIds=[...new Set([...(item.sourceIds||[]),source.id])];save();
     if(mode==='attach'){pendingSourceFile=null;state.modal=null;route('detail',{itemId:item.id});notify('המסמך צורף ללא שינוי בפרטי הפריט');return}
     await runSmartAnalysis(source,file,item);
     pendingSourceFile=null;state.modal=null;

@@ -98,13 +98,16 @@ function test_0_7_6_createLocalSource_failure_is_caught_and_alerted_not_an_unhan
   assert(body.includes('return null'));
   assert(!body.includes('throw new Error'));
   // Both callers must check for the null return -- otherwise this is just as silent a failure,
-  // one level up (pushing a null source into state.sources).
+  // one level up (pushing a null source into state.sources). Round 5 (found live): a bare `return`
+  // here left ingestBusy flipped back false with no re-render -- round 4's own busy spinner (now
+  // actually visible) stayed stuck on screen forever. Both must close the modal and route away,
+  // not just return.
   const smartIngestStart=app.indexOf('async function smartIngest');
   const smartIngestBody=app.slice(smartIngestStart,app.indexOf('async function attachIngest',smartIngestStart));
-  assert(smartIngestBody.includes('const source=await createLocalSource(kind,file,url);if(!source)return;'));
+  assert(smartIngestBody.includes("const source=await createLocalSource(kind,file,url);if(!source){pendingSourceFile=null;state.modal=null;route('center',{category:'document'});return}"));
   const attachIngestStart=app.indexOf('async function attachIngest');
   const attachIngestBody=app.slice(attachIngestStart,app.indexOf('async function analyzeSavedSource',attachIngestStart));
-  assert(attachIngestBody.includes("const source=await createLocalSource(kind,file,'');if(!source)return;"));
+  assert(attachIngestBody.includes("const source=await createLocalSource(kind,file,'');if(!source){pendingSourceFile=null;state.modal=null;route('detail',{itemId:item.id});return}"));
 }
 function test_0_7_6_storeOriginal_fails_fast_when_navigator_onLine_is_false(){
   // Round 4 (Test 5, found live): a genuinely offline upload used to sit waiting on the Storage
