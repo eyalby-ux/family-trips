@@ -7,7 +7,7 @@ import {PNG} from 'pngjs';
 import UTIF from 'utif2';
 import {authorize,httpError} from './_shared/smart-import-auth.mjs';
 import {consumeDailyQuota,registerOrVerifyTrip,writeAudit} from './_shared/smart-import-quota.mjs';
-import {activityImportSchema,activitySystemPrompt,classificationSystemPrompt,flightImportSchema,flightSystemPrompt,hotelImportSchema,insuranceImportSchema,insuranceSystemPrompt,sourceClassificationSchema,systemPrompt,transportImportSchema,transportSystemPrompt} from './_shared/smart-import-schema.mjs';
+import {activityImportSchema,activitySystemPrompt,classificationSystemPrompt,flightImportSchema,flightSystemPrompt,hotelImportSchema,insuranceImportSchema,insuranceSystemPrompt,sourceClassificationSchema,systemPrompt,transportGatePrompt,transportGateSchema,transportImportSchema,transportSystemPrompt} from './_shared/smart-import-schema.mjs';
 import {validateActivityPlace,validateHotelPlace} from './_shared/place-validation.mjs';
 
 const MODEL='gpt-5.6-luna';const MAX_BINARY_BYTES=4*1024*1024;const MAX_PAGE_BYTES=1024*1024;
@@ -45,33 +45,47 @@ export default async function handler(request){
     // extraction call runs exactly as it always has (analyze_hotel/analyze_flight stay
     // available directly for attach-and-extract, where the target item's own type already
     // makes classification unnecessary).
-    // 0.7.8 correction round 2 (Test 4, found live): a real Deutsche Bahn rail ticket (TR-005)
-    // still misclassified as 'activity' even after round 1's prompt-only fix (which gave TRANSPORT
-    // equal descriptive weight in classificationSystemPrompt) -- the retest showed the extraction
-    // step's OWN warning text correctly self-identifying the document as rail, while the item's
-    // type field still resolved to Attraction. Traced this precisely, not assumed: type/
-    // transportMode is decided ENTIRELY by this classification call's own `category` output, one
-    // model call, BEFORE the extraction call (whose prompt/schema is picked by that category) ever
-    // runs -- smartImportActivityResultToSuggestion (and every other category adapter) hardcodes
-    // its own `type`, with zero mechanism to reconsider it based on what the extraction step itself
-    // later notices. These are two structurally disconnected calls; the warning text has no causal
-    // path back to type/transportMode at all. Given the extraction call (max_output_tokens:8000,
-    // same 'low' reasoning effort) reaches the CORRECT conclusion on this exact same document, while
-    // classification (max_output_tokens:200) does not, the most likely mechanical cause is budget,
-    // not wording: the Responses API counts a reasoning-effort model's own internal reasoning
-    // tokens against max_output_tokens, and 200 is a tight ceiling for a genuinely hard boundary
-    // case -- plausibly forcing a shallow, truncated judgment before the model reasons its way to
-    // the same correct answer the (much better-resourced) extraction call reaches. Raised both the
-    // reasoning effort and the token ceiling for this one call specifically -- a real reasoning-
-    // budget increase, not another wording-only attempt, and cheap regardless (classification's own
-    // output is always a two-field JSON object either way, so the cost difference is bounded to
-    // however many reasoning tokens the model actually chooses to spend on a genuinely hard case).
+    // 0.7.8 correction round 4 (Test 4, found live): rounds 2 and 3 both assumed a SYSTEMATIC
+    // cause (prompt weighting, then reasoning budget) and both retests came back unchanged on the
+    // type field while unrelated symptoms shifted (a self-contradiction warning appeared, then
+    // disappeared) -- exactly the pattern of a cause that hadn't actually been isolated yet.
+    // Per the round-3 correction's own explicit request, direct evidence was gathered against the
+    // real live model for TR-005 specifically, before proposing anything else: dozens of repeated
+    // real classification calls against the identical document/prompt/schema found this is NOT a
+    // systematic bias fixable by wording or budget, and -- the first, honest surprise -- also not
+    // simple run-to-run noise a self-consistency majority vote could out-vote either: 'car'
+    // (correct) came back only ~30% of the time, with 'activity' (wrong -- what the Product
+    // Owner's own two acceptance retests both happened to land on) actually the single MOST common
+    // raw answer at ~36%. A 3-vote majority, tested directly, produced the wrong majority (or no
+    // majority) in 3 of 5 real trials -- confirmed empirically insufficient, not assumed, before
+    // being abandoned for a different approach. The real cause: this crowded five-way
+    // classification prompt asks the model to pick TRANSPORT correctly against genuine competing
+    // surface similarity to ATTRACTION/EVENT (a German rail ticket's own "ticket code," single
+    // named traveler and validity window read a lot like Activity's ticketHolder/ticketNumber/
+    // ticketQuantity concepts) -- no amount of resampling the SAME crowded choice reliably escapes
+    // that. A separate, focused, binary TRANSPORT-vs-everything-else question with no competing
+    // category on offer at all (transportGatePrompt) resolved the identical document correctly 8/8
+    // times in direct real-model testing, and correctly said "no" 8/8 times against real Attraction
+    // and Insurance benchmark documents (confirming no new false-positive risk) -- removing the
+    // crowded choice, not resampling it, is what actually works. Fixed with a two-stage
+    // classifySource: the gate question runs first (and in parallel with the existing five-way
+    // classifier, for latency, not because the classifier's own answer is trusted when the gate
+    // says yes); a "yes" answer wins outright as `category:'car'` regardless of what the five-way
+    // classifier separately said; a "no" answer falls through to that classifier's own result
+    // exactly as before (still allowed to return 'car' itself too, as defense-in-depth, though its
+    // own job is now only to distinguish hotel/flight/activity/insurance/unrecognized for whatever
+    // the gate has already confirmed is not transport). This also fully explains the round-2
+    // warning that appeared then disappeared in round 3: classification and the subsequent
+    // extraction call are genuinely separate, uncoupled calls (confirmed directly by running them
+    // independently) -- both of those rounds' own classification calls independently landed on
+    // 'activity' by chance (unsurprising, given it was already the single most likely raw outcome),
+    // and that category's own extraction call independently happened to mention (round 2) or not
+    // mention (round 3) the rail/attraction mismatch in its own free-text warnings, a second,
+    // unrelated instance of ordinary per-call variation, not a shared code path or cache.
     if(body.operation==='analyze_source'){
       await registerOrVerifyTrip(tripId,user);const quota=await consumeDailyQuota(user);const prepared=await prepareSource(body.source,true);audit={...audit,sourceKind:prepared.kind,sourceSize:prepared.sourceSize};
-      const classifyResponse=await client.responses.create({model:MODEL,store:false,reasoning:{effort:'medium',context:'current_turn'},safety_identifier:user.emailHash,max_output_tokens:1000,input:[{role:'system',content:classificationSystemPrompt},{role:'user',content:[...prepared.content,{type:'input_text',text:'Classify this document.'}]}],text:{format:{type:'json_schema',name:'familytrips_source_classification',strict:true,schema:sourceClassificationSchema}}});
-      const classification=JSON.parse(classifyResponse.output_text);
-      const category=['flight','hotel','activity','insurance','car'].includes(classification.category)?classification.category:null;
-      if(!category){const latencyMs=Date.now()-started;audit={...audit,status:'completed',model:classifyResponse.model||MODEL,latencyMs};await writeAudit(audit);return json({attemptId:audit.attemptId,state:'no_match',category:'unrecognized',latencyMs,quota:{remaining:Math.max(0,quota.limit-quota.count),limit:quota.limit}},200)}
+      const{category,model:classifyModel}=await classifySource(client,prepared,user);
+      if(!category){const latencyMs=Date.now()-started;audit={...audit,status:'completed',model:classifyModel||MODEL,latencyMs};await writeAudit(audit);return json({attemptId:audit.attemptId,state:'no_match',category:'unrecognized',latencyMs,quota:{remaining:Math.max(0,quota.limit-quota.count),limit:quota.limit}},200)}
       const operation=OPERATIONS[{flight:'analyze_flight',hotel:'analyze_hotel',activity:'analyze_activity',insurance:'analyze_insurance',car:'analyze_car'}[category]];
       const result=await runExtraction(operation,prepared,user);
       const latencyMs=Date.now()-started;audit={...audit,status:'completed',model:result.response.model||MODEL,latencyMs,estimatedVariableCostUsd:result.cost};await writeAudit(audit);
@@ -83,6 +97,22 @@ export default async function handler(request){
     const latencyMs=Date.now()-started;audit={...audit,status:'completed',model:result.response.model||MODEL,latencyMs,estimatedVariableCostUsd:result.cost};await writeAudit(audit);
     return json({attemptId:audit.attemptId,state:'proposal_ready',draft:result.draft,placeValidation:result.placeValidation,usage:result.usage,estimatedVariableCostUsd:result.cost,latencyMs,quota:{remaining:Math.max(0,quota.limit-quota.count),limit:quota.limit}},200);
   }catch(error){audit={...audit,status:error.code||'failed',latencyMs:Date.now()-started};if(audit.userEmailHash)await writeAudit(audit).catch(()=>{});console.error('FamilyTrips Smart Import failed',{code:error?.code||'',message:String(error?.message||error)});return json({error:error?.code||'smart_import_failed',message:safeMessage(error)},Number(error?.status)||500)}
+}
+// 0.7.8 correction round 4: a focused binary "is this TRANSPORT?" gate runs alongside the existing
+// five-way classifier (in parallel, for latency) -- see the analyze_source handler's own comment
+// above for the direct evidence (gathered against the real live model, not assumed) that motivated
+// this specific design over a same-prompt self-consistency vote, which was tried first and
+// confirmed empirically insufficient. A "yes" from the gate wins outright; a "no" falls through to
+// the five-way classifier's own result unchanged.
+async function classifySource(client,prepared,user){
+  const gateCall=client.responses.create({model:MODEL,store:false,reasoning:{effort:'medium',context:'current_turn'},safety_identifier:user.emailHash,max_output_tokens:1000,input:[{role:'system',content:transportGatePrompt},{role:'user',content:[...prepared.content,{type:'input_text',text:'Answer the question about this document.'}]}],text:{format:{type:'json_schema',name:'transport_gate',strict:true,schema:transportGateSchema}}});
+  const classifyCall=client.responses.create({model:MODEL,store:false,reasoning:{effort:'medium',context:'current_turn'},safety_identifier:user.emailHash,max_output_tokens:1000,input:[{role:'system',content:classificationSystemPrompt},{role:'user',content:[...prepared.content,{type:'input_text',text:'Classify this document.'}]}],text:{format:{type:'json_schema',name:'familytrips_source_classification',strict:true,schema:sourceClassificationSchema}}});
+  const [gateResponse,classifyResponse]=await Promise.all([gateCall,classifyCall]);
+  let gate;try{gate=JSON.parse(gateResponse.output_text)}catch{gate=null}
+  if(gate?.is_transport==='yes')return {category:'car',model:gateResponse.model};
+  let classification;try{classification=JSON.parse(classifyResponse.output_text)}catch{classification=null}
+  const category=['flight','hotel','activity','insurance','car'].includes(classification?.category)?classification.category:null;
+  return {category,model:classifyResponse.model};
 }
 async function runExtraction(operation,prepared,user){
   const client=new OpenAI();

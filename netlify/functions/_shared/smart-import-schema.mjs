@@ -24,9 +24,44 @@ export const sourceClassificationSchema={type:'object',additionalProperties:fals
 // not be verified against the live model from this environment (no API access) -- a prompt-quality
 // fix, re-tested by the Product Owner's own next acceptance session, the same as every other
 // live-model classification/extraction defect this project has fixed.
+// 0.7.8 correction round 4 (Test 4, found live): rounds 1-3 all tried to make this ONE five-way
+// classification call reliably right for TR-005 (a real Deutsche Bahn rail ticket) -- prompt
+// reweighting, then a reasoning-budget increase. Neither changed the outcome. Direct evidence
+// gathered against the real live model (see netlify/functions/smart-import.mjs's own comment on
+// classifySource for the full account) found this ISN'T a systematic bias fixable by wording or
+// budget: across dozens of real repeated calls, this exact document landed on 'car' (correct) only
+// ~30% of the time, with 'activity' (wrong) actually the single MOST common raw answer (~36%) --
+// self-consistency voting among samples of this same five-way prompt would converge on the WRONG
+// answer, not the right one, since the crowded five-way choice is where the genuine difficulty
+// lives (German rail tickets share real surface vocabulary with Activity's own ticketHolder/
+// ticketNumber/ticketQuantity concepts: a "ticket code," one named traveler, a validity window).
+// A separate, focused, binary TRANSPORT-vs-everything-else question (transportGatePrompt below),
+// asked BEFORE this broader classification even runs, resolved the identical document correctly
+// 8/8 times in direct real-model testing -- confirmed reliable specifically because it removes the
+// competing-category confusion this prompt alone could never escape. This classifier's own job is
+// now narrower than before: distinguish among hotel/flight/activity/insurance/unrecognized ONLY,
+// for whatever the gate has already confirmed is NOT transport -- 'car' is kept as an allowed
+// output here too (see classifySource) purely as defense-in-depth, not this prompt's own
+// responsibility to get right.
 export const classificationSystemPrompt=`Determine whether the supplied document is primarily a HOTEL/accommodation booking, confirmation or receipt, a FLIGHT/airline ticket, e-ticket, boarding pass or itinerary, an ATTRACTION/EVENT ticket (a museum, theme park, zoo, tour, sports match, show or similar entry/admission ticket or booking confirmation), an INSURANCE policy, confirmation or certificate (travel/medical insurance, or a dedicated activity- or asset-linked protection policy such as diving insurance or rental-car excess/damage protection), or a TRANSPORT booking confirmation, ticket or voucher for a rental car, a rail/train journey, or a ferry/boat crossing. Return "unrecognized" if it is clearly none of those five (e.g. a point-to-point transfer/shuttle/taxi confirmation, a restaurant reservation, or an unrelated document) or is unreadable. Do not extract any other data in this step.
 
 A rail/train ticket or a ferry/boat ticket is TRANSPORT, never ATTRACTION/EVENT, even though both categories' documents are commonly labelled "ticket" and share a similar printed layout (a route or venue name, a date/time, a seat or admission code, a price). The deciding question is what the document actually does for the traveler, not the word printed on it: an ATTRACTION/EVENT ticket admits the holder to a fixed venue, show, tour or similar experience at one location; a TRANSPORT document instead moves the traveler from one place (a departure station, port or pickup location) to a different place (an arrival station, port or drop-off location), and shows transport-specific details when present -- a train/flight-style number, a platform, a vehicle/vessel name or class, a route between two named places. If the document's core content is about travel FROM one location TO another via a specific mode of transport (train, ferry, rental car), classify it TRANSPORT regardless of whether the document itself says "ticket," "booking," "confirmation," "Fahrkarte" or "voucher" -- a German, Hebrew or other non-English rail/ferry document unfamiliar to you is still TRANSPORT if it shows this departure-to-arrival shape, not a reason to fall back to a more familiar-seeming category.`;
+
+// 0.7.8 correction round 4: the focused pre-check described above. Deliberately a single yes/no
+// question with no other category on offer at all -- that absence of a competing option is what
+// direct testing confirmed actually fixes the confusion, not just a rephrasing of the same choice.
+export const transportGateSchema={type:'object',additionalProperties:false,properties:{
+  is_transport:{type:'string',enum:['yes','no']},
+  reasoning:{type:'string'},
+},required:['is_transport','reasoning']};
+
+export const transportGatePrompt=`You will be shown one travel-related document. Answer ONE focused question about it: does this document describe moving a traveler from a departure point to an arrival point via a rail/train journey, a ferry/boat crossing, or a self-drive rental car -- i.e. is its core content a TRANSPORT booking, ticket or voucher for one of those three specific things?
+
+Answer "yes" if the document is fundamentally about that kind of journey -- a train ticket (even one that uses vocabulary like "ticket code," "ticket type," a single named traveler, or a validity window -- German rail tickets commonly look exactly this way and are still TRANSPORT, not an admission ticket), a ferry booking, or a rental-car agreement/voucher.
+
+Answer "no" if the document is instead about something else entirely: a hotel stay, a flight, an admission ticket to a venue/museum/show/attraction/event, an insurance policy, a point-to-point transfer/shuttle/taxi booking (not a train/ferry/self-drive-rental), a restaurant reservation, or anything unrelated.
+
+Explain your reasoning in one or two sentences, citing what you actually see on the document.`;
 
 export const hotelImportSchema={type:'object',additionalProperties:false,properties:{acquisitionState:{type:'string',enum:['acquired','partial','access_required','unreadable','failed']},proposalState:{type:'string',enum:['proposed','needs_review','no_proposal']},itemType:{type:'string'},meaningfulTitle:{type:'string'},propertyName:{type:'string'},fields:{type:'array',items:{type:'object',additionalProperties:false,properties:{key:{type:'string'},label:{type:'string'},rawValue:{type:'string'},normalizedValue:{type:'string'},evidence:{type:'string'},certainty:{type:'string',enum:['exact','needs_review','unreadable']}},required:['key','label','rawValue','normalizedValue','evidence','certainty']}},importantNotes:{type:'array',items:{type:'object',additionalProperties:false,properties:{category:{type:'string'},title:{type:'string'},text:{type:'string'},evidence:{type:'string'},certainty:{type:'string',enum:['exact','needs_review','unreadable']}},required:['category','title','text','evidence','certainty']}},unresolved:{type:'array',items:{type:'string'}},explicitlyAbsent:{type:'array',items:{type:'string'}},warnings:{type:'array',items:{type:'string'}}},required:['acquisitionState','proposalState','itemType','meaningfulTitle','propertyName','fields','importantNotes','unresolved','explicitlyAbsent','warnings']};
 
