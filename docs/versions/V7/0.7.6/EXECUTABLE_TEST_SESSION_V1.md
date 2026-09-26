@@ -68,6 +68,8 @@ Go offline (airplane mode / DevTools offline throttling), then attempt to attach
 
 **Result (retest, build `0.7.6-b625390f`):** ☒ FAIL — notes: Progress — the failure alert now appears (round 4's `navigator.onLine` check and immediate-fail fix is working for that part). However, after clicking OK/accept on the alert, a new "מנתח את המקור…" (analyzing the source) busy spinner starts up — as if the app is proceeding into an analysis step for an upload that was just told it failed. Product Owner stopped observing after a few seconds rather than waiting it out, so it's unconfirmed whether that spinner ever clears on its own or hangs indefinitely — but either way, a new busy/analyzing state starting *after* the failure alert contradicts "no new item/suggestion created from the failed attempt." Something in the call chain isn't bailing out cleanly once the alert fires.
 
+**Result (retest, build `0.7.6-9f63dadc`):** ☑ PASS — notes: Works as expected — spinner, then failure alert, then a clean return to the underlying view with no stuck spinner or lingering modal. Round 5 fix (commit `9f63dad`, closing the modal and routing away on the `createLocalSource()` failure path, matching every other exit from `smartIngest()`/`attachIngest()`) confirmed working.
+
 ---
 
 ## Finding register (fill in during/after this session)
@@ -77,7 +79,7 @@ Go offline (airplane mode / DevTools offline throttling), then attempt to attach
 | "Reset Trip data" ("מחיקת נתוני הטיול") fails outright with the error "מחיקת הנתונים בטיול נכשלה. לא בוצע שינוי" ("Trip data deletion failed. No change was made.") — the action this candidate's own `V7-F08` fix is built on top of no longer completes at all. | Test 2 | Blocking | Reported by Product Owner 2026-09-24. Round 1 fix (`9c2f67d`) did not resolve it. **Root-caused for real, fixed in round 2** (commit `820c100`), retested and confirmed PASS 2026-09-26. |
 | Full Trip deletion ("מחיקת הטיול הנוכחי") fails with the identical error message as Test 2 — confirms both delete-style actions now share a broken code path (most likely the new `deleteAllAttachments()` helper or its call site introduced by this candidate). | Test 3 | Blocking | Reported by Product Owner 2026-09-24. Same root cause as Test 2 — one fix, one retest of both. Round 2 (`820c100`) fixed the outright failure, but see the new finding below — Storage cleanup itself is still not wired into this path. |
 | Full Trip deletion completes (Firestore record removed) but leaves the Trip's Storage `sources/` files behind — `deleteTripCompletely` is not calling the same fixed cleanup mechanism as "reset Trip data." | Test 3 (retest, build `0.7.6-820c100d`) | Blocking | Reported by Product Owner 2026-09-26. **Closed as debris, not a defect.** Investigation found the code correct and unchanged since round 2; retest on a genuinely fresh Trip (build `0.7.6-14ce6ded`) confirmed PASS 2026-09-26 — the leftover files were pre-existing orphans from before this candidate's fix existed, on the long-reused QA Test Trip. |
-| Attempting to attach a document while offline produces no feedback at all — clicking the upload button does nothing visible (no error, no hang indication). This candidate's own stated scope was to document offline upload's existing failure with a clear message, not leave it silent. | Test 5 | Blocking | Reported by Product Owner 2026-09-24/26. Round 3 fix (`14ce6de`) retested against build `0.7.6-14ce6ded` and **still failed identically**. Round 4 found two real, confirmed causes (no `render()` while the upload is in flight; the Storage SDK's own upload-retry window can delay the eventual reject/alert), fixed both (commit `b625390`). Retest against build `0.7.6-b625390f` found the alert now appears, but a new busy spinner got stuck on screen afterward. **Round 5 root-caused and fixed** (commit `9f63dad`) — the null-source failure path wasn't closing the modal/routing away like every other exit does, so round 4's now-visible spinner just never cleared. New build `0.7.6-9f63dadc` deployed to `qa`, awaiting retest. |
+| Attempting to attach a document while offline produces no feedback at all — clicking the upload button does nothing visible (no error, no hang indication). This candidate's own stated scope was to document offline upload's existing failure with a clear message, not leave it silent. | Test 5 | Blocking | Reported by Product Owner 2026-09-24/26. Round 3 fix (`14ce6de`) retested against build `0.7.6-14ce6ded` and **still failed identically**. Round 4 found two real, confirmed causes (no `render()` while the upload is in flight; the Storage SDK's own upload-retry window can delay the eventual reject/alert), fixed both (commit `b625390`). Retest against build `0.7.6-b625390f` found the alert now appears, but a new busy spinner got stuck on screen afterward. **Root-caused and fixed** (commit `9f63dad`) — the null-source failure path wasn't closing the modal/routing away like every other exit does, so round 4's now-visible spinner just never cleared. Retested against build `0.7.6-9f63dadc` and confirmed **PASS** 2026-09-26 — spinner, alert, clean return to the underlying view, no stuck state. |
 
 ## Round 1 root cause and fix (did not resolve the failure — see round 2)
 
@@ -179,7 +181,15 @@ The round-3 fix (commit `14ce6de`) is itself correct — `createLocalSource()` d
 
 ## GO/NO-GO decision
 
-**Pending.** Recorded here once every test above has a result.
+**GO.** Recorded by the Product Owner (Eyal), 2026-09-26. All 5 tests PASS after a multi-round correction process during this session:
+
+- Test 1 (baseline cross-device retrieval): PASS, no issues.
+- Test 2 (`V7-F08` Storage cleanup on "reset Trip data"): FAIL → round 1 fix insufficient → **root-caused and fixed in round 2** (commit `820c100`) → PASS.
+- Test 3 (Storage cleanup on full Trip deletion): FAIL → round 2 fix completed the delete action but left Storage cleanup unwired → investigated, found to be pre-existing debris on the reused QA Test Trip rather than a code defect → **confirmed PASS on a genuinely fresh Trip** (build `0.7.6-14ce6ded`).
+- Test 4 (cross-device deletion visibility): PASS, confirmed independently of Test 3's Storage finding.
+- Test 5 (offline upload failure clarity): FAIL across three further rounds (silent no-op → alert appears but a new busy spinner gets stuck → spinner-after-failure bug) → **root-caused and fixed in round 5** (commit `9f63dad`) → PASS.
+
+A process incident occurred mid-session: the actual QA Test Trip was accidentally deleted during Test 3's first retest (permanent full-Trip deletion run against it instead of a disposable Trip, contrary to the test's own instructions) — the Product Owner confirmed this and created a new QA Test Trip; not a product defect, recorded for the record. `0.7.6` may proceed to Production promotion as a separate, explicit action. No open findings remain for this candidate.
 
 ## Production promotion
 
