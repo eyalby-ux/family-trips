@@ -50,6 +50,19 @@ function test_0_7_8_classification_recognizes_transport_as_a_real_category(){
   assert(classificationSystemPrompt.includes('transfer/shuttle/taxi confirmation'));
 }
 
+function test_0_7_8_1_classification_prompt_explicitly_disambiguates_transport_from_attraction_event(){
+  // Round 2 correction (Test 4, found live): TR-005 (a real Deutsche Bahn rail ticket) was
+  // misclassified as ATTRACTION/EVENT, not TRANSPORT, by the live model -- confirmed directly by
+  // the Product Owner from the review form's own type field. Root-caused, not guessed: both
+  // categories' descriptions use the word "ticket" heavily, and TRANSPORT was a single terse
+  // clause with far less descriptive detail than ATTRACTION/EVENT's own paragraph. This assertion
+  // confirms the strengthened disambiguation text exists; it cannot verify the live model actually
+  // classifies correctly now (no API access from this environment) -- that is the Product Owner's
+  // own next acceptance-session step.
+  assert(classificationSystemPrompt.includes('is TRANSPORT, never ATTRACTION/EVENT'));
+  assert(classificationSystemPrompt.includes('Fahrkarte'));
+}
+
 function test_0_7_8_transportImportSchema_allows_transfer_and_other_as_honest_non_extraction_outputs(){
   assert.deepEqual(transportImportSchema.properties.transportMode.enum,['car','rail','ferry','transfer','other']);
   assert(transportSystemPrompt.includes('recognition-only outputs, not extraction targets'));
@@ -201,6 +214,7 @@ const tests=[
   test_0_7_8_TYPE_FIELDS_car_gains_website_and_email,
   test_0_7_8_TYPE_RULES_recognizes_rail_ferry_transfer_language,
   test_0_7_8_classification_recognizes_transport_as_a_real_category,
+  test_0_7_8_1_classification_prompt_explicitly_disambiguates_transport_from_attraction_event,
   test_0_7_8_transportImportSchema_allows_transfer_and_other_as_honest_non_extraction_outputs,
   test_0_7_8_rental_car_maps_origin_to_location_and_startAt_endAt_from_date_time_pairs,
   test_0_7_8_rail_maps_departure_station_and_resolves_endAt_for_overnight_ferry_style_dates,
