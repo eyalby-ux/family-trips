@@ -45,9 +45,30 @@ export default async function handler(request){
     // extraction call runs exactly as it always has (analyze_hotel/analyze_flight stay
     // available directly for attach-and-extract, where the target item's own type already
     // makes classification unnecessary).
+    // 0.7.8 correction round 2 (Test 4, found live): a real Deutsche Bahn rail ticket (TR-005)
+    // still misclassified as 'activity' even after round 1's prompt-only fix (which gave TRANSPORT
+    // equal descriptive weight in classificationSystemPrompt) -- the retest showed the extraction
+    // step's OWN warning text correctly self-identifying the document as rail, while the item's
+    // type field still resolved to Attraction. Traced this precisely, not assumed: type/
+    // transportMode is decided ENTIRELY by this classification call's own `category` output, one
+    // model call, BEFORE the extraction call (whose prompt/schema is picked by that category) ever
+    // runs -- smartImportActivityResultToSuggestion (and every other category adapter) hardcodes
+    // its own `type`, with zero mechanism to reconsider it based on what the extraction step itself
+    // later notices. These are two structurally disconnected calls; the warning text has no causal
+    // path back to type/transportMode at all. Given the extraction call (max_output_tokens:8000,
+    // same 'low' reasoning effort) reaches the CORRECT conclusion on this exact same document, while
+    // classification (max_output_tokens:200) does not, the most likely mechanical cause is budget,
+    // not wording: the Responses API counts a reasoning-effort model's own internal reasoning
+    // tokens against max_output_tokens, and 200 is a tight ceiling for a genuinely hard boundary
+    // case -- plausibly forcing a shallow, truncated judgment before the model reasons its way to
+    // the same correct answer the (much better-resourced) extraction call reaches. Raised both the
+    // reasoning effort and the token ceiling for this one call specifically -- a real reasoning-
+    // budget increase, not another wording-only attempt, and cheap regardless (classification's own
+    // output is always a two-field JSON object either way, so the cost difference is bounded to
+    // however many reasoning tokens the model actually chooses to spend on a genuinely hard case).
     if(body.operation==='analyze_source'){
       await registerOrVerifyTrip(tripId,user);const quota=await consumeDailyQuota(user);const prepared=await prepareSource(body.source,true);audit={...audit,sourceKind:prepared.kind,sourceSize:prepared.sourceSize};
-      const classifyResponse=await client.responses.create({model:MODEL,store:false,reasoning:{effort:'low',context:'current_turn'},safety_identifier:user.emailHash,max_output_tokens:200,input:[{role:'system',content:classificationSystemPrompt},{role:'user',content:[...prepared.content,{type:'input_text',text:'Classify this document.'}]}],text:{format:{type:'json_schema',name:'familytrips_source_classification',strict:true,schema:sourceClassificationSchema}}});
+      const classifyResponse=await client.responses.create({model:MODEL,store:false,reasoning:{effort:'medium',context:'current_turn'},safety_identifier:user.emailHash,max_output_tokens:1000,input:[{role:'system',content:classificationSystemPrompt},{role:'user',content:[...prepared.content,{type:'input_text',text:'Classify this document.'}]}],text:{format:{type:'json_schema',name:'familytrips_source_classification',strict:true,schema:sourceClassificationSchema}}});
       const classification=JSON.parse(classifyResponse.output_text);
       const category=['flight','hotel','activity','insurance','car'].includes(classification.category)?classification.category:null;
       if(!category){const latencyMs=Date.now()-started;audit={...audit,status:'completed',model:classifyResponse.model||MODEL,latencyMs};await writeAudit(audit);return json({attemptId:audit.attemptId,state:'no_match',category:'unrecognized',latencyMs,quota:{remaining:Math.max(0,quota.limit-quota.count),limit:quota.limit}},200)}

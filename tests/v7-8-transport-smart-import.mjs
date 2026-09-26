@@ -63,6 +63,34 @@ function test_0_7_8_1_classification_prompt_explicitly_disambiguates_transport_f
   assert(classificationSystemPrompt.includes('Fahrkarte'));
 }
 
+function test_0_7_8_2_classification_call_has_a_real_reasoning_budget_not_just_reworded_prompt(){
+  // Round 3 correction (Test 4 retest, found live): round 1's prompt-only fix did NOT change the
+  // live model's classification decision -- TR-005 still resolved to Attraction. The retest's own
+  // new clue: the extraction step's OWN warning text now correctly self-identifies the document as
+  // rail ("This source is a rail travel ticket rather than an attraction/event admission ticket"),
+  // while the classification call's `category` output (decided in a SEPARATE, earlier model call,
+  // with no path back from extraction's own findings) still said 'activity'. Traced precisely: the
+  // classification call had max_output_tokens:200 and reasoning effort 'low', versus the extraction
+  // call's max_output_tokens:8000 at the same effort -- a plausible real mechanical cause (a
+  // reasoning-effort model's own internal reasoning tokens count against max_output_tokens), not
+  // just different wording. This asserts the actual budget increase is in place, not a live-model
+  // outcome this environment cannot verify.
+  assert(smartImportFn.includes("reasoning:{effort:'medium',context:'current_turn'},safety_identifier:user.emailHash,max_output_tokens:1000"));
+}
+
+function test_0_7_8_2_type_assignment_has_no_path_back_from_extraction_warnings(){
+  // Documents the actual architectural disconnect the round-2 correction asked to be confirmed,
+  // not assumed: type/transportMode is decided ENTIRELY by the classification call's own `category`
+  // -- one model call, before extraction ever runs -- and every category adapter (Activity's
+  // included) hardcodes its own `type` unconditionally. There is no code path reading extraction's
+  // own warnings/unresolved back into `category` -- if the classification call gets it wrong, no
+  // downstream extraction-side self-awareness can correct it, only re-classification can.
+  const analyzeSourceStart=smartImportFn.indexOf("body.operation==='analyze_source'");
+  const analyzeSourceBody=smartImportFn.slice(analyzeSourceStart,smartImportFn.indexOf('const operation=OPERATIONS[body.operation]',analyzeSourceStart));
+  assert(analyzeSourceBody.includes('const category='));
+  assert(!analyzeSourceBody.includes('draft.warnings'),'the classification/routing step must never read the extraction draft\'s own warnings -- confirms these are two structurally disconnected calls, not a hidden coupling this fix could have relied on instead');
+}
+
 function test_0_7_8_transportImportSchema_allows_transfer_and_other_as_honest_non_extraction_outputs(){
   assert.deepEqual(transportImportSchema.properties.transportMode.enum,['car','rail','ferry','transfer','other']);
   assert(transportSystemPrompt.includes('recognition-only outputs, not extraction targets'));
@@ -215,6 +243,8 @@ const tests=[
   test_0_7_8_TYPE_RULES_recognizes_rail_ferry_transfer_language,
   test_0_7_8_classification_recognizes_transport_as_a_real_category,
   test_0_7_8_1_classification_prompt_explicitly_disambiguates_transport_from_attraction_event,
+  test_0_7_8_2_classification_call_has_a_real_reasoning_budget_not_just_reworded_prompt,
+  test_0_7_8_2_type_assignment_has_no_path_back_from_extraction_warnings,
   test_0_7_8_transportImportSchema_allows_transfer_and_other_as_honest_non_extraction_outputs,
   test_0_7_8_rental_car_maps_origin_to_location_and_startAt_endAt_from_date_time_pairs,
   test_0_7_8_rail_maps_departure_station_and_resolves_endAt_for_overnight_ferry_style_dates,
