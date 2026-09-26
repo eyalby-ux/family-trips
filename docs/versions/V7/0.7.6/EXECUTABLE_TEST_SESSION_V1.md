@@ -193,4 +193,4 @@ A process incident occurred mid-session: the actual QA Test Trip was accidentall
 
 ## Production promotion
 
-Not yet — recorded here once GO is confirmed.
+**Promoted.** 2026-09-26, build `0.7.6-9f63dadc` (deploy `6ab78bb62cf8dc7924ae9a9f`), replacing prior Production build `0.7.5.1-0b2a2037` (deploy `6ab418dd1c45e7fd93eadf2d`). Netlify reported "0 files/0 functions uploaded" — byte-identical to the accepted `qa` artifact, confirmed live via a fresh fetch of `https://familytripz.netlify.app/`. Rollback backup and full record: `production-promotion-backup-20260926-090725/ROLLBACK_RECORD.md`.
