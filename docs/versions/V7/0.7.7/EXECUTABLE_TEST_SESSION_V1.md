@@ -91,4 +91,4 @@ Add a plain shopping-list entry with no place reference, exactly as you would ha
 
 ## Production promotion
 
-Not yet — recorded here once promotion is confirmed.
+**Promoted.** 2026-09-26, build `0.7.7-e54a61fc` (deploy `6ab7ac638a010dc998a15c35`), replacing prior Production build `0.7.6-9f63dadc` (deploy `6ab78bb62cf8dc7924ae9a9f`). Netlify reported "0 files/0 functions uploaded" — byte-identical to the accepted `qa` artifact, confirmed live via a fresh fetch of `https://familytripz.netlify.app/`. Rollback backup and full record: `production-promotion-backup-20260926-112748/ROLLBACK_RECORD.md`.
