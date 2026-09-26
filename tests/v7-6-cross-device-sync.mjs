@@ -87,6 +87,25 @@ function test_0_7_6_offline_upload_is_documented_as_a_known_limitation_not_left_
   assert(commentBlock.includes('no offline'));
   assert(commentBlock.includes('queueing'));
 }
+function test_0_7_6_createLocalSource_failure_is_caught_and_alerted_not_an_unhandled_rejection(){
+  // Found live (Test 5): a failed storeOriginal() used to throw out of createLocalSource(), but
+  // neither smartIngest() nor attachIngest() caught it -- a genuinely silent no-op on offline
+  // upload, contradicting this candidate's own "no silent data loss" claim. Pre-existing, not
+  // caused by 0.7.6, but found via this candidate's own Test 5 and fixed here.
+  const start=app.indexOf('async function createLocalSource');
+  const body=app.slice(start,app.indexOf('\n',start));
+  assert(body.includes('catch(error){alert('));
+  assert(body.includes('return null'));
+  assert(!body.includes('throw new Error'));
+  // Both callers must check for the null return -- otherwise this is just as silent a failure,
+  // one level up (pushing a null source into state.sources).
+  const smartIngestStart=app.indexOf('async function smartIngest');
+  const smartIngestBody=app.slice(smartIngestStart,app.indexOf('async function attachIngest',smartIngestStart));
+  assert(smartIngestBody.includes('const source=await createLocalSource(kind,file,url);if(!source)return;'));
+  const attachIngestStart=app.indexOf('async function attachIngest');
+  const attachIngestBody=app.slice(attachIngestStart,app.indexOf('async function analyzeSavedSource',attachIngestStart));
+  assert(attachIngestBody.includes("const source=await createLocalSource(kind,file,'');if(!source)return;"));
+}
 function test_0_7_6_admin_delete_account_was_not_touched_confirmed_already_correct(){
   // DESIGN_V1.md §4.3's own finding: admin-delete-account.mjs already does Storage cleanup
   // correctly (bucket().deleteFiles({prefix}) before firestore.recursiveDelete) -- no fix needed,
@@ -105,6 +124,7 @@ const tests=[
   test_0_7_6_open_source_message_no_longer_implies_a_per_device_availability_gap,
   test_0_7_6_encryption_and_retention_are_documented_as_already_satisfied,
   test_0_7_6_offline_upload_is_documented_as_a_known_limitation_not_left_unexplained,
+  test_0_7_6_createLocalSource_failure_is_caught_and_alerted_not_an_unhandled_rejection,
   test_0_7_6_admin_delete_account_was_not_touched_confirmed_already_correct,
 ];
 for(const test of tests){test();console.log(`PASS: ${test.name}`)}

@@ -1092,7 +1092,7 @@ async function smartIngest(){
   try{validateSmartSource(kind,file,url)}catch(error){alert(error.message);return}
   ingestBusy=true;
   try{
-    const source=await createLocalSource(kind,file,url);state.sources.push(source);save();
+    const source=await createLocalSource(kind,file,url);if(!source)return;state.sources.push(source);save();
     if(mode==='save'){Object.assign(source,saveOnlySource(source));save();pendingSourceFile=null;state.modal=null;route('center',{category:'document'});notify('המקור נשמר ללא ניתוח');return}
     await runSmartAnalysis(source,file);
     pendingSourceFile=null;state.modal=null;
@@ -1104,7 +1104,7 @@ async function attachIngest(itemId){
   try{validateSmartSource(kind,file,'')}catch(error){alert(error.message);return}
   ingestBusy=true;
   try{
-    const source=await createLocalSource(kind,file,'');source.status=mode==='attach'?'מצורף לפריט':'בניתוח';source.processingState=mode==='attach'?'attached_only':'processing';state.sources.push(source);item.sourceIds=[...new Set([...(item.sourceIds||[]),source.id])];save();
+    const source=await createLocalSource(kind,file,'');if(!source)return;source.status=mode==='attach'?'מצורף לפריט':'בניתוח';source.processingState=mode==='attach'?'attached_only':'processing';state.sources.push(source);item.sourceIds=[...new Set([...(item.sourceIds||[]),source.id])];save();
     if(mode==='attach'){pendingSourceFile=null;state.modal=null;route('detail',{itemId:item.id});notify('המסמך צורף ללא שינוי בפרטי הפריט');return}
     await runSmartAnalysis(source,file,item);
     pendingSourceFile=null;state.modal=null;
@@ -1124,7 +1124,16 @@ async function analyzeSavedSource(id){
   ingestBusy=true;
   try{await runSmartAnalysis(source,file)}finally{ingestBusy=false}
 }
-async function createLocalSource(kind,file,url){const source={id:uid('src'),kind:kind==='link'?'link':kind==='photo'?'photo':'file',name:kind==='link'?url:file.name,url:kind==='link'?url:'',type:file?.type||'text/html',size:file?.size||0,status:'נשמר',createdAt:new Date().toISOString(),storedOffline:kind==='link',experimental:false,processingState:'saved'};if(file){source.fingerprint=await sha256File(file);try{await storeOriginal(source,file)}catch(error){throw new Error('שמירת המקור במכשיר נכשלה. לא נשלח מידע לניתוח.')}}return source}
+// 0.7.6 correction (Test 5, found live): a failed storeOriginal() here used to throw, but NEITHER
+// caller (smartIngest/attachIngest, below) actually caught it -- the error became an unhandled
+// rejection with zero visible feedback (a silent no-op click, worst of all outcomes), unlike
+// ingest()'s own inline equivalent, which does catch its own storeOriginal() call directly. A
+// pre-existing gap, not something 0.7.6 introduced, but found via this candidate's own Test 5
+// (which specifically checks offline upload fails visibly) and fixed here since it blocks that
+// test. Fixed once, in this shared function both callers route through, rather than duplicating
+// the same try/catch in each -- alert()s directly and returns null; both callers now check for
+// that instead of relying on a throw they never caught.
+async function createLocalSource(kind,file,url){const source={id:uid('src'),kind:kind==='link'?'link':kind==='photo'?'photo':'file',name:kind==='link'?url:file.name,url:kind==='link'?url:'',type:file?.type||'text/html',size:file?.size||0,status:'נשמר',createdAt:new Date().toISOString(),storedOffline:kind==='link',experimental:false,processingState:'saved'};if(file){source.fingerprint=await sha256File(file);try{await storeOriginal(source,file)}catch(error){alert('שמירת המקור במכשיר נכשלה. לא נשלח מידע לניתוח.');return null}}return source}
 // kind is 'document' from the merged Add screen (V6 fix pass), or still 'file'/'photo' from the
 // unchanged attach-to-existing-item screen -- either way, PDF or one of the three image types.
 // V6-F38: both the Add screen and the per-item attachment modal now only ever pass 'link' or
