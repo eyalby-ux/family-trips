@@ -89,4 +89,4 @@ Spot-check: add a brand-new shopping-list entry with no place reference (plain, 
 
 ## Production promotion
 
-Not yet — recorded here once promotion is confirmed.
+**Promoted.** 2026-09-26, build `0.7.7.1-a6ba2266` (deploy `6ab7d2eeb824cd426eed648f`), replacing prior Production build `0.7.7-e54a61fc` (deploy `6ab7ac638a010dc998a15c35`). Netlify reported "0 files/0 functions uploaded" — byte-identical to the accepted `qa` artifact, confirmed live via a fresh fetch of `https://familytripz.netlify.app/`. Rollback backup and full record: `production-promotion-backup-20260926-141204/ROLLBACK_RECORD.md`.
