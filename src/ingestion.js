@@ -18,11 +18,17 @@ import {MERGE_CONFLICT_WARNING_PREFIX} from './smart-import-adapter.js';
 // key is kept and only its scope/label/fields grow. AI Smart Import extraction remains explicitly
 // out of scope for this candidate -- manual entry and QR/JSON import only, per the scope document.
 export const TRANSPORT_MODES={transfer:'הסעה',rail:'רכבת',ferry:'מעבורת',car:'רכב שכור',other:'אחר'};
+// 0.7.7: shoppingPlace's `schedule` default ('none') is the only one of these that is not actually
+// fixed for the type -- the same record may later be dated (see buildItemFormValues below, which
+// derives its real schedule per-save from whether a date was actually entered, instead of blindly
+// from this default like every other type). Everything else about it -- Firestore sync via
+// state.items, participant scope, Timeline/Calendar projection, dynamic form rendering -- comes
+// from being a normal ITEM_TYPES entry, the same reasoning 0.7.4 used for Transport.
 export const ITEM_TYPES = {
-  flight:{label:'טיסה',icon:'✈️',schedule:'single'},hotel:{label:'מלון',icon:'🏨',schedule:'range'},car:{label:'תחבורה',icon:'🚐',schedule:'range'},activity:{label:'אטרקציה',icon:'🎟️',schedule:'single'},restaurant:{label:'מסעדה',icon:'🍽️',schedule:'single'},insurance:{label:'ביטוח',icon:'🛡️',schedule:'entire'},link:{label:'קישור',icon:'🔗',schedule:'none'},document:{label:'מסמך',icon:'📄',schedule:'none'},contact:{label:'איש קשר',icon:'☎️',schedule:'none'},participant:{label:'משתתף',icon:'👨‍👩‍👧‍👦',schedule:'none'},
+  flight:{label:'טיסה',icon:'✈️',schedule:'single'},hotel:{label:'מלון',icon:'🏨',schedule:'range'},car:{label:'תחבורה',icon:'🚐',schedule:'range'},activity:{label:'אטרקציה',icon:'🎟️',schedule:'single'},restaurant:{label:'מסעדה',icon:'🍽️',schedule:'single'},insurance:{label:'ביטוח',icon:'🛡️',schedule:'entire'},link:{label:'קישור',icon:'🔗',schedule:'none'},document:{label:'מסמך',icon:'📄',schedule:'none'},contact:{label:'איש קשר',icon:'☎️',schedule:'none'},participant:{label:'משתתף',icon:'👨‍👩‍👧‍👦',schedule:'none'},shoppingPlace:{label:'מקום קניות',icon:'🏬',schedule:'none'},
 };
 export const TYPE_FIELDS={
-  flight:['provider','confirmationNumber','location','startAt','endAt','participants','notes'],hotel:['provider','confirmationNumber','location','website','phone','startAt','endAt','participants','notes'],car:['transportMode','provider','confirmationNumber','location','phone','startAt','endAt','participants','notes'],activity:['provider','confirmationNumber','location','website','startAt','participants','notes'],restaurant:['provider','confirmationNumber','location','website','phone','startAt','participants','notes'],insurance:['provider','confirmationNumber','website','phone','startAt','endAt','participants','notes'],link:['website','notes'],contact:['provider','phone','website','location','notes'],participant:['phone','notes'],
+  flight:['provider','confirmationNumber','location','startAt','endAt','participants','notes'],hotel:['provider','confirmationNumber','location','website','phone','startAt','endAt','participants','notes'],car:['transportMode','provider','confirmationNumber','location','phone','startAt','endAt','participants','notes'],activity:['provider','confirmationNumber','location','website','startAt','participants','notes'],restaurant:['provider','confirmationNumber','location','website','phone','startAt','participants','notes'],insurance:['provider','confirmationNumber','website','phone','startAt','endAt','participants','notes'],link:['website','notes'],contact:['provider','phone','website','location','notes'],participant:['phone','notes'],shoppingPlace:['location','website','phone','startAt','notes'],
 };
 // 0.6.7 (Insurance discovery doc, Section 3/3a): coverage start/end dates are captured and shown
 // on the item for reference and validity checking, but insurance.schedule stays fixed at 'entire'
@@ -374,6 +380,15 @@ export function suggestionReviewDefaults(proposed,tripStartDate,isNewItem){
   const fallbackEnd=endAt||(proposed?.schedule==='range'?`${tripStartDate}T12:00`:endAt);
   return {startAt:fallbackStart,endAt:fallbackEnd};
 }
+// 0.7.7: shared by buildItemFormValues (below) and updateSuggestion (v5-app.js, editing a
+// suggestion draft) -- the two places that decide an item's schedule on save. Every other type's
+// schedule is genuinely fixed per type, so recomputing it from ITEM_TYPES[type].schedule on every
+// save was always a no-op; shoppingPlace is the first type whose schedule must instead reflect
+// whether THIS save actually entered a date, or every edit (including the one meant to add a
+// date) would silently reset it back to 'none'.
+export function scheduleForType(type,hasStart){
+  return type==='shoppingPlace'?(hasStart?'single':'none'):(ITEM_TYPES[type]?.schedule||'none');
+}
 // Builds the item field values from the manual-create / edit-item form's own FormData, exactly
 // as the real submit handler does -- extracted so both the UI and a regression test call the
 // same function (V6-F23: the previous regression tests only covered suggestionToItem(), a
@@ -395,7 +410,7 @@ export function buildItemFormValues(data){
   // redundant with details.passengers/ticketHolders/insuredPersons, already shown in full elsewhere
   // (flightSummaryBlock/activitySummaryBlock/insuranceSummaryBlock), and was never itself rendered
   // anywhere. Whatever already exists in Firestore for any item now simply survives untouched.
-  return {type,title:String(data.get('title')||'').trim(),provider:String(data.get('provider')||'').trim(),confirmationNumber:String(data.get('confirmationNumber')||'').trim(),location:String(data.get('location')||'').trim(),website:normalizeUrlInput(data.get('website')),phone:String(data.get('phone')||'').trim(),startAt:range.start,endAt:range.end,notes:String(data.get('notes')||'').trim(),transportMode:String(data.get('transportMode')||'').trim(),participantScope,participantIds:participantScope==='specific'?data.getAll('participantIds').map(String):[],schedule:ITEM_TYPES[type]?.schedule||'none',updatedAt:new Date().toISOString()};
+  return {type,title:String(data.get('title')||'').trim(),provider:String(data.get('provider')||'').trim(),confirmationNumber:String(data.get('confirmationNumber')||'').trim(),location:String(data.get('location')||'').trim(),website:normalizeUrlInput(data.get('website')),phone:String(data.get('phone')||'').trim(),startAt:range.start,endAt:range.end,notes:String(data.get('notes')||'').trim(),transportMode:String(data.get('transportMode')||'').trim(),participantScope,participantIds:participantScope==='specific'?data.getAll('participantIds').map(String):[],schedule:scheduleForType(type,Boolean(range.start)),updatedAt:new Date().toISOString()};
 }
 export function validateSource({kind,file,url}){
   if(kind==='link'){try{const parsed=new URL(url);if(!['http:','https:'].includes(parsed.protocol))throw new Error();return {ok:true}}catch{return {ok:false,error:'יש להזין קישור HTTP או HTTPS תקין'}}}

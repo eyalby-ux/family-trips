@@ -81,7 +81,11 @@ function test_0_7_4_1_type_change_rebuild_and_manual_create_defaults_no_longer_r
   const typeChangeStart=app.indexOf('select[data-action="proposal-type"]');
   const typeChangeBody=app.slice(typeChangeStart,app.indexOf('actions=form.querySelector',typeChangeStart));
   assert(!typeChangeBody.includes("participants:String(current.get('participants')"));
-  assert(app.includes("...manualCreateDefaults(state.trip),notes:''})}<button class=\"btn\">יצירת פריט</button>"));
+  // Narrowed to manualCreateDefaults' own presence, not the exact surrounding call, since 0.7.7
+  // wrapped it in a shoppingPlace-only conditional (see tests/v7-7-shopping-places.mjs) rather than
+  // calling it unconditionally.
+  assert(app.includes('manualCreateDefaults(state.trip)'));
+  assert(app.includes("notes:''})}<button class=\"btn\">יצירת פריט</button>"));
 }
 
 const tests=[

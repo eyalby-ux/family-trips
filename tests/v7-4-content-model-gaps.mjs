@@ -103,7 +103,11 @@ function test_0_7_4_participant_item_type_kept_defined_but_excluded_from_new_cre
   // NEW one could be created from, and from Trip Center's own tile grid.
   assert(ITEM_TYPES.participant);
   assert(app.includes("!['document','link','participant'].includes(key)")); // create-type dropdown
-  assert(app.includes("!['link','participant'].includes(key)")); // Trip Center visibleTypes
+  // Trip Center visibleTypes -- narrowed to the two exclusions this test cares about (not the exact
+  // full line) since 0.7.7 added a further exclusion (shoppingPlace) to the same line.
+  const visibleTypesStart=app.indexOf('const visibleTypes=');
+  const visibleTypesLine=app.slice(visibleTypesStart,app.indexOf('\n',visibleTypesStart));
+  assert(visibleTypesLine.includes("'link'")&&visibleTypesLine.includes("'participant'"));
 }
 function test_0_7_4_participantsSection_is_wired_into_settingsView_the_sole_entry_point(){
   const start=app.indexOf('function participantsSection(){');

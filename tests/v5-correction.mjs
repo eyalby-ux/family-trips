@@ -74,7 +74,14 @@ assert.match(netlify,/Cross-Origin-Opener-Policy\s*=\s*"same-origin-allow-popups
 // 0.7.4: 'participant' also excluded now -- see SYNCED_COLLECTIONS' own comment
 // (operational-data.js) for why the old generic ITEM_TYPES.participant stub no longer gets a Trip
 // Center tile once real participant management (Trip Settings) exists.
-assert(app.includes("const visibleTypes=Object.entries(ITEM_TYPES).filter(([key])=>!['link','participant'].includes(key))"));
+// 0.7.7: 'shoppingPlace' also excluded -- see that candidate's own test file
+// (tests/v7-7-shopping-places.mjs) for why; narrowed here to just the two original exclusions this
+// test actually cares about, not the exact full line, so a further addition doesn't break this again.
+const visibleTypesStart=app.indexOf('const visibleTypes=');
+const visibleTypesLine=app.slice(visibleTypesStart,app.indexOf('\n',visibleTypesStart));
+assert(visibleTypesStart>-1);
+assert(visibleTypesLine.includes("'link'"));
+assert(visibleTypesLine.includes("'participant'"));
 assert(!app.includes("['locations','📍','מיקומים'"));
 assert(!app.includes('source-link-title'));
 assert(app.includes("['link','🔗 קישור']"));
