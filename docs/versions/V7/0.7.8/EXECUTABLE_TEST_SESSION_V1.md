@@ -100,6 +100,20 @@ Spot-check an existing Hotel, Flight, or Insurance item's own detail view and Sm
 
 `0.7.8` does not proceed to Production. A correction is needed for the rail misclassification (and the missing rail-specific fields), with the Development Agent asked to also investigate the `WC-001` non-recognition in the same pass. A fresh acceptance session will follow the next build.
 
+## Round 2 — Test 4 root-caused and fixed; Test 7 (`WC-001`) investigated, not fixed
+
+**Investigated, not guessed:** the classification prompt's own TRANSPORT description was a single terse clause appended at the end of an already-long list, with far less descriptive detail than ATTRACTION/EVENT's own paragraph — both categories' documents are commonly labelled "ticket," a plausible real cause for the model pattern-matching toward the more elaborately described category instead of the correct one.
+
+**Fixed** (commit `f1dbb2e`): `classificationSystemPrompt` gives TRANSPORT its own paragraph with the same level of detail as every other category, plus an explicit negative-disambiguation rule naming this exact confusion (a rail/ferry ticket is TRANSPORT, never ATTRACTION/EVENT, regardless of language or the word printed on the document — explicitly covers German-language documents like `TR-005`'s own "Fahrkarte"-style wording).
+
+**Test 4's own secondary finding (missing arrival time/train number/platform fields) needs no separate fix** — it's a downstream symptom of the same misclassification, not an independent bug: once the wrong category (Activity) was chosen, the *entire wrong extractor* ran, whose own schema has no arrival-time/train-number concept at all. The Transport adapter's own field mapping (including `endAt`) is already confirmed correct via Test 5 (ferry), which shares the identical adapter code path and passed cleanly.
+
+**Test 7 (`WC-001`) investigated per the correction's own request, not fixed:** confirmed `WC-001` has never appeared anywhere in this repository before `0.7.8`'s own discovery process supplied it — it was never part of Hotel Smart Import's original Alpha 0.6 benchmark set. This is very likely a pre-existing document-recognition limitation on a genuinely hard, novel composite photo (two documents stapled together), never previously exercised against Smart Import at all, not a regression `0.7.8` introduced. Left unfixed, per the correction's own explicit instruction not to fold in an unrelated issue.
+
+**This fix could not be verified against the live model from this environment** (no API access) — a prompt-quality fix, the same as every other live-model classification/extraction defect this project has handled, needs the Product Owner's own next acceptance-session retest.
+
+**A new `qa` build was deployed** (build `0.7.8-f1dbb2e5`) — please retest Test 4 (rail, `TR-005`) against this build, expecting a correctly classified Transport/rail proposal with a real `endAt` field this time. Test 7 (`WC-001`) may be retested too, though it's logged as a separate, non-blocking matter either way.
+
 ## Production promotion
 
 Not applicable — superseded by the NO-GO above. Recorded once a corrected `0.7.8` (or `0.7.8.1`) reaches GO.
