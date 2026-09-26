@@ -106,6 +106,31 @@ function test_0_7_6_createLocalSource_failure_is_caught_and_alerted_not_an_unhan
   const attachIngestBody=app.slice(attachIngestStart,app.indexOf('async function analyzeSavedSource',attachIngestStart));
   assert(attachIngestBody.includes("const source=await createLocalSource(kind,file,'');if(!source)return;"));
 }
+function test_0_7_6_storeOriginal_fails_fast_when_navigator_onLine_is_false(){
+  // Round 4 (Test 5, found live): a genuinely offline upload used to sit waiting on the Storage
+  // SDK's own multi-minute retry window before storeOriginal()'s catch/alert ever fired -- checking
+  // navigator.onLine up front turns that into an instant, honest failure instead.
+  const start=app.indexOf('async function storeOriginal');
+  const body=app.slice(start,app.indexOf('\n}',start)+2);
+  assert(body.includes('if(!navigator.onLine)throw new Error('));
+  // Must run before the network call, not after.
+  const onlineCheckIndex=body.indexOf('navigator.onLine');
+  const uploadIndex=body.indexOf('uploadAttachment(');
+  assert(onlineCheckIndex>-1&&uploadIndex>-1&&onlineCheckIndex<uploadIndex);
+}
+function test_0_7_6_smartIngest_and_attachIngest_render_immediately_when_busy(){
+  // Round 4 (Test 5, found live): the app already had a busy-state spinner UI for this exact
+  // moment (smartImportPanel/attachmentModal's own ingestBusy check), but nothing re-rendered
+  // between setting ingestBusy=true and the upload finishing, so it could never actually appear --
+  // a slow/offline upload looked identical to a dead click. render() must fire synchronously with
+  // (or immediately after) the flag flip, before the async work begins.
+  const smartIngestStart=app.indexOf('async function smartIngest');
+  const smartIngestBody=app.slice(smartIngestStart,app.indexOf('async function attachIngest',smartIngestStart));
+  assert(smartIngestBody.includes('ingestBusy=true;render();'));
+  const attachIngestStart=app.indexOf('async function attachIngest');
+  const attachIngestBody=app.slice(attachIngestStart,app.indexOf('async function analyzeSavedSource',attachIngestStart));
+  assert(attachIngestBody.includes('ingestBusy=true;render();'));
+}
 function test_0_7_6_admin_delete_account_was_not_touched_confirmed_already_correct(){
   // DESIGN_V1.md §4.3's own finding: admin-delete-account.mjs already does Storage cleanup
   // correctly (bucket().deleteFiles({prefix}) before firestore.recursiveDelete) -- no fix needed,
@@ -125,6 +150,8 @@ const tests=[
   test_0_7_6_encryption_and_retention_are_documented_as_already_satisfied,
   test_0_7_6_offline_upload_is_documented_as_a_known_limitation_not_left_unexplained,
   test_0_7_6_createLocalSource_failure_is_caught_and_alerted_not_an_unhandled_rejection,
+  test_0_7_6_storeOriginal_fails_fast_when_navigator_onLine_is_false,
+  test_0_7_6_smartIngest_and_attachIngest_render_immediately_when_busy,
   test_0_7_6_admin_delete_account_was_not_touched_confirmed_already_correct,
 ];
 for(const test of tests){test();console.log(`PASS: ${test.name}`)}

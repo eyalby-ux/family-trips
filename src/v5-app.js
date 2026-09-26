@@ -956,6 +956,13 @@ function render(){
 // matter in real use.
 async function storeOriginal(source,file){
   if(!state.trip)throw new Error('לא נמצא טיול פעיל.');
+  // 0.7.6 round 4 (Test 5, found live): fail fast instead of relying on the Storage SDK's own
+  // upload-retry window (documented, multi-minute by default) to eventually reject -- offline
+  // upload has no queueing story either way (see this file's own 0.7.6 comment above), so there's
+  // nothing to gain from silently waiting out retries that can only ever end in the same failure.
+  // Every caller already alerts with its own fixed message rather than error.message, so the exact
+  // text thrown here doesn't matter.
+  if(!navigator.onLine)throw new Error('אין חיבור לרשת.');
   // Must happen before the Storage upload, not after -- see ensureTripDocSynced's own comment.
   // This call site runs before save() ever does (createLocalSource, called from ingest()/
   // smartIngest()/attachIngest(), always precedes the state.sources.push(source);save() that
@@ -1090,7 +1097,11 @@ async function smartIngest(){
   if(ingestBusy)return;
   ensureTrip({name:'טיול חדש'});const kind=state.modal.source,mode=document.querySelector('input[name="processing-mode"]:checked')?.value||'analyze',file=kind==='link'?null:pendingSourceFile,url=normalizeUrlInput(document.querySelector('#source-url')?.value);
   try{validateSmartSource(kind,file,url)}catch(error){alert(error.message);return}
-  ingestBusy=true;
+  // 0.7.6 round 4 (Test 5, found live): the busy-state UI below (smartImportPanel's own
+  // processingIndicator) already existed but never actually appeared -- nothing re-rendered
+  // between here and the async work finishing, so a slow/offline upload looked identical to a
+  // dead click. Rendering immediately, before the await, is what actually shows it.
+  ingestBusy=true;render();
   try{
     const source=await createLocalSource(kind,file,url);if(!source)return;state.sources.push(source);save();
     if(mode==='save'){Object.assign(source,saveOnlySource(source));save();pendingSourceFile=null;state.modal=null;route('center',{category:'document'});notify('המקור נשמר ללא ניתוח');return}
@@ -1102,7 +1113,9 @@ async function attachIngest(itemId){
   if(ingestBusy)return;
   const item=state.items.find(candidate=>candidate.id===itemId),kind=state.modal.source||'file',mode=document.querySelector('input[name="processing-mode"]:checked')?.value||'attach',file=pendingSourceFile;if(!item)return;
   try{validateSmartSource(kind,file,'')}catch(error){alert(error.message);return}
-  ingestBusy=true;
+  // 0.7.6 round 4: same fix as smartIngest() above -- render() immediately so attachmentModal's
+  // own busy indicator actually shows during the upload, instead of only after it finishes.
+  ingestBusy=true;render();
   try{
     const source=await createLocalSource(kind,file,'');if(!source)return;source.status=mode==='attach'?'מצורף לפריט':'בניתוח';source.processingState=mode==='attach'?'attached_only':'processing';state.sources.push(source);item.sourceIds=[...new Set([...(item.sourceIds||[]),source.id])];save();
     if(mode==='attach'){pendingSourceFile=null;state.modal=null;route('detail',{itemId:item.id});notify('המסמך צורף ללא שינוי בפרטי הפריט');return}
