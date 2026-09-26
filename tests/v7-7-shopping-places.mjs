@@ -149,9 +149,11 @@ function test_0_7_7_shopping_list_entry_may_optionally_reference_a_place(){
   const modalBody=app.slice(modalStart,app.indexOf("return `<div class=\"modal-bg\"><section class=\"modal\"><div class=\"modal-head\"><h2>מיקום</h2>",modalStart));
   assert(modalBody.includes('name="placeId"'));
   assert(modalBody.includes("item.type==='shoppingPlace'"));
+  // 0.7.7.1 restructured this handler into a multi-line block (edit-in-place support) -- narrowed
+  // to the field itself, not the exact single-line form.
   const submitStart=app.indexOf("form.id==='shopping-form'");
-  const submitLine=app.slice(submitStart,app.indexOf('\n',submitStart));
-  assert(submitLine.includes("placeId:String(data.get('placeId')||'').trim()"));
+  const submitBody=app.slice(submitStart,app.indexOf("save();state.modal=null;render();",submitStart));
+  assert(submitBody.includes("placeId:String(data.get('placeId')||'').trim()"));
 }
 
 function test_0_7_7_deleting_a_place_cannot_cascade_delete_a_list_entry(){

@@ -40,7 +40,7 @@ export const SYNCED_COLLECTIONS=[
 // Trip-level like name/startDate/endDate, not its own subcollection -- one Trip has one ordered
 // list, not a per-record relationship needing individual document identity.
 export const TRIP_NESTED_FIELDS=['name','startDate','endDate','createdAt','destinationCountries'];
-export const TRIP_TOP_LEVEL_FIELDS=['timelineCursor','packedCollapsed','packingCollapsed'];
+export const TRIP_TOP_LEVEL_FIELDS=['timelineCursor','packedCollapsed','packingCollapsed','shoppingPurchasedCollapsed'];
 // Diffs `next` (an array of {id,...}) against `previous` (the same shape, or undefined/null on a
 // first sync) and returns {toCreate:[fullRecord,...], toUpdate:[{id,changedFields,deletedFields},...],
 // toDelete:[id,...]} -- only what actually changed, by id, and at FIELD granularity for a record that
@@ -100,6 +100,9 @@ export function normalizeOperationalState(state){
   state.participants=Array.isArray(state.participants)?state.participants:[];
   state.packingCollapsed=state.packingCollapsed&&typeof state.packingCollapsed==='object'?state.packingCollapsed:{};
   state.packedCollapsed=state.packedCollapsed!==false;
+  // 0.7.7.1 (Test 1, found live): mirrors packedCollapsed exactly -- collapsed by default (hidden),
+  // expandable, same pattern the Equipment/Packing list already uses for its own done items.
+  state.shoppingPurchasedCollapsed=state.shoppingPurchasedCollapsed!==false;
   state.timelineCursor=state.timelineCursor||state.trip?.startDate||today();
   // 0.7.4: every Trip document synced before this candidate has no destinationCountries field at
   // all -- default it to an empty array here (not just at Trip-creation time in ensureTrip()) so
