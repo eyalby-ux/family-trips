@@ -1,7 +1,7 @@
 # Family Trips Alpha 0.7.6 — Executable Acceptance Test Session
 
 **Document revision:** `V1`
-**Candidate:** `0.7.6` (original-source cross-device sync — headline finding: retrieval already worked before this candidate; real scope was `V7-F08` orphaned Storage cleanup, plus a copy-only message fix), installed on `version/V7`, deployed to the fixed `qa` alias (build `0.7.6-5ffdac5b`, deploy `6ab42f17f604f07f4a1bb668`)
+**Candidate:** `0.7.6` (original-source cross-device sync — headline finding: retrieval already worked before this candidate; real scope was `V7-F08` orphaned Storage cleanup, plus a copy-only message fix), installed on `version/V7`, deployed to the fixed `qa` alias (build `0.7.6-14ce6ded`, round 3 — see below for what changed since the round-2 build `0.7.6-820c100d`)
 **Session number:** `V1`. No test has been run yet.
 **Instructions:** Run one test at a time, in order. Record the actual observed result under each test, not just PASS/FAIL — a finding is only useful with what you actually saw.
 
@@ -70,8 +70,8 @@ Go offline (airplane mode / DevTools offline throttling), then attempt to attach
 |---|---|---|---|
 | "Reset Trip data" ("מחיקת נתוני הטיול") fails outright with the error "מחיקת הנתונים בטיול נכשלה. לא בוצע שינוי" ("Trip data deletion failed. No change was made.") — the action this candidate's own `V7-F08` fix is built on top of no longer completes at all. | Test 2 | Blocking | Reported by Product Owner 2026-09-24. Round 1 fix (`9c2f67d`) did not resolve it. **Root-caused for real, fixed in round 2** (commit `820c100`), retested and confirmed PASS 2026-09-26. |
 | Full Trip deletion ("מחיקת הטיול הנוכחי") fails with the identical error message as Test 2 — confirms both delete-style actions now share a broken code path (most likely the new `deleteAllAttachments()` helper or its call site introduced by this candidate). | Test 3 | Blocking | Reported by Product Owner 2026-09-24. Same root cause as Test 2 — one fix, one retest of both. Round 2 (`820c100`) fixed the outright failure, but see the new finding below — Storage cleanup itself is still not wired into this path. |
-| Full Trip deletion completes (Firestore record removed) but leaves the Trip's Storage `sources/` files behind — `deleteTripCompletely` is not calling the same fixed cleanup mechanism as "reset Trip data." | Test 3 (retest, build `0.7.6-820c100d`) | Blocking | Reported by Product Owner 2026-09-26. Not yet sent to the Development Agent — pending. |
-| Attempting to attach a document while offline produces no feedback at all — clicking the upload button does nothing visible (no error, no hang indication). This candidate's own stated scope was to document offline upload's existing failure with a clear message, not leave it silent. | Test 5 | Blocking | Reported by Product Owner 2026-09-26. Not yet sent to the Development Agent — pending. |
+| Full Trip deletion completes (Firestore record removed) but leaves the Trip's Storage `sources/` files behind — `deleteTripCompletely` is not calling the same fixed cleanup mechanism as "reset Trip data." | Test 3 (retest, build `0.7.6-820c100d`) | Blocking | Reported by Product Owner 2026-09-26. **Investigated, not fixed — see the "Test 3 investigation" note below.** `clearAllTripContent`/`deleteTripCompletely` re-verified directly against the actual code and found correct and unchanged since round 2's own fix; no bug found. Needs a clean retest on a genuinely fresh Trip before concluding either way — see note. |
+| Attempting to attach a document while offline produces no feedback at all — clicking the upload button does nothing visible (no error, no hang indication). This candidate's own stated scope was to document offline upload's existing failure with a clear message, not leave it silent. | Test 5 | Blocking | Reported by Product Owner 2026-09-26. **Root-caused and fixed** (commit `14ce6de`) — a genuinely pre-existing bug, not caused by `0.7.6`, found via this candidate's own Test 5. See "Round 3" below. |
 
 ## Round 1 root cause and fix (did not resolve the failure — see round 2)
 
@@ -116,6 +116,26 @@ service firebase.storage {
 ```
 
 **A new `qa` build was deployed** (build `0.7.6-820c100d`, deploy `6ab68b1098a66050cef65cb7`) — this round's fix touched real client code (`cloud-store.js`), not just rules. Once `storage.rules` is reverted, please retry Tests 2, 3, and 4 against this new build.
+
+## Round 3 — Test 5 root-caused and fixed; Test 3 investigated, not yet resolved
+
+### Test 5: offline upload's silent no-op — root-caused and fixed (commit `14ce6de`)
+
+**Root cause:** `createLocalSource()` — the shared helper both the "smart add" flow (`smartIngest()`) and the "attach to an existing item" flow (`attachIngest()`) call to save a new attachment — threw an error when `storeOriginal()` failed (as it always does offline, since there's no local device storage fallback). Neither caller actually caught that throw. The error became an **unhandled promise rejection**: no `alert()`, no console message a user would see, nothing — just a silently dead click. This is a pre-existing bug, not something `0.7.6` introduced; it was only surfaced because Test 5 is the first test in this project to specifically exercise offline upload against this exact code path. (The app's *other* upload entry point, the global "Add new item" flow's own `ingest()` function, was already correct — it catches its own `storeOriginal()` call inline and was never affected.)
+
+**Fix:** `createLocalSource()` now catches the `storeOriginal()` failure itself, shows `alert('שמירת המקור במכשיר נכשלה. לא נשלח מידע לניתוח.')`, and returns `null` instead of throwing. Both call sites (`smartIngest()`, `attachIngest()`) now check for that `null` return and bail out cleanly instead of pushing a half-formed source into state.
+
+**Please retest Test 5 against the new build** (`0.7.6-14ce6ded`) — expect a visible Hebrew alert on a failed offline attach, no new item/suggestion created from the failed attempt.
+
+### Test 3: Storage cleanup on full Trip deletion — investigated, no code bug found; needs a clean retest
+
+Re-read `clearAllTripContent()` and `deleteTripCompletely()` directly against the actual current code (not assumed): both are unchanged since round 2's fix, and `deleteTripCompletely()` still calls `clearAllTripContent()` (which runs `deleteAllAttachments()` — the exact same Storage-cleanup helper Test 2's retest already confirmed working for "reset Trip data") before deleting the Trip document itself. There is no second, separate, un-fixed code path for full-Trip deletion — both actions share the identical helper. No bug found in the code itself.
+
+**Working hypothesis, not yet confirmed:** the leftover `sources/` files Test 3's retest observed are most likely **pre-existing debris**, not evidence the fix doesn't work — specifically, files from earlier test rounds/candidates that were already orphaned in Storage *before* this fix existed (the very `V7-F08` problem this candidate fixes), sitting under the long-lived, heavily-reused QA Test Trip. `deleteAllAttachments()` can only delete a file if it can find a **current Firestore `sources` record** pointing at it — it has no way to discover or clean up a file whose owning Firestore record was itself already lost to an earlier, unfixed version of this same bug. That's expected, not a new defect: this fix stops *new* orphans from being created going forward; it cannot retroactively find orphans that already exist with no surviving pointer to them.
+
+This is consistent with Test 3's own original instructions, which called for a **disposable, freshly-created** test Trip specifically to avoid this ambiguity — the retest instead ran against the reused QA Test Trip (recorded already as a process note above).
+
+**Request:** please retest Test 3 on a genuinely fresh Trip — create a new Trip, attach one document, note its exact Storage path, delete the Trip, confirm that exact path is gone. If it's gone cleanly on a fresh Trip, this finding closes as debris, not a defect. If it's still left behind on a fresh Trip, that's a real, different bug and needs further investigation.
 
 ## GO/NO-GO decision
 
