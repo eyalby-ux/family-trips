@@ -28,7 +28,9 @@ On device A, attach a document/photo to an item (or use an existing one). On dev
 
 **Expect:** The Storage object no longer exists after the reset — this is the actual bug this candidate fixes, previously every attachment would have survived silently as an orphaned, billed file with nothing left able to reference or clean it up.
 
-**Result:** ☒ FAIL — notes: The "reset Trip data" action itself failed outright — clicking "מחיקת נתוני הטיול" produced an error dialog: "מחיקת הנתונים בטיול נכשלה. לא בוצע שינוי" ("Trip data deletion failed. No change was made."), confirmed by screenshot. This is a regression in the action itself, not just the Storage-cleanup verification — no change was made at all, so the underlying `V7-F08` fix couldn't even be exercised.
+**Result (round 1, build `0.7.6-5ffdac5b`):** ☒ FAIL — notes: The "reset Trip data" action itself failed outright — clicking "מחיקת נתוני הטיול" produced an error dialog: "מחיקת הנתונים בטיול נכשלה. לא בוצע שינוי" ("Trip data deletion failed. No change was made."), confirmed by screenshot. This is a regression in the action itself, not just the Storage-cleanup verification — no change was made at all, so the underlying `V7-F08` fix couldn't even be exercised.
+
+**Result (retest, build `0.7.6-820c100d`):** ☑ PASS — notes: First retest attempt was ambiguous — the reset completed without error, but the `sources/` folder still showed several `src-...` entries, unclear whether they were the just-attached document's folder or leftover clutter from many earlier test sessions on the shared QA Test Trip. Redone cleanly: attached a brand-new document, noted its exact `src-...` folder name in the Storage console, performed the reset, and confirmed that exact folder was gone afterward. Round 2 fix (commit `820c100`, reading each source's known `storagePath` directly rather than `listAll()`) confirmed working.
 
 ## Test 3 — Full Trip deletion still works correctly (regression check, not new behavior)
 
@@ -36,7 +38,11 @@ On a disposable test Trip (not a real one — this is a permanent delete), attac
 
 **Expect:** Unchanged from before this candidate — `deleteTripCompletely` already did this correctly; this confirms the refactor (replacing its old per-source loop with the same helper "reset Trip data" now uses) didn't break it.
 
-**Result:** ☒ FAIL — notes: Same failure as Test 2 — deleting the current Trip ("מחיקת הטיול הנוכחי") also produces the error "מחיקת הנתונים בטיול נכשלה. לא בוצע שינוי" ("Trip data deletion failed. No change was made."), confirmed by screenshot. Both delete-style actions fail identically, confirming the shared new helper itself (`deleteAllAttachments()`/its call site) is broken, not something isolated to the "reset" path.
+**Result (round 1, build `0.7.6-5ffdac5b`):** ☒ FAIL — notes: Same failure as Test 2 — deleting the current Trip ("מחיקת הטיול הנוכחי") also produces the error "מחיקת הנתונים בטיול נכשלה. לא בוצע שינוי" ("Trip data deletion failed. No change was made."), confirmed by screenshot. Both delete-style actions fail identically, confirming the shared new helper itself (`deleteAllAttachments()`/its call site) is broken, not something isolated to the "reset" path.
+
+**Result (retest, build `0.7.6-820c100d`):** ☒ FAIL — notes: The delete action itself now completes without error (Firestore confirmed: the Trip document no longer exists, "This document does not exist" in the console). However, the Trip's `sources/` Storage folders are still present afterward, confirmed by screenshot — the Storage cleanup that Test 2's retest just confirmed working for "reset Trip data" is **not** wired into the full-Trip-deletion path. `deleteTripCompletely` and "reset Trip data" no longer share the same fixed cleanup mechanism, contrary to this candidate's own stated intent ("replacing its old per-source loop with the same helper 'reset Trip data' now uses").
+
+**Process note, not a product finding:** this retest was run against the actual **QA Test Trip** itself, not a disposable test Trip as the instructions called for — full Trip deletion is permanent. The Product Owner confirmed the QA Test Trip was deleted and will create a new one before further testing continues. Recorded here for the record; not a defect in `0.7.6`.
 
 ## Test 4 — Cross-device deletion visibility (confirms existing sync behavior, not new code)
 
@@ -44,7 +50,9 @@ On device A, delete a source's owning Trip content (Test 2's reset, or delete a 
 
 **Expect:** Already works via `0.7.3`'s existing real-time sync of the `sources` collection — confirming it holds for this specific deletion path too, not new mechanism.
 
-**Result:** ☐ Blocked — notes: Cannot be run — both actions this test could piggyback on (Test 2's reset, Test 3's Trip deletion) fail outright, so there is no successful delete to check cross-device visibility against. Blocked on the same root cause as Tests 2 and 3.
+**Result (round 1):** ☐ Blocked — notes: Cannot be run — both actions this test could piggyback on (Test 2's reset, Test 3's Trip deletion) fail outright, so there is no successful delete to check cross-device visibility against. Blocked on the same root cause as Tests 2 and 3.
+
+**Result (retest, build `0.7.6-820c100d`):** ☑ PASS — notes: Piggybacked on Test 3's retest (full Trip deletion of the QA Test Trip). On the other device/account, the deleted Trip is no longer visible — confirmed via the existing `0.7.3` real-time sync, exactly as expected. This confirms Test 4 independently of Test 3's own separate finding (the Storage `sources/` files not being cleaned up) — Firestore-level deletion and its cross-device sync both work correctly; the outstanding bug is specifically the Storage cleanup, not sync.
 
 ## Test 5 — Offline file upload fails clearly, not silently (documents existing, unchanged behavior)
 
@@ -52,7 +60,7 @@ Go offline (airplane mode / DevTools offline throttling), then attempt to attach
 
 **Expect:** A clear failure message; no silent data loss; no new item/suggestion created from the failed attempt.
 
-**Result:** ☐ — notes:
+**Result:** ☒ FAIL — notes: Nothing happens at all when clicking the upload button while offline — no error message, no hang, no visible feedback of any kind. This is worse than the "known, accepted limitation" this candidate was meant to document: the design's own premise was a clear failure message on an existing, unchanged limitation, but there's no failure message to see — the click is silently a no-op.
 
 ---
 
@@ -60,8 +68,10 @@ Go offline (airplane mode / DevTools offline throttling), then attempt to attach
 
 | Finding | Test | Severity | Disposition |
 |---|---|---|---|
-| "Reset Trip data" ("מחיקת נתוני הטיול") fails outright with the error "מחיקת הנתונים בטיול נכשלה. לא בוצע שינוי" ("Trip data deletion failed. No change was made.") — the action this candidate's own `V7-F08` fix is built on top of no longer completes at all. | Test 2 | Blocking | Reported by Product Owner 2026-09-24. Round 1 fix (`9c2f67d`) did not resolve it. **Root-caused for real and fixed in round 2** (commit `820c100`) — see notes below. |
-| Full Trip deletion ("מחיקת הטיול הנוכחי") fails with the identical error message as Test 2 — confirms both delete-style actions now share a broken code path (most likely the new `deleteAllAttachments()` helper or its call site introduced by this candidate). | Test 3 | Blocking | Reported by Product Owner 2026-09-24. Same root cause as Test 2 — one fix, one retest of both. **Fixed in round 2** (commit `820c100`). |
+| "Reset Trip data" ("מחיקת נתוני הטיול") fails outright with the error "מחיקת הנתונים בטיול נכשלה. לא בוצע שינוי" ("Trip data deletion failed. No change was made.") — the action this candidate's own `V7-F08` fix is built on top of no longer completes at all. | Test 2 | Blocking | Reported by Product Owner 2026-09-24. Round 1 fix (`9c2f67d`) did not resolve it. **Root-caused for real, fixed in round 2** (commit `820c100`), retested and confirmed PASS 2026-09-26. |
+| Full Trip deletion ("מחיקת הטיול הנוכחי") fails with the identical error message as Test 2 — confirms both delete-style actions now share a broken code path (most likely the new `deleteAllAttachments()` helper or its call site introduced by this candidate). | Test 3 | Blocking | Reported by Product Owner 2026-09-24. Same root cause as Test 2 — one fix, one retest of both. Round 2 (`820c100`) fixed the outright failure, but see the new finding below — Storage cleanup itself is still not wired into this path. |
+| Full Trip deletion completes (Firestore record removed) but leaves the Trip's Storage `sources/` files behind — `deleteTripCompletely` is not calling the same fixed cleanup mechanism as "reset Trip data." | Test 3 (retest, build `0.7.6-820c100d`) | Blocking | Reported by Product Owner 2026-09-26. Not yet sent to the Development Agent — pending. |
+| Attempting to attach a document while offline produces no feedback at all — clicking the upload button does nothing visible (no error, no hang indication). This candidate's own stated scope was to document offline upload's existing failure with a clear message, not leave it silent. | Test 5 | Blocking | Reported by Product Owner 2026-09-26. Not yet sent to the Development Agent — pending. |
 
 ## Round 1 root cause and fix (did not resolve the failure — see round 2)
 
