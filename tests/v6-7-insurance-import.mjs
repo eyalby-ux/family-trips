@@ -564,7 +564,9 @@ function test_relatedItemIds_never_extracted_by_the_schema(){
   console.log('PASS: insuranceImportSchema has no relatedItemIds property -- confirmed manual-only, never extracted');
 }
 function test_classification_schema_and_prompt_recognize_insurance(){
-  assert.deepEqual(sourceClassificationSchema.properties.category.enum,['hotel','flight','activity','insurance','unrecognized'],'the source-classification schema must recognize insurance as a fourth category, alongside hotel/flight/activity');
+  // 0.7.8 added 'car' as a fifth category -- narrowed to checking insurance's own membership,
+  // not the exact full enum, so a further addition doesn't break this again.
+  assert(sourceClassificationSchema.properties.category.enum.includes('insurance'),'the source-classification schema must recognize insurance as a category, alongside hotel/flight/activity');
   console.log('PASS: sourceClassificationSchema recognizes insurance as a classifiable category');
 }
 function test_insuranceSystemPrompt_covers_provider_priority_and_phone_priority(){
@@ -638,7 +640,9 @@ function test_toggle_related_item_click_handler_mutates_relatedItemIds(){
 }
 function test_attach_and_extract_offered_for_insurance_items(){
   const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
-  assert.match(app,/\['hotel','flight','activity','insurance'\]\.includes\(item\.type\)\?`<button class="btn" data-action="attach-source"/,'the attach-document control must be offered for insurance items too, matching Hotel/Flight/Attraction-Event -- Decision 7 explicitly includes Attach only/Attach and extract on an existing Insurance item');
+  // 0.7.8 added 'car' to this list too -- narrowed to a substring check so a further addition
+  // doesn't break this again.
+  assert(app.includes("['hotel','flight','activity','insurance','car'].includes(item.type)?`<button class=\"btn\" data-action=\"attach-source\""),'the attach-document control must be offered for insurance items too, matching Hotel/Flight/Attraction-Event -- Decision 7 explicitly includes Attach only/Attach and extract on an existing Insurance item');
   console.log('PASS: the attach-document control is offered for insurance items, matching every other Smart Import-capable type');
 }
 function test_runSmartAnalysis_routes_insurance_attach_and_extract_to_the_insurance_operation(){

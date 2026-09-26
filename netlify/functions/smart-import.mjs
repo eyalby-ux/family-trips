@@ -7,7 +7,7 @@ import {PNG} from 'pngjs';
 import UTIF from 'utif2';
 import {authorize,httpError} from './_shared/smart-import-auth.mjs';
 import {consumeDailyQuota,registerOrVerifyTrip,writeAudit} from './_shared/smart-import-quota.mjs';
-import {activityImportSchema,activitySystemPrompt,classificationSystemPrompt,flightImportSchema,flightSystemPrompt,hotelImportSchema,insuranceImportSchema,insuranceSystemPrompt,sourceClassificationSchema,systemPrompt} from './_shared/smart-import-schema.mjs';
+import {activityImportSchema,activitySystemPrompt,classificationSystemPrompt,flightImportSchema,flightSystemPrompt,hotelImportSchema,insuranceImportSchema,insuranceSystemPrompt,sourceClassificationSchema,systemPrompt,transportImportSchema,transportSystemPrompt} from './_shared/smart-import-schema.mjs';
 import {validateActivityPlace,validateHotelPlace} from './_shared/place-validation.mjs';
 
 const MODEL='gpt-5.6-luna';const MAX_BINARY_BYTES=4*1024*1024;const MAX_PAGE_BYTES=1024*1024;
@@ -24,6 +24,13 @@ const OPERATIONS={
   // (INSURANCE_SMART_IMPORT_DISCOVERY.md V3, Decision 7 -- no real insurer-portal URL example exists to validate a
   // bounded scope against). No place validation either -- an insurance policy has no venue/address.
   analyze_insurance:{schemaName:'familytrips_insurance_import',schema:insuranceImportSchema,systemPrompt:insuranceSystemPrompt,instruction:'Extract all readable Insurance policy information under the frozen FamilyTrips rules.',allowUrl:false,validatePlace:false},
+  // Transport (0.7.8): PDF/image only, no URL acquisition (TRANSPORT_SMART_IMPORT_DISCOVERY.md V6,
+  // Decision 7 -- no real Transport-provider portal URL was benchmarked). No place validation --
+  // mirrors Flight's own precedent (no Google Places lookup for airports either), not Hotel/
+  // Activity's: a rental-car pickup branch, rail station or ferry port is not the kind of
+  // single-venue address Places validation was built to check, and this wasn't asked for in the
+  // frozen scope document.
+  analyze_car:{schemaName:'familytrips_transport_import',schema:transportImportSchema,systemPrompt:transportSystemPrompt,instruction:'Extract all readable Transport (rental car, rail or ferry/boat) information under the frozen FamilyTrips rules.',allowUrl:false,validatePlace:false},
 };
 export default async function handler(request){
   if(request.method!=='POST')return json({error:'method_not_allowed'},405);
@@ -42,9 +49,9 @@ export default async function handler(request){
       await registerOrVerifyTrip(tripId,user);const quota=await consumeDailyQuota(user);const prepared=await prepareSource(body.source,true);audit={...audit,sourceKind:prepared.kind,sourceSize:prepared.sourceSize};
       const classifyResponse=await client.responses.create({model:MODEL,store:false,reasoning:{effort:'low',context:'current_turn'},safety_identifier:user.emailHash,max_output_tokens:200,input:[{role:'system',content:classificationSystemPrompt},{role:'user',content:[...prepared.content,{type:'input_text',text:'Classify this document.'}]}],text:{format:{type:'json_schema',name:'familytrips_source_classification',strict:true,schema:sourceClassificationSchema}}});
       const classification=JSON.parse(classifyResponse.output_text);
-      const category=['flight','hotel','activity','insurance'].includes(classification.category)?classification.category:null;
+      const category=['flight','hotel','activity','insurance','car'].includes(classification.category)?classification.category:null;
       if(!category){const latencyMs=Date.now()-started;audit={...audit,status:'completed',model:classifyResponse.model||MODEL,latencyMs};await writeAudit(audit);return json({attemptId:audit.attemptId,state:'no_match',category:'unrecognized',latencyMs,quota:{remaining:Math.max(0,quota.limit-quota.count),limit:quota.limit}},200)}
-      const operation=OPERATIONS[{flight:'analyze_flight',hotel:'analyze_hotel',activity:'analyze_activity',insurance:'analyze_insurance'}[category]];
+      const operation=OPERATIONS[{flight:'analyze_flight',hotel:'analyze_hotel',activity:'analyze_activity',insurance:'analyze_insurance',car:'analyze_car'}[category]];
       const result=await runExtraction(operation,prepared,user);
       const latencyMs=Date.now()-started;audit={...audit,status:'completed',model:result.response.model||MODEL,latencyMs,estimatedVariableCostUsd:result.cost};await writeAudit(audit);
       return json({attemptId:audit.attemptId,state:'proposal_ready',category,draft:result.draft,placeValidation:result.placeValidation,usage:result.usage,estimatedVariableCostUsd:result.cost,latencyMs,quota:{remaining:Math.max(0,quota.limit-quota.count),limit:quota.limit}},200);

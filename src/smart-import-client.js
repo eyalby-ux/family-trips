@@ -43,6 +43,12 @@ export async function analyzeInsuranceSource({trip,source,file}){
   return runSource({operation:'analyze_insurance',trip,source,file,url:'',allowUrl:false});
 }
 
+// Transport Smart Import (0.7.8): PDF/image only, no public-URL source is in scope for this slice
+// (TRANSPORT_SMART_IMPORT_DISCOVERY.md V6, Decision 7), mirroring Flight/Insurance's own handling.
+export async function analyzeCarSource({trip,source,file}){
+  return runSource({operation:'analyze_car',trip,source,file,url:'',allowUrl:false});
+}
+
 async function runSource({operation,trip,source,file,url,allowUrl}){
   const user=auth.currentUser;
   if(!user)throw new Error('נדרשת התחברות פעילה כדי לנתח מקור.');

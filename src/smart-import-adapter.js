@@ -12,7 +12,9 @@ const FIELD_MAP={
   // conflict resolve the same way every other mapped field already does.
   property_address:'location',hotel_address:'location',location:'location',address:'location',
 };
-const MERGE_FIELDS=['title','provider','confirmationNumber','location','website','phone','startAt','endAt'];
+// 0.7.8: 'email' added -- a new trusted scalar field (TYPE_FIELDS.car only, this candidate),
+// treated identically to website/phone for merge-conflict protection.
+const MERGE_FIELDS=['title','provider','confirmationNumber','location','website','phone','email','startAt','endAt'];
 // V6-F55 correction pass: shared with ingestion.js's resolveMergeCandidate() and v5-app.js's
 // rendering, so the exact prefix used to generate a merge-conflict warning, filter it out of the
 // generic warning list (replaced by an explicit keep/accept picker), and clear it once resolved

@@ -85,8 +85,11 @@ function test_0_7_4_itemRow_and_detailView_show_the_specific_transport_sub_type_
 function test_0_7_4_transport_is_reachable_through_manual_creation_and_qr_json_import_only(){
   const externalImport=fs.readFileSync(new URL('../src/external-import.js',import.meta.url),'utf8');
   assert(externalImport.includes("'car'")); // already allowlisted for QR/JSON import
-  // No Smart Import analyze_* adapter for car/transport anywhere -- explicitly out of scope.
-  assert(!app.includes('analyzeCarSource')&&!app.includes('analyzeTransportSource'));
+  // 0.7.8 added Smart Import extraction for rental car/rail/ferry (analyzeCarSource) -- this was
+  // explicitly out of scope for 0.7.4 itself, confirmed true at the time, but is no longer the
+  // current state; see tests/v7-8-transport-smart-import.mjs for that candidate's own coverage.
+  // This test now only confirms manual/QR/JSON creation is UNAFFECTED by that later addition, not
+  // that Smart Import never exists for Transport at all.
 }
 
 // --- Participant management ---------------------------------------------------------------------

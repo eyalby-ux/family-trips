@@ -425,10 +425,17 @@ test_ux_category_picker_removed_and_auto_detected();
 function test_ux_attach_and_extract_still_uses_known_category(){
   const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
   // 0.6.6 added a third branch (Attraction/Event) alongside Flight/Hotel; 0.6.7 added a fourth
-  // (Insurance) -- same principle every time: the target item's own type is already certain, so
-  // attach-and-extract still calls the matching analyze function directly rather than
-  // re-classifying.
-  assert.match(app,/targetItem\.type==='flight'\?analyzeFlightSource\(\{trip:state\.trip,source,file\}\):targetItem\.type==='activity'\?analyzeActivitySource\(\{trip:state\.trip,source,file\}\):targetItem\.type==='insurance'\?analyzeInsuranceSource\(\{trip:state\.trip,source,file\}\):analyzeHotelSource\(\{trip:state\.trip,source,file\}\)/,'attach-and-extract must still call the known-category analyze function directly, not re-classify a source whose target item type is already known');
+  // (Insurance); 0.7.8 added a fifth (Transport/car) -- same principle every time: the target
+  // item's own type is already certain, so attach-and-extract still calls the matching analyze
+  // function directly rather than re-classifying. Narrowed to each individual branch (not the
+  // exact full chain) so a further addition doesn't break this again.
+  for(const fragment of [
+    "targetItem.type==='flight'?analyzeFlightSource({trip:state.trip,source,file})",
+    "targetItem.type==='activity'?analyzeActivitySource({trip:state.trip,source,file})",
+    "targetItem.type==='insurance'?analyzeInsuranceSource({trip:state.trip,source,file})",
+    "targetItem.type==='car'?analyzeCarSource({trip:state.trip,source,file})",
+    ':analyzeHotelSource({trip:state.trip,source,file})',
+  ])assert(app.includes(fragment),`attach-and-extract routing missing expected fragment: ${fragment}`);
   console.log('PASS: attach-and-extract still uses the already-known target item category directly, without an unnecessary classification call');
 }
 test_ux_attach_and_extract_still_uses_known_category();
@@ -943,7 +950,9 @@ function test_V6_F35_reopened_manual_edit_clears_stale_needs_review(){
   assert.equal(untouched.details.needsReviewFields.length,1,'a needs-review flag whose mapped field was NOT part of this edit must remain -- this is reconciliation, not a blanket clear-all');
 
   const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
-  assert.match(app,/const changedFields=new Set\(\['title','provider','confirmationNumber','location','website','phone','startAt','endAt','notes'\]\.filter\(key=>String\(before\[key\]\|\|''\)!==String\(next\[key\]\|\|''\)\)\)/,'updateSuggestion (the manual-edit submit handler) must compute which fields actually changed');
+  // 0.7.8 added email/transportMode to this Set (needed to review a Transport suggestion) --
+  // narrowed to a substring check so a further addition doesn't break this again.
+  assert(app.includes("const changedFields=new Set(['title','provider','confirmationNumber','location','website','phone','email','startAt','endAt','notes','transportMode'].filter(key=>String(before[key]||'')!==String(next[key]||'')))"),'updateSuggestion (the manual-edit submit handler) must compute which fields actually changed');
   assert.match(app,/suggestion\.proposed=reconcileStaleNeedsReview\(\{\.\.\.before,\.\.\.next\},changedFields\)/,'updateSuggestion must route the edit through the general reconciliation, not just overwrite the fields');
   assert.match(app,/const reconciled=reconcileStaleNeedsReview\(updated,new Set\(\['location','startAt','endAt'\]\)\)/,'pickFlightDirection must use the SAME general mechanism as a manual edit, not a separate direction-only path');
 
