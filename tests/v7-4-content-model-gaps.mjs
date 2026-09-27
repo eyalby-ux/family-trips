@@ -173,25 +173,27 @@ function test_0_7_4_ticketsSection_applies_only_to_attractions_flights_and_trans
   // set (activity covers both attraction and event; car is the broadened Transport type).
   assert(app.includes("if(!['flight','activity','car'].includes(item.type))return '';"));
 }
+// 0.7.4's own manual "add a ticket"/item.tickets[] flow (per-ticket used-state toggle,
+// remove button, add-ticket form) was retired outright by 0.7.9's own correction round 3
+// (Finding 2) -- a genuine Product Owner product decision, not a regression: ticket coverage is
+// now driven by confirming a document already linked to a participant (sourceRow's own "אישור
+// ככיסוי כרטיס" control), with "used" tracked as one shared boolean on that same document
+// (source.ticketConfirmed/ticketUsed), not a separate manually-added tickets[] entry. These two
+// tests are updated in place to assert the retirement, rather than deleted outright, preserving
+// the historical record the same way 0.7.4.1's own tests document its retired free-text
+// `participants` field. Full coverage for the new document-driven design lives in
+// tests/v7-9-participant-extensions.mjs.
 function test_0_7_4_tickets_support_per_ticket_used_state_and_show_remaining_participants(){
   const start=app.indexOf('function ticketsSection(item){');
   const body=app.slice(start,app.indexOf('function detailView(',start));
-  assert(body.includes('data-action="ticket-toggle-used"'));
-  assert(body.includes('data-action="ticket-remove"'));
-  assert(body.includes('משתתפים ללא כרטיס'));
-  assert(body.includes('id="ticket-add-form"'));
-  // Barcode/QR "display when available" -- the code's own text value, not a rendered scannable
-  // graphic (no barcode/QR generation library exists anywhere in this codebase).
-  assert(body.includes("ticket.code?`קוד: ${esc(ticket.code)}`"));
+  assert(!body.includes('data-action="ticket-toggle-used"'),'the manual per-ticket used-toggle was retired by 0.7.9 round 3 -- used now lives on sourceRow');
+  assert(!body.includes('id="ticket-add-form"'),'the manual add-ticket form was retired by 0.7.9 round 3');
+  assert(body.includes('משתתפים ללא כרטיס'),'the aggregate remaining-participants summary survives the redesign, just computed from confirmed sources now');
 }
 function test_0_7_4_ticket_handlers_are_wired(){
-  assert(app.includes("if(ticket){ticket.used=event.target.checked;save();render()}"));
-  assert(app.includes("item.tickets=(item.tickets||[]).filter(ticket=>ticket.id!==button.dataset.ticketId);"));
-  // 0.7.9 (V7-F13) superseded the original singular participantId shape with participantIds
-  // (plural) -- see tests/v7-9-participant-extensions.mjs for the multi-participant-ticket
-  // coverage this correction added; this assertion is updated in place, not left stale, since the
-  // handler-wiring claim this test makes is still true, just against the new shape.
-  assert(app.includes("item.tickets=[...(item.tickets||[]),{id:uid('ticket'),participantIds,used:false,code:String(data.get('code')||'').trim()}];"));
+  assert(!app.includes("action==='ticket-toggle-used'"),'retired by 0.7.9 round 3 -- see source-ticket-toggle-used in tests/v7-9-participant-extensions.mjs');
+  assert(!app.includes("action==='ticket-remove'"),'retired by 0.7.9 round 3 -- a document is unlinked via its own participant-edit affordance, not a per-ticket remove button');
+  assert(!app.includes("form.id==='ticket-add-form'"),'retired by 0.7.9 round 3');
 }
 
 // --- Packing: shared list + personal list per participant -----------------------------------
