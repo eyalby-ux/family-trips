@@ -241,11 +241,16 @@ export function quickAccessTasks(tasks,when=today(),limit=3){
 // not OR). Defaults to 'all' -- closed tasks stay visible unless the user explicitly narrows to
 // open-only, never silently hidden with no on-screen indication a filter is active (tasksView's
 // own isFiltered check already covers any non-default filter, this one included).
+// 0.7.9 correction round 3 (Finding 3): filter by participant, combining with priority/due/status
+// the same AND-not-OR way those already combine. A specific participant's view includes their own
+// 'specific'-scoped tasks PLUS every 'none'/'all'-scoped task -- mirroring visiblePackingItems'
+// own "no participantIds = shared, visible in every view" precedent, not a new rule invented here.
 export function filterAndSortTasks(tasks,filters,when=today()){
   const list=Array.isArray(tasks)?tasks:[];
-  const priority=filters?.priority||'all',due=filters?.due||'all',status=filters?.status||'all';
+  const priority=filters?.priority||'all',due=filters?.due||'all',status=filters?.status||'all',participant=filters?.participant||'all';
   const dueScopeName=task=>TASK_DUE_SCOPES[taskDueRank(task,when)];
-  const filtered=list.filter(task=>(priority==='all'||task.priority===priority)&&(due==='all'||dueScopeName(task)===due)&&(status==='all'||!task.done));
+  const matchesParticipant=task=>participant==='all'||task.participantScope!=='specific'||(task.participantIds||[]).includes(participant);
+  const filtered=list.filter(task=>(priority==='all'||task.priority===priority)&&(due==='all'||dueScopeName(task)===due)&&(status==='all'||!task.done)&&matchesParticipant(task));
   return filtered.map((task,index)=>({task,index})).sort((left,right)=>{
     const dueDifference=taskDueRank(left.task,when)-taskDueRank(right.task,when);
     if(dueDifference)return dueDifference;

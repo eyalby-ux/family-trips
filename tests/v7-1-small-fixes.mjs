@@ -114,7 +114,10 @@ function test_0_7_1_tasksView_wires_filters_and_clear_action(){
   assert(viewFn.includes('id="task-filter-status"'),'tasksView must render a status (open-only) filter select (V7-F02)');
   assert(viewFn.includes("filterAndSortTasks(state.tasks,filters)"),'tasksView must actually apply the combined filter/sort to what it displays, not just render the controls decoratively');
   assert(viewFn.includes("isFiltered?'<button class=\"btn ghost\" data-action=\"task-filter-clear\">איפוס</button>':''"),'a clear/reset control must appear once a filter is active');
-  assert(app.includes("else if(action==='task-filter-clear'){state.taskFilters={priority:'all',due:'all',status:'all'};render()}"),'the clear action must reset all three filters back to \'all\', not just some');
+  // 0.7.9 correction round 3 (Finding 3) added a fourth filter (participant) -- updated in place,
+  // same superseding-update discipline this project always uses when a later candidate genuinely
+  // extends an earlier one's own claim.
+  assert(app.includes("else if(action==='task-filter-clear'){state.taskFilters={priority:'all',due:'all',status:'all',participant:'all'};render()}"),'the clear action must reset all four filters back to \'all\', not just some');
   assert(app.includes("else if(event.target.id==='task-filter-priority'){state.taskFilters={...state.taskFilters,priority:event.target.value};render()}"),'the priority select\'s change handler must update state.taskFilters without clobbering the other filters already set');
   assert(app.includes("else if(event.target.id==='task-filter-due'){state.taskFilters={...state.taskFilters,due:event.target.value};render()}"),'the due-date select\'s change handler must update state.taskFilters without clobbering the other filters already set');
   assert(app.includes("else if(event.target.id==='task-filter-status'){state.taskFilters={...state.taskFilters,status:event.target.value};render()}"),'the status select\'s change handler must update state.taskFilters without clobbering the other filters already set');

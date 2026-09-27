@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {resolveParticipantIdsFromDraft} from '../src/ingestion.js';
+import {filterAndSortTasks} from '../src/operational-data.js';
 
 // 0.7.9 -- Participant-system extensions: V7-F09 (auto-link an attached document to the correct
 // participant), V7-F10 (link Tasks to the participant system), V7-F13 (a "family" ticket covering
@@ -44,10 +45,17 @@ function test_0_7_9_resolveParticipantIdsFromDraft_returns_empty_for_hotel_and_t
   assert.deepEqual(resolveParticipantIdsFromDraft(null,participants),[]);
   assert.deepEqual(resolveParticipantIdsFromDraft({passengers:[{name:'Yitzhak Cohen'}]},[]),[]);
 }
-function test_0_7_9_runSmartAnalysis_only_resolves_source_participantIds_for_the_attach_to_existing_item_flow(){
+function test_0_7_9_runSmartAnalysis_resolves_source_participantIds_for_every_flow_not_just_attach_to_existing_item(){
+  // Correction round 3 (Finding 1, still failing on retest): round 2 gated this behind
+  // `targetItem` truthy, which meant a brand-new item created via Smart Import (smartIngest's own
+  // call to runSmartAnalysis passes no third argument -- targetItem defaults to null) never ran
+  // this resolution at all. Direct live-model evidence (a real extraction against AE-001) proved
+  // the matching function itself is correct even against a word-order variant -- the real gap was
+  // this flow-scoping. Now unconditional, so it also fires for new-item creation.
   const start=app.indexOf('async function runSmartAnalysis(');
   const body=app.slice(start,app.indexOf('async function smartIngest(',start));
-  assert(body.includes('if(targetItem){const resolvedParticipantIds=resolveParticipantIdsFromDraft(result.draft,state.participants);if(resolvedParticipantIds.length)source.participantIds=resolvedParticipantIds}'));
+  assert(body.includes('{const resolvedParticipantIds=resolveParticipantIdsFromDraft(result.draft,state.participants);if(resolvedParticipantIds.length)source.participantIds=resolvedParticipantIds}'));
+  assert(!body.includes('if(targetItem){const resolvedParticipantIds'),'the resolution must no longer be gated behind targetItem alone');
 }
 function test_0_7_9_sourceRow_shows_a_participant_badge_and_a_manual_edit_affordance(){
   const start=app.indexOf('function sourceRow(source){');
@@ -150,13 +158,57 @@ function test_0_7_9_the_two_ticket_related_sections_have_distinct_non_confusable
   assert(!app.includes('<h4>כרטיסים (${ticketHolders.length})</h4>'),'the old, identically-worded ticketHolders header must be gone');
 }
 
+// --- Finding 3: filter Tasks by participant ----------------------------------------------------
+
+function test_0_7_9_filterAndSortTasks_by_participant_includes_shared_and_all_scope_tasks_too(){
+  // Mirrors visiblePackingItems' own "no participantIds = shared, visible in every view"
+  // precedent: filtering by a specific participant shows their own 'specific'-scoped tasks PLUS
+  // every 'none'/'all'-scoped task, not just an exact participantIds match.
+  const tasks=[
+    {id:'t1',title:'shared',participantScope:'none',participantIds:[],priority:'Normal'},
+    {id:'t2',title:'everyone',participantScope:'all',participantIds:[],priority:'Normal'},
+    {id:'t3',title:'mine',participantScope:'specific',participantIds:['p1'],priority:'Normal'},
+    {id:'t4',title:'someone elses',participantScope:'specific',participantIds:['p2'],priority:'Normal'},
+  ];
+  const visible=filterAndSortTasks(tasks,{priority:'all',due:'all',status:'all',participant:'p1'}).map(t=>t.id);
+  assert.deepEqual(visible.sort(),['t1','t2','t3']);
+}
+function test_0_7_9_filterAndSortTasks_participant_all_shows_everything(){
+  const tasks=[{id:'t1',title:'a',participantScope:'specific',participantIds:['p1'],priority:'Normal'},{id:'t2',title:'b',participantScope:'specific',participantIds:['p2'],priority:'Normal'}];
+  assert.equal(filterAndSortTasks(tasks,{priority:'all',due:'all',status:'all',participant:'all'}).length,2);
+}
+function test_0_7_9_tasksView_offers_a_participant_filter_select_alongside_the_existing_ones(){
+  const start=app.indexOf('function tasksView(){');
+  assert(start>-1);
+  const body=app.slice(start,start+2500);
+  assert(body.includes('id="task-filter-participant"'));
+  assert(body.includes("filters=state.taskFilters||{priority:'all',due:'all',status:'all',participant:'all'}"));
+}
+function test_0_7_9_task_filter_participant_change_handler_and_clear_are_wired(){
+  assert(app.includes("event.target.id==='task-filter-participant'"));
+  assert(app.includes("state.taskFilters={priority:'all',due:'all',status:'all',participant:'all'};"));
+}
+
+// --- Finding 4: permanent delete for Tasks and Equipment ----------------------------------------
+
+function test_0_7_9_taskRow_and_packRow_offer_a_delete_button(){
+  const taskStart=app.indexOf('function taskRow(task){');
+  assert(app.slice(taskStart,taskStart+900).includes('data-action="task-delete" data-id="${task.id}"'));
+  const packStart=app.indexOf('function packRow(list,item){');
+  assert(app.slice(packStart,packStart+900).includes('data-action="pack-delete" data-list="${list.id}" data-item="${item.id}"'));
+}
+function test_0_7_9_task_delete_and_pack_delete_handlers_confirm_before_permanently_removing(){
+  assert(app.includes("else if(action==='task-delete'){if(confirm('למחוק את המשימה לצמיתות?')){state.tasks=state.tasks.filter(x=>x.id!==button.dataset.id);save();render()}}"));
+  assert(app.includes("else if(action==='pack-delete'){if(confirm('למחוק את פריט הציוד לצמיתות?')){const list=state.packing.find(x=>x.id===button.dataset.list);if(list)list.items=list.items.filter(x=>x.id!==button.dataset.item);save();render()}}"));
+}
+
 const tests=[
   test_0_7_9_resolveParticipantIdsFromDraft_matches_flight_passengers_by_exact_name,
   test_0_7_9_resolveParticipantIdsFromDraft_matches_activity_ticketHolders_and_insurance_insuredPersons,
   test_0_7_9_resolveParticipantIdsFromDraft_falls_back_to_passengerMatchKey_style_matching,
   test_0_7_9_resolveParticipantIdsFromDraft_dedupes_a_name_appearing_in_more_than_one_array,
   test_0_7_9_resolveParticipantIdsFromDraft_returns_empty_for_hotel_and_transport_shaped_drafts,
-  test_0_7_9_runSmartAnalysis_only_resolves_source_participantIds_for_the_attach_to_existing_item_flow,
+  test_0_7_9_runSmartAnalysis_resolves_source_participantIds_for_every_flow_not_just_attach_to_existing_item,
   test_0_7_9_sourceRow_shows_a_participant_badge_and_a_manual_edit_affordance,
   test_0_7_9_source_participants_modal_and_its_form_handler_are_wired,
   test_0_7_9_task_form_calls_the_existing_generic_participantAssignmentField_and_owner_is_gone,
@@ -168,6 +220,12 @@ const tests=[
   test_0_7_9_ticket_add_form_submit_handler_requires_at_least_one_selected_participant,
   test_0_7_9_a_single_multi_participant_ticket_clears_every_covered_participant_from_the_remaining_list,
   test_0_7_9_the_two_ticket_related_sections_have_distinct_non_confusable_headers,
+  test_0_7_9_filterAndSortTasks_by_participant_includes_shared_and_all_scope_tasks_too,
+  test_0_7_9_filterAndSortTasks_participant_all_shows_everything,
+  test_0_7_9_tasksView_offers_a_participant_filter_select_alongside_the_existing_ones,
+  test_0_7_9_task_filter_participant_change_handler_and_clear_are_wired,
+  test_0_7_9_taskRow_and_packRow_offer_a_delete_button,
+  test_0_7_9_task_delete_and_pack_delete_handlers_confirm_before_permanently_removing,
 ];
 for(const test of tests){test();console.log(`PASS: ${test.name}`)}
-console.log('ALL PASS: 0.7.9 -- Participant-system extensions: document auto-link (V7-F09), Task participant assignment (V7-F10, owner field removed per correction round), multi-participant tickets (V7-F13, plus the correction round\'s distinct-headers fix for Findings 2/5) (17 tests). No Firestore emulator or live Smart Import model call is reachable from this environment, so the real end-to-end auto-link-on-extraction behavior against a live document remains unverified against a live backend from here -- consistent with every prior Firestore/Smart-Import-backed candidate in this project. resolveParticipantIdsFromDraft itself is exercised directly, not just by source-inspection.');
+console.log('ALL PASS: 0.7.9 -- Participant-system extensions: document auto-link (V7-F09, correction round 3: resolution no longer gated behind an existing-item target), Task participant assignment (V7-F10, owner removed, participant filter added), multi-participant tickets (V7-F13, distinct-headers fix), permanent delete for Tasks/Equipment (23 tests). No Firestore emulator or live Smart Import model call is reachable from this environment for most of this suite, so the real end-to-end auto-link-on-extraction behavior against a live document remains unverified against a live backend from here -- consistent with every prior Firestore/Smart-Import-backed candidate in this project; resolveParticipantIdsFromDraft itself was additionally verified against a real live-model extraction during this correction\'s own investigation (see the commit message), not just this suite\'s own synthetic-draft unit tests.');
