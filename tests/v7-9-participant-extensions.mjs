@@ -67,26 +67,32 @@ function test_0_7_9_source_participants_modal_and_its_form_handler_are_wired(){
 
 // --- V7-F10: link Tasks to the participant system ---------------------------------------------
 
-function test_0_7_9_task_form_calls_the_existing_generic_participantAssignmentField(){
+function test_0_7_9_task_form_calls_the_existing_generic_participantAssignmentField_and_owner_is_gone(){
+  // Correction round (Test 4, found live): Product Owner overrode the round-1 "keep both" report
+  // once both fields sat side by side on the same form -- owner reads as a duplication now that
+  // participantIds exists, so it's removed from the form entirely.
   const start=app.indexOf("function simpleFormModal(){const type=state.modal.type;if(type==='task')");
   const body=app.slice(start,app.indexOf("if(type==='shopping')",start));
   assert(body.includes('${participantAssignmentField(task)}'));
-  // The free-text owner field is a deliberate keep, not an oversight -- see the report below.
-  assert(body.includes('name="owner"'));
+  assert(!body.includes('name="owner"'),'the free-text owner field must no longer be rendered on the task form');
 }
-function test_0_7_9_task_form_submit_handler_captures_participantScope_and_participantIds(){
+function test_0_7_9_task_form_submit_handler_captures_participantScope_and_participantIds_not_owner(){
   const start=app.indexOf("form.id==='task-form'");
   const body=app.slice(start,app.indexOf("else if(form.id==='shopping-form')",start));
   assert(body.includes("const participantScope=['none','all','specific'].includes(String(data.get('participantScope')))?String(data.get('participantScope')):'none';"));
   assert(body.includes("participantScope,participantIds:participantScope==='specific'?data.getAll('participantIds').map(String):[]"));
-  // owner is still captured too -- confirms the keep-both decision, not a silent removal.
-  assert(body.includes("owner:String(data.get('owner')||'shared').trim()||'shared'"));
+  // owner is no longer read from the form -- confirmed absent, not silently still there.
+  assert(!body.includes("data.get('owner')"),'the submit handler must no longer read an owner field that no longer exists on the form');
+  // Non-destructive: Object.assign(existing,values) with no `owner` key in values leaves an
+  // already-existing task's own stored owner value untouched in Firestore, not cleared to blank.
+  assert(body.includes('if(existing)Object.assign(existing,values);'));
 }
-function test_0_7_9_taskRow_displays_the_participant_assignment_via_the_existing_generic_label(){
+function test_0_7_9_taskRow_displays_the_participant_assignment_and_no_longer_shows_owner(){
   const start=app.indexOf('function taskRow(task){');
   const body=app.slice(start,start+700);
   assert(body.includes('const participantLabel=participantAssignmentLabel(task);'));
   assert(body.includes('${participantLabel?esc(participantLabel)+\' · \':\'\'}'));
+  assert(!body.includes('task.owner'),'taskRow must no longer read/display the removed owner field');
 }
 
 // --- V7-F13: a "family" ticket covering multiple participants ---------------------------------
@@ -132,6 +138,18 @@ function test_0_7_9_a_single_multi_participant_ticket_clears_every_covered_parti
   assert.deepEqual(remainingComputation(tickets,participants),[]);
 }
 
+function test_0_7_9_the_two_ticket_related_sections_have_distinct_non_confusable_headers(){
+  // Correction round (Findings 2/5, found live): both sections used to read the literal text
+  // "כרטיסים" -- Activity's own pre-existing ticketHolders table (Smart Import-extracted, h4)
+  // stacked directly above item.tickets[]'s own manual tracker (h3), on the same detail page.
+  // Reported as confusing/duplicated UI, and very likely why a just-added multi-participant
+  // ticket row (which does render correctly -- see the ticketsSection tests above) went
+  // unnoticed: nothing distinguished which "כרטיסים" section was which.
+  assert(app.includes('<h4>פרטי כרטיסים מהמסמך (${ticketHolders.length})</h4>'));
+  assert(app.includes('<h3>מעקב כרטיסים ידני</h3>'));
+  assert(!app.includes('<h4>כרטיסים (${ticketHolders.length})</h4>'),'the old, identically-worded ticketHolders header must be gone');
+}
+
 const tests=[
   test_0_7_9_resolveParticipantIdsFromDraft_matches_flight_passengers_by_exact_name,
   test_0_7_9_resolveParticipantIdsFromDraft_matches_activity_ticketHolders_and_insurance_insuredPersons,
@@ -141,14 +159,15 @@ const tests=[
   test_0_7_9_runSmartAnalysis_only_resolves_source_participantIds_for_the_attach_to_existing_item_flow,
   test_0_7_9_sourceRow_shows_a_participant_badge_and_a_manual_edit_affordance,
   test_0_7_9_source_participants_modal_and_its_form_handler_are_wired,
-  test_0_7_9_task_form_calls_the_existing_generic_participantAssignmentField,
-  test_0_7_9_task_form_submit_handler_captures_participantScope_and_participantIds,
-  test_0_7_9_taskRow_displays_the_participant_assignment_via_the_existing_generic_label,
+  test_0_7_9_task_form_calls_the_existing_generic_participantAssignmentField_and_owner_is_gone,
+  test_0_7_9_task_form_submit_handler_captures_participantScope_and_participantIds_not_owner,
+  test_0_7_9_taskRow_displays_the_participant_assignment_and_no_longer_shows_owner,
   test_0_7_9_ticketsSection_remaining_and_row_rendering_use_participantIds_plural,
   test_0_7_9_ticketParticipantIds_reads_pre_existing_singular_participantId_tickets_without_a_migration,
   test_0_7_9_ticket_add_form_is_a_multi_select_checkbox_picker_not_a_single_select,
   test_0_7_9_ticket_add_form_submit_handler_requires_at_least_one_selected_participant,
   test_0_7_9_a_single_multi_participant_ticket_clears_every_covered_participant_from_the_remaining_list,
+  test_0_7_9_the_two_ticket_related_sections_have_distinct_non_confusable_headers,
 ];
 for(const test of tests){test();console.log(`PASS: ${test.name}`)}
-console.log('ALL PASS: 0.7.9 -- Participant-system extensions: document auto-link (V7-F09), Task participant assignment (V7-F10), multi-participant tickets (V7-F13) (16 tests). No Firestore emulator or live Smart Import model call is reachable from this environment, so the real end-to-end auto-link-on-extraction behavior against a live document remains unverified against a live backend from here -- consistent with every prior Firestore/Smart-Import-backed candidate in this project. resolveParticipantIdsFromDraft itself is exercised directly, not just by source-inspection.');
+console.log('ALL PASS: 0.7.9 -- Participant-system extensions: document auto-link (V7-F09), Task participant assignment (V7-F10, owner field removed per correction round), multi-participant tickets (V7-F13, plus the correction round\'s distinct-headers fix for Findings 2/5) (17 tests). No Firestore emulator or live Smart Import model call is reachable from this environment, so the real end-to-end auto-link-on-extraction behavior against a live document remains unverified against a live backend from here -- consistent with every prior Firestore/Smart-Import-backed candidate in this project. resolveParticipantIdsFromDraft itself is exercised directly, not just by source-inspection.');
