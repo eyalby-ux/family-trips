@@ -1,4 +1,4 @@
-import {clearResolvedDirectionWarning,isSameFlightAcrossDirectionCandidates,isSameFlightForDedup,isSameFlightNumberAndDate,mergeFlightDetails,normalizeFlightNumber} from './flight-import-adapter.js';
+import {clearResolvedDirectionWarning,isSameFlightAcrossDirectionCandidates,isSameFlightForDedup,isSameFlightNumberAndDate,mergeFlightDetails,normalizeFlightNumber,passengerMatchKey} from './flight-import-adapter.js';
 import {mergeActivityDetails} from './activity-import-adapter.js';
 import {mergeInsuranceDetails} from './insurance-import-adapter.js';
 import {isValidCalendarDate,normalizeDateRange,today} from './operational-data.js';
@@ -183,6 +183,23 @@ export function flagReversedFlightDirection(suggestion,items=[]){
   if(!reversed)return suggestion;
   const warning=`מספר טיסה ${p.details.flightNumber} כבר קיים בפריט אחר בכיוון הפוך (${reversed.location||`${reversed.details?.departureAirport?.code||''} → ${reversed.details?.arrivalAirport?.code||''}`}) — יש לוודא איזה כיוון נכון לפני אישור.`;
   return {...suggestion,proposed:{...p,warnings:[...(p.warnings||[]),warning]},warnings:[...(suggestion.warnings||p.warnings||[]),warning]};
+}
+// 0.7.9 (V7-F09): resolves any per-person name(s) a Smart Import extraction draft actually
+// carries against state.participants, reusing flight-import-adapter.js's own normalized/
+// passengerMatchKey matching rather than inventing a second approach. Only Flight (passengers),
+// Activity (ticketHolders) and Insurance (insuredPersons) drafts carry a real per-person name
+// array today -- Hotel and Transport (car) have no structured name field at all (confirmed by
+// direct code inspection, not assumed), so this correctly resolves to no match for those, not an
+// error. Returns a de-duplicated array of participant ids, empty when nothing matches.
+export function resolveParticipantIdsFromDraft(draft,participants=[]){
+  if(!draft||!participants.length)return [];
+  const names=[...(Array.isArray(draft.passengers)?draft.passengers:[]),...(Array.isArray(draft.ticketHolders)?draft.ticketHolders:[]),...(Array.isArray(draft.insuredPersons)?draft.insuredPersons:[])].map(entry=>String(entry?.name||'').trim()).filter(Boolean);
+  if(!names.length)return [];
+  const byExactName=new Map(participants.map(p=>[normalized(p.name),p.id]));
+  const byMatchKey=new Map(participants.map(p=>[passengerMatchKey(p.name),p.id]));
+  const ids=new Set();
+  for(const name of names){const id=byExactName.get(normalized(name))||byMatchKey.get(passengerMatchKey(name));if(id)ids.add(id)}
+  return [...ids];
 }
 export function suggestionToItem(suggestion,existing={},tripStartDate=''){
   const p=suggestion.proposed,sourceIds=suggestion.sourceIds?.length?suggestion.sourceIds:[suggestion.sourceId].filter(Boolean);

@@ -187,7 +187,11 @@ function test_0_7_4_tickets_support_per_ticket_used_state_and_show_remaining_par
 function test_0_7_4_ticket_handlers_are_wired(){
   assert(app.includes("if(ticket){ticket.used=event.target.checked;save();render()}"));
   assert(app.includes("item.tickets=(item.tickets||[]).filter(ticket=>ticket.id!==button.dataset.ticketId);"));
-  assert(app.includes("item.tickets=[...(item.tickets||[]),{id:uid('ticket'),participantId,used:false,code:String(data.get('code')||'').trim()}];"));
+  // 0.7.9 (V7-F13) superseded the original singular participantId shape with participantIds
+  // (plural) -- see tests/v7-9-participant-extensions.mjs for the multi-participant-ticket
+  // coverage this correction added; this assertion is updated in place, not left stale, since the
+  // handler-wiring claim this test makes is still true, just against the new shape.
+  assert(app.includes("item.tickets=[...(item.tickets||[]),{id:uid('ticket'),participantIds,used:false,code:String(data.get('code')||'').trim()}];"));
 }
 
 // --- Packing: shared list + personal list per participant -----------------------------------

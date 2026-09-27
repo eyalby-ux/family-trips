@@ -384,8 +384,10 @@ function buildEvidenceFields(segment,passengers,bookingReference,directionCandid
 
 function bagLabel(type){return {carry_on:'כבודת יד',checked:'מזוודה',trolley:'טרולי'}[type]||type||'כבודה'}
 function certainty(value){return value==='exact'?'high':value==='needs_review'?'medium':'low'}
-function normalized(value){return String(value||'').trim().toLowerCase().replace(/\s+/g,' ')}
-function passengerMatchKey(name){return normalized(name).replace(/\b(mr|mrs|miss|ms|mstr|dr)\b/g,'').replace(/\(\s*(adt|chd|inf)\s*\)/g,'').split(/\s+/).filter(Boolean).sort().join(' ')}
+// Exported for 0.7.9 (V7-F09): the same name-normalization/matching approach reused as-is to
+// resolve an extracted name against state.participants, rather than a second invention.
+export function normalized(value){return String(value||'').trim().toLowerCase().replace(/\s+/g,' ')}
+export function passengerMatchKey(name){return normalized(name).replace(/\b(mr|mrs|miss|ms|mstr|dr)\b/g,'').replace(/\(\s*(adt|chd|inf)\s*\)/g,'').split(/\s+/).filter(Boolean).sort().join(' ')}
 function dateOnly(value){return String(value||'').slice(0,10)}
 function passengerKey(passenger){const ticket=String(passenger?.eTicketNumber||'').replace(/\s+/g,'');return ticket?`ticket:${ticket}`:`name:${normalized(passenger?.name)}`}
 // V6-F25/F27/F28: the model isn't forced to a wire date format, so a source's own display
