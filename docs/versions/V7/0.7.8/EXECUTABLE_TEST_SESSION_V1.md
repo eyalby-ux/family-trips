@@ -130,4 +130,4 @@ Final tally across all 8 tests: 7 PASS (Tests 1, 2, 3, 4 as of round 4, 5, 6, 8)
 
 ## Production promotion
 
-Not yet — recorded here once promotion is confirmed.
+**Promoted 2026-09-27.** Build `0.7.8-5010c543` deployed to Production (`familytripz.netlify.app`) via `netlify deploy --dir dist --prod --no-build` — a byte-identical artifact of the same build already accepted on `qa` (0 content files changed in the deploy diff). Confirmed live via direct request.
