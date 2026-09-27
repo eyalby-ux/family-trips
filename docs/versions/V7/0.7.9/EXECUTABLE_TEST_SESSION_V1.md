@@ -102,7 +102,7 @@ Spot-check that nothing outside this candidate's three items regressed: an Item'
 
 **NO-GO.** Recorded by the Product Owner (Eyal), 2026-09-27, on build `0.7.9-0feef8a4`. Blocking: Test 1 — `V7-F09`'s auto-link (and its manual-correction counterpart, Test 3) has no effect on `V7-F13`'s ticket-coverage computation; a document's participant link does not translate into ticket coverage. Test 7 is blocked entirely — a multi-participant ticket added via Test 6's flow does not render as a row in the ticket list, so its "used" behavior cannot be verified at all. Test 8 (backward compatibility for pre-existing tickets) could not be independently verified — no pre-existing ticket was available to check, and needs direct confirmation from the Development Agent rather than an assumption. Also carrying forward: a Product Owner decision to remove the Task `owner` field (Test 4), overriding the Development Agent's "keep both" choice; and a non-blocking but general duplicated-ticket-UI observation (Tests 1, 9), confirmed on both Activity and Flight items. Sent back to the Development Agent for correction.
 
-## Round 2 correction — investigation, root cause, and fixes (build `0.7.9-pending`, filled in below once deployed)
+## Round 2 correction — investigation, root cause, and fixes (build `0.7.9-16dd7a1c`, deployed to `qa` 2026-09-27)
 
 Per the correction prompt's own explicit ask (`claude/PROMPT_FOR_CLAUDE_CODE_0_7_9_CORRECTION_V1.md`), Findings 1 and 3 were investigated and reported before any fix; Findings 2 and 4 were fixed; Finding 5's recommendation is folded into the same fix as Finding 2, since direct evidence pointed to the same root cause.
 
