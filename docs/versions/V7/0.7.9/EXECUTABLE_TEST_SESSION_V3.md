@@ -25,7 +25,7 @@ Repeat the two flows from earlier sessions:
 
 **Expect:** In both cases, the resulting item's attached document shows a participant badge for the matched name, populated automatically — no manual correction needed. (If the specific document used doesn't actually name anyone recognizably, that's expected, not a defect — only a confident match auto-links.)
 
-**Result:** ☐ PASS / ☐ FAIL — notes:
+**Result:** ☑ PASS — notes: Auto-link now occurs correctly (confirms Finding 1's fix). Product Owner's observation: the item's detail view still shows two visually separate sections — "פרטי כרטיסים מהמסמך" (ticket details from the document, i.e. the extracted `ticketHolders[]`/`passengers[]` data) above, and the documents list (with the new "אישור ככיסוי כרטיס" confirm-as-coverage action) below — with the "משתתפים ללא כרטיסים" (participants without tickets) note sitting between them. The Product Owner would prefer a single unified section with all the details and actions together, but explicitly does not want this blocking `0.7.9` — logged as a non-blocking finding to fix as part of a future beta-version UI pass, not this correction round.
 
 ## Test 2 — Regression: manual correction and attach-only still work
 
@@ -34,7 +34,7 @@ Repeat the two flows from earlier sessions:
 
 **Expect:** Both unchanged from prior sessions.
 
-**Result:** ☐ PASS / ☐ FAIL — notes:
+**Result:** ☑ PASS — notes: Manual correction affordance ("שיוך למשתתף") still works (documents `AE-005_Tickets.pdf`, `AE-006_...entryTickets_1.pdf` both linked to participants correctly). Additional confirmation, correcting an earlier oversight in Test 1: the Product Owner had missed the "אישור ככיסוי כרטיס" (confirm as coverage) button in Test 1 but has now used it here on `AE-006` — it works and does correctly update the "משתתפים ללא כרטיסים" (participants without tickets) note in the middle section, removing the covered participant once confirmed. This further confirms `V7-F13`'s core redesigned mechanism (Test 3/4's own subject) is working, ahead of those tests.
 
 ## Test 3 — `V7-F13` redesigned: a linked document can be confirmed as ticket coverage
 
@@ -42,7 +42,7 @@ On a Flight, Activity, or Transport item, attach a document and get it linked to
 
 **Expect:** The button is replaced by a **"כרטיס מאושר"** badge and a **"נוצל"** (used) checkbox, both on the same row. The linked participant(s) disappear from the item's own "משתתפים ללא כרטיס" (participants without a ticket) summary. No separate ticket-list section duplicates this information — the document's own row is the only place its ticket status appears.
 
-**Result:** ☐ PASS / ☐ FAIL — notes:
+**Result:** ☑ PASS — notes: Confirmed as expected, per the mechanism already observed working in Test 2 (`AE-006`'s "אישור ככיסוי כרטיס" button, badge, and correct update to the "without tickets" note).
 
 ## Test 4 — A document covering multiple participants clears all of them at once, and "used" is one shared toggle
 
@@ -50,7 +50,7 @@ Get a single document linked to **more than one** participant (auto-link or manu
 
 **Expect:** All linked participants disappear from "ללא כרטיס" from that one confirmed document alone. Toggling "used" flips a single shared status for the document as a whole — there is no per-participant used state to manage separately.
 
-**Result:** ☐ PASS / ☐ FAIL — notes:
+**Result:** ☑ PASS — notes: Confirmed as expected; no notes.
 
 ## Test 5 — A participant link alone, without confirmation, does NOT count as ticket coverage
 
@@ -58,7 +58,7 @@ Link a document to a participant but do **not** click "אישור ככיסוי �
 
 **Expect:** That participant still appears under "משתתפים ללא כרטיס" — a bare participant link is informational only ("this document is about this person"), not automatic ticket coverage, matching your own "offer, don't auto-create" instruction.
 
-**Result:** ☐ PASS / ☐ FAIL — notes:
+**Result:** ☑ PASS — notes: Confirmed as expected — a bare link alone does not create coverage. New observation: once "אישור ככיסוי כרטיס" (confirm as coverage) has been clicked, there is no way to revert/undo it if it was selected by mistake (no "un-confirm" action next to the "כרטיס מאושר" badge). Logged below as a finding for disposition at GO/NO-GO.
 
 ## Test 6 — Regression: the manual "add a ticket" flow is genuinely gone, not just hidden
 
@@ -66,7 +66,7 @@ Open a Flight, Activity, or Transport item's detail view.
 
 **Expect:** There is no "הוספת כרטיסים" button, no separate manual add-ticket form, and no leftover manually-added ticket rows from earlier sessions (any test tickets added during rounds 1–2 on the QA Test Trip are expected to no longer appear — they were test data only, never promoted to Production, and are not migrated by this redesign).
 
-**Result:** ☐ PASS / ☐ FAIL — notes:
+**Result:** ☑ PASS — notes: Confirmed as expected; no notes.
 
 ## Test 7 — `V7-F10` regression: Task participant assignment and the `owner` removal still hold
 
@@ -74,7 +74,7 @@ Confirm the Task participant picker (none/all/specific + checkboxes) still works
 
 **Expect:** Unchanged from the `V2` session.
 
-**Result:** ☐ PASS / ☐ FAIL — notes:
+**Result:** ☑ PASS — notes: Confirmed as expected; no notes.
 
 ## Test 8 — New: filter Tasks by participant
 
@@ -82,7 +82,7 @@ On the Tasks page, use the new "משתתף" filter select to choose a specific T
 
 **Expect:** The list narrows to that participant's own specifically-assigned tasks plus every shared task (tasks with no specific participant assignment, or assigned to "כל המשתתפים"). Combines correctly with the existing priority/due-date/status filters (all must match at once). "איפוס" (reset) clears all four filters back to showing everything.
 
-**Result:** ☐ PASS / ☐ FAIL — notes:
+**Result:** ☑ PASS — notes: Confirmed as expected; no notes.
 
 ## Test 9 — New: permanently delete a Task and an Equipment item
 
@@ -91,7 +91,7 @@ On the Tasks page, use the new "משתתף" filter select to choose a specific T
 
 **Expect:** Both actions ask for confirmation first (a plain yes/no dialog), and once confirmed, the record is permanently gone from the list — not just marked done/packed.
 
-**Result:** ☐ PASS / ☐ FAIL — notes:
+**Result:** ☑ PASS — notes: Confirmed as expected; no notes.
 
 ## Test 10 — Regression: general spot-check across the full candidate
 
@@ -99,7 +99,7 @@ Spot-check that nothing else regressed: `ticketHolders[]` (Activity) and `passen
 
 **Expect:** No unintended side effects outside the scope of Tests 1–9.
 
-**Result:** ☐ PASS / ☐ FAIL — notes:
+**Result:** ☑ PASS — notes: Confirmed as expected; no notes.
 
 ---
 
@@ -107,12 +107,13 @@ Spot-check that nothing else regressed: `ticketHolders[]` (Activity) and `passen
 
 | Finding | Test | Severity | Disposition |
 |---|---|---|---|
-| (fill in during acceptance testing) | | | |
+| The item detail view still shows two visually separate sections (ticket details from the document / the documents list with the ticket-coverage action), with a "no tickets" note between them, rather than one unified section. | Test 1 | Non-blocking — deferred | Logged 2026-09-27 by the Product Owner. To be addressed in a future beta-version UI pass, not this correction round. |
+| Once "אישור ככיסוי כרטיס" (confirm as coverage) is clicked, there is no way to revert/undo it if selected by mistake. | Test 5 | Open — disposition pending | Reported by Product Owner 2026-09-27. |
 
 ## GO/NO-GO decision
 
-Not yet run.
+**GO.** Recorded by the Product Owner (Eyal), 2026-09-27, on build `0.7.9-be76c2f7`. All 10 tests PASS. `V7-F09`'s auto-link now fires correctly for both new-item Smart Import and attach-to-existing-item flows; `V7-F13`'s redesigned document-driven ticket coverage (confirm-as-coverage button, shared "used" toggle, no separate manual ticket flow) works end to end, including for multi-participant documents; `V7-F10`'s Task participant assignment, the `owner` field removal, the new participant filter on Tasks, and permanent delete for Tasks and Equipment are all confirmed working. Two non-blocking findings carried forward, not fixed in this candidate: (1) the item detail view still shows two visually separate sections rather than one unified section — deferred to a future beta-version UI pass; (2) no way to undo a mistaken "confirm as coverage" action — disposition left to the Product Owner's own planning process. `0.7.9` may proceed to Production promotion as a separate, explicit action.
 
 ## Production promotion
 
-Not yet — recorded here once promotion is confirmed.
+**Promoted 2026-09-27.** Build `0.7.9-be76c2f7` deployed to Production (`familytripz.netlify.app`) via `netlify deploy --dir dist --prod --no-build` — a byte-identical artifact of the same build already accepted on `qa` (0 files and 0 functions changed in the deploy diff). Confirmed live via direct request. Two non-blocking findings from this session (the two-section detail-view layout; no undo for a mistaken "confirm as coverage") are logged above for the planning assistant to schedule separately, not part of this promotion.
