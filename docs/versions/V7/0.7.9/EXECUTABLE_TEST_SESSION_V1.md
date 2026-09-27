@@ -1,7 +1,7 @@
 # Family Trips Alpha 0.7.9 — Executable Acceptance Test Session
 
 **Document revision:** `V1`
-**Candidate:** `0.7.9` (Participant-system extensions — `V7-F09` auto-link an attached document to the correct participant, `V7-F10` link Tasks to the participant system, `V7-F13` a "family" ticket covering multiple participants), installed on `version/V7`, deployed to the fixed `qa` alias.
+**Candidate:** `0.7.9` (Participant-system extensions — `V7-F09` auto-link an attached document to the correct participant, `V7-F10` link Tasks to the participant system, `V7-F13` a "family" ticket covering multiple participants), installed on `version/V7`, deployed to the fixed `qa` alias (build `0.7.9-0feef8a4`).
 **Session number:** `V1`. No test has been run yet.
 **Instructions:** Run one test at a time, in order. Record the actual observed result under each test, not just PASS/FAIL — a finding is only useful with what you actually saw.
 
