@@ -15,7 +15,7 @@ As the Trip Owner, edit the Trip name and/or dates in Trip Settings and save. As
 
 **Expect:** Both save correctly, exactly as before — the new rule only restricts writes to `ownerUid`/`editorEmails` specifically, every other field is untouched.
 
-**Result:** ☐ PASS / ☐ FAIL — notes:
+**Result:** ☑ PASS — notes: Confirmed as expected; no notes. Pre-check confirmed first: current published Firestore rules (Firebase Console, published today 6:01 PM) include `CR-001`'s restriction on the `update` rule (lines 30-33 — `ownerUid` and `editorEmails` must stay unchanged unless the caller is the owner) — the ruleset is live and current.
 
 ## Test 2 — Regression: adding/removing an Editor still works (the Owner-only path `CR-001` explicitly preserves)
 
@@ -23,7 +23,7 @@ As the Trip Owner, add or remove an Editor via Trip Settings' sharing section.
 
 **Expect:** Unchanged from before — the new rule explicitly keeps this working for the Owner (`isOwner(resource)` in the rule's own `editorEmails` clause); only a non-Owner attempting the same write directly against Firestore (not through this app's own UI, which never offers that action to a non-Owner anyway) would now be rejected.
 
-**Result:** ☐ PASS / ☐ FAIL — notes:
+**Result:** ☑ PASS — notes: Editor removal itself works correctly, confirming `CR-001` doesn't block the Owner's own path. New observation, unrelated to `CR-001`/`CR-004`: there is no clear confirmation message next to/for the removed account once it's removed — no explicit "removed" feedback in the UI. Logged below as a pre-existing UX gap, not a defect introduced by this candidate.
 
 ## Test 3 — Regression: general spot-check that the app still boots and works normally (`CR-004`)
 
@@ -31,7 +31,7 @@ Open the app fresh (hard refresh) and confirm it loads and behaves normally — 
 
 **Expect:** No change at all — `legacy-app.js`/`v4-app.js` were never loaded by the running app (confirmed directly: `src/main.js` only ever dynamically imports `src/v5-app.js`), so deleting them removes zero live behavior.
 
-**Result:** ☐ PASS / ☐ FAIL — notes:
+**Result:** ☑ PASS — notes: Confirmed as expected; no notes.
 
 ---
 
@@ -39,12 +39,12 @@ Open the app fresh (hard refresh) and confirm it loads and behaves normally — 
 
 | Finding | Test | Severity | Disposition |
 |---|---|---|---|
-| (fill in during acceptance testing) | | | |
+| No clear confirmation message shown when an Editor is removed from a Trip. | Test 2 | Non-blocking, pre-existing UX gap (not introduced by `CR-001`/`CR-004`) | Reported by Product Owner 2026-09-28. |
 
 ## GO/NO-GO decision
 
-Not yet run.
+**GO.** Recorded by the Product Owner (Eyal), 2026-09-28, on build `0.7.9.1-8e768772`. All 3 tests PASS. The `CR-001` Firestore rules change was confirmed published and live in the Firebase Console (current ruleset, published today 6:01 PM, includes the `ownerUid`/`editorEmails` restriction on `update`) before testing, and normal Trip-settings edits and Editor add/remove both continue to work correctly for the Owner. `CR-004`'s dead-code removal (`legacy-app.js`/`v4-app.js`) shows no effect on the running app, as expected. One non-blocking finding logged: no confirmation message is shown when an Editor is removed — a pre-existing UX gap, not introduced by this candidate. `0.7.9.1` may proceed to Production promotion as a separate, explicit action (app code via the usual deploy; the Firestore rules are already live for both `qa` and Production, since rules publish to both at once).
 
 ## Production promotion
 
-Not applicable to the app code alone until the Firestore rules are also published (see the note above) — recorded here once both are confirmed.
+**Promoted 2026-09-28.** Build `0.7.9.1-8e768772` deployed to Production (`familytripz.netlify.app`) via `netlify deploy --dir dist --prod --no-build` — a byte-identical artifact of the same build already accepted on `qa` (0 files/functions changed in the deploy diff). Confirmed live via direct request. Combined with the Firestore rules already published to the shared backend, both halves of `0.7.9.1` (`CR-001`, `CR-004`) are now fully live in Production. One non-blocking finding from this session (no confirmation message when an Editor is removed) is logged above for the planning assistant to schedule separately.
