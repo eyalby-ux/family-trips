@@ -62,7 +62,11 @@ function test_0_7_2_firestore_rules_allow_a_get_on_a_nonexistent_trip_to_check_e
   assert(firestoreRules.includes('allow get: if isInvited() && (resource == null || hasTripAccess(resource));'));
   // list/update must still require real access -- this fix only touches the single-document
   // existence-check path (get), never widens who can read a query result or write an update.
-  assert(firestoreRules.includes('allow list, update: if hasTripAccess(resource);'));
+  // CR-001 (Pre-Beta Code Health & Security Review V1) later split the combined `allow list,
+  // update` line into two separate rules to add field-level restrictions to update specifically
+  // (see tests/v7-9-1-security-review.mjs) -- this assertion is updated in place to the new,
+  // still-combined-in-spirit requirement that list requires real access, not left stale.
+  assert(firestoreRules.includes('allow list: if hasTripAccess(resource);'));
 }
 // Test 5 of the executable acceptance session (docs/versions/V7/0.7.2/EXECUTABLE_TEST_SESSION_V1.md)
 // asks for direct proof that Firestore's own security rules -- not merely hidden client UI --

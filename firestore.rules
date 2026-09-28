@@ -60,7 +60,21 @@ service cloud.firestore {
       // (used by the owned/shared-with-me queries) is unaffected -- a query only ever returns
       // documents that already exist, so `resource` is never null there.
       allow get: if isInvited() && (resource == null || hasTripAccess(resource));
-      allow list, update: if hasTripAccess(resource);
+      allow list: if hasTripAccess(resource);
+      // CR-001 (Pre-Beta Code Health & Security Review V1): the previous unrestricted
+      // `allow update: if hasTripAccess(resource)` let any Editor write to ownerUid/editorEmails
+      // themselves, not just the fields the app's own UI actually exposes to them -- a real
+      // privilege-escalation gap in the actual security boundary, not just a UI omission (Firestore
+      // rules are the real boundary; the client UI is not). ownerUid never changes via update at
+      // all (there is no ownership-transfer feature; it is only ever set once at create). editorEmails
+      // may only change when the caller is the Owner -- addEditorByEmail/removeEditorByEmail
+      // (cloud-store.js) are already Owner-only in the UI (sharingSection() returns '' for anyone
+      // else); this closes the same gap in the rules themselves. Every other field (name, dates,
+      // destinationCountries, etc.) is unaffected -- both fields stay unchanged in every write to
+      // those, so the equality checks below are always trivially satisfied for that ordinary case.
+      allow update: if hasTripAccess(resource)
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && (request.resource.data.editorEmails == resource.data.editorEmails || isOwner(resource));
       allow delete: if isInvited() && isOwner(resource);
 
       match /{subcollection}/{docId} {

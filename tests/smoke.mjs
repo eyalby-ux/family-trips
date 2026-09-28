@@ -1,7 +1,11 @@
 import fs from 'node:fs';
 
+// 0.7.9.1 (CR-004, Pre-Beta Code Health & Security Review V1): src/legacy-app.js removed from
+// this list -- confirmed fully dead (never imported by src/main.js, which only ever dynamically
+// imports src/v5-app.js) and deleted outright. The sourceStep() smoke check that used to read it
+// is gone too, below; that check exercised only the dead file itself, nothing reachable.
 const required = [
-  'index.html','src/main.js','src/firebase.js','src/legacy-app.js','src/styles.css','src/foundation.css',
+  'index.html','src/main.js','src/firebase.js','src/styles.css','src/foundation.css',
   'public/service-worker.js','public/manifest.webmanifest','netlify.toml','firestore.rules','storage.rules',
   'UPGRADE_0.2.1_TO_0.3_FOUNDATION_WINDOWS.md','docs/release/RELEASE_NOTES.md','docs/guides/INSTALLATION_WINDOWS.md'
 ];
@@ -34,8 +38,6 @@ for (const marker of [
 ]) {
   if (!config.includes(marker)) throw new Error(`Missing Firebase marker: ${marker}`);
 }
-const legacy = fs.readFileSync('src/legacy-app.js','utf8');
-if (!/function\s+sourceStep\s*\(/.test(legacy)) throw new Error('Create Item source step is missing');
 const sw = fs.readFileSync('public/service-worker.js','utf8');
 if (!sw.includes("const CACHE = 'family-trips-alpha-__BUILD_VERSION__-shell';")) throw new Error('Service Worker cache placeholder missing');
 if (!sw.includes('async function precache')) throw new Error('Production shell precache is missing');
