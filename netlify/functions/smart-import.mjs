@@ -5,6 +5,12 @@ import OpenAI from 'openai';
 import {convert} from 'html-to-text';
 import {PNG} from 'pngjs';
 import UTIF from 'utif2';
+// CR-002 (Pre-Beta Code Health & Security Review V1): undici's own fetch/Agent, not Node's global
+// fetch -- confirmed directly (not assumed) that mixing an npm-installed undici Agent's dispatcher
+// into Node's global fetch throws (`InvalidArgumentError: invalid onRequestStart method`), since
+// global fetch uses Node's own internal, differently-versioned bundled undici. Only undici's own
+// fetch export accepts this package's own Agent as a dispatcher.
+import {Agent as UndiciAgent, fetch as undiciFetch} from 'undici';
 import {authorize,httpError} from './_shared/smart-import-auth.mjs';
 import {consumeDailyQuota,registerOrVerifyTrip,writeAudit} from './_shared/smart-import-quota.mjs';
 import {activityImportSchema,activitySystemPrompt,classificationSystemPrompt,flightImportSchema,flightSystemPrompt,hotelImportSchema,insuranceImportSchema,insuranceSystemPrompt,sourceClassificationSchema,systemPrompt,transportGatePrompt,transportGateSchema,transportImportSchema,transportSystemPrompt} from './_shared/smart-import-schema.mjs';
@@ -227,7 +233,14 @@ export async function convertTiffToPng(bytes){
   });
 }
 async function fetchPublicPage(rawUrl){
-  let current=validateUrl(rawUrl);for(let step=0;step<3;step+=1){await assertPublicHost(current.hostname);const robotsCheck=await assertRobotsAllowed(current);const response=await fetch(current,{redirect:'manual',headers:{'user-agent':'FamilyTrips-SmartImport/0.6'},signal:AbortSignal.timeout(12000)});if([301,302,303,307,308].includes(response.status)){const location=response.headers.get('location');if(!location)throw httpError(422,'protected_or_private_url','Invalid redirect.');current=validateUrl(new URL(location,current).toString());continue}
+  let current=validateUrl(rawUrl);for(let step=0;step<3;step+=1){
+    const addresses=await assertPublicHost(current.hostname);
+    // CR-002: one pinned dispatcher for this step, reused by both the robots.txt check and the
+    // real content fetch below -- both happen after the same assertPublicHost() validation for
+    // this exact hostname, so both get the same connection-pinning guarantee, not just one of them.
+    const dispatcher=pinnedDispatcher(addresses);
+    try{
+      const robotsCheck=await assertRobotsAllowed(current,dispatcher);const response=await undiciFetch(current,{dispatcher,redirect:'manual',headers:{'user-agent':'FamilyTrips-SmartImport/0.6'},signal:AbortSignal.timeout(12000)});if([301,302,303,307,308].includes(response.status)){const location=response.headers.get('location');if(!location)throw httpError(422,'protected_or_private_url','Invalid redirect.');current=validateUrl(new URL(location,current).toString());continue}
     // V6-F70 (Product Owner decision): fail-open is unchanged -- an unverifiable robots.txt never
     // blocks this fetch from being attempted. But when the fetch that follows an unverifiable
     // check ALSO fails or comes back non-HTML, the user is told the honest reason (couldn't
@@ -246,7 +259,9 @@ async function fetchPublicPage(rawUrl){
     // differently). This one bounded log line (host + status + content-type only, never the page
     // body) is enough to answer that question next time without needing a code change first.
     console.info('FamilyTrips Smart Import public page fetch',{host:current.hostname,status:response.status,contentType:type,robotsCheck});
-    if(!type.includes('text/html'))throw httpError(415,robotsCheck==='unverifiable'?'robots_unverifiable':'unsupported_source',robotsCheck==='unverifiable'?ROBOTS_UNVERIFIABLE_MESSAGE:'The URL did not return an HTML page.');const html=await readLimited(response,MAX_PAGE_BYTES);const text=convert(html,{wordwrap:false,selectors:[{selector:'script',format:'skip'},{selector:'style',format:'skip'},{selector:'noscript',format:'skip'}]}).replace(/\n{3,}/g,'\n\n').trim();if(!text)throw httpError(422,'protected_or_private_url','The public page contained no readable content.');return {finalUrl:current.toString(),text}}throw httpError(422,'protected_or_private_url','Too many redirects.');
+    if(!type.includes('text/html'))throw httpError(415,robotsCheck==='unverifiable'?'robots_unverifiable':'unsupported_source',robotsCheck==='unverifiable'?ROBOTS_UNVERIFIABLE_MESSAGE:'The URL did not return an HTML page.');const html=await readLimited(response,MAX_PAGE_BYTES);const text=convert(html,{wordwrap:false,selectors:[{selector:'script',format:'skip'},{selector:'style',format:'skip'},{selector:'noscript',format:'skip'}]}).replace(/\n{3,}/g,'\n\n').trim();if(!text)throw httpError(422,'protected_or_private_url','The public page contained no readable content.');return {finalUrl:current.toString(),text}
+    }finally{await dispatcher.close()}
+  }throw httpError(422,'protected_or_private_url','Too many redirects.');
 }
 // V6-F71: this used to be Hebrew, as a workaround for the client's errorMessage() dictionary
 // being dead code (src/smart-import-client.js's request() always preferred the server's own raw
@@ -272,10 +287,10 @@ const ROBOTS_UNVERIFIABLE_MESSAGE=`Could not verify whether this site's robots.t
 // the return value tells fetchPublicPage whether THIS host's robots.txt was actively verified as
 // allowing access ('verified') or could not be confirmed either way ('unverifiable') -- still
 // throws exactly as before for the one case that IS confirmed, robots_disallowed.
-async function assertRobotsAllowed(url){
+async function assertRobotsAllowed(url,dispatcher){
   let robotsText='',status='fetch_error';
   try{
-    const response=await fetch(new URL('/robots.txt',url),{headers:{'user-agent':'FamilyTrips-SmartImport/0.6'},signal:AbortSignal.timeout(8000)});
+    const response=await undiciFetch(new URL('/robots.txt',url),{dispatcher,headers:{'user-agent':'FamilyTrips-SmartImport/0.6'},signal:AbortSignal.timeout(8000)});
     status=`${response.status} ${response.headers.get('content-type')||''}`.trim();
     if(response.ok)robotsText=await readLimited(response,MAX_PAGE_BYTES);
   }catch(error){
@@ -307,7 +322,18 @@ export function isRobotsDisallowed(robotsText,pathname){
   return disallowRules.some(rule=>rule&&pathname.startsWith(rule));
 }
 function validateUrl(value){let url;try{url=new URL(String(value||''))}catch{throw httpError(400,'invalid_url','Invalid URL.')}if(!['http:','https:'].includes(url.protocol)||url.username||url.password)throw httpError(422,'protected_or_private_url','Only public HTTP/HTTPS URLs are supported.');return url}
-async function assertPublicHost(hostname){if(hostname==='localhost'||hostname.endsWith('.local'))throw httpError(422,'protected_or_private_url','Private hosts are unsupported.');const addresses=net.isIP(hostname)?[{address:hostname}]:await dns.lookup(hostname,{all:true});if(!addresses.length||addresses.some(({address})=>isPrivateIp(address)))throw httpError(422,'protected_or_private_url','Private network addresses are unsupported.')}
+// CR-002: returns the validated address(es), not just a pass/fail -- fetchPublicPage pins the
+// actual connection to this exact result (pinnedDispatcher, below) instead of letting the
+// subsequent fetch re-resolve DNS independently, which is the real gap this closes: a
+// DNS-rebinding attacker (a very-low-TTL domain answering differently across two lookups) could
+// otherwise pass this check with a public address and then connect somewhere private.
+async function assertPublicHost(hostname){if(hostname==='localhost'||hostname.endsWith('.local'))throw httpError(422,'protected_or_private_url','Private hosts are unsupported.');const addresses=net.isIP(hostname)?[{address:hostname,family:net.isIP(hostname)}]:await dns.lookup(hostname,{all:true});if(!addresses.length||addresses.some(({address})=>isPrivateIp(address)))throw httpError(422,'protected_or_private_url','Private network addresses are unsupported.');return addresses}
+// A fresh undici Agent per redirect step, pinned to exactly the addresses assertPublicHost just
+// validated for that step's hostname -- undici's own `connect.lookup` option only overrides which
+// address the raw socket connects to; TLS SNI and the HTTP Host header still come from the
+// original URL, so this is transparent to the target site (confirmed directly against a real
+// HTTPS/Cloudflare-fronted site during implementation, not assumed from the API docs alone).
+function pinnedDispatcher(addresses){return new UndiciAgent({connect:{lookup(hostname,options,callback){callback(null,addresses)}}})}
 function isPrivateIp(address){if(net.isIPv4(address)){const [a,b]=address.split('.').map(Number);return a===10||a===127||a===0||(a===169&&b===254)||(a===172&&b>=16&&b<=31)||(a===192&&b===168)||(a>=224)}const value=address.toLowerCase();return value==='::1'||value==='::'||value.startsWith('fc')||value.startsWith('fd')||value.startsWith('fe8')||value.startsWith('fe9')||value.startsWith('fea')||value.startsWith('feb')}
 async function readLimited(response,limit){const reader=response.body.getReader();let size=0;const chunks=[];while(true){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;if(size>limit){await reader.cancel();throw httpError(413,'source_too_large','The public page exceeds the bounded acquisition limit.')}chunks.push(value)}return new TextDecoder().decode(Buffer.concat(chunks.map(chunk=>Buffer.from(chunk))))}
 function normalizeUsage(usage){return {inputTokens:Number(usage?.input_tokens||0),outputTokens:Number(usage?.output_tokens||0),totalTokens:Number(usage?.total_tokens||0),cachedInputTokens:Number(usage?.input_tokens_details?.cached_tokens||0)}}

@@ -1,14 +1,14 @@
 {
   "name": "family-trips-alpha-v6",
-  "version": "0.7.9.1",
+  "version": "0.7.9.2",
   "private": true,
-  "description": "Family Trips Alpha 0.7.9.1 -- Pre-Beta Code Health & Security Review V1 correction (Trip update rule field-level restriction, dead-code removal)",
+  "description": "Family Trips Alpha 0.7.9.2 -- Pre-Beta Code Health & Security Review V1, part 2 (SSRF DNS-pinning, atomic quota check, document removal)",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build && node scripts/inject-build-version.mjs",
     "preview": "vite preview --host 0.0.0.0",
-    "test": "node tests/smoke.mjs && node tests/v4-ingestion.mjs && node tests/v4-correction.mjs && node tests/v5-ingestion.mjs && node tests/v5-external-import.mjs && node tests/v5-operational.mjs && node tests/v5-correction.mjs && node tests/v5-offline.mjs && node tests/v5-stabilization.mjs && node tests/v5-intake-reset.mjs && node tests/v5-range-boundary.mjs && node tests/v6-smart-import.mjs && node tests/v6-correction.mjs && node tests/v6-5-flight-import.mjs && node tests/v6-49-51-correction.mjs && node tests/v6-6-attraction-event-import.mjs && node tests/v6-52-53-correction.mjs && node tests/v6-54-correction.mjs && node tests/v6-55-correction.mjs && node tests/v6-69-correction.mjs && node tests/v6-70-correction.mjs && node tests/v6-71-correction.mjs && node tests/v6-72-correction.mjs && node tests/v6-73-correction.mjs && node tests/v6-74-correction.mjs && node tests/v6-7-insurance-import.mjs && node tests/v7-1-small-fixes.mjs && node tests/v7-2-firestore-migration.mjs && node tests/v7-3-sync-engine.mjs && node tests/v7-3-1-correction.mjs && node tests/v7-4-content-model-gaps.mjs && node tests/v7-4-1-correction.mjs && node tests/v7-5-sharing-admin.mjs && node tests/v7-5-1-correction.mjs && node tests/v7-6-cross-device-sync.mjs && node tests/v7-7-shopping-places.mjs && node tests/v7-7-1-correction.mjs && node tests/v7-8-transport-smart-import.mjs && node tests/v7-9-participant-extensions.mjs && node tests/v7-9-1-security-review.mjs",
+    "test": "node tests/smoke.mjs && node tests/v4-ingestion.mjs && node tests/v4-correction.mjs && node tests/v5-ingestion.mjs && node tests/v5-external-import.mjs && node tests/v5-operational.mjs && node tests/v5-correction.mjs && node tests/v5-offline.mjs && node tests/v5-stabilization.mjs && node tests/v5-intake-reset.mjs && node tests/v5-range-boundary.mjs && node tests/v6-smart-import.mjs && node tests/v6-correction.mjs && node tests/v6-5-flight-import.mjs && node tests/v6-49-51-correction.mjs && node tests/v6-6-attraction-event-import.mjs && node tests/v6-52-53-correction.mjs && node tests/v6-54-correction.mjs && node tests/v6-55-correction.mjs && node tests/v6-69-correction.mjs && node tests/v6-70-correction.mjs && node tests/v6-71-correction.mjs && node tests/v6-72-correction.mjs && node tests/v6-73-correction.mjs && node tests/v6-74-correction.mjs && node tests/v6-7-insurance-import.mjs && node tests/v7-1-small-fixes.mjs && node tests/v7-2-firestore-migration.mjs && node tests/v7-3-sync-engine.mjs && node tests/v7-3-1-correction.mjs && node tests/v7-4-content-model-gaps.mjs && node tests/v7-4-1-correction.mjs && node tests/v7-5-sharing-admin.mjs && node tests/v7-5-1-correction.mjs && node tests/v7-6-cross-device-sync.mjs && node tests/v7-7-shopping-places.mjs && node tests/v7-7-1-correction.mjs && node tests/v7-8-transport-smart-import.mjs && node tests/v7-9-participant-extensions.mjs && node tests/v7-9-1-security-review.mjs && node tests/v7-9-2-pre-beta-cleanup.mjs",
     "check": "node --check src/main.js && node --check src/firebase.js && node --check src/app-version.js && node --check src/ingestion.js && node --check src/content-extraction.js && node --check src/external-import.js && node --check src/operational-data.js && node --check src/proposal-lifecycle.js && node --check src/smart-import-client.js && node --check src/smart-import-adapter.js && node --check src/flight-import-adapter.js && node --check src/activity-import-adapter.js && node --check src/insurance-import-adapter.js && node --check src/transport-import-adapter.js && node --check src/v5-app.js && node --check src/cloud-store.js && node --check public/service-worker.js && node --check scripts/inject-build-version.mjs && node --check netlify/functions/smart-import.mjs && node --check netlify/functions/admin-delete-account.mjs && node --check netlify/functions/_shared/smart-import-schema.mjs && node --check netlify/functions/_shared/place-validation.mjs && node --check netlify/functions/_shared/smart-import-auth.mjs && node --check netlify/functions/_shared/smart-import-quota.mjs && npm test && npm run build"
   },
   "dependencies": {
@@ -19,6 +19,7 @@
     "jose": "6.2.8",
     "openai": "7.4.0",
     "pngjs": "7.0.0",
+    "undici": "^8.11.2",
     "utif2": "4.1.0"
   },
   "devDependencies": {

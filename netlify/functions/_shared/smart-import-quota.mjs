@@ -53,11 +53,30 @@ export async function registerOrVerifyTrip(tripId,user){
   if(existing&&existing.ownerUid!==user.uid)throw httpError(403,'trip_not_owned','The active account does not own this Trip.');
   if(!existing)await store().setJSON(key,{ownerUid:user.uid,ownerEmailHash:user.emailHash,createdAt:new Date().toISOString()});
 }
+// CR-003 (Pre-Beta Code Health & Security Review V1): the old read-check-write was three separate
+// steps, not atomic -- two requests from the same account arriving near-simultaneously could both
+// read a count just under the limit and both be let through. Fixed with optimistic concurrency
+// using @netlify/blobs' own documented compare-and-swap primitives (onlyIfNew/onlyIfMatch), not a
+// new dependency: a missing record is created with onlyIfNew (fails if another caller created it
+// first); an existing one is updated with onlyIfMatch against the ETag just read (fails if another
+// caller already wrote since that read). Either failure means a concurrent caller won the race --
+// re-read the fresh state and retry, so the loser's own retry correctly either succeeds (there was
+// still room) or hits the real, now-accurate quota-exceeded check (there wasn't), never silently
+// overshooting. 10 attempts is generous headroom for this app's real-world (low, personal-scale)
+// contention; exhausting it fails closed (denies the request) rather than risking an unmetered
+// request through, matching this being a cost-control boundary, not a security one.
 export async function consumeDailyQuota(user){
   const limit=Math.max(1,Math.min(100,Number(Netlify.env.get('FAMILYTRIPS_SMART_IMPORT_DAILY_QUOTA')||10)));
-  const day=new Date().toISOString().slice(0,10);const key=`quota/${day}/${user.emailHash}`;const current=await store().get(key,{type:'json'})||{count:0};
-  if(Number(current.count)>=limit)throw httpError(429,'daily_quota_exceeded','Daily Smart Import quota reached.');
-  const next={count:Number(current.count)+1,limit,updatedAt:new Date().toISOString()};await store().setJSON(key,next);return next;
+  const day=new Date().toISOString().slice(0,10);const key=`quota/${day}/${user.emailHash}`;
+  for(let attempt=0;attempt<10;attempt+=1){
+    const existing=await store().getWithMetadata(key,{type:'json'});
+    const current=existing?.data||{count:0};
+    if(Number(current.count)>=limit)throw httpError(429,'daily_quota_exceeded','Daily Smart Import quota reached.');
+    const next={count:Number(current.count)+1,limit,updatedAt:new Date().toISOString()};
+    const result=existing?await store().setJSON(key,next,{onlyIfMatch:existing.etag}):await store().setJSON(key,next,{onlyIfNew:true});
+    if(result.modified)return next;
+  }
+  throw httpError(503,'quota_check_conflict','Could not confirm Smart Import quota due to concurrent requests. Please try again.');
 }
 export async function writeAudit(record){
   const day=new Date().toISOString().slice(0,10);const attemptId=record.attemptId||crypto.randomUUID();

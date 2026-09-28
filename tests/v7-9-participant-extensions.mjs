@@ -58,7 +58,9 @@ function test_0_7_9_runSmartAnalysis_resolves_source_participantIds_for_every_fl
   assert(!body.includes('if(targetItem){const resolvedParticipantIds'),'the resolution must no longer be gated behind targetItem alone');
 }
 function test_0_7_9_sourceRow_shows_a_participant_badge_and_a_manual_edit_affordance(){
-  const start=app.indexOf('function sourceRow(source,itemType){');
+  // 0.7.9.2 added a third parameter (itemId, for the document soft-unlink action) -- updated in
+  // place, same superseding-update discipline used throughout this project.
+  const start=app.indexOf('function sourceRow(source,itemType,itemId){');
   const body=app.slice(start,app.indexOf('function gamesView(',start));
   assert(body.includes('const participantNames=(source.participantIds||[]).map(id=>state.participants.find(p=>p.id===id)?.name).filter(Boolean);'));
   assert(body.includes('data-action="source-edit-participants"'));
@@ -114,7 +116,7 @@ function test_0_7_9_manual_add_ticket_flow_is_fully_retired(){
   assert(!app.includes("action==='ticket-toggle-used'"));
 }
 function test_0_7_9_sourceRow_offers_confirm_as_ticket_coverage_only_for_ticket_eligible_linked_documents(){
-  const start=app.indexOf('function sourceRow(source,itemType){');
+  const start=app.indexOf('function sourceRow(source,itemType,itemId){');
   assert(start>-1,'sourceRow must accept the item type, needed to gate the ticket-eligible offer');
   const body=app.slice(start,start+2000);
   assert(body.includes("const ticketEligible=['flight','activity','car'].includes(itemType);"));
@@ -122,7 +124,7 @@ function test_0_7_9_sourceRow_offers_confirm_as_ticket_coverage_only_for_ticket_
   assert(body.includes('data-action="source-confirm-ticket"'));
 }
 function test_0_7_9_sourceRow_shows_a_shared_used_toggle_once_a_ticket_is_confirmed_not_before(){
-  const start=app.indexOf('function sourceRow(source,itemType){');
+  const start=app.indexOf('function sourceRow(source,itemType,itemId){');
   const body=app.slice(start,start+2000);
   assert(body.includes('data-action="source-ticket-toggle-used" data-id="${source.id}" ${source.ticketUsed?\'checked\':\'\'}'));
   // The confirm button and the used-toggle are mutually exclusive on the same ternary -- a
@@ -130,7 +132,9 @@ function test_0_7_9_sourceRow_shows_a_shared_used_toggle_once_a_ticket_is_confir
   assert(body.includes('source.ticketConfirmed?`<span class="badge blue">כרטיס מאושר</span>'));
 }
 function test_0_7_9_detailView_passes_the_items_own_type_into_sourceRow(){
-  assert(app.includes('sources.map(source=>sourceRow(source,item.type))'));
+  // 0.7.9.2 added item.id as a third argument (for the document soft-unlink action) -- updated in
+  // place; see tests/v7-9-2-pre-beta-cleanup.mjs for that candidate's own dedicated coverage.
+  assert(app.includes('sources.map(source=>sourceRow(source,item.type,item.id))'));
 }
 function test_0_7_9_source_confirm_ticket_and_toggle_used_handlers_are_wired(){
   assert(app.includes("else if(action==='source-confirm-ticket'){const source=state.sources.find(candidate=>candidate.id===button.dataset.id);if(source){source.ticketConfirmed=true;save();render()}}"));
