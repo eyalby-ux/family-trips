@@ -68,6 +68,13 @@ async function handleSignIn() {
   }
 }
 
+// Beta 0.8 Phase 1: the design spec's own 5-item bottom nav (design spec S3) has no Settings
+// slot -- this gear button, always visible in the account bar, is the replacement entry point.
+// account-bar is rendered by this module, entirely separate from v5-app.js's own state/routing,
+// so it can't call route('settings') directly; it dispatches a plain DOM event instead, the same
+// bridge pattern this file already uses for 'online'/'offline'. v5-app.js listens for it once
+// booted (see its own 'familytrips:open-settings' listener).
+const SETTINGS_ICON = '<svg viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37c1 .608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>';
 function accountMarkup(user) {
   const offline = !navigator.onLine;
   const name = user?.displayName || (offline ? 'מצב אופליין' : 'משתמש');
@@ -78,7 +85,8 @@ function accountMarkup(user) {
         ${user?.photoURL ? `<img src="${escapeHtml(user.photoURL)}" alt="">` : ''}
         <span><b>${escapeHtml(name)}</b><small>${escapeHtml(detail)}</small></span>
       </span>
-      <span>
+      <span class="account-actions">
+        <button id="account-settings" class="account-settings" type="button" aria-label="הגדרות">${SETTINGS_ICON}</button>
         <button id="sign-out" class="account-sign-out" type="button" ${offline ? 'disabled aria-describedby="offline-sign-out-note"' : ''}>יציאה</button>
         ${offline ? '<small id="offline-sign-out-note" class="account-offline-note" role="status">יציאה זמינה רק בחיבור לאינטרנט; הסשן המקומי נשמר.</small>' : ''}
       </span>
@@ -101,6 +109,9 @@ async function renderApplication(user = null) {
   accountBar.hidden = false;
   accountBar.innerHTML = accountMarkup(user);
   document.querySelector('#sign-out')?.addEventListener('click', handleSignOut);
+  document.querySelector('#account-settings')?.addEventListener('click', () => {
+    dispatchEvent(new CustomEvent('familytrips:open-settings'));
+  });
   if (!appLoaded) { appLoaded = true; await import('./v5-app.js'); }
 }
 

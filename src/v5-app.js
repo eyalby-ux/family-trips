@@ -367,6 +367,45 @@ function suggestionRow(suggestion){const source=sourceById(suggestion.sourceId);
 function archivedSuggestionRow(suggestion){const source=sourceById(suggestion.sourceId);return `<div class="row suggestion-row archived-suggestion"><span class="row-main"><b>🗄️ ${esc(suggestion.proposed.title)}</b><small class="muted">${esc(source?.name||'ייבוא חיצוני')} · הועבר לארכיון</small></span><span class="badge">נדחה</span></div>`}
 function confidenceLabel(value){return ({high:'גבוה',medium:'בינוני',low:'נמוך'})[value]||value||'לא צוין'}
 
+// Beta 0.8 Phase 1 (design spec V7 S4): a day-item card's own contextual actions -- Navigate only
+// with a real location, Website only with a real link, Tickets only when a linked document has
+// actually been confirmed as ticket coverage (0.7.9's own document-driven model -- ticketsSection's
+// same confirmedSources check, not the retired item.tickets[]).
+function hasConfirmedTicket(item){return state.sources.some(source=>item.sourceIds?.includes(source.id)&&source.ticketConfirmed)}
+function dayItemActions(item){
+  const place=item.details?.canonicalPlace;
+  const navHref=place?place.googleMapsUri||mapsUrl(`${place.latitude},${place.longitude}`):item.location?mapsUrl(mapSearchLocation(item)):'';
+  return [
+    navHref?`<a class="btn secondary" href="${esc(navHref)}" target="_blank" rel="noopener">🧭 ניווט</a>`:'',
+    item.website?`<a class="btn ghost" href="${esc(item.website)}" target="_blank" rel="noopener">🌐 אתר</a>`:'',
+    hasConfirmedTicket(item)?`<button class="btn ghost" data-route="detail" data-id="${item.id}">🎫 כרטיסים</button>`:'',
+  ].filter(Boolean).join('');
+}
+const timeOnly=value=>value?new Intl.DateTimeFormat('he-IL',{hour:'2-digit',minute:'2-digit'}).format(new Date(value)):'';
+// A short Hebrew relative-time label for the leading action card ("Busy day"/"Transit or flight
+// day" both call for one) -- falls back to the ordinary date/time format once over 24h out, since
+// "בעוד 30 שעות" stops being a useful "relative" cue at that distance.
+function relativeTimeLabel(startAt){
+  const diffMin=Math.round((new Date(startAt)-new Date())/60000);
+  if(diffMin<=0)return 'עכשיו';
+  if(diffMin<60)return `בעוד ${diffMin} דק׳`;
+  const hours=Math.round(diffMin/60);
+  return hours<24?`בעוד ${hours} שע׳`:fmt(startAt,true);
+}
+// Beta 0.8 Phase 1 (design spec V7 S4 "Day-item card"/"Busy day"/"Transit or flight day"): one
+// card shape covers every case -- the leading (imminent) card and the rest of Today's plan differ
+// only by the `leading` flag (dot + relative time + emphasis shadow vs. a plain time), and a
+// flight/car's own route line vs. a generic provider/location line, never by structure.
+// needs-attention reuses conflict() (an item outside the Trip's own date range) -- the one
+// already-modeled "this needs a look" condition Today has actual data for; the spec's urgency
+// hierarchy doesn't tie this state to any specific Today data source itself (§4).
+function dayItemCard(item,{leading=false}={}){
+  const attention=conflict(item);
+  const detail=['flight','car'].includes(item.type)?mapSearchLocation(item)||item.location:item.provider||item.location;
+  const timeArea=leading?`<bdi>${esc(relativeTimeLabel(item.startAt))}</bdi><span class="imminent-dot"></span><bdi>${esc(timeOnly(item.startAt))}</bdi>`:`<bdi>${esc(timeOnly(item.startAt))}</bdi>`;
+  const actions=dayItemActions(item);
+  return `<div class="day-item ${leading?'leading':''} ${attention?'needs-attention':''}"><button class="day-item-main" data-route="detail" data-id="${item.id}"><span class="day-item-time">${timeArea}</span><span class="day-item-body"><b>${attention?`<span class="urgency-icon-attention">⚠️</span> `:''}${esc(item.title)}</b>${detail?`<p><bdi>${esc(detail)}</bdi>${item.confirmationNumber?` · <bdi>${esc(item.confirmationNumber)}</bdi>`:''}</p>`:''}</span></button>${actions?`<div class="day-item-actions">${actions}</div>`:''}</div>`;
+}
 function todayView(){
   if(!state.trip)return empty();
   const op=currentOperational(state.items),shown=[...op.todayItems];if(op.next&&!shown.some(item=>item.id===op.next.id))shown.push(op.next);
@@ -389,9 +428,19 @@ function todayView(){
   // extraction (e.g. FL-008's real 2025 boarding pass) surfaces somewhere instead of sitting
   // unnoticed, without displacing genuinely current content.
   const outOfRange=shown.length?[]:sortItemsByStartAt(state.items.filter(item=>isItemOutsideTrip(item,state.trip)));
-  const todayList=shown.length?shown.map(itemRow).join(''):outOfRange.length?outOfRange.map(itemRow).join(''):'<div class="empty compact"><p class="muted">אין אירועים להיום.</p></div>';
+  // Beta 0.8 Phase 1 (design spec V7 S4): the leading action card is the first still-upcoming
+  // entry (already chronologically sorted) -- present, it's the "Busy day"/"Transit or flight day"
+  // case (one leading card + the compact remainder, no game suggestion); absent (every event today
+  // has already passed, or there are none), it's the calm/free-day case: a plain compact list plus
+  // the spec's own "one game suggestion, only on a free day".
+  const dayList=shown.length?shown:outOfRange,nowIso=new Date().toISOString();
+  const leading=dayList.find(item=>item.startAt>=nowIso)||null;
+  const rest=dayList.filter(item=>item!==leading);
+  const suggestedGame=!leading&&state.games.length?[...state.games].sort((a,b)=>Number(b.favorite)-Number(a.favorite))[0]:null;
   const outOfRangeNote=outOfRange.length?'<p class="muted small">אין אירועים רלוונטיים היום — מוצגים פריטים מחוץ לטווח תאריכי הטיול לבדיקה.</p>':'';
-  return `<section class="card hero"><h2>Today</h2><p class="muted">רק מה שרלוונטי עכשיו והאירוע הבא.</p>${outOfRangeNote}<div class="list">${todayList}</div></section>${(quickContent||packingShortcut)?`<section class="card"><div class="section-head"><h3>גישה מהירה</h3>${tasks.length&&eligibleTasks.length<=3?'<button class="btn ghost" data-route="tasks">משימות</button>':''}${packingShortcut}</div>${quickContent}</section>`:''}${pending.length?`<section class="card"><div class="section-head"><h3>הצעות לבדיקה</h3><span class="badge warn">${pending.length}</span></div><div class="list">${pending.map(suggestionRow).join('')}</div></section>`:''}`;
+  const todayList=rest.length?rest.map(item=>dayItemCard(item)).join(''):dayList.length?'':'<div class="empty compact"><p class="muted">אין תכניות נוספות היום.</p></div>';
+  const destinationLabel=(state.trip.destinationCountries||[]).join('، ');
+  return `<section class="card hero"><h2>היום</h2><p class="today-status">${destinationLabel?`${esc(destinationLabel)} · `:''}${fmt(today(),false)}</p>${outOfRangeNote}${leading?dayItemCard(leading,{leading:true}):''}<div class="today-section-label">היום בתכנית</div><div class="list">${todayList}</div>${suggestedGame?`<div class="row day-item"><span class="row-main"><b>🎲 ${esc(suggestedGame.title)}</b><small class="muted">הצעת משחק ליום פנוי</small></span><button class="btn ghost" data-route="games">כל המשחקים</button></div>`:''}</section>${(quickContent||packingShortcut)?`<section class="card"><div class="section-head"><h3>גישה מהירה</h3>${tasks.length&&eligibleTasks.length<=3?'<button class="btn ghost" data-route="tasks">משימות</button>':''}${packingShortcut}</div>${quickContent}</section>`:''}${pending.length?`<section class="card"><div class="section-head"><h3>הצעות לבדיקה</h3><span class="badge warn">${pending.length}</span></div><div class="list">${pending.map(suggestionRow).join('')}</div></section>`:''}`;
 }
 function timelineCalendar(bounds){
   const cursor=state.timelineCursor||state.trip.startDate||today(),base=new Date(`${cursor}T12:00:00`),year=base.getFullYear(),month=base.getMonth(),first=new Date(year,month,1),last=new Date(year,month+1,0),cells=[];
@@ -467,7 +516,19 @@ function visiblePackingItems(list){
   if(view==='shared')return items.filter(item=>!(item.participantIds||[]).length);
   return items.filter(item=>!(item.participantIds||[]).length||(item.participantIds||[]).includes(view));
 }
-function packingView(){if(!state.trip)return empty();const activeParticipants=state.participants.filter(participant=>participant.active!==false);return `<section class="card"><div class="section-head"><div><h2>Packing Lists</h2><p class="muted">פריטים שסומנו עוברים לאזור Packed וניתן להחזירם.</p></div><button class="btn" data-action="add-list">קטגוריה חדשה</button></div>${activeParticipants.length?`<div class="participant-switcher">${[['shared','משותף'],...activeParticipants.map(participant=>[participant.id,participant.name])].map(([value,label])=>`<button class="btn ${(state.packingParticipantView||'shared')===value?'':'ghost'}" data-action="packing-view-participant" data-participant="${value}">${esc(label)}</button>`).join('')}</div>`:''}${state.packing.map(list=>{const visible=visiblePackingItems(list),active=visible.filter(item=>!item.done),packed=visible.filter(item=>item.done),collapsed=state.packingCollapsed[list.id];return `<section class="card nested"><button class="section-head collapse-button" data-action="pack-collapse" data-list="${list.id}"><h3>${esc(list.name)}</h3><span class="badge">${packed.length}/${visible.length}</span></button>${collapsed?'':`<div class="progress"><span style="width:${visible.length?packed.length/visible.length*100:0}%"></span></div>${active.map(packRow.bind(null,list)).join('')||'<p class="muted">הכול נארז.</p>'}<button class="btn secondary" data-action="pack-add" data-list="${list.id}">הוספת פריט</button>${packed.length?`<details ${state.packedCollapsed?'':'open'}><summary>Packed (${packed.length})</summary>${packed.map(packRow.bind(null,list)).join('')}</details>`:''}`}</section>`}).join('')}</section>`}
+// Beta 0.8 Phase 1 (design spec V7 S5): the participant selection carousel, reused wherever the
+// app lets someone pick one of a small set of participants -- packingView's own pre-existing
+// "shared" + per-participant switcher was the first such picker, so it becomes the carousel's
+// real caller rather than inventing a new one. Native scroll-snap (styles.css's .p-carousel-track)
+// already handles horizontal drag-with-snap correctly under RTL on its own -- options are rendered
+// in plain reading order, so item order is the whole implementation, no custom drag/touch code
+// needed (see the 'keydown' delegate below for the arrow-key alternative, and render()'s own
+// scrollIntoView pass for keeping the current selection centered). Per §5, "do not use a carousel
+// for a long list" -- callers with more than 5 options should keep a plain list/switcher instead.
+function participantCarousel(options,selectedValue,action){
+  return `<div class="p-carousel"><div class="p-carousel-track" role="listbox" aria-label="בחירת משתתף">${options.map(([value,label])=>`<button class="p-carousel-item ${selectedValue===value?'selected':''}" role="option" aria-selected="${selectedValue===value}" data-action="${action}" data-participant="${value}"><span class="p-carousel-avatar">${esc(label.slice(0,1))}</span><span>${esc(label)}</span></button>`).join('')}</div><div class="p-carousel-dots">${options.map(([value])=>`<span class="${selectedValue===value?'active':''}"></span>`).join('')}</div></div>`;
+}
+function packingView(){if(!state.trip)return empty();const activeParticipants=state.participants.filter(participant=>participant.active!==false);const participantOptions=[['shared','משותף'],...activeParticipants.map(participant=>[participant.id,participant.name])];return `<section class="card"><div class="section-head"><div><h2>Packing Lists</h2><p class="muted">פריטים שסומנו עוברים לאזור Packed וניתן להחזירם.</p></div><button class="btn" data-action="add-list">קטגוריה חדשה</button></div>${!activeParticipants.length?'':participantOptions.length<=5?participantCarousel(participantOptions,state.packingParticipantView||'shared','packing-view-participant'):`<div class="participant-switcher">${participantOptions.map(([value,label])=>`<button class="btn ${(state.packingParticipantView||'shared')===value?'':'ghost'}" data-action="packing-view-participant" data-participant="${value}">${esc(label)}</button>`).join('')}</div>`}${state.packing.map(list=>{const visible=visiblePackingItems(list),active=visible.filter(item=>!item.done),packed=visible.filter(item=>item.done),collapsed=state.packingCollapsed[list.id];return `<section class="card nested"><button class="section-head collapse-button" data-action="pack-collapse" data-list="${list.id}"><h3>${esc(list.name)}</h3><span class="badge">${packed.length}/${visible.length}</span></button>${collapsed?'':`<div class="progress"><span style="width:${visible.length?packed.length/visible.length*100:0}%"></span></div>${active.map(packRow.bind(null,list)).join('')||'<p class="muted">הכול נארז.</p>'}<button class="btn secondary" data-action="pack-add" data-list="${list.id}">הוספת פריט</button>${packed.length?`<details ${state.packedCollapsed?'':'open'}><summary>Packed (${packed.length})</summary>${packed.map(packRow.bind(null,list)).join('')}</details>`:''}`}</section>`}).join('')}</section>`}
 function packRow(list,item){const participantNames=(item.participantIds||[]).map(id=>state.participants.find(participant=>participant.id===id)?.name).filter(Boolean);return `<div class="pack-row-wrapper"><label class="check-row ${item.done?'done':''}"><input type="checkbox" data-action="pack-toggle" data-list="${list.id}" data-item="${item.id}" ${item.done?'checked':''}><span>${esc(item.name)} ${participantNames.length?`<small class="badge blue">${participantNames.map(esc).join(', ')}</small>`:item.owner&&item.owner!=='shared'?`<small class="badge blue">${esc(item.owner)}</small>`:''}</span></label><button class="btn ghost" data-action="pack-edit" data-list="${list.id}" data-item="${item.id}">עריכה</button><button class="btn danger" data-action="pack-delete" data-list="${list.id}" data-item="${item.id}">מחיקה</button></div>`}
 // 0.7.1: priority + due-date-scope filters, combined with AND, plus a clear/reset action -- see
 // filterAndSortTasks (operational-data.js) for the actual filter/sort logic, shared with nothing
@@ -1014,7 +1075,23 @@ function sourceParticipantsModal(){
   return `<div class="modal-bg"><section class="modal"><div class="modal-head"><h2>שיוך מסמך למשתתפים</h2><button class="close" data-action="close">✕</button></div><form id="source-participants-form" data-id="${source?.id||''}"><div class="field"><label>שיוך למשתתפים</label><div class="participant-picker">${state.participants.map(participant=>`<label class="checkbox-field"><input type="checkbox" name="participantIds" value="${participant.id}" ${ids.has(participant.id)?'checked':''}> ${esc(participant.name)}</label>`).join('')}</div></div><button class="btn">שמירה</button></form></section></div>`;
 }
 function modal(){if(!state.modal)return '';if(state.modal.type==='intake')return intakeModal();if(state.modal.type==='attachment')return attachmentModal();if(state.modal.type==='edit-item')return editModal();if(state.modal.type==='duplicate')return duplicateModal();if(state.modal.type==='participant')return participantModal();if(state.modal.type==='packing-item')return packingItemModal();if(state.modal.type==='source-participants')return sourceParticipantsModal();if(['task','shopping','location'].includes(state.modal.type))return simpleFormModal();return ''}
-function nav(){return `<nav class="nav">${[['today','🏠','Today'],['timeline','🗓️','Timeline'],['center','🗂️','Trip Center'],['settings','⚙️','הגדרות']].map(([key,icon,label])=>`<button class="${state.view===key||(['detail','suggestion','games','packing','tasks','shopping','locations'].includes(state.view)&&key==='center')||(['trips','admin'].includes(state.view)&&key==='settings')?'active':''}" data-route="${key}">${icon}<br>${label}</button>`).join('')}</nav>`}
+// Beta 0.8 Phase 1 (design spec V7 S3): 5-item nav (Today, Timeline, central +, Trip Center,
+// Packing) replaces the old 4-item emoji nav + separate floating .fab -- the + is now one of the
+// nav's own 5 grid cells (styles.css's .nav-plus-circle), not a floating element, so it's built
+// here rather than in render()'s own shell markup. Settings has no slot in the spec's own nav；
+// relocated to the always-visible account bar instead (see main.js's accountMarkup()).
+const NAV_ICONS={
+  today:'<svg viewBox="0 0 24 24"><path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v9a1 1 0 0 0 1 1h3v-5a2 2 0 0 1 2-2 2 2 0 0 1 2 2v5h3a1 1 0 0 0 1-1v-9"/></svg>',
+  timeline:'<svg viewBox="0 0 24 24"><circle cx="5" cy="6" r="1.6"/><circle cx="5" cy="12" r="1.6"/><circle cx="5" cy="18" r="1.6"/><path d="M9 6h11M9 12h11M9 18h6"/></svg>',
+  center:'<svg viewBox="0 0 24 24"><path d="M8 7V5.5A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5V7"/><rect x="3.5" y="7" width="17" height="12.5" rx="2"/></svg>',
+  packing:'<svg viewBox="0 0 24 24"><path d="M9 7V5.5A2.5 2.5 0 0 1 11.5 3h1A2.5 2.5 0 0 1 15 5.5V7"/><rect x="4.5" y="7" width="15" height="13" rx="2"/><path d="M4.5 12h15"/></svg>',
+  plus:'<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+};
+function nav(){
+  const centerSubviews=['detail','suggestion','games','tasks','shopping','locations'];
+  const tab=(key,label)=>`<button class="${state.view===key||(centerSubviews.includes(state.view)&&key==='center')?'active':''}" data-route="${key}" aria-label="${label}">${NAV_ICONS[key]}<br>${label}</button>`;
+  return `<nav class="nav">${tab('today','היום')}${tab('timeline','ציר זמן')}<button class="nav-plus" data-action="create" aria-label="הוספה"><span class="nav-plus-circle">${NAV_ICONS.plus}</span></button>${tab('center','מרכז הטיול')}${tab('packing','אריזה')}</nav>`;
+}
 // 0.7.3 (DESIGN_V1.md §4, Product Owner decision: option 2, the minimal pending-sync indicator).
 // Extends the existing offline banner's own pattern rather than introducing a new one: offline
 // takes priority when both are true (there's nothing more specific to say while offline than that),
@@ -1045,7 +1122,13 @@ function render(){
   // isAdmin is checked, and that has nothing to do with whether a Trip happens to exist yet), so an
   // admin with no Trip at all must still be able to reach it, exactly like the Trip switcher/
   // start-new-trip view already could with no Trip.
-  normalizeOperationalState(state);const views={today:todayView,timeline,center,detail:detailView,suggestion:suggestionView,games:gamesView,packing:packingView,tasks:tasksView,shopping:shoppingView,locations:locationsView,settings:settingsView,trips:tripsView,admin:adminView},body=(!bootResolved?loading:!state.trip&&!['trips','admin'].includes(state.view)?empty:(views[state.view]||todayView))();document.querySelector('#app').innerHTML=`<div class="shell">${syncBanner()}${header()}<main>${body}</main><button class="fab" data-action="create">+</button>${nav()}${modal()}${state.toast?`<div class="toast">${esc(state.toast)}</div>`:''}</div>`}
+  normalizeOperationalState(state);const views={today:todayView,timeline,center,detail:detailView,suggestion:suggestionView,games:gamesView,packing:packingView,tasks:tasksView,shopping:shoppingView,locations:locationsView,settings:settingsView,trips:tripsView,admin:adminView},body=(!bootResolved?loading:!state.trip&&!['trips','admin'].includes(state.view)?empty:(views[state.view]||todayView))();document.querySelector('#app').innerHTML=`<div class="shell">${syncBanner()}${header()}<main>${body}</main>${nav()}${modal()}${state.toast?`<div class="toast">${esc(state.toast)}</div>`:''}</div>`;
+  // Beta 0.8 Phase 1 (design spec V7 S5): "the selected item is centered" -- keeps the carousel's
+  // own current selection centered after every render (a fresh selection click, or just landing on
+  // a screen that has one), not only after a manual drag; 'nearest'/no smooth behavior avoids any
+  // visible re-animation on renders the carousel itself wasn't involved in.
+  document.querySelector('.p-carousel-item.selected')?.scrollIntoView({inline:'center',block:'nearest'});
+}
 
 // 0.7.2: source bytes now go to Firebase Storage (trips/{tripId}/sources/{sourceId}/...), not the
 // old per-device IndexedDB store -- see cloud-store.js's uploadAttachment/downloadAttachment and
@@ -1616,4 +1699,20 @@ addEventListener('submit',async event=>{event.preventDefault();const form=event.
 addEventListener('touchstart',event=>{if(event.target.closest('[data-timeline-calendar]'))timelineSwipeStartX=event.changedTouches[0]?.clientX??null},{passive:true});
 addEventListener('touchend',event=>{if(timelineSwipeStartX===null||!event.target.closest('[data-timeline-calendar]'))return;const endX=event.changedTouches[0]?.clientX??timelineSwipeStartX,delta=endX-timelineSwipeStartX;timelineSwipeStartX=null;if(Math.abs(delta)<50||state.timelineMode!=='week')return;state.timelineCursor=shiftCursor(state.timelineCursor,'week',delta<0?1:-1);render()},{passive:true});
 addEventListener('online',render);addEventListener('offline',render);addEventListener('pagehide',stopCamera);
+// Beta 0.8 Phase 1 (design spec V7 S5): the carousel's own keyboard alternative -- sequential Tab
+// already works for free (real <button> elements in DOM/reading order), this adds ArrowRight/Left
+// as the spec's own explicit second option. Per §5, "dragging right moves to the next item... left
+// [moves] to the previous, matching reading direction" -- the arrow keys mirror that exactly:
+// ArrowRight always steps to the next option in reading order, ArrowLeft to the previous, with no
+// RTL branch needed since this app has no LTR mode for that logic to differ under.
+addEventListener('keydown',event=>{
+  if(!['ArrowRight','ArrowLeft'].includes(event.key))return;
+  const item=event.target.closest('.p-carousel-item');if(!item)return;
+  const siblings=[...item.parentElement.children],index=siblings.indexOf(item);
+  const next=siblings[event.key==='ArrowRight'?index+1:index-1];
+  if(next){event.preventDefault();next.focus();next.click()}
+});
+// Beta 0.8 Phase 1: bridge from main.js's own account-bar settings button (see its own comment) --
+// this module owns route()/state.view, main.js deliberately doesn't reach into either directly.
+addEventListener('familytrips:open-settings',()=>route('settings'));
 render();boot();

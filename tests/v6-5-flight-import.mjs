@@ -705,7 +705,14 @@ test_V6_F31_landing_banner_synced_to_build_version_and_mentions_flight();
 function test_today_out_of_range_fallback_wiring(){
   const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
   assert.match(app,/const outOfRange=shown\.length\?\[\]:sortItemsByStartAt\(state\.items\.filter\(item=>isItemOutsideTrip\(item,state\.trip\)\)\)/,'Today must compute the out-of-range fallback list only when shown is empty, from items flagged by the same isItemOutsideTrip used for the Trip Center/Timeline badge');
-  assert.match(app,/const todayList=shown\.length\?shown\.map\(itemRow\)\.join\(''\):outOfRange\.length\?outOfRange\.map\(itemRow\)\.join\(''\):/,'Today must render the real shown items first, only falling back to out-of-range items (reusing itemRow, which already renders the "מחוץ לטווח" badge) when shown is empty, and only then falling back further to the empty-state message');
+  // Beta 0.8 Phase 1: todayView() was rewritten for the design spec's own leading-action-card +
+  // day-item-card structure (dayItemCard), replacing the old flat itemRow rendering -- outOfRange
+  // now flows into the same `dayList` shown/leading/rest pipeline as real Today items (shown.length
+  // gates whether outOfRange is used at all, unchanged), and dayItemCard's own needs-attention
+  // state (driven by the same conflict()/isItemOutsideTrip check) is what now carries the
+  // "מחוץ לטווח" signal, in place of itemRow's badge.
+  assert.match(app,/const dayList=shown\.length\?shown:outOfRange,nowIso=new Date\(\)\.toISOString\(\);/,'Today must feed shown items first into the leading/rest pipeline, only falling back to out-of-range items when shown is empty');
+  assert.match(app,/const todayList=rest\.length\?rest\.map\(item=>dayItemCard\(item\)\)\.join\(''\):dayList\.length\?'':/,'Today must render the real/fallback items through dayItemCard (which carries the "מחוץ לטווח" needs-attention state via conflict()), and only show the empty-state message when dayList itself is empty');
   console.log('PASS: Today\'s out-of-range fallback is wired to show only when there is nothing else relevant, reusing the existing out-of-range badge/row rendering');
 }
 test_today_out_of_range_fallback_wiring();
