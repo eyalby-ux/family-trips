@@ -95,7 +95,11 @@ test_beta_0_8_account_settings_click_dispatches_a_bridge_event_to_v5_app();
 
 function test_beta_0_8_today_view_separates_a_leading_item_from_the_rest(){
   const fn=extractFn(app,'todayView');
-  assert.match(fn,/const leading=dayList\.find\(item=>item\.startAt>=nowIso\)\|\|null;/,'the leading action card must be the first still-upcoming item, chronologically');
+  // Fixed after a real bug found live on qa: op.next (a "what's coming up" fallback item shown
+  // when today is empty, possibly days away) was getting picked as `leading` just because it was
+  // still chronologically upcoming, wrongly styling a multi-day-out item as today's imminent
+  // action. `leading` must only ever come from op.todayItems -- items genuinely dated today.
+  assert.match(fn,/const leading=op\.todayItems\.find\(item=>item\.startAt>=nowIso\)\|\|null;/,'the leading action card must only be picked from items actually dated today (op.todayItems), never from the op.next "coming up" fallback');
   assert.match(fn,/const rest=dayList\.filter\(item=>item!==leading\);/,'the leading item must be pulled out of the remainder list, not duplicated in it');
   console.log('PASS: todayView() finds one leading (imminent) item and renders the rest as a separate, compact list -- covers both the "Busy day" and "Transit or flight day" cases with one shared structure');
 }
@@ -103,6 +107,17 @@ function test_beta_0_8_game_suggestion_only_shows_on_a_day_with_no_leading_item(
   const fn=extractFn(app,'todayView');
   assert.match(fn,/const suggestedGame=!leading&&state\.games\.length\?/,'"one single game suggestion, only on a free day" -- must be gated on the absence of a leading/imminent item');
   console.log('PASS: the game suggestion only appears when there is no leading action card -- the calm/free-day case, per spec');
+}
+function test_beta_0_8_relative_time_label_never_duplicates_the_time_shown_beside_it(){
+  // Fixed after the same live-qa bug: relativeTimeLabel()'s own >24h fallback used to be
+  // fmt(startAt,true) (date AND time), but dayItemCard's leading timeArea ALWAYS appends a
+  // separate timeOnly(item.startAt) after it -- so a far-out leading item showed its time twice,
+  // wrapped and cramped in the narrow 76px time column. date-only (fmt(startAt,false)) fixes it.
+  // (leading is now scoped to op.todayItems, so a same-day item can never actually be >24h out --
+  // this stays as a defensive guarantee, not the primary fix.)
+  const fn=extractFn(app,'relativeTimeLabel');
+  assert.match(fn,/return hours<24\?`בעוד \$\{hours\} שע׳`:fmt\(startAt,false\);/,'the >24h relative-time fallback must be date-only, never duplicating the time shown separately beside it');
+  console.log('PASS: relativeTimeLabel()\'s own >24h fallback is date-only, so it can never duplicate the time already shown beside it');
 }
 function test_beta_0_8_day_item_card_covers_leading_and_regular_rows_with_one_function(){
   const fn=extractFn(app,'dayItemCard');
@@ -118,6 +133,7 @@ function test_beta_0_8_day_item_actions_are_gated_on_real_data(){
 }
 test_beta_0_8_today_view_separates_a_leading_item_from_the_rest();
 test_beta_0_8_game_suggestion_only_shows_on_a_day_with_no_leading_item();
+test_beta_0_8_relative_time_label_never_duplicates_the_time_shown_beside_it();
 test_beta_0_8_day_item_card_covers_leading_and_regular_rows_with_one_function();
 test_beta_0_8_day_item_actions_are_gated_on_real_data();
 
@@ -170,4 +186,4 @@ test_beta_0_8_directional_icons_mirror_under_rtl_non_directional_ones_dont();
 test_beta_0_8_day_item_time_and_detail_text_is_bidi_wrapped();
 test_beta_0_8_heebo_loads_with_the_spec_s_own_named_fallback();
 
-console.log('ALL PASS: Beta 0.8 Phase 1 -- Foundation: tokens (S2), 5-item nav + Settings relocation (S3), Today\'s leading/rest structure (S4), participant selection carousel (S5) (17 tests). Deployed to qa only, per the Product Owner\'s own decision that no phase of Beta 0.8 promotes to Production individually. Destination image (S4) was deliberately not built -- no destinationImage field exists anywhere in the data model, the spec itself scopes this document to design/behavior only ("no data model... should be inferred"), and the spec\'s own wording ("if present") already treats the image as conditional -- CSS for it (.today-image) is drafted and ready for whenever that field is actually added.');
+console.log('ALL PASS: Beta 0.8 Phase 1 -- Foundation: tokens (S2), 5-item nav + Settings relocation (S3), Today\'s leading/rest structure (S4), participant selection carousel (S5) (18 tests). Deployed to qa only, per the Product Owner\'s own decision that no phase of Beta 0.8 promotes to Production individually. Destination image (S4) was deliberately not built -- no destinationImage field exists anywhere in the data model, the spec itself scopes this document to design/behavior only ("no data model... should be inferred"), and the spec\'s own wording ("if present") already treats the image as conditional -- CSS for it (.today-image) is drafted and ready for whenever that field is actually added.');

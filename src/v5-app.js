@@ -390,7 +390,7 @@ function relativeTimeLabel(startAt){
   if(diffMin<=0)return 'עכשיו';
   if(diffMin<60)return `בעוד ${diffMin} דק׳`;
   const hours=Math.round(diffMin/60);
-  return hours<24?`בעוד ${hours} שע׳`:fmt(startAt,true);
+  return hours<24?`בעוד ${hours} שע׳`:fmt(startAt,false);
 }
 // Beta 0.8 Phase 1 (design spec V7 S4 "Day-item card"/"Busy day"/"Transit or flight day"): one
 // card shape covers every case -- the leading (imminent) card and the rest of Today's plan differ
@@ -429,12 +429,17 @@ function todayView(){
   // unnoticed, without displacing genuinely current content.
   const outOfRange=shown.length?[]:sortItemsByStartAt(state.items.filter(item=>isItemOutsideTrip(item,state.trip)));
   // Beta 0.8 Phase 1 (design spec V7 S4): the leading action card is the first still-upcoming
-  // entry (already chronologically sorted) -- present, it's the "Busy day"/"Transit or flight day"
-  // case (one leading card + the compact remainder, no game suggestion); absent (every event today
-  // has already passed, or there are none), it's the calm/free-day case: a plain compact list plus
-  // the spec's own "one game suggestion, only on a free day".
+  // entry that is actually TODAY (op.todayItems, already chronologically sorted) -- present, it's
+  // the "Busy day"/"Transit or flight day" case (one leading card + the compact remainder, no game
+  // suggestion); absent (every event today has already passed, or there are none), it's the
+  // calm/free-day case: a plain compact list plus the spec's own "one game suggestion, only on a
+  // free day". Deliberately NOT picked from the wider `shown`/`dayList` (which also carries
+  // op.next, the pre-existing "what's coming up" fallback shown when today is empty) -- a real bug
+  // found live on qa: an op.next item days away was getting promoted to "imminent leading action"
+  // styling just because it was still chronologically upcoming, mislabeling it as urgent. op.next
+  // still appears in `rest` when present, just without the leading card's own emphasis.
   const dayList=shown.length?shown:outOfRange,nowIso=new Date().toISOString();
-  const leading=dayList.find(item=>item.startAt>=nowIso)||null;
+  const leading=op.todayItems.find(item=>item.startAt>=nowIso)||null;
   const rest=dayList.filter(item=>item!==leading);
   const suggestedGame=!leading&&state.games.length?[...state.games].sort((a,b)=>Number(b.favorite)-Number(a.favorite))[0]:null;
   const outOfRangeNote=outOfRange.length?'<p class="muted small">אין אירועים רלוונטיים היום — מוצגים פריטים מחוץ לטווח תאריכי הטיול לבדיקה.</p>':'';
