@@ -25,6 +25,8 @@ Create an **activity** dated today that started 1–2 hours ago, with a **provid
 **Development Agent spot-check (qa, TZ Asia/Jerusalem):** ☑ an activity started at 17:00 led as "עכשיו" with the "הסתיים" button while a flight at 23:50 (4h40 away) did not take over; label on one line.
 **Result:** ☐
 
+**Product Owner result (V1 session):** **PASS with findings** — Product Owner, live on `qa` (2026-10-04). Hapoel (19:45, started) led as "עכשיו" on one line with dot, dark time, provider and the done button; a later item (Tate 22:00) stayed in the plan, not at the top; no game suggestion. Interpretation #1 is the PO's own `F6` rule (no new approval needed). Findings `P11-F1`, `P11-F2`, `P11-F3` (superseded by `P11-F10`), `P11-F4`.
+
 ## Test 2 — Re-run of Phase 1 Test 7: transit day, and every `F6` rule
 
 Create a **flight** (or a Transport item) dated today, **2 to 3 hours from now**, with a location and a confirmation number, while an ordinary item that already started is still current. Open Today. Then run the rule checks below in the same session where the clock allows.
@@ -39,6 +41,8 @@ Create a **flight** (or a Transport item) dated today, **2 to 3 hours from now**
 **Development Agent spot-check (qa):** ☑ flight at 21:30 (2h22 away) pre-empted an activity started at 17:00 ("בעוד 2 שע׳", route, confirmation number, Navigate); ☑ moved to 23:50 the activity led again as "עכשיו"; ☑ "הסתיים" removed it, toast shown, the flight then led; ☑ the removal survived a full reload; ☑ detail page "ביטול" restored it. **Not exercised live:** the swipe-to-end gesture, a second device, the auto-clear (needs a 3-hour wait), the 3-hour boundary minute, and car/train/ferry types — the boundary, handoff, auto-clear and end rules are covered by the automated tests under four timezones.
 **Result:** ☐
 
+**Product Owner result (V1 session):** **PASS with findings** — Product Owner, live on `qa` (2026-10-04). Passed live: flight (LY087 23:38) pre-empted a started item (Hapoel 21:16) and showed "בעוד 2 שע׳", route, confirmation number `ABC123`, Navigate; hand-off to the next ordinary item at its start without reload (Tate 21:30); manual end by swipe on the phone, removed from Today with toast, gone on the computer after reload; detail-page "ביטול" restored it. **Deferred:** the 3-hour auto-clear and non-flight transport types (car/train/ferry/bus/transfer) — covered by automated tests. Findings `P11-F5`, `P11-F6`, `P11-F7`.
+
 ## Test 3 — `F3`: Today's plan lists only today; "הבא בתור" for what comes next
 
 With items today **and** an in-range item tomorrow, open Today. Then check an ordinary item 3+ days out only, a flight 5 days out only, and the Trip's out-of-range items (the Jan 2027 flight and hotel).
@@ -47,6 +51,8 @@ With items today **and** an in-range item tomorrow, open Today. Then check an or
 
 **Development Agent spot-check (qa):** ☑ an item tomorrow 10:00 showed "מחר / 10:00 / הבא בתור" with no fill or actions, below today's plan; the Jan 2027 items were absent. **Not exercised live:** the 3+ day and 5-day-flight boundaries and the out-of-range fallback screen (covered by the automated tests).
 **Result:** ☐
+
+**Product Owner result (V1 session):** **PASS with findings** — Product Owner, live on `qa` (2026-10-04). Today's plan lists only today; an ordinary item >48h out shows no up-next line; a flight 5 days out shows with weekday/date above the time once nothing ordinary precedes it; out-of-range items never appear (Trip end set to today). Interpretation #3 replaced by `P11-F8`. Findings `P11-F8`, `P11-F9`, `P11-F10`.
 
 ## Test 4 — `F4`: "כרטיסים" opens the tickets
 
@@ -57,6 +63,8 @@ On a flight, activity or transport item that has a document confirmed as ticket 
 **Development Agent spot-check (qa):** ☑ the scroll mechanism (same attributes the button uses) landed on the item's tickets section. **Not exercised:** the real button, which needs a confirmed-ticket document.
 **Result:** ☐
 
+**Product Owner result (V1 session):** **Partial** — Product Owner, live on phone (2026-10-04). The "כרטיסים" jump works (lands on "כיסוי כרטיסים"), but the landing page is unusable on the phone. Findings `P11-F11` (Medium), `P11-F12` (Medium).
+
 ## Test 5 — `F5` and `F9`: label width and icons
 
 Look at the leading card and a needs-attention card.
@@ -65,6 +73,8 @@ Look at the leading card and a needs-attention card.
 
 **Development Agent spot-check (qa):** ☑ one-line label; ☑ compass and check icons are outline, dark. **Not exercised live:** the world, ticket and alert icons; the Tabler path data was written from memory of the open-source set, so please look at the shapes.
 **Result:** ☐
+
+**Product Owner result (V1 session):** **PASS** — Product Owner, live on phone (2026-10-04). Relative label on one line; compass/globe/ticket/check outline icons in dark ink, recognizable; no emoji; action buttons ink on white with border.
 
 ## Test 6 — `F10a`: a needs-attention card says why
 
@@ -75,6 +85,8 @@ Make today's date fall outside the Trip's range, or use a case where an out-of-r
 **Development Agent spot-check:** not run live — with the Trip's dates covering today no item can be both today and out of range, and "הבא בתור" never shows out-of-range items. Covered by assertion on `attentionReasons()`.
 **Result:** ☐
 
+**Product Owner result (V1 session):** **PASS** — Product Owner, live on `qa` (2026-10-04), Trip start temporarily set to tomorrow: today's leading card showed the soft warm background, dark outline alert triangle, and the reason line "התאריך מחוץ לטווח הטיול"; leading + needs-attention combine correctly.
+
 ## Test 7 — `F8`: nav label
 
 **Expect:** The bottom nav reads היום · ציר הזמן · (+) · מרכז הטיול · אריזה.
@@ -82,12 +94,16 @@ Make today's date fall outside the Trip's range, or use a case where an out-of-r
 **Development Agent spot-check (qa):** ☑.
 **Result:** ☐
 
+**Product Owner result (V1 session):** **PASS** — Product Owner (2026-10-04): היום · ציר הזמן · (+) · מרכז הטיול · אריזה.
+
 ## Test 8 — `F11`–`F13`: Quick Access on Today
 
 **Expect:** No "ציוד" button. The header always has "משימות" (even with zero open tasks) and "קניות (N)" with the number of unbought shopping items. Both open their screens.
 
 **Development Agent spot-check (qa):** ☑ "משימות" and "קניות (2)" present, no "ציוד". **Not exercised:** a Trip with zero open tasks.
 **Result:** ☐
+
+**Product Owner result (V1 session):** **PASS with findings** — Product Owner (2026-10-04). No "ציוד"; "קניות (2)" opens Shopping with 2 unbought items; "משימות" opens Tasks; with all tasks done the "משימות" button stays visible. Finding `P11-F13`.
 
 ## Test 9 — `F14`: task priority chips
 
@@ -98,6 +114,8 @@ Open Today's Quick Access tasks or the Tasks screen with High, Normal and Low ta
 **Development Agent spot-check (qa):** ☑ all three visible and as described.
 **Result:** ☐
 
+**Product Owner result (V1 session):** **PASS** — Product Owner (2026-10-04): High = dark text on soft warm fill; Normal = plain bordered, dark text; Low = plain bordered, grey text; no terracotta text.
+
 ## Test 10 — `F15`, `F16`: the participant carousel
 
 Open Packing on a Trip with 3–6 participants (the QA Trip has 6 options).
@@ -107,6 +125,8 @@ Open Packing on a Trip with 3–6 participants (the QA Trip has 6 options).
 **Development Agent spot-check (qa, 6 options):** ☑ first option showed the last as its previous neighbor; ☑ a real drag right moved exactly one option (משותף → אייל, dot 1); ☑ arrow keys moved as expected with focus following. **Not exercised:** a phone-speed swipe on a touch screen, and the 2-option case.
 **Result:** ☐
 
+**Product Owner result (V1 session):** **PASS with findings** — Product Owner (2026-10-04). Phone: selected centered with one faded neighbor each side, loops at the ends, dots show real position; fast swipes move exactly one; 2 options shown side by side with no repeats. Computer: clicking works, arrow keys do not. Interpretation #5 approved with the animation in `P11-F14`. Findings `P11-F14`, `P11-F15` (Low, no fix), `P11-F16`.
+
 ## Test 11 — `F17`, `F18`: Packing header and the 7+ participant chips
 
 **Expect:** The Packing screen reads "רשימות אריזה", "…לאזור \"נארזו\"…" and the folded section "נארזו (N)" — no English. With **7 or more** options the carousel is replaced by compact chips in a single horizontally scrollable row (selected chip dark with white text, the others white with a border, no terracotta fill, no wrapping onto several rows). Up to 6 options still use the carousel.
@@ -114,12 +134,16 @@ Open Packing on a Trip with 3–6 participants (the QA Trip has 6 options).
 **Development Agent spot-check (qa):** ☑ Hebrew strings; ☑ 6 options → carousel. ☑ chip styling checked in a rig with the real classes (one row, scrolls, dark selected chip, 44px tall). **Not exercised:** a real 7-participant Trip (adding participants to the shared QA Trip was not done).
 **Result:** ☐
 
+**Product Owner result (V1 session):** **PASS with findings** — Product Owner (2026-10-04). Hebrew header ("רשימות אריזה", "נארזו") — no English. With 7 options the chips render as specified (one scrollable row, no terracotta) but are rejected on the phone (only part visible, selected chip scrolled out of view). Finding `P11-F17`.
+
 ## Test 12 — The local-day fix (`today()`), and the minute refresh
 
 **Expect:** Today's header date matches the calendar date on your device at all hours, including between local midnight and 03:00. Leaving Today open, "בעוד X" and the leading item change by themselves within about a minute; typing in a form is never interrupted by the refresh.
 
 **Development Agent spot-check:** the local-day logic is covered by automated checks under Asia/Jerusalem, Asia/Bangkok, UTC and America/Los_Angeles. Not checked live after midnight. 
 **Result:** ☐
+
+**Product Owner result (V1 session):** **Partial** — Product Owner (2026-10-04). Live minute refresh confirmed in Test 2 (Tate took the lead at 21:30 without reload; interpretation #4 stands). **Deferred to Claude Code (Development Agent to verify and report with evidence):** the refresh never interrupts typing in an open form; the header/today date is the local date between 00:00 and 03:00.
 
 ## Test 13 — General regression
 
@@ -129,17 +153,35 @@ Create and edit an item, run a Smart Import, confirm sync between phone and comp
 
 **Result:** ☐
 
+**Product Owner result (V1 session):** **PASS** — Product Owner (2026-10-04): item create/edit on the computer, a real Smart Import run end to end and approved, phone↔computer sync, Settings via the gear, unchanged.
+
 ---
 
 ## Finding register (fill in during/after this session)
 
 | Finding | Test | Severity | Disposition |
 |---|---|---|---|
-| _(none yet)_ | | | |
+| `P11-F1` — Passed items look identical to upcoming ones and can't be ended from the list. | Test 1 | Non-blocking | Passed items (not leading, not current) and auto-cleared items move to a collapsed "הסתיימו היום (N)" section at the bottom of the plan; opened, greyed rows with "החזר". Resolves interpretation #2. Mockup: Design artifact "Today — Done Button & Finished Section". |
+| `P11-F2` — "הסתיים" reads as a status label, not a button (past tense; same look as the info links). | Test 1 | Non-blocking | Full-width **filled ink** button under a divider (mockup variant A) with the wording **"סמן כהסתיים"** (variant B). |
+| `P11-F3` — With nothing left today, the up-next row sits directly under "היום בתכנית" and reads as a today item. | Test 1 | — | **Superseded by `P11-F10`.** |
+| `P11-F4` — Browser tab reads "Family Trips · Alpha 0.8.0-phase1…". | Test 1 | Non-blocking | Label as **Beta** 0.8. |
+| `P11-F5` — Moving an ended item's date/time later keeps it hidden from Today. | Test 2 | Non-blocking | Changing an ended item's date/time to later than now clears `endedAt` automatically; other edits keep it. |
+| `P11-F6` — Swipe-to-end has no motion; the card just vanishes. | Test 2 | Non-blocking | Card follows the finger and fades; past ~1/3 width it slides out (160–220ms ease-out, cards below close up); otherwise snaps back. |
+| `P11-F7` — A pre-empted current item (in the plan while a transport leads) cannot be ended from Today. | Test 2 | Non-blocking | In the plan it gets an "עכשיו" tag, the "סמן כהסתיים" button and swipe; ending moves it to "הסתיימו היום". |
+| `P11-F8` — Up-next only considers the very first item after today, so an ordinary item can hide a flight within 7 days (interpretation #3). | Test 3 | Non-blocking | Show the first item within 48h; if none, the first **transportation** item within 7 days even if ordinary items come first. Spec note. |
+| `P11-F9` — Up-next weekday/date wraps onto three ragged lines in the 76px column. | Test 3 | Non-blocking | Short form on one line, e.g. "ו׳ 9.10", above the time. |
+| `P11-F10` — When nothing is left today, "היום בתכנית" heading remains with only the up-next row under it (and stays empty when nothing is coming up). | Test 3 | Non-blocking | Nothing left today → the "היום בתכנית" heading is replaced by a "הבא בתור" section heading with the quiet row (no box, short date). Nothing left and nothing upcoming → no heading, calm-day layout. Items left today → plan, then the quiet up-next line (no box). Supersedes `P11-F3`. |
+| `P11-F11` — Item detail tickets/documents area is unusable on the phone: filename wraps 2–3 characters per line down the screen, buttons cut off, page wider than the screen. | Test 4 | **Medium** — must be in the next correction round | Filename on one line with ellipsis (or full-width wrap), buttons wrap to a second row, no horizontal scroll on the item page. Full item-page redesign stays under `G1`. |
+| `P11-F12` — Item edit form on the phone: date/time fields and Save are cut off and unreachable — dates cannot be edited on the phone. | Test 4 | **Medium** — must be in the next correction round | Form scrolls fully within the viewport (nothing behind the nav/keyboard); "שמירה" pinned at the bottom; date fields full width with the native picker. Full form redesign stays under `G1` (high priority). |
+| `P11-F13` — Quick Access on the phone: header wraps, task rows ~1/3 screen tall, big edit/delete on every row (red delete easy to mis-tap, terracotta edit text). | Test 8 | Non-blocking | Compact ~56px rows (checkbox, title, one meta line with inline priority chip); tap opens the task for edit; delete inside the edit screen with confirmation; header on one line. |
+| `P11-F14` — Carousel changes selection with no motion. | Test 10 | Non-blocking | Row follows the finger, slides one position on release (160–220ms ease-out); same slide for tap/arrow. Interpretation #5 approved with this. |
+| `P11-F15` — Arrow keys don't move the carousel on the computer (clicking works). | Test 10 | Low | **Logged, no fix** (PO decision). |
+| `P11-F16` — On the computer the carousel shows only 3 participants in a wide empty row. | Test 10 | Non-blocking | Wide screens: when all participants fit on one line, show them all side by side (selected highlighted, others faded, click to select, no dots/loop); carousel only when they don't fit. Spec §5 note. |
+| `P11-F17` — 7+ chips on the phone show only part of the list; the selected chip can be scrolled out of view. | Test 11 | Non-blocking | Phone: the carousel for any number of participants ("4 / 9" counter instead of dots when many); computer per `P11-F16`. Replaces Phase 1 `F18`'s chips rule; spec §5 "no carousel for long lists" reversed for the phone. |
 
 ## GO/NO-GO decision
 
-**Pending.** Awaiting this session.
+**NO-GO** — Product Owner, 2026-10-04. No Blocking findings remain (Phase 1's `F3`/`F6` closed live), but the findings from this session route into a Phase 1.2 correction round before Phase 2: Medium `P11-F11`, `P11-F12` (phone usability) and Non-blocking `P11-F1`, `P11-F2`, `P11-F4`–`P11-F10`, `P11-F13`, `P11-F14`, `P11-F16`, `P11-F17` (`P11-F3` superseded; `P11-F15` Low, no fix). Deferred to the Development Agent within that round: Test 12's typing-during-refresh and 00:00–03:00 local-date checks. Still deferred to automated tests: Test 2's auto-clear and non-flight transport types. Re-test on `qa` after the correction: each corrected finding, plus Tests 1–4, 8, 10, 11 on the phone.
 
 ## Production promotion
 
