@@ -704,14 +704,17 @@ test_V6_F31_landing_banner_synced_to_build_version_and_mentions_flight();
 // out-of-range item mixed in. ---
 function test_today_out_of_range_fallback_wiring(){
   const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
-  assert.match(app,/const outOfRange=shown\.length\?\[\]:sortItemsByStartAt\(state\.items\.filter\(item=>isItemOutsideTrip\(item,state\.trip\)\)\)/,'Today must compute the out-of-range fallback list only when shown is empty, from items flagged by the same isItemOutsideTrip used for the Trip Center/Timeline badge');
+  // Beta 0.8 Phase 1.1 (F3): `shown` (today's items + op.next) no longer exists, but the fallback's
+  // meaning is deliberately unchanged -- it still only fires when there is no item today AND no item
+  // after today at all (op.todayItems / op.next), per the correction scope's Decision 3.
+  assert.match(app,/const outOfRange=op\.todayItems\.length\|\|op\.next\?\[\]:sortItemsByStartAt\(state\.items\.filter\(item=>isItemOutsideTrip\(item,state\.trip\)\)\)/,'Today must compute the out-of-range fallback list only when there is nothing today and nothing after today, from items flagged by the same isItemOutsideTrip used for the Trip Center/Timeline badge');
   // Beta 0.8 Phase 1: todayView() was rewritten for the design spec's own leading-action-card +
   // day-item-card structure (dayItemCard), replacing the old flat itemRow rendering -- outOfRange
   // now flows into the same `dayList` shown/leading/rest pipeline as real Today items (shown.length
   // gates whether outOfRange is used at all, unchanged), and dayItemCard's own needs-attention
   // state (driven by the same conflict()/isItemOutsideTrip check) is what now carries the
   // "מחוץ לטווח" signal, in place of itemRow's badge.
-  assert.match(app,/const dayList=shown\.length\?shown:outOfRange,nowIso=new Date\(\)\.toISOString\(\);/,'Today must feed shown items first into the leading/rest pipeline, only falling back to out-of-range items when shown is empty');
+  assert.match(app,/const dayList=todayAll\.length\?todayAll:outOfRange;/,'Today must feed today\'s own items first into the leading/rest pipeline, only falling back to out-of-range items when there are none');
   assert.match(app,/const todayList=rest\.length\?rest\.map\(item=>dayItemCard\(item\)\)\.join\(''\):dayList\.length\?'':/,'Today must render the real/fallback items through dayItemCard (which carries the "מחוץ לטווח" needs-attention state via conflict()), and only show the empty-state message when dayList itself is empty');
   console.log('PASS: Today\'s out-of-range fallback is wired to show only when there is nothing else relevant, reusing the existing out-of-range badge/row rendering');
 }

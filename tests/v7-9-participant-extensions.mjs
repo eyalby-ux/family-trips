@@ -181,7 +181,7 @@ function test_0_7_9_the_two_ticket_related_sections_have_distinct_non_confusable
   // Activity's own Smart-Import ticketHolders table (explicitly out of scope, untouched) keeps
   // its own distinct round-2 header.
   assert(app.includes('<h4>פרטי כרטיסים מהמסמך (${ticketHolders.length})</h4>'));
-  assert(app.includes('<h3>כיסוי כרטיסים</h3>'));
+  assert(app.includes('<h3 id="item-tickets">כיסוי כרטיסים</h3>'));// Phase 1.1 (F4): gained an anchor id
   assert(!app.includes('<h3>מעקב כרטיסים ידני</h3>'),'the retired manual-ticket section header must be gone');
   assert(!app.includes('<h4>כרטיסים (${ticketHolders.length})</h4>'),'the old, identically-worded ticketHolders header must be gone');
 }

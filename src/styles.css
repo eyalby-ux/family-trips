@@ -100,10 +100,9 @@ bdi,.bidi{unicode-bidi:isolate}
 .today-section-label{font-size:22px;font-weight:600;margin:16px 0 10px}
 
 /* S5 participant carousel. */
-.p-carousel{position:relative;overflow:hidden;padding:8px 0}
-.p-carousel-track{display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;padding:4px 40%;scrollbar-width:none}
-.p-carousel-track::-webkit-scrollbar{display:none}
-.p-carousel-item{flex:0 0 auto;scroll-snap-align:center;display:flex;flex-direction:column;align-items:center;gap:6px;opacity:.5;transform:scale(.88);transition:opacity 180ms ease-out,transform 180ms ease-out;background:transparent;border:0;padding:4px}
+.p-carousel{position:relative;overflow:hidden;padding:8px 0;touch-action:pan-y;user-select:none}
+.p-carousel-track{display:flex;justify-content:center;align-items:flex-start;gap:8px}
+.p-carousel-item{flex:0 0 96px;display:flex;flex-direction:column;align-items:center;gap:6px;opacity:.5;transform:scale(.88);transition:opacity 180ms ease-out,transform 180ms ease-out;background:transparent;border:0;padding:4px}
 .p-carousel-item.selected{opacity:1;transform:scale(1)}
 .p-carousel-avatar{width:56px;height:56px;border-radius:50%;background:var(--teal-soft);color:var(--ink);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;overflow:hidden}
 .p-carousel-avatar img{width:100%;height:100%;object-fit:cover}
@@ -111,3 +110,32 @@ bdi,.bidi{unicode-bidi:isolate}
 .p-carousel-dots{display:flex;justify-content:center;gap:6px;margin-top:8px}
 .p-carousel-dots span{width:6px;height:6px;border-radius:50%;background:var(--border)}
 .p-carousel-dots span.active{background:var(--ink)}
+
+/* ===== Beta 0.8 Phase 1.1 (correction package) ===== */
+/* F9: Tabler outline icons, in --ink */
+.ti{width:16px;height:16px;stroke:var(--ink);fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;vertical-align:-3px;flex:none}
+.day-item-actions .btn{background:var(--surface);color:var(--ink);border:1px solid var(--border);display:inline-flex;align-items:center;gap:6px}
+.urgency-icon-attention .ti{width:18px;height:18px;vertical-align:-3px}
+/* F5: the relative-time label stays on one line in the 76px column */
+.day-item-time .rel-time{font-size:13px;white-space:nowrap}
+/* F10a: the needs-attention reason line, in ink */
+.day-item-body p.attention-reason{color:var(--ink);font-weight:600}
+/* F6: a leading card the user can swipe away */
+.day-item[data-swipe-end]{touch-action:pan-y}
+/* F3: the quiet "next in line" line -- no fill, no accent, no actions */
+.up-next{display:flex;align-items:center;gap:0;width:100%;margin-top:12px;padding:0;background:transparent;border:1px solid var(--border);border-radius:16px;text-align:right;cursor:pointer;color:var(--ink);font:inherit;overflow:hidden}
+.up-next:active{background-color:var(--border)}
+.up-next-when{flex:0 0 76px;width:76px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;border-inline-end:1px solid var(--border);color:var(--ink);font-weight:600;font-size:14px}
+.up-next-body{flex:1 1 auto;min-width:0;padding:8px 12px;display:flex;flex-direction:column}
+.up-next-body b{font-size:16px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* F11-F13: Quick Access header links */
+.quick-links{display:flex;gap:8px;flex-wrap:wrap}
+/* F14: task priority chips -- terracotta/accent-soft is reserved for needs-attention */
+.badge.priority-High{background:var(--accent-soft);color:var(--ink)}
+.badge.priority-Normal{background:var(--surface);color:var(--ink);border:1px solid var(--border)}
+.badge.priority-Low{background:var(--surface);color:var(--muted);border:1px solid var(--border)}
+/* F18: 7+ participants -- compact chips, one scrollable row, ink selected */
+.p-chips{display:flex;gap:8px;overflow-x:auto;padding:8px 0;margin-bottom:8px;scrollbar-width:none}
+.p-chips::-webkit-scrollbar{display:none}
+.p-chip{flex:0 0 auto;white-space:nowrap;padding:8px 14px;min-height:44px;border-radius:999px;border:1px solid var(--border);background:var(--surface);color:var(--ink);font:inherit;font-size:15px;cursor:pointer}
+.p-chip.selected{background:var(--ink);color:#fff;border-color:var(--ink)}

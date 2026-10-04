@@ -207,7 +207,9 @@ function test_0_7_4_visiblePackingItems_shows_shared_items_plus_that_participant
 function test_0_7_4_packingView_offers_a_participant_switcher(){
   const start=app.indexOf('function packingView(){');
   const body=app.slice(start,app.indexOf('function packRow(',start));
-  assert(body.includes('data-action="packing-view-participant"'));
+  // Beta 0.8 Phase 1.1: the markup moved into participantCarousel()/participantChips() (the action
+  // name is passed in); packingView still wires the same action.
+  assert(body.includes("'packing-view-participant'"));
   assert(body.includes("[['shared','משותף']"));
 }
 function test_0_7_4_packing_add_item_replaced_prompt_with_a_real_multi_select_modal(){

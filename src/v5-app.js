@@ -1,7 +1,7 @@
 import {ITEM_TYPES,TRANSPORT_MODES,TYPE_FIELDS,buildItemFormValues,confirmNeedsReviewField,createSuggestions,findPossibleDuplicates,flagReversedFlightDirection,isDismissibleWarning,manualCreateDefaults,mapsUrl,normalizeUrlInput,reconcileStaleNeedsReview,resolveMergeCandidate,resolveParticipantIdsFromDraft,scheduleForType,suggestionReviewDefaults,suggestionToItem,validateSource} from './ingestion.js';
 import {extractSourceContent,sha256File} from './content-extraction.js';
 import {MultipartQrCollector,decodeExternalText,importBatchToApp} from './external-import.js';
-import {availableTimelineModes,backfillTripDates,currentOperational,filterAndSortTasks,isDeletionEligible,isItemOutsideTrip,normalizeDateRange,normalizeOperationalState,packingDuplicate,periodBounds,QUARANTINE_DELETION_ELIGIBLE_DAYS,quickAccessTasks,sanitizeTripDates,shiftCursor,sortItemsByStartAt,TASK_DUE_SCOPES,uniqueRecordsById} from './operational-data.js';
+import {availableTimelineModes,backfillTripDates,currentOperational,filterAndSortTasks,isDeletionEligible,isItemOutsideTrip,normalizeDateRange,normalizeOperationalState,packingDuplicate,periodBounds,QUARANTINE_DELETION_ELIGIBLE_DAYS,quickAccessTasks,sanitizeTripDates,shiftCursor,sortItemsByStartAt,TASK_DUE_SCOPES,TRANSPORT_TYPES,itemStartMs,selectLeading,today,uniqueRecordsById,upNextItem} from './operational-data.js';
 import {normalizeProposalLifecycle,rejectProposal} from './proposal-lifecycle.js';
 import {analyzeActivitySource,analyzeCarSource,analyzeFlightSource,analyzeHotelSource,analyzeInsuranceSource,analyzeSource} from './smart-import-client.js';
 import {MERGE_CONFLICT_WARNING_PREFIX,saveOnlySource,smartImportResultToSuggestion,preserveTrustedFieldsOnMerge} from './smart-import-adapter.js';
@@ -26,6 +26,7 @@ const EMPTY={trip:null,items:[],sources:[],suggestions:[],rejectedSuggestions:[]
 const qrCollector=new MultipartQrCollector();
 let cameraStream=null,cameraTimer=null;
 let timelineSwipeStartX=null;
+let suppressClickUntil=0,endSwipe=null;
 // Captured synchronously on file selection so an unrelated render() (which replaces the
 // whole #app tree, including the <input type=file>) can never wipe the chosen file — the
 // underlying cause of the file "disappearing" from Add and of the false "no document
@@ -268,7 +269,6 @@ function uid(prefix='id'){return `${prefix}-${Date.now()}-${Math.random().toStri
 function esc(value=''){return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
 function warningText(value){return typeof value==='string'?value:value?.message||value?.code||JSON.stringify(value)}
 function dateOnly(value){return value?String(value).slice(0,10):''}
-function today(){return new Date().toISOString().slice(0,10)}
 // V6-F25: the compact with-time format omitted year entirely, which reads as ambiguous/wrong for
 // a booking made far enough ahead to cross a year boundary (a real risk for Flights, booked
 // months out) -- shown whenever the date isn't in the current year, not on every row.
@@ -293,7 +293,7 @@ function fmt(value,withTime=true,precision=''){if(!value)return 'ללא תארי
 // immediately instead of waiting for a round-trip that never happens for this call path.
 function ensureTrip(seed={}){if(!state.trip){const dates=sanitizeTripDates(seed);state.trip={id:uid('trip'),name:seed.name||'הטיול המשפחתי שלי',startDate:dates.startDate,endDate:dates.endDate,createdAt:new Date().toISOString(),ownerUid:currentUid(),editorEmails:[]}}if(!state.packing.length)state.packing=defaultPacking();normalizeOperationalState(state)}
 function defaultPacking(){return [{id:uid('pl'),name:'מסמכים וכסף',owner:'shared',items:['דרכונים','ביטוח נסיעות','כרטיסי אשראי'].map(name=>({id:uid('pi'),name,done:false,suggested:true,owner:'shared'}))}]}
-function route(view,options={}){stopCamera();if(view==='timeline'&&state.view!=='timeline'){state.timelineMode='all';state.timelineCursor=state.trip?.startDate||today();state.calendarDate=null}state.view=view;state.category=options.category||null;state.itemId=options.itemId||null;state.suggestionId=options.suggestionId||null;render();scrollTo(0,0)}
+function route(view,options={}){stopCamera();if(view==='timeline'&&state.view!=='timeline'){state.timelineMode='all';state.timelineCursor=state.trip?.startDate||today();state.calendarDate=null}state.view=view;state.category=options.category||null;state.itemId=options.itemId||null;state.suggestionId=options.suggestionId||null;render();const anchorTarget=options.anchor?document.getElementById(options.anchor)||(options.anchor==='item-tickets'?document.getElementById('item-documents'):null):null;if(anchorTarget)anchorTarget.scrollIntoView();else scrollTo(0,0)}
 function notify(text){state.toast=text;render();setTimeout(()=>{if(state.toast===text){state.toast=null;render()}},2600)}
 function status(){if(!state.trip)return 'Empty';if(state.trip.startDate&&state.trip.endDate){const now=today();if(now>=state.trip.startDate&&now<=state.trip.endDate)return 'Active';if(now>state.trip.endDate)return 'Completed';return 'Planned'}return 'Draft'}
 function conflict(item){return isItemOutsideTrip(item,state.trip)}
@@ -372,13 +372,25 @@ function confidenceLabel(value){return ({high:'גבוה',medium:'בינוני',l
 // actually been confirmed as ticket coverage (0.7.9's own document-driven model -- ticketsSection's
 // same confirmedSources check, not the retired item.tickets[]).
 function hasConfirmedTicket(item){return state.sources.some(source=>item.sourceIds?.includes(source.id)&&source.ticketConfirmed)}
-function dayItemActions(item){
+// Beta 0.8 Phase 1.1 (F9): Tabler outline icons (MIT), inline, in --ink -- Today previously used
+// colored emoji, mixing two icon styles with the nav (spec §3). Path data is Tabler's own for
+// alert-triangle / compass / world / ticket / check.
+const TABLER={
+  alert:'<path d="M12 9v4"/><path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0z"/><path d="M12 16h.01"/>',
+  compass:'<path d="M8 16l2 -6l6 -2l-2 6l-6 2"/><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0"/>',
+  world:'<path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0"/><path d="M3.6 9h16.8"/><path d="M3.6 15h16.8"/><path d="M11.5 3a17 17 0 0 0 0 18"/><path d="M12.5 3a17 17 0 0 1 0 18"/>',
+  ticket:'<path d="M15 5l0 2"/><path d="M15 11l0 2"/><path d="M15 17l0 2"/><path d="M5 5h14a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-3a2 2 0 0 0 0 -4v-3a2 2 0 0 1 2 -2"/>',
+  check:'<path d="M5 12l5 5l10 -10"/>',
+};
+const tabler=name=>`<svg class="ti" viewBox="0 0 24 24" aria-hidden="true">${TABLER[name]}</svg>`;
+function dayItemActions(item,{endable=false}={}){
   const place=item.details?.canonicalPlace;
   const navHref=place?place.googleMapsUri||mapsUrl(`${place.latitude},${place.longitude}`):item.location?mapsUrl(mapSearchLocation(item)):'';
   return [
-    navHref?`<a class="btn secondary" href="${esc(navHref)}" target="_blank" rel="noopener">🧭 ניווט</a>`:'',
-    item.website?`<a class="btn ghost" href="${esc(item.website)}" target="_blank" rel="noopener">🌐 אתר</a>`:'',
-    hasConfirmedTicket(item)?`<button class="btn ghost" data-route="detail" data-id="${item.id}">🎫 כרטיסים</button>`:'',
+    navHref?`<a class="btn secondary" href="${esc(navHref)}" target="_blank" rel="noopener">${tabler('compass')} ניווט</a>`:'',
+    item.website?`<a class="btn ghost" href="${esc(item.website)}" target="_blank" rel="noopener">${tabler('world')} אתר</a>`:'',
+    hasConfirmedTicket(item)?`<button class="btn ghost" data-route="detail" data-id="${item.id}" data-anchor="item-tickets">${tabler('ticket')} כרטיסים</button>`:'',
+    endable?`<button class="btn ghost" data-action="item-end" data-id="${item.id}">${tabler('check')} הסתיים</button>`:'',
   ].filter(Boolean).join('');
 }
 const timeOnly=value=>value?new Intl.DateTimeFormat('he-IL',{hour:'2-digit',minute:'2-digit'}).format(new Date(value)):'';
@@ -399,53 +411,71 @@ function relativeTimeLabel(startAt){
 // needs-attention reuses conflict() (an item outside the Trip's own date range) -- the one
 // already-modeled "this needs a look" condition Today has actual data for; the spec's urgency
 // hierarchy doesn't tie this state to any specific Today data source itself (§4).
+// F6: manual "הסתיים" -- persisted on the item itself (a normal synced field, so every device and a
+// reload agree). Cleared to '' rather than deleted by item-unend, so both stay plain field writes.
+function endItem(id){const item=state.items.find(candidate=>candidate.id===id);if(!item)return;item.endedAt=new Date().toISOString();save();notify('הפריט סומן כהסתיים')}
+// F10a: a needs-attention card must say what is wrong. Out-of-range date is the only condition
+// Today has data for today (more conditions are backlog item F10b); with several, show a count.
+function attentionReasons(item){return conflict(item)?['התאריך מחוץ לטווח הטיול']:[]}
+// F6: only a leading item that has actually started can be ended early (button, or a horizontal
+// swipe on the card -- see the pointer listeners at the bottom of this file).
 function dayItemCard(item,{leading=false}={}){
-  const attention=conflict(item);
-  const detail=['flight','car'].includes(item.type)?mapSearchLocation(item)||item.location:item.provider||item.location;
-  const timeArea=leading?`<bdi>${esc(relativeTimeLabel(item.startAt))}</bdi><span class="imminent-dot"></span><bdi>${esc(timeOnly(item.startAt))}</bdi>`:`<bdi>${esc(timeOnly(item.startAt))}</bdi>`;
-  const actions=dayItemActions(item);
-  return `<div class="day-item ${leading?'leading':''} ${attention?'needs-attention':''}"><button class="day-item-main" data-route="detail" data-id="${item.id}"><span class="day-item-time">${timeArea}</span><span class="day-item-body"><b>${attention?`<span class="urgency-icon-attention">⚠️</span> `:''}${esc(item.title)}</b>${detail?`<p><bdi>${esc(detail)}</bdi>${item.confirmationNumber?` · <bdi>${esc(item.confirmationNumber)}</bdi>`:''}</p>`:''}</span></button>${actions?`<div class="day-item-actions">${actions}</div>`:''}</div>`;
+  const reasons=attentionReasons(item),attention=reasons.length>0;
+  const endable=leading&&itemStartMs(item)<=Date.now();
+  const detail=TRANSPORT_TYPES.includes(item.type)?mapSearchLocation(item)||item.location:item.provider||item.location;
+  const timeArea=leading?`<bdi class="rel-time">${esc(relativeTimeLabel(item.startAt))}</bdi><span class="imminent-dot"></span><bdi>${esc(timeOnly(item.startAt))}</bdi>`:`<bdi>${esc(timeOnly(item.startAt))}</bdi>`;
+  const actions=dayItemActions(item,{endable});
+  return `<div class="day-item ${leading?'leading':''} ${attention?'needs-attention':''}" ${endable?`data-swipe-end="${item.id}"`:''}><button class="day-item-main" data-route="detail" data-id="${item.id}"><span class="day-item-time">${timeArea}</span><span class="day-item-body"><b>${attention?`<span class="urgency-icon-attention">${tabler('alert')}</span> `:''}${esc(item.title)}</b>${attention?`<p class="attention-reason">${reasons.length===1?reasons[0]:`${reasons.length} בעיות`}</p>`:''}${detail?`<p><bdi>${esc(detail)}</bdi>${item.confirmationNumber?` · <bdi>${esc(item.confirmationNumber)}</bdi>`:''}</p>`:''}</span></button>${actions?`<div class="day-item-actions">${actions}</div>`:''}</div>`;
+}
+// F3 (Fix B): a quiet "next in line" line below Today's plan -- never a card in the plan itself.
+// Always shows the day/date above the time (the old row showed time only, so a Jan 7 flight read as
+// happening today), no fill, no accent, no actions; tapping opens the item. upNextItem() decides
+// whether there is one at all (48h, or 7 days for transport; never an out-of-range item).
+function upNextLine(item){
+  const start=new Date(item.startAt.length===10?`${item.startAt}T12:00:00`:item.startAt);
+  const tomorrow=new Date();tomorrow.setDate(tomorrow.getDate()+1);
+  const day=today(start)===today(tomorrow)?'מחר':new Intl.DateTimeFormat('he-IL',{weekday:'short',day:'numeric',month:'short'}).format(start);
+  return `<button class="up-next" data-route="detail" data-id="${item.id}"><span class="up-next-when"><bdi>${esc(day)}</bdi><bdi>${esc(timeOnly(item.startAt))}</bdi></span><span class="up-next-body"><small class="muted">הבא בתור</small><b>${esc(item.title)}</b></span></button>`;
 }
 function todayView(){
   if(!state.trip)return empty();
-  const op=currentOperational(state.items),shown=[...op.todayItems];if(op.next&&!shown.some(item=>item.id===op.next.id))shown.push(op.next);
+  const op=currentOperational(state.items);
+  // Beta 0.8 Phase 1.1 (F3): Today's plan lists ONLY today's own items. op.next used to be folded
+  // into this list and rendered time-only, so a Jan 7 flight read as happening today -- it now
+  // appears separately, as the quiet "הבא בתור" line (upNextItem: within 48h, 7 days for transport,
+  // never out of range). An item the user ended (F6, endedAt) is gone from Today entirely.
+  const todayAll=op.todayItems.filter(item=>!item.endedAt);
+  const upNext=upNextItem(state.items,state.trip);
   const pending=state.suggestions.filter(s=>['pending','deferred'].includes(s.status));
-  const eligibleTasks=state.tasks.filter(task=>!task.done),tasks=quickAccessTasks(eligibleTasks,today(),3),shownIds=new Set(shown.map(item=>item.id));
+  const eligibleTasks=state.tasks.filter(task=>!task.done),tasks=quickAccessTasks(eligibleTasks,today(),3),shownIds=new Set([...todayAll,upNext].filter(Boolean).map(item=>item.id));
   const quick=uniqueRecordsById([op.currentHotel,op.nextTransport,...op.critical].filter(item=>item&&!shownIds.has(item.id)),5);
-  const quickContent=tasks.length?`${tasks.map(taskRow).join('')}${eligibleTasks.length>3?'<div class="actions"><button class="btn ghost" data-route="tasks">כל המשימות</button></div>':''}`:quick.length?`<div class="quick-grid">${quick.map(item=>`<button class="tile compact-tile" data-route="detail" data-id="${item.id}"><span class="ico">${ITEM_TYPES[item.type]?.icon}</span><b>${esc(item.title)}</b></button>`).join('')}</div>`:'';
-  // 0.7.1: Product Owner decision -- packing/equipment items must NOT compete for Quick Access's
-  // top-3 urgent slots the way Tasks do (that would crowd out the most urgent tasks with routine
-  // packing). Instead, a stable shortcut to the full Packing list, mirroring the existing "כל
-  // המשימות" overflow-link pattern exactly. Shown whenever any packing list actually has items
-  // (ensureTrip() seeds state.packing via defaultPacking() on trip creation, so this is normally
-  // true from the very first Today render) -- an empty state has nothing useful for the shortcut
-  // to lead to. Deliberately widens the section's own visibility condition below (previously
-  // quickContent alone), since a day with no tasks/quick items must not hide this shortcut too.
-  const packingShortcut=state.packing.some(list=>(list.items||[]).length)?'<button class="btn ghost" data-route="packing">ציוד</button>':'';
+  const quickContent=tasks.length?tasks.map(taskRow).join(''):quick.length?`<div class="quick-grid">${quick.map(item=>`<button class="tile compact-tile" data-route="detail" data-id="${item.id}"><span class="ico">${ITEM_TYPES[item.type]?.icon}</span><b>${esc(item.title)}</b></button>`).join('')}</div>`:'';
+  // F11-F13: the "ציוד" shortcut is gone (the Phase 1 nav's own "אריזה" item replaced it); "משימות"
+  // is always offered, even with zero open tasks; "קניות" shows the unbought-item count.
+  const unboughtCount=state.shopping.filter(entry=>!entry.purchased).length;
+  const quickLinks=`<span class="quick-links"><button class="btn ghost" data-route="tasks">משימות</button><button class="btn ghost" data-route="shopping">קניות (${unboughtCount})</button></span>`;
   // Small addition (V6 second fix pass): Today only falls back to out-of-Trip-range items (the
   // same "מחוץ לטווח" badge already shown in Trip Center/Timeline) when it has nothing else
   // relevant to show at all -- a real, in-range Today never gets these mixed in, so a bad date
   // extraction (e.g. FL-008's real 2025 boarding pass) surfaces somewhere instead of sitting
-  // unnoticed, without displacing genuinely current content.
-  const outOfRange=shown.length?[]:sortItemsByStartAt(state.items.filter(item=>isItemOutsideTrip(item,state.trip)));
-  // Beta 0.8 Phase 1 (design spec V7 S4): the leading action card is the first still-upcoming
-  // entry that is actually TODAY (op.todayItems, already chronologically sorted) -- present, it's
-  // the "Busy day"/"Transit or flight day" case (one leading card + the compact remainder, no game
-  // suggestion); absent (every event today has already passed, or there are none), it's the
-  // calm/free-day case: a plain compact list plus the spec's own "one game suggestion, only on a
-  // free day". Deliberately NOT picked from the wider `shown`/`dayList` (which also carries
-  // op.next, the pre-existing "what's coming up" fallback shown when today is empty) -- a real bug
-  // found live on qa: an op.next item days away was getting promoted to "imminent leading action"
-  // styling just because it was still chronologically upcoming, mislabeling it as urgent. op.next
-  // still appears in `rest` when present, just without the leading card's own emphasis.
-  const dayList=shown.length?shown:outOfRange,nowIso=new Date().toISOString();
-  const leading=op.todayItems.find(item=>item.startAt>=nowIso)||null;
+  // unnoticed, without displacing genuinely current content. Unchanged by Phase 1.1: "nothing
+  // relevant" still means no item today and no item after today at all (op.todayItems / op.next).
+  const outOfRange=op.todayItems.length||op.next?[]:sortItemsByStartAt(state.items.filter(item=>isItemOutsideTrip(item,state.trip)));
+  // Beta 0.8 Phase 1 (design spec V7 S4): the leading action card -- present, it's the "Busy
+  // day"/"Transit or flight day" case (one leading card + the compact remainder, no game
+  // suggestion); absent, it's the calm/free-day case: a plain compact list plus the spec's own "one
+  // game suggestion, only on a free day". Phase 1.1 (F6): selectLeading() compares on the device's
+  // own local clock (it used to compare local item times to a UTC string), keeps the current item
+  // as "עכשיו" until the next one starts, lets a transport item take over 3h before it departs, and
+  // auto-clears the last item of the day 3h after it started.
+  const dayList=todayAll.length?todayAll:outOfRange;
+  const leading=selectLeading(todayAll);
   const rest=dayList.filter(item=>item!==leading);
   const suggestedGame=!leading&&state.games.length?[...state.games].sort((a,b)=>Number(b.favorite)-Number(a.favorite))[0]:null;
   const outOfRangeNote=outOfRange.length?'<p class="muted small">אין אירועים רלוונטיים היום — מוצגים פריטים מחוץ לטווח תאריכי הטיול לבדיקה.</p>':'';
   const todayList=rest.length?rest.map(item=>dayItemCard(item)).join(''):dayList.length?'':'<div class="empty compact"><p class="muted">אין תכניות נוספות היום.</p></div>';
   const destinationLabel=(state.trip.destinationCountries||[]).join('، ');
-  return `<section class="card hero"><h2>היום</h2><p class="today-status">${destinationLabel?`${esc(destinationLabel)} · `:''}${fmt(today(),false)}</p>${outOfRangeNote}${leading?dayItemCard(leading,{leading:true}):''}<div class="today-section-label">היום בתכנית</div><div class="list">${todayList}</div>${suggestedGame?`<div class="row day-item"><span class="row-main"><b>🎲 ${esc(suggestedGame.title)}</b><small class="muted">הצעת משחק ליום פנוי</small></span><button class="btn ghost" data-route="games">כל המשחקים</button></div>`:''}</section>${(quickContent||packingShortcut)?`<section class="card"><div class="section-head"><h3>גישה מהירה</h3>${tasks.length&&eligibleTasks.length<=3?'<button class="btn ghost" data-route="tasks">משימות</button>':''}${packingShortcut}</div>${quickContent}</section>`:''}${pending.length?`<section class="card"><div class="section-head"><h3>הצעות לבדיקה</h3><span class="badge warn">${pending.length}</span></div><div class="list">${pending.map(suggestionRow).join('')}</div></section>`:''}`;
+  return `<section class="card hero"><h2>היום</h2><p class="today-status">${destinationLabel?`${esc(destinationLabel)} · `:''}${fmt(today(),false)}</p>${outOfRangeNote}${leading?dayItemCard(leading,{leading:true}):''}<div class="today-section-label">היום בתכנית</div><div class="list">${todayList}</div>${upNext?upNextLine(upNext):''}${suggestedGame?`<div class="row day-item"><span class="row-main"><b>🎲 ${esc(suggestedGame.title)}</b><small class="muted">הצעת משחק ליום פנוי</small></span><button class="btn ghost" data-route="games">כל המשחקים</button></div>`:''}</section><section class="card"><div class="section-head"><h3>גישה מהירה</h3>${quickLinks}</div>${quickContent}</section>${pending.length?`<section class="card"><div class="section-head"><h3>הצעות לבדיקה</h3><span class="badge warn">${pending.length}</span></div><div class="list">${pending.map(suggestionRow).join('')}</div></section>`:''}`;
 }
 function timelineCalendar(bounds){
   const cursor=state.timelineCursor||state.trip.startDate||today(),base=new Date(`${cursor}T12:00:00`),year=base.getFullYear(),month=base.getMonth(),first=new Date(year,month,1),last=new Date(year,month+1,0),cells=[];
@@ -521,19 +551,28 @@ function visiblePackingItems(list){
   if(view==='shared')return items.filter(item=>!(item.participantIds||[]).length);
   return items.filter(item=>!(item.participantIds||[]).length||(item.participantIds||[]).includes(view));
 }
-// Beta 0.8 Phase 1 (design spec V7 S5): the participant selection carousel, reused wherever the
-// app lets someone pick one of a small set of participants -- packingView's own pre-existing
-// "shared" + per-participant switcher was the first such picker, so it becomes the carousel's
-// real caller rather than inventing a new one. Native scroll-snap (styles.css's .p-carousel-track)
-// already handles horizontal drag-with-snap correctly under RTL on its own -- options are rendered
-// in plain reading order, so item order is the whole implementation, no custom drag/touch code
-// needed (see the 'keydown' delegate below for the arrow-key alternative, and render()'s own
-// scrollIntoView pass for keeping the current selection centered). Per §5, "do not use a carousel
-// for a long list" -- callers with more than 5 options should keep a plain list/switcher instead.
+// Beta 0.8 Phase 1 (design spec V7 S5), reworked in Phase 1.1 (F15/F16/F18): the participant
+// selection carousel. It no longer scrolls: it renders only the selected option plus one neighbour
+// on each side (previous / next, wrapping around when there are 3 or more options -- an endless
+// loop that never dead-ends at two visible), and a swipe, an arrow key or a tap simply selects the
+// previous/next option and re-renders. One swipe therefore moves exactly one option by
+// construction (F15), with no scroll-snap or overshoot to tune. Exactly 2 options: both shown, no
+// loop, no repeats. Dots show the selected option's real position. Per §5 this suits 2-6 options;
+// from 7 the caller uses participantChips() instead ("do not use a carousel for a long list").
+// data-pos (prev/selected/next) is what the pointer and keydown delegates at the bottom of this
+// file act on.
 function participantCarousel(options,selectedValue,action){
-  return `<div class="p-carousel"><div class="p-carousel-track" role="listbox" aria-label="בחירת משתתף">${options.map(([value,label])=>`<button class="p-carousel-item ${selectedValue===value?'selected':''}" role="option" aria-selected="${selectedValue===value}" data-action="${action}" data-participant="${value}"><span class="p-carousel-avatar">${esc(label.slice(0,1))}</span><span>${esc(label)}</span></button>`).join('')}</div><div class="p-carousel-dots">${options.map(([value])=>`<span class="${selectedValue===value?'active':''}"></span>`).join('')}</div></div>`;
+  const count=options.length,index=Math.max(0,options.findIndex(([value])=>value===selectedValue));
+  const at=position=>options[(position+count)%count];
+  const slots=count>=3?[[at(index-1),'prev'],[at(index),'selected'],[at(index+1),'next']]:options.map((option,position)=>[option,position===index?'selected':position<index?'prev':'next']);
+  return `<div class="p-carousel" data-carousel><div class="p-carousel-track" role="listbox" aria-label="בחירת משתתף">${slots.map(([[value,label],pos])=>`<button class="p-carousel-item ${pos}" role="option" aria-selected="${pos==='selected'}" data-action="${action}" data-participant="${value}" data-pos="${pos}"><span class="p-carousel-avatar">${esc(label.slice(0,1))}</span><span>${esc(label)}</span></button>`).join('')}</div><div class="p-carousel-dots">${options.map((option,position)=>`<span class="${position===index?'active':''}"></span>`).join('')}</div></div>`;
 }
-function packingView(){if(!state.trip)return empty();const activeParticipants=state.participants.filter(participant=>participant.active!==false);const participantOptions=[['shared','משותף'],...activeParticipants.map(participant=>[participant.id,participant.name])];return `<section class="card"><div class="section-head"><div><h2>Packing Lists</h2><p class="muted">פריטים שסומנו עוברים לאזור Packed וניתן להחזירם.</p></div><button class="btn" data-action="add-list">קטגוריה חדשה</button></div>${!activeParticipants.length?'':participantOptions.length<=5?participantCarousel(participantOptions,state.packingParticipantView||'shared','packing-view-participant'):`<div class="participant-switcher">${participantOptions.map(([value,label])=>`<button class="btn ${(state.packingParticipantView||'shared')===value?'':'ghost'}" data-action="packing-view-participant" data-participant="${value}">${esc(label)}</button>`).join('')}</div>`}${state.packing.map(list=>{const visible=visiblePackingItems(list),active=visible.filter(item=>!item.done),packed=visible.filter(item=>item.done),collapsed=state.packingCollapsed[list.id];return `<section class="card nested"><button class="section-head collapse-button" data-action="pack-collapse" data-list="${list.id}"><h3>${esc(list.name)}</h3><span class="badge">${packed.length}/${visible.length}</span></button>${collapsed?'':`<div class="progress"><span style="width:${visible.length?packed.length/visible.length*100:0}%"></span></div>${active.map(packRow.bind(null,list)).join('')||'<p class="muted">הכול נארז.</p>'}<button class="btn secondary" data-action="pack-add" data-list="${list.id}">הוספת פריט</button>${packed.length?`<details ${state.packedCollapsed?'':'open'}><summary>Packed (${packed.length})</summary>${packed.map(packRow.bind(null,list)).join('')}</details>`:''}`}</section>`}).join('')}</section>`}
+// F18: 7+ options -- compact chips in one horizontally scrollable row (ink selected, white/bordered
+// others, no terracotta fill, no wrapping), instead of the old large wrapping button grid.
+function participantChips(options,selectedValue,action){
+  return `<div class="p-chips" role="listbox" aria-label="בחירת משתתף">${options.map(([value,label])=>`<button class="p-chip ${selectedValue===value?'selected':''}" role="option" aria-selected="${selectedValue===value}" data-action="${action}" data-participant="${value}">${esc(label)}</button>`).join('')}</div>`;
+}
+function packingView(){if(!state.trip)return empty();const activeParticipants=state.participants.filter(participant=>participant.active!==false);const participantOptions=[['shared','משותף'],...activeParticipants.map(participant=>[participant.id,participant.name])];return `<section class="card"><div class="section-head"><div><h2>רשימות אריזה</h2><p class="muted">פריטים שסומנו עוברים לאזור "נארזו" וניתן להחזירם.</p></div><button class="btn" data-action="add-list">קטגוריה חדשה</button></div>${!activeParticipants.length?'':participantOptions.length<=6?participantCarousel(participantOptions,state.packingParticipantView||'shared','packing-view-participant'):participantChips(participantOptions,state.packingParticipantView||'shared','packing-view-participant')}${state.packing.map(list=>{const visible=visiblePackingItems(list),active=visible.filter(item=>!item.done),packed=visible.filter(item=>item.done),collapsed=state.packingCollapsed[list.id];return `<section class="card nested"><button class="section-head collapse-button" data-action="pack-collapse" data-list="${list.id}"><h3>${esc(list.name)}</h3><span class="badge">${packed.length}/${visible.length}</span></button>${collapsed?'':`<div class="progress"><span style="width:${visible.length?packed.length/visible.length*100:0}%"></span></div>${active.map(packRow.bind(null,list)).join('')||'<p class="muted">הכול נארז.</p>'}<button class="btn secondary" data-action="pack-add" data-list="${list.id}">הוספת פריט</button>${packed.length?`<details ${state.packedCollapsed?'':'open'}><summary>נארזו (${packed.length})</summary>${packed.map(packRow.bind(null,list)).join('')}</details>`:''}`}</section>`}).join('')}</section>`}
 function packRow(list,item){const participantNames=(item.participantIds||[]).map(id=>state.participants.find(participant=>participant.id===id)?.name).filter(Boolean);return `<div class="pack-row-wrapper"><label class="check-row ${item.done?'done':''}"><input type="checkbox" data-action="pack-toggle" data-list="${list.id}" data-item="${item.id}" ${item.done?'checked':''}><span>${esc(item.name)} ${participantNames.length?`<small class="badge blue">${participantNames.map(esc).join(', ')}</small>`:item.owner&&item.owner!=='shared'?`<small class="badge blue">${esc(item.owner)}</small>`:''}</span></label><button class="btn ghost" data-action="pack-edit" data-list="${list.id}" data-item="${item.id}">עריכה</button><button class="btn danger" data-action="pack-delete" data-list="${list.id}" data-item="${item.id}">מחיקה</button></div>`}
 // 0.7.1: priority + due-date-scope filters, combined with AND, plus a clear/reset action -- see
 // filterAndSortTasks (operational-data.js) for the actual filter/sort logic, shared with nothing
@@ -686,9 +725,9 @@ function ticketsSection(item){
   const confirmedSources=state.sources.filter(source=>item.sourceIds?.includes(source.id)&&source.ticketConfirmed);
   const coveredIds=new Set(confirmedSources.flatMap(source=>source.participantIds||[]));
   const remaining=state.participants.filter(participant=>participant.active!==false&&!coveredIds.has(participant.id));
-  return remaining.length?`<h3>כיסוי כרטיסים</h3><p class="muted">משתתפים ללא כרטיס: ${remaining.map(participant=>esc(participant.name)).join(', ')}</p>`:'';
+  return remaining.length?`<h3 id="item-tickets">כיסוי כרטיסים</h3><p class="muted">משתתפים ללא כרטיס: ${remaining.map(participant=>esc(participant.name)).join(', ')}</p>`:'';
 }
-function detailView(){const item=state.items.find(candidate=>candidate.id===state.itemId);if(!item)return '<section class="card">הפריט לא נמצא.</section>';const sources=state.sources.filter(source=>item.sourceIds?.includes(source.id)),place=item.details?.canonicalPlace,contactActions=[place?`<a class="btn secondary" href="${esc(place.googleMapsUri||mapsUrl(`${place.latitude},${place.longitude}`))}" target="_blank" rel="noopener">🧭 ניווט</a>`:item.location?`<a class="btn secondary" href="${mapsUrl(mapSearchLocation(item))}" target="_blank" rel="noopener">🧭 חיפוש במפה</a>`:'',item.website?`<a class="btn ghost" href="${esc(item.website)}" target="_blank" rel="noopener">🌐 קישור</a>`:'',item.phone?`<a class="btn ghost" href="tel:${esc(item.phone)}">☎️ התקשרות</a>`:'',item.email?`<a class="btn ghost" href="mailto:${esc(item.email)}">✉️ אימייל</a>`:''].filter(Boolean).join('');const warningEntries=itemWarningEntries(item);const insuredByList=item.type!=='insurance'?insuranceCoveringItems(item):[];const linkedShoppingList=item.type==='shoppingPlace'?linkedShoppingListEntries(item):[];const detailBadgeLabel=item.type==='car'&&item.transportMode?TRANSPORT_MODES[item.transportMode]||ITEM_TYPES.car.label:ITEM_TYPES[item.type]?.label;return `<section class="card ${conflict(item)?'conflict':''}"><button class="btn ghost" data-route="center" data-cat="${item.type}">חזרה</button><h2>${ITEM_TYPES[item.type]?.icon||'📌'} ${esc(item.title)}</h2><p><span class="badge">${esc(detailBadgeLabel)}</span></p>${item.provider?`<p><b>ספק:</b> ${esc(item.provider)}</p>`:''}${item.confirmationNumber?`<p><b>מספר הזמנה:</b> ${esc(item.confirmationNumber)}</p>`:''}${item.location?`<p><b>מיקום:</b> ${esc(item.location)} ${place?'<span class="badge blue">אומת</span>':'<span class="badge warn">שם לחיפוש</span>'}</p>`:''}${contactActions?`<div class="actions">${contactActions}</div>`:''}${item.startAt?`<p><b>מועד:</b> ${fmt(item.startAt,true,item.dateMeta?.startPrecision)}</p>`:''}${item.endAt?`<p><b>סיום:</b> ${fmt(item.endAt,true,item.dateMeta?.endPrecision)}</p>`:''}${participantAssignmentLabel(item)?`<p><b>משויך ל:</b> ${esc(participantAssignmentLabel(item))}</p>`:''}${insuredByList.map(policy=>`<button class="row" data-route="detail" data-id="${policy.id}">🛡️ מבוטח באמצעות ${esc(policy.title)}</button>`).join('')}${item.notes?`<p class="preserve-lines">${esc(item.notes)}</p>`:''}${warningEntries.length?`<div class="warning-list">${warningEntries.map(({warning,index})=>warningRow(warning,item.details,'item',item.id,index)).join('')}</div>`:''}${mergeCandidatePanel('item',item.id,item,item.details)}${item.type==='flight'?flightSummaryBlock(item.details):''}${item.type==='activity'?activitySummaryBlock(item.details):''}${item.type==='insurance'?insuranceSummaryBlock(item.details):''}${item.type==='insurance'?relatedItemsPanel(item):''}${ticketsSection(item)}${linkedShoppingList.length?`<h3>פריטי קניות מקושרים</h3><div class="list">${linkedShoppingList.map(entry=>`<div class="pack-row-wrapper"><label class="row check-row ${entry.purchased?'done':''}"><input type="checkbox" data-action="shopping-toggle" data-id="${entry.id}" ${entry.purchased?'checked':''}><span class="row-main"><b>${esc(entry.name)} × ${esc(entry.quantity||'1')}</b></span></label><button class="btn ghost" data-action="shopping-edit" data-id="${entry.id}">עריכה</button></div>`).join('')}</div>`:''}<h3>מסמכים</h3>${sources.length?`<div class="list">${sources.map(source=>sourceRow(source,item.type,item.id)).join('')}</div>`:'<p class="muted">אין מסמכים מצורפים.</p>'}<div class="actions">${['hotel','flight','activity','insurance','car'].includes(item.type)?`<button class="btn" data-action="attach-source" data-id="${item.id}">הוספת מסמך</button>`:''}<button class="btn secondary" data-action="edit-item" data-id="${item.id}">עריכה</button><button class="btn danger" data-action="delete-item" data-id="${item.id}">מחיקה</button></div></section>`}
+function detailView(){const item=state.items.find(candidate=>candidate.id===state.itemId);if(!item)return '<section class="card">הפריט לא נמצא.</section>';const sources=state.sources.filter(source=>item.sourceIds?.includes(source.id)),place=item.details?.canonicalPlace,contactActions=[place?`<a class="btn secondary" href="${esc(place.googleMapsUri||mapsUrl(`${place.latitude},${place.longitude}`))}" target="_blank" rel="noopener">🧭 ניווט</a>`:item.location?`<a class="btn secondary" href="${mapsUrl(mapSearchLocation(item))}" target="_blank" rel="noopener">🧭 חיפוש במפה</a>`:'',item.website?`<a class="btn ghost" href="${esc(item.website)}" target="_blank" rel="noopener">🌐 קישור</a>`:'',item.phone?`<a class="btn ghost" href="tel:${esc(item.phone)}">☎️ התקשרות</a>`:'',item.email?`<a class="btn ghost" href="mailto:${esc(item.email)}">✉️ אימייל</a>`:''].filter(Boolean).join('');const warningEntries=itemWarningEntries(item);const insuredByList=item.type!=='insurance'?insuranceCoveringItems(item):[];const linkedShoppingList=item.type==='shoppingPlace'?linkedShoppingListEntries(item):[];const detailBadgeLabel=item.type==='car'&&item.transportMode?TRANSPORT_MODES[item.transportMode]||ITEM_TYPES.car.label:ITEM_TYPES[item.type]?.label;return `<section class="card ${conflict(item)?'conflict':''}"><button class="btn ghost" data-route="center" data-cat="${item.type}">חזרה</button><h2>${ITEM_TYPES[item.type]?.icon||'📌'} ${esc(item.title)}</h2><p><span class="badge">${esc(detailBadgeLabel)}</span></p>${item.endedAt?`<p class="muted">סומן כהסתיים · <button class="btn ghost" data-action="item-unend" data-id="${item.id}">ביטול</button></p>`:''}${item.provider?`<p><b>ספק:</b> ${esc(item.provider)}</p>`:''}${item.confirmationNumber?`<p><b>מספר הזמנה:</b> ${esc(item.confirmationNumber)}</p>`:''}${item.location?`<p><b>מיקום:</b> ${esc(item.location)} ${place?'<span class="badge blue">אומת</span>':'<span class="badge warn">שם לחיפוש</span>'}</p>`:''}${contactActions?`<div class="actions">${contactActions}</div>`:''}${item.startAt?`<p><b>מועד:</b> ${fmt(item.startAt,true,item.dateMeta?.startPrecision)}</p>`:''}${item.endAt?`<p><b>סיום:</b> ${fmt(item.endAt,true,item.dateMeta?.endPrecision)}</p>`:''}${participantAssignmentLabel(item)?`<p><b>משויך ל:</b> ${esc(participantAssignmentLabel(item))}</p>`:''}${insuredByList.map(policy=>`<button class="row" data-route="detail" data-id="${policy.id}">🛡️ מבוטח באמצעות ${esc(policy.title)}</button>`).join('')}${item.notes?`<p class="preserve-lines">${esc(item.notes)}</p>`:''}${warningEntries.length?`<div class="warning-list">${warningEntries.map(({warning,index})=>warningRow(warning,item.details,'item',item.id,index)).join('')}</div>`:''}${mergeCandidatePanel('item',item.id,item,item.details)}${item.type==='flight'?flightSummaryBlock(item.details):''}${item.type==='activity'?activitySummaryBlock(item.details):''}${item.type==='insurance'?insuranceSummaryBlock(item.details):''}${item.type==='insurance'?relatedItemsPanel(item):''}${ticketsSection(item)}${linkedShoppingList.length?`<h3>פריטי קניות מקושרים</h3><div class="list">${linkedShoppingList.map(entry=>`<div class="pack-row-wrapper"><label class="row check-row ${entry.purchased?'done':''}"><input type="checkbox" data-action="shopping-toggle" data-id="${entry.id}" ${entry.purchased?'checked':''}><span class="row-main"><b>${esc(entry.name)} × ${esc(entry.quantity||'1')}</b></span></label><button class="btn ghost" data-action="shopping-edit" data-id="${entry.id}">עריכה</button></div>`).join('')}</div>`:''}<h3 id="item-documents">מסמכים</h3>${sources.length?`<div class="list">${sources.map(source=>sourceRow(source,item.type,item.id)).join('')}</div>`:'<p class="muted">אין מסמכים מצורפים.</p>'}<div class="actions">${['hotel','flight','activity','insurance','car'].includes(item.type)?`<button class="btn" data-action="attach-source" data-id="${item.id}">הוספת מסמך</button>`:''}<button class="btn secondary" data-action="edit-item" data-id="${item.id}">עריכה</button><button class="btn danger" data-action="delete-item" data-id="${item.id}">מחיקה</button></div></section>`}
 // V6-F37 (fix pass 4): the update-confirmation copy hardcoded "המלון" (the hotel) regardless of
 // the suggestion's actual type, so a Flight update-review screen incorrectly talked about a
 // hotel. existingItemUnchangedNotice() picks the grammatically correct phrase for the two types
@@ -1095,7 +1134,7 @@ const NAV_ICONS={
 function nav(){
   const centerSubviews=['detail','suggestion','games','tasks','shopping','locations'];
   const tab=(key,label)=>`<button class="${state.view===key||(centerSubviews.includes(state.view)&&key==='center')?'active':''}" data-route="${key}" aria-label="${label}">${NAV_ICONS[key]}<br>${label}</button>`;
-  return `<nav class="nav">${tab('today','היום')}${tab('timeline','ציר זמן')}<button class="nav-plus" data-action="create" aria-label="הוספה"><span class="nav-plus-circle">${NAV_ICONS.plus}</span></button>${tab('center','מרכז הטיול')}${tab('packing','אריזה')}</nav>`;
+  return `<nav class="nav">${tab('today','היום')}${tab('timeline','ציר הזמן')}<button class="nav-plus" data-action="create" aria-label="הוספה"><span class="nav-plus-circle">${NAV_ICONS.plus}</span></button>${tab('center','מרכז הטיול')}${tab('packing','אריזה')}</nav>`;
 }
 // 0.7.3 (DESIGN_V1.md §4, Product Owner decision: option 2, the minimal pending-sync indicator).
 // Extends the existing offline banner's own pattern rather than introducing a new one: offline
@@ -1132,7 +1171,7 @@ function render(){
   // own current selection centered after every render (a fresh selection click, or just landing on
   // a screen that has one), not only after a manual drag; 'nearest'/no smooth behavior avoids any
   // visible re-animation on renders the carousel itself wasn't involved in.
-  document.querySelector('.p-carousel-item.selected')?.scrollIntoView({inline:'center',block:'nearest'});
+  document.querySelector('.p-chip.selected')?.scrollIntoView({inline:'nearest',block:'nearest'});
 }
 
 // 0.7.2: source bytes now go to Firebase Storage (trips/{tripId}/sources/{sourceId}/...), not the
@@ -1462,8 +1501,10 @@ function approveSuggestion(suggestion,mode='check',targetId=''){if(!suggestion||
   }else state.items.push(suggestionToItem(suggestion,{},state.trip?.startDate||''));
   suggestion.status='approved';for(const sourceId of suggestion.sourceIds||[suggestion.sourceId]){const source=sourceById(sourceId);if(source)source.status='משויך לפריט'}save();state.modal=null;route(mode==='merge'?'detail':'center',mode==='merge'?{itemId:targetId}:{category:suggestion.proposed.type});notify(mode==='merge'?(mergeHadConflict?'העדכון אושר ומוזג — נמצאו ערכים סותרים, הערך הקיים נשמר והערך החדש סומן לבדיקה בפרטי הפריט':'העדכון אושר ומוזג בלי לדרוס ערכים קיימים בערכים ריקים'):'ההצעה אושרה ונוצר פריט')}
 
-addEventListener('click',async event=>{const routeButton=event.target.closest('[data-route]');if(routeButton){const view=routeButton.dataset.route;route(view,{category:routeButton.dataset.cat,itemId:routeButton.dataset.id,suggestionId:routeButton.dataset.id});if(view==='settings'&&state.trip?.ownerUid===currentUid())refreshEditorHistory();else if(view==='admin')refreshAdminInvitations();return}const button=event.target.closest('[data-action]');if(!button)return;const action=button.dataset.action;
+addEventListener('click',async event=>{if(Date.now()<suppressClickUntil)return;const routeButton=event.target.closest('[data-route]');if(routeButton){const view=routeButton.dataset.route;route(view,{category:routeButton.dataset.cat,itemId:routeButton.dataset.id,suggestionId:routeButton.dataset.id,anchor:routeButton.dataset.anchor});if(view==='settings'&&state.trip?.ownerUid===currentUid())refreshEditorHistory();else if(view==='admin')refreshAdminInvitations();return}const button=event.target.closest('[data-action]');if(!button)return;const action=button.dataset.action;
   if(action==='create'){state.modal={type:'intake',source:'manual'};render()}
+  else if(action==='item-end')endItem(button.dataset.id);
+  else if(action==='item-unend'){const item=state.items.find(candidate=>candidate.id===button.dataset.id);if(item){item.endedAt='';save();render()}}
   else if(action==='close'){stopCamera();pendingSourceFile=null;state.modal=null;render()}
   else if(action==='source'){stopCamera();pendingSourceFile=null;state.modal.source=button.dataset.source;render()}
   else if(action==='ingest')await ingest();
@@ -1704,20 +1745,38 @@ addEventListener('submit',async event=>{event.preventDefault();const form=event.
 addEventListener('touchstart',event=>{if(event.target.closest('[data-timeline-calendar]'))timelineSwipeStartX=event.changedTouches[0]?.clientX??null},{passive:true});
 addEventListener('touchend',event=>{if(timelineSwipeStartX===null||!event.target.closest('[data-timeline-calendar]'))return;const endX=event.changedTouches[0]?.clientX??timelineSwipeStartX,delta=endX-timelineSwipeStartX;timelineSwipeStartX=null;if(Math.abs(delta)<50||state.timelineMode!=='week')return;state.timelineCursor=shiftCursor(state.timelineCursor,'week',delta<0?1:-1);render()},{passive:true});
 addEventListener('online',render);addEventListener('offline',render);addEventListener('pagehide',stopCamera);
-// Beta 0.8 Phase 1 (design spec V7 S5): the carousel's own keyboard alternative -- sequential Tab
-// already works for free (real <button> elements in DOM/reading order), this adds ArrowRight/Left
-// as the spec's own explicit second option. Per §5, "dragging right moves to the next item... left
-// [moves] to the previous, matching reading direction" -- the arrow keys mirror that exactly:
-// ArrowRight always steps to the next option in reading order, ArrowLeft to the previous, with no
-// RTL branch needed since this app has no LTR mode for that logic to differ under.
+// Beta 0.8 Phase 1 (design spec V7 S5): the carousel's own keyboard alternative (sequential Tab
+// works natively -- real <button> elements). Per §5, right/next and left/previous follow reading
+// direction, with no RTL branch since this app has no LTR mode. Phase 1.1: the carousel re-renders
+// around the selection, so the arrow keys click the neighbour marked data-pos next/prev (wrapping
+// included) and put focus back on the newly selected item, letting the keys keep working.
 addEventListener('keydown',event=>{
   if(!['ArrowRight','ArrowLeft'].includes(event.key))return;
-  const item=event.target.closest('.p-carousel-item');if(!item)return;
-  const siblings=[...item.parentElement.children],index=siblings.indexOf(item);
-  const next=siblings[event.key==='ArrowRight'?index+1:index-1];
-  if(next){event.preventDefault();next.focus();next.click()}
+  const carousel=event.target.closest('[data-carousel]');if(!carousel)return;
+  const target=carousel.querySelector(event.key==='ArrowRight'?'[data-pos="next"]':'[data-pos="prev"]');
+  if(target){event.preventDefault();target.click();document.querySelector('.p-carousel-item.selected')?.focus()}
+});
+// Phase 1.1: horizontal swipes. On the carousel (>=40px): dragging right selects the next option,
+// left the previous -- the spec's own reading-direction rule (§5), exactly one option per swipe.
+// On a started leading Today card (>=90px, clearly more horizontal than vertical): ends the item
+// early (F6), same as its "הסתיים" button. The click that follows a recognised swipe is swallowed.
+addEventListener('pointerdown',event=>{
+  const carousel=event.target.closest('[data-carousel]'),card=event.target.closest('[data-swipe-end]');
+  endSwipe=carousel||card?{x:event.clientX,y:event.clientY,carousel,card}:null;
+},{passive:true});
+addEventListener('pointerup',event=>{
+  if(!endSwipe)return;
+  const {x,y,carousel,card}=endSwipe,dx=event.clientX-x,dy=event.clientY-y;endSwipe=null;
+  if(Math.abs(dx)<(carousel?40:90)||Math.abs(dx)<2*Math.abs(dy))return;
+  if(carousel)carousel.querySelector(dx>0?'[data-pos="next"]':'[data-pos="prev"]')?.click();
+  else endItem(card.dataset.swipeEnd);
+  suppressClickUntil=Date.now()+400;
 });
 // Beta 0.8 Phase 1: bridge from main.js's own account-bar settings button (see its own comment) --
 // this module owns route()/state.view, main.js deliberately doesn't reach into either directly.
 addEventListener('familytrips:open-settings',()=>route('settings'));
+// Phase 1.1: Today's leading card, "עכשיו"/relative-time labels and the 3h rules all depend on the
+// current time, which nothing else re-renders for -- refresh once a minute, only while Today is on
+// screen with no form open and the tab visible, so it never interrupts typing or another screen.
+setInterval(()=>{if(state.view==='today'&&!state.modal&&document.visibilityState==='visible')render()},60000);
 render();boot();

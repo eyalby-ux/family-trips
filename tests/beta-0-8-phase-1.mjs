@@ -58,7 +58,7 @@ test_beta_0_8_every_old_token_name_is_aliased_not_deleted();
 function test_beta_0_8_nav_has_five_items_today_timeline_plus_center_packing(){
   const fn=extractFn(app,'nav');
   assert.match(fn,/tab\('today','היום'\)/);
-  assert.match(fn,/tab\('timeline','ציר זמן'\)/);
+  assert.match(fn,/tab\('timeline','ציר הזמן'\)/);// Phase 1.1 (F8): label corrected from "ציר זמן"
   assert.match(fn,/data-action="create" aria-label="הוספה"/,'the central + must be one of nav()\'s own 5 cells, not a separate element');
   assert.match(fn,/tab\('center','מרכז הטיול'\)/);
   assert.match(fn,/tab\('packing','אריזה'\)/);
@@ -99,7 +99,11 @@ function test_beta_0_8_today_view_separates_a_leading_item_from_the_rest(){
   // when today is empty, possibly days away) was getting picked as `leading` just because it was
   // still chronologically upcoming, wrongly styling a multi-day-out item as today's imminent
   // action. `leading` must only ever come from op.todayItems -- items genuinely dated today.
-  assert.match(fn,/const leading=op\.todayItems\.find\(item=>item\.startAt>=nowIso\)\|\|null;/,'the leading action card must only be picked from items actually dated today (op.todayItems), never from the op.next "coming up" fallback');
+  // Phase 1.1 (F6): selection moved into operational-data.js's selectLeading(), which takes
+  // `now` and compares on the device's local clock; the real behavior is covered by
+  // tests/beta-0-8-phase-1-1-today-logic.mjs (run under four timezones). Here: it is still fed
+  // only today's own, non-ended items -- never op.next.
+  assert.match(fn,/const leading=selectLeading\(todayAll\);/,'the leading action card must only be picked from items actually dated today (todayAll, from op.todayItems), never from the op.next "coming up" fallback');
   assert.match(fn,/const rest=dayList\.filter\(item=>item!==leading\);/,'the leading item must be pulled out of the remainder list, not duplicated in it');
   console.log('PASS: todayView() finds one leading (imminent) item and renders the rest as a separate, compact list -- covers both the "Busy day" and "Transit or flight day" cases with one shared structure');
 }
@@ -121,8 +125,11 @@ function test_beta_0_8_relative_time_label_never_duplicates_the_time_shown_besid
 }
 function test_beta_0_8_day_item_card_covers_leading_and_regular_rows_with_one_function(){
   const fn=extractFn(app,'dayItemCard');
-  assert.match(fn,/leading\?`<bdi>\$\{esc\(relativeTimeLabel\(item\.startAt\)\)\}<\/bdi><span class="imminent-dot">/,'only the leading card gets the relative-time label + accent dot, per the day-item-card spec');
-  assert.match(fn,/const attention=conflict\(item\);/,'needs-attention must reuse the existing conflict()\\/isItemOutsideTrip check -- the one already-modeled "needs a look" condition Today has real data for');
+  // Phase 1.1: the relative-time label gained class rel-time (F5, one line at ~13px), and
+  // needs-attention now goes through attentionReasons() so the card can say what is wrong (F10a).
+  assert.match(fn,/leading\?`<bdi class="rel-time">\$\{esc\(relativeTimeLabel\(item\.startAt\)\)\}<\/bdi><span class="imminent-dot">/,'only the leading card gets the relative-time label + accent dot, per the day-item-card spec');
+  assert.match(fn,/const reasons=attentionReasons\(item\),attention=reasons\.length>0;/,'needs-attention must come from attentionReasons(), which reuses the existing conflict()/isItemOutsideTrip check -- the one already-modeled "needs a look" condition Today has real data for');
+  assert.match(extractFn(app,'attentionReasons'),/conflict\(item\)\?\['התאריך מחוץ לטווח הטיול'\]:\[\]/);
   console.log('PASS: dayItemCard() renders both the leading card and every regular Today row from one function, differing only by the `leading` flag and the needs-attention state');
 }
 function test_beta_0_8_day_item_actions_are_gated_on_real_data(){
@@ -145,25 +152,35 @@ function test_beta_0_8_participant_carousel_renders_avatar_and_name_only(){
   assert.match(fn,/class="p-carousel-dots"/);
   console.log('PASS: participantCarousel() renders one avatar + name per option and an indicator-dots row, matching §5\'s "avatar and name only, no counters/badges"');
 }
-function test_beta_0_8_packing_view_uses_the_carousel_only_for_2_to_5_options(){
+function test_beta_0_8_packing_view_uses_the_carousel_up_to_6_options_and_chips_from_7(){
+  // Phase 1.1 (F18): the boundary moved from "2-5 carousel / larger button grid" to "2-6
+  // carousel / 7+ compact chips" (spec §5), and the old wrapping .participant-switcher is gone.
   const fn=extractFn(app,'packingView');
-  assert.match(fn,/participantOptions\.length<=5\?participantCarousel\(/,'§5: "do not use a carousel for a long list" -- must fall back to a plain switcher above 5 options');
-  assert.match(fn,/:`<div class="participant-switcher">/,'the pre-existing flat button switcher must remain as the >5-options fallback');
-  console.log('PASS: packingView() uses the new carousel for 2-5 participant options and falls back to the original flat switcher for a longer list, per §5');
+  assert.match(fn,/participantOptions\.length<=6\?participantCarousel\(/,'§5: the carousel covers up to 6 options');
+  assert.match(fn,/:participantChips\(participantOptions/,'from 7 options a long list falls back to compact chips');
+  assert(!fn.includes('participant-switcher'),'the old large wrapping button switcher must be gone');
+  console.log('PASS: packingView() uses the carousel for up to 6 participant options and compact chips from 7, per §5 (F18)');
 }
 function test_beta_0_8_arrow_keys_step_through_the_carousel_in_reading_order(){
+  // Phase 1.1: the carousel re-renders around the selection, so the keys click the neighbour
+  // marked data-pos next/prev rather than walking DOM siblings.
   assert.match(app,/addEventListener\('keydown',event=>\{/);
-  assert.match(app,/const next=siblings\[event\.key==='ArrowRight'\?index\+1:index-1\];/,'§5: dragging/arrow-right must move to the NEXT item in reading order (not the previous), matching the spec\'s own explicit reading-direction rule');
-  console.log('PASS: a keydown delegate steps ArrowRight to the next carousel option and ArrowLeft to the previous, matching §5\'s reading-direction rule (Tab already works natively, real <button> elements in DOM order)');
+  assert.match(app,/carousel\.querySelector\(event\.key==='ArrowRight'\?'\[data-pos="next"\]':'\[data-pos="prev"\]'\)/,'§5: arrow-right must move to the NEXT option in reading order (not the previous), matching the spec\'s own explicit reading-direction rule');
+  console.log('PASS: a keydown delegate selects the next option on ArrowRight and the previous on ArrowLeft, matching §5\'s reading-direction rule');
 }
-function test_beta_0_8_selected_carousel_item_is_recentered_after_every_render(){
-  assert.match(app,/document\.querySelector\('\.p-carousel-item\.selected'\)\?\.scrollIntoView\(\{inline:'center',block:'nearest'\}\);/,'§5: "the selected item is centered" -- must be re-applied after every render(), not only after a manual drag');
-  console.log('PASS: render() re-centers the carousel\'s own current selection after every render');
+function test_beta_0_8_carousel_no_longer_scrolls_it_selects_one_neighbour_per_swipe(){
+  // Phase 1.1 (F15/F16): replaced the scroll-snap track (which could skip a participant on a fast
+  // swipe and dead-ended at two visible) with prev/selected/next slots that wrap. The old
+  // "recenter after every render" pass is gone with it.
+  assert(!/p-carousel-track\{[^}]*overflow-x:auto/.test(styles)&&!styles.includes('scroll-snap-type'),'the carousel track must no longer be a scrolling scroll-snap container');
+  assert.match(extractFn(app,'participantCarousel'),/count>=3\?\[\[at\(index-1\),'prev'\],\[at\(index\),'selected'\],\[at\(index\+1\),'next'\]\]/,'3+ options wrap: previous, selected, next');
+  assert(!app.includes(".p-carousel-item.selected')?.scrollIntoView"),'the scroll-recentering pass must be gone');
+  console.log('PASS: the carousel renders previous/selected/next (wrapping at 3+ options) instead of scrolling, so one swipe moves exactly one option');
 }
 test_beta_0_8_participant_carousel_renders_avatar_and_name_only();
-test_beta_0_8_packing_view_uses_the_carousel_only_for_2_to_5_options();
+test_beta_0_8_packing_view_uses_the_carousel_up_to_6_options_and_chips_from_7();
 test_beta_0_8_arrow_keys_step_through_the_carousel_in_reading_order();
-test_beta_0_8_selected_carousel_item_is_recentered_after_every_render();
+test_beta_0_8_carousel_no_longer_scrolls_it_selects_one_neighbour_per_swipe();
 
 // --- RTL / bidi (S3) ------------------------------------------------------------------------------
 

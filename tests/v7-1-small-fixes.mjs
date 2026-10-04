@@ -36,8 +36,13 @@ function test_0_7_1_task_creation_reachable_from_global_add(){
 // ---------------------------------------------------------------------------------------------
 function test_0_7_1_today_packing_shortcut_does_not_crowd_quick_access(){
   const todayFn=app.slice(app.indexOf('function todayView(){'),app.indexOf('function timelineCalendar('));
-  assert(todayFn.includes("const packingShortcut=state.packing.some(list=>(list.items||[]).length)?'<button class=\"btn ghost\" data-route=\"packing\">ציוד</button>':'';"),'todayView must define a packing shortcut that links to the packing route, shown only when a packing list actually has items');
-  assert(todayFn.includes('${(quickContent||packingShortcut)?'),'the Quick Access section\'s own visibility must be widened to include packingShortcut, not gated on quickContent alone -- otherwise a day with no urgent tasks/quick items would hide the packing shortcut too');
+  // Beta 0.8 Phase 1.1 (F11-F13): the "ציוד" shortcut this test used to pin was removed on purpose --
+  // the Phase 1 nav's own "אריזה" item replaced it. What still holds, and is asserted instead: no
+  // packing shortcut remains, packing items are still never individual tiles, and Quick Access is
+  // now always shown (its header always offers "משימות" and "קניות"), so a day with nothing urgent
+  // still gets the section.
+  assert(!todayFn.includes('const packingShortcut'),'the "ציוד" Quick Access shortcut must be gone (F11) -- the nav\'s "אריזה" item replaced it');
+  assert(todayFn.includes('data-route="tasks">משימות</button>')&&todayFn.includes('data-route="shopping">קניות (${unboughtCount})</button>'),'Quick Access must always offer "משימות" (F12) and "קניות" with the unbought count (F13)');
   assert(!todayFn.includes('quick.map(item=>`<button class="tile compact-tile" data-route="detail" data-id="${item.id}">'.replace('quick.map','packing.map')),'packing items themselves must never be rendered as individual Quick Access tiles -- only the shortcut link, per the explicit Product Owner decision not to crowd out the most urgent tasks');
   console.log('PASS: 0.7.1 item 2 -- Today\'s Quick Access now offers a stable packing-list shortcut (not individual packing items), visible even on a day with no urgent tasks or quick-access items');
 }

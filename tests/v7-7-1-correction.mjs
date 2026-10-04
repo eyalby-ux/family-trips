@@ -49,7 +49,7 @@ function test_0_7_7_1_detailView_renders_the_reverse_lookup_section_after_ticket
   const body=app.slice(start,app.indexOf('\n',start));
   const ticketsIndex=body.indexOf('${ticketsSection(item)}');
   const sectionIndex=body.indexOf('linkedShoppingList.map(entry=>');
-  const documentsHeadingIndex=body.indexOf('<h3>מסמכים</h3>');
+  const documentsHeadingIndex=body.indexOf('<h3 id="item-documents">מסמכים</h3>');// Phase 1.1 (F4): gained an anchor id
   assert(ticketsIndex>-1&&sectionIndex>-1&&documentsHeadingIndex>-1);
   // Must sit between ticketsSection and the Documents heading, exactly the confirmed insertion point.
   assert(ticketsIndex<sectionIndex&&sectionIndex<documentsHeadingIndex);

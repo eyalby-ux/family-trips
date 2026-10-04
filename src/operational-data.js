@@ -280,7 +280,50 @@ export function isItemOutsideTrip(item,trip){
   return boundaries.some(date=>date<trip.startDate||date>trip.endDate);
 }
 
-export function today(){return new Date().toISOString().slice(0,10)}
+// Beta 0.8 Phase 1.1: was new Date().toISOString().slice(0,10) -- the UTC date, not the device's
+// local one. Item times are stored as local wall-clock strings ("2026-10-04T09:00", no zone), so
+// "today" must be the local calendar day too, or Today shows yesterday's date for the first
+// 3 hours of an Israeli day (7 in Thailand) and mismatches every local item time compared to it.
+export function today(now=new Date()){return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`}
+
+// Beta 0.8 Phase 1.1 (F3/F6): Today's leading-card and "next in line" rules as pure functions of
+// `now`, so they can be exercised under any device timezone. Item startAt values are local
+// wall-clock strings, so they are compared on the device's own clock (new Date(localString)),
+// never against a UTC ISO string -- the F6 bug.
+// type 'car' is the whole Transport family (rental car, train, ferry, bus, transfer -- see
+// TRANSPORT_MODES); flight is its own type.
+export const TRANSPORT_TYPES=['flight','car'];
+const THREE_HOURS_MS=3*60*60*1000;
+export function itemStartMs(item){
+  const value=String(item?.startAt||'');
+  return value?new Date(value.length===10?`${value}T12:00:00`:value).getTime():NaN;
+}
+// todayItems: items dated today (currentOperational's own todayItems). Rules, per the Product
+// Owner (F6): a transport item takes the leading slot 3h before it starts, pre-empting whatever is
+// leading; otherwise the most recently started item stays leading ("עכשיו") until the next item's
+// start time; with nothing to hand off to (the last item of the day) it auto-clears 3h after its
+// own start; an item the user ended (endedAt) never leads.
+export function selectLeading(todayItems,now=new Date()){
+  const nowMs=now.getTime();
+  const live=todayItems.filter(item=>item.startAt&&!item.endedAt).sort((a,b)=>itemStartMs(a)-itemStartMs(b));
+  const preempting=live.find(item=>TRANSPORT_TYPES.includes(item.type)&&itemStartMs(item)>nowMs&&itemStartMs(item)-nowMs<=THREE_HOURS_MS);
+  if(preempting)return preempting;
+  const upcoming=live.filter(item=>itemStartMs(item)>nowMs);
+  const current=live.filter(item=>itemStartMs(item)<=nowMs).at(-1);
+  if(current&&(upcoming.length||nowMs-itemStartMs(current)<THREE_HOURS_MS))return current;
+  return upcoming[0]||null;
+}
+// The first in-range item after today, only while it is near enough to be worth a line: within
+// 48h, or 7 days when it is a transport item.
+export function upNextItem(items,trip,now=new Date()){
+  const todayKey=today(now);
+  const first=items
+    .filter(item=>item.startAt&&!item.endedAt&&!['entire','none'].includes(item.schedule)&&String(item.startAt).slice(0,10)>todayKey&&!isItemOutsideTrip(item,trip))
+    .sort((a,b)=>itemStartMs(a)-itemStartMs(b))[0];
+  if(!first)return null;
+  const windowMs=(TRANSPORT_TYPES.includes(first.type)?7*24:48)*60*60*1000;
+  return itemStartMs(first)-now.getTime()<=windowMs?first:null;
+}
 function dateKey(date){return date.toISOString().slice(0,10)}
 
 // A shape match (\d{4}-\d{2}-\d{2}) is not enough: a datetime-local/date input silently
