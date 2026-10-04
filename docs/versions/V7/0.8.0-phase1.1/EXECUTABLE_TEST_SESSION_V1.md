@@ -186,3 +186,47 @@ Create and edit an item, run a Smart Import, confirm sync between phone and comp
 ## Production promotion
 
 **Not applicable to this phase.** Per `V147`, Phase 1 and its correction accumulate on `qa` only; Production promotion happens once, after Phase 3's own GO.
+
+---
+
+## Development Agent verification notes (2026-10-04)
+
+Added after the Product Owner's results and NO-GO were recorded (`79a726c`). The Development Agent checked each recorded result against the live `qa` build (`0.8.0-phase1.1-4f3c239e`) and the code, read-only: no app code was changed and no test data was left behind. **These notes do not change any recorded result, severity or disposition above;** they flag what is unclear, contradictory or technically doubtful so it can be settled before a Phase 1.2 correction package is scoped. A phone was emulated at 375px in the browser pane (DOM measurements; screenshots of the emulated view were unreliable), so nothing here replaces a real-phone re-test.
+
+### Recorded results confirmed
+
+| Item | How checked | Verdict |
+|---|---|---|
+| `P11-F10` | Live: with nothing left today, the "היום בתכנית" heading shows "אין תכניות נוספות היום" and the up-next row sits directly under it. | Matches the finding. |
+| `P11-F13` | Live at 375px: Quick Access header 100px tall (title wraps to 2 lines, the two buttons stack, the second 54px lower); task rows 134–136px each. | Matches. (The register's "~1/3 screen tall" is closer to 17% of the viewport height here; the point stands.) |
+| `P11-F9` | The weekday/date string `יום ו׳, 9 באוק׳` lays out on 2 lines in the 76px column, plus the time line. | Matches ("three ragged lines"). |
+| `P11-F5` | Code: an item edit does `Object.assign(item, values)`, so `endedAt` survives any edit; Today filters on `endedAt` alone. | Matches. |
+| `P11-F7` | Code: `dayItemCard()` only enables "הסתיים" (button and swipe) for the leading card. | Matches. |
+| `P11-F6` / `P11-F14` | Code: no transition on the swipe path; every selection calls `render()`, which rebuilds the DOM, so the carousel's existing opacity/transform transitions never run. | Match. |
+| `P11-F17` | Live, 7 options at 375px: 3 chips fit (4 at the end). Selecting each chip in turn kept the selected chip fully visible every time. | "Only part visible" is inherent to a scrolling row. **"Selected chip scrolled out of view" was not reproduced** by selecting; it can only happen if the row is scrolled by hand afterwards. |
+| Test 12 (deferred to the Development Agent) | (a) Page clock frozen at 01:30 Israel time on Oct 5 (still Oct 4 in UTC): header reads Oct 5; at 23:59:59 it reads Oct 4. (b) Add-item form left open through a full minute-refresh interval: text intact, same DOM node, still focused, zero re-renders of the app root. | **Both pass.** Refresh is guarded by `!state.modal`, and Today itself has no text inputs. |
+| Trip dates (Tests 3, 6) | Live: Trip now reads 1 Oct – 1 Nov 2026. | The temporary date changes were restored. |
+
+### Findings that are unclear, contradictory or technically doubtful
+
+1. **`P11-F11` is pre-existing, not a Phase 1/1.1 regression.** The document row's controls (participant link, ticket confirmed/used, remove) are already in Production (0.7.9.2). Measured at 375px: the row is a non-wrapping flex line with five fixed-width controls (94 + 63 + 57 + 76 + 68 ≈ 358px), so the filename column collapses to 27px and wraps to 18 lines, and the row pushes the page to 498px. Phase 1 only bumped `.row b` to 20px. Item pages whose documents have no ticket controls (hotels, cars) stay at 375px. The proposed fix (ellipsis or full-width wrap, buttons on a second row, no horizontal scroll) is technically sound. **Open question:** item detail is Phase 2 scope per the Beta 0.8 scope; "must be in the next correction round" is a deliberate pull-forward, not a Phase 1 defect.
+2. **`P11-F12` is very probably a consequence of `P11-F11`.** On the overflowing activity page the edit modal inherits the 498px layout width and its date field starts at x = −107px. On a hotel (page does not overflow) the same form fits: modal 375px wide, both date fields inside the screen (16–359px), Save reachable after scrolling the modal (749–793 of 812px). Recommend fixing `P11-F11` first and re-testing `P11-F12` before scoping it as a separate form change. The "Save pinned at the bottom" part is an independent nicety, and keyboard-open behavior on a real phone is untested.
+3. **`P11-F15` ("Logged, no fix") is a bug in the Development Agent's implementation, not a limitation.** After any click-selection, focus lands on `BODY` (confirmed live), so the arrow-key handler (which requires focus inside the carousel) has nothing to act on. The Development Agent's own earlier live arrow-key check passed only because it focused the item by hand first. Spec §5 and §9 require keyboard support. It is a few lines to fix (re-focus the selected item after a selection that started inside the carousel). Chips and most other re-render-based actions drop focus the same way, which is a broader, pre-existing accessibility gap.
+4. **`P11-F4` (label as Beta) has hidden coupling.** `appVersionLabel()` parses `/Alpha\s+/` from the page title, so changing the title alone makes the sign-in screen and header fall back to a bare "Alpha". Nine test files assert "Alpha", and `public/manifest.webmanifest` still names the installed PWA "Family Trips Alpha 0.6.5" (pre-existing). The scope should say which of these change.
+5. **`P11-F1`: "החזר" is ambiguous.** Passed items are derived from time (a later item has started), not ended by the user, so "restoring" them has no defined meaning. Does "החזר" apply only to manually ended items? Also unspecified: whether `endAt` ever ends an item (today the latest-started item stays "עכשיו" regardless of its own `endAt`, per the Product Owner's rule).
+6. **`P11-F1` and `P11-F10` leave a layout case undefined.** When nothing is left today but items sit in the collapsed "הסתיימו היום" section: is the order "הבא בתור" then the done section, or the reverse? Is the done section shown at all in the "nothing left and nothing upcoming" calm-day layout?
+7. **`P11-F13` scope is unclear.** The register says "Quick Access", but `taskRow` is shared with the Tasks screen, so changing it changes both. The task edit modal has no delete today, so "delete inside the edit screen with confirmation" is new UI. It also reverses the 0.7.9 acceptance that asked for delete buttons on task and equipment rows (an existing test pins this).
+8. **`P11-F14` is larger than it reads.** "Row follows the finger" needs about five rendered items (the carousel renders three, so nothing sits beyond the neighbor to slide in). Sliding needs a non-destructive update path, because `render()` rebuilds the whole screen. The app has no `prefers-reduced-motion` handling anywhere, so new motion (`P11-F6`, `P11-F14`) should include it. The 160–220ms figure is the spec's own.
+9. **`P11-F16` / `P11-F17` need a definition of "fit" and a trigger.** "Wide screens" and "when all participants fit on one line" are unspecified (breakpoint? measured width?). The app has no resize or orientation re-render, so the layout would not follow a rotation. "Counter instead of dots when many" has no threshold. These also reverse the chips rule the Product Owner chose earlier the same day (Phase 1.1 `F18`, option C), which makes the repository copy of spec §5 (change-history row V7.1) and the chips code and tests obsolete.
+10. **`P11-F9` format.** "ו׳ 9.10" is day.month (Israeli convention) and fits the column, but it has no year and "9.10" can be misread as a decimal; acceptable if intended.
+11. **Housekeeping in this document.**
+    - The header line "No Product Owner test has been run yet" is stale.
+    - Every per-test **Result:** box above the Product Owner results is still unchecked.
+    - "Medium" is a new severity level (earlier sessions used Blocking / Non-blocking) and is not defined.
+    - The NO-GO rests on Medium findings, not Blocking ones; that is consistent with the stated rule but worth saying once.
+    - Test 13 (general regression) has no Development Agent spot-check.
+    - The QA Trip now contains a participant named "Test6", which makes it 7 options and hides the carousel; remove it before any carousel re-test.
+
+### Not verified
+
+A real phone (keyboard-open behavior, true viewport height), a second device, the 3-hour auto-clear, non-flight transport types, and the swipe-to-end gesture were not exercised by the Development Agent.
