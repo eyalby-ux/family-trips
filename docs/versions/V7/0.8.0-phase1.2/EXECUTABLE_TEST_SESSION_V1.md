@@ -21,6 +21,8 @@
   7. **Tasks:** delete is gone from the task row and lives in the task's edit screen (existing tasks only), behind the same confirmation; equipment rows are unchanged. The `0.7.9` test that pinned the row-level delete was rewritten to assert the new behavior.
   8. Below 340px the Quick Access header may wrap onto two lines instead of overflowing the page by a pixel.
 
+**State of the QA Trip when this session starts:** the six `QA12` test items the Development Agent created were deleted; the 11 original items have the dates they had before the Development Agent's edits (compared field by field against a snapshot); "Test6" is deactivated; one throwaway task was created and deleted. Everything the Development Agent edited was edited with the Product Owner's permission to verify this round.
+
 ## Test 1 — `P11-F11`: item page with documents, on the phone
 
 Open each item that has documents attached (the activities and the flight with ticket documents, the hotels, the cars), one after another.
@@ -81,7 +83,7 @@ Look at Today in each state: (a) items still left today and something tomorrow; 
 - The day above the time is **one line**: "מחר", or the weekday letter and day.month such as "ו׳ 9.10". The first item within 48 hours is shown; if none, the first **flight/transport** item within 7 days is shown even when an ordinary item comes first. An out-of-range item (the Jan 2027 flight and hotels) never appears.
 - The collapsed "הסתיימו היום (N)" section sits **after** "הבא בתור".
 
-**Development Agent spot-check (qa):** ☑ (a) shown with "מחר / 10:00" on one line and the small label; ☑ the done section collapsed below it; Jan 2027 items absent. The rules for (b)/(c), the 48h/7-day windows and the "ו׳ 9.10" format are covered by the automated tests under four timezones; not walked through live because the QA Trip always has something today or tomorrow.
+**Development Agent spot-check (qa, 2026-10-05, on the QA Trip's own items — the Product Owner allowed editing them, and every date was restored afterwards and compared with a snapshot):** ☑ (a) the plan, then the quiet row with its small label — "מחר / 10:00" on one line; ☑ (b) with nothing left today the heading became "הבא בתור" over the row "ו׳ 9.10 / 23:38" — and it picked the **flight** although an ordinary item (Oct 9, 15:00) came first chronologically (`P11-F8`); ☑ (c) with the flight moved beyond 7 days and the ordinary item 4 days out: **no heading at all**, just "אין תכניות להיום.", the done section and the game suggestion; ☑ the 7-day window: a flight 6.7 days out appeared as "ב׳ 12.10 / 14:00", the same flight 7 days and 2 hours out disappeared; ☑ the 48-hour window: an ordinary item 37 hours out appeared as "ד׳ 7.10 / 10:00" (weekday label, one line); ☑ the Jan 2027 flight/hotel never appeared; ☑ the done section sits after "הבא בתור". Not exercised: the "מחוץ לטווח" fallback screen (needs a Trip with nothing today and nothing after at all).
 **Result:** ☐
 
 ## Test 7 — Phase 1.1 Test 4: "כרטיסים" (`P11-F4` of Phase 1.1)
@@ -90,7 +92,7 @@ On an item with a document confirmed as ticket coverage, tap "כרטיסים" on
 
 **Expect:** The item opens scrolled to its tickets area (or to Documents when everyone is already covered), and that page is now usable on the phone (Test 1).
 
-**Development Agent spot-check (qa):** ☑ the scroll mechanism landed on the tickets section (same attributes as the button); the real button needs a Trip with a confirmed-ticket item on today's plan.
+**Development Agent spot-check (qa, 2026-10-05):** ☑ the **real button**: an activity with confirmed-ticket documents was moved to today, its Today card showed ניווט / אתר / **כרטיסים**, and tapping "כרטיסים" opened that item scrolled to "כיסוי כרטיסים" (18px from the top of the screen) with the page exactly 375px wide. The landing page is usable on the phone-sized view: each filename on one line with an ellipsis, the five controls wrapped onto two rows, "הוספת מסמך" / "עריכה" / "מחיקה" below. (The case where everyone is already covered, which scrolls to Documents instead, was checked by mechanism only.)
 **Result:** ☐
 
 ## Test 8 — Phase 1.1 Test 8: Quick Access and tasks (`P11-F13`)
@@ -99,7 +101,7 @@ Look at Today's Quick Access card and then the Tasks screen (from "משימות"
 
 **Expect:** The header — "גישה מהירה", "משימות", "קניות (N)" — is on **one line**. Each task row is a compact ~56px row: checkbox, the title, and one meta line that starts with the **priority chip** (High: dark text on the soft warm fill; Normal/Low: plain bordered chip) then the date and participant. **Tapping a row opens that task for editing**; there is no delete button on the row. The task's edit screen has "שמירה" pinned at the bottom and a red "מחיקת המשימה" (existing tasks only) that asks for confirmation. The same design appears on the Tasks screen. Equipment rows in Packing keep their delete button.
 
-**Development Agent spot-check (qa, emulated 375px):** ☑ header 44px tall (one line); ☑ rows 58–60px with the chip first; below 340px the header is allowed to wrap. **Not exercised:** deleting a task through the edit screen (no throwaway task was created), and a real phone.
+**Development Agent spot-check (qa, emulated 375px, 2026-10-05):** ☑ header 44px tall (one line); ☑ rows 58–60px with the chip first; ☑ **the Tasks screen shows the same compact rows** (no delete on any row; page exactly the screen width); ☑ the new-task screen has no delete button; ☑ tapping a row opens its edit screen, whose sticky bar holds "שמירה" and "מחיקת המשימה"; ☑ declining the confirmation ("למחוק את המשימה לצמיתות?") keeps the task and the screen open; ☑ accepting deletes it and closes the screen (done with a throwaway task, which is gone). Below 340px the header may wrap. **Not exercised:** a real phone; a Trip with zero open tasks (the Product Owner confirmed that one in Phase 1.1).
 **Result:** ☐
 
 ## Test 9 — Phase 1.1 Test 10: the participant carousel (`P11-F14`, `P11-F15`, `P11-F17`)
