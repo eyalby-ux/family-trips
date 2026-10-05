@@ -99,9 +99,12 @@ function test_0_7_9_task_form_submit_handler_captures_participantScope_and_parti
 }
 function test_0_7_9_taskRow_displays_the_participant_assignment_and_no_longer_shows_owner(){
   const start=app.indexOf('function taskRow(task){');
-  const body=app.slice(start,start+700);
+  const body=app.slice(start,start+1100);
   assert(body.includes('const participantLabel=participantAssignmentLabel(task);'));
-  assert(body.includes('${participantLabel?esc(participantLabel)+\' · \':\'\'}'));
+  // Phase 1.2 (P11-F13): the compact row puts the priority chip first and the participant label
+  // last in the ellipsised meta text (so truncation can only ever cut the participant, never the
+  // chip) -- still shown, just after the date instead of before it.
+  assert(body.includes('${participantLabel?\' · \'+esc(participantLabel):\'\'}'));
   assert(!body.includes('task.owner'),'taskRow must no longer read/display the removed owner field');
 }
 

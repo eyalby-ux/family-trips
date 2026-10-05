@@ -583,7 +583,7 @@ function participantCarousel(options,selectedValue,action){
     return `<button class="p-carousel-item ${pos}" role="option" aria-selected="${pos==='selected'}" ${hidden?'aria-hidden="true" tabindex="-1"':''} data-action="${action}" data-participant="${value}" data-pos="${pos}"><span class="p-carousel-avatar">${esc(label.slice(0,1))}</span><span>${esc(label)}</span></button>`;
   }).join('');
   const indicator=layout==='row'?null:positionIndicator(count,index);
-  const indicatorHtml=!indicator?'':indicator.kind==='counter'?`<div class="p-carousel-counter" aria-live="polite">${indicator.text}</div>`:`<div class="p-carousel-dots">${options.map((option,position)=>`<span class="${position===index?'active':''}"></span>`).join('')}</div>`;
+  const indicatorHtml=!indicator?'':indicator.kind==='counter'?`<div class="p-carousel-counter" aria-live="polite"><bdi dir="ltr">${indicator.text}</bdi></div>`:`<div class="p-carousel-dots">${options.map((option,position)=>`<span class="${position===index?'active':''}"></span>`).join('')}</div>`;
   return `<div class="p-carousel ${layout==='row'?'p-row':''}" data-carousel data-layout="${layout}" data-count="${count}"><div class="p-carousel-viewport"><div class="p-carousel-track" role="listbox" aria-label="בחירת משתתף">${items}</div></div>${indicatorHtml}</div>`;
 }
 const prefersReducedMotion=()=>Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
@@ -594,10 +594,13 @@ function commitParticipant(value,refocus){
   // item so the arrow keys keep working after a click, a tap or a previous arrow press.
   if(refocus)document.querySelector('.p-carousel-item.selected')?.focus({preventScroll:true});
 }
+// Centers, not left edges: the faded neighbours are scaled to .88 about their centers, which skews the
+// left-edge distance by a few pixels and would make the committed render jump after the slide.
+const centerX=element=>{const rect=element.getBoundingClientRect();return rect.left+rect.width/2};
 function carouselSlotPx(carousel){
   const items=[...carousel.querySelectorAll('.p-carousel-item')];
   const selected=items.find(item=>item.dataset.pos==='selected'),neighbour=items.find(item=>item.dataset.pos==='next')||items.find(item=>item.dataset.pos==='prev');
-  return selected&&neighbour?Math.abs(selected.getBoundingClientRect().left-neighbour.getBoundingClientRect().left):0;
+  return selected&&neighbour?Math.abs(centerX(selected)-centerX(neighbour)):0;
 }
 function selectParticipant(carousel,value){
   if(participantBusy||value===(state.packingParticipantView||'shared'))return;
@@ -611,7 +614,7 @@ function selectParticipant(carousel,value){
   selected.classList.remove('selected');target.classList.add('selected');
   if(carousel.dataset.layout==='carousel'&&Number(carousel.dataset.count)>=3){
     track.style.transition='transform 180ms ease-out';
-    track.style.transform=`translateX(${selected.getBoundingClientRect().left-target.getBoundingClientRect().left}px)`;
+    track.style.transform=`translateX(${centerX(selected)-centerX(target)}px)`;
   }
   setTimeout(()=>commitParticipant(value,true),190);
 }

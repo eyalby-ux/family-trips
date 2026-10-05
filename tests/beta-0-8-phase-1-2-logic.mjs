@@ -206,6 +206,12 @@ if(process.argv.includes('--child')){
   t('P11-F17 the phone uses the carousel for any participant count (the chips are gone) with a counter above 6',()=>{
     assert.ok(!app.includes('participantChips'));
     assert.match(fnBody('participantCarousel'),/p-carousel-counter/);
+    // Found live: under RTL a bare "1 / 7" rendered as "7 / 1"; numbers inside Hebrew text are <bdi>-wrapped (spec §3)
+    assert.match(fnBody('participantCarousel'),/<bdi dir="ltr">\$\{indicator\.text\}<\/bdi>/);
+  });
+  t('P11-F14 the slide distance is measured between item centers, so the faded (scaled) neighbour cannot skew where it lands',()=>{
+    assert.match(app,/const centerX=element=>\{const rect=element\.getBoundingClientRect\(\);return rect\.left\+rect\.width\/2\};/);
+    assert.match(app,/translateX\(\$\{centerX\(selected\)-centerX\(target\)\}px\)/);
   });
   t('P11-F13 one compact task row serves Quick Access and the Tasks screen; delete moved into the edit screen',()=>{
     const row=app.slice(app.indexOf('function taskRow(task){'),app.indexOf('\n',app.indexOf('function taskRow(task){')));
