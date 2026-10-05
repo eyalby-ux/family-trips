@@ -160,11 +160,15 @@ bdi,.bidi{unicode-bidi:isolate}
 .quick-links{display:flex;gap:8px;flex-wrap:nowrap}
 .quick-links .btn{padding:6px 12px;font-size:14px;min-height:44px;white-space:nowrap}
 /* P11-F13: compact ~56px task rows (Quick Access and the Tasks screen share one design) */
-.task-compact{display:flex;align-items:center;gap:8px;min-height:56px;margin-top:8px;padding:6px 10px;border:1px solid var(--border);border-radius:16px;background:var(--surface)}
+.task-compact{display:flex;align-items:center;gap:8px;min-height:56px;margin-top:8px;padding:2px 10px;border:1px solid var(--border);border-radius:16px;background:var(--surface)}
 .task-compact input[type="checkbox"]{flex:0 0 auto;width:22px;height:22px;margin:11px}
 .task-compact-main{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:4px 0;background:transparent;border:0;text-align:right;color:var(--ink);font:inherit;cursor:pointer}
 .task-compact-main b{max-width:100%;font-size:16px;font-weight:600;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.task-compact-main small{max-width:100%;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.task-compact-main small{max-width:100%;font-size:14px;line-height:20px}
+/* the priority chip comes first and never shrinks, so the ellipsis only ever eats the date/participant text */
+.task-meta{display:flex;align-items:center;gap:6px;min-width:0}
+.task-meta .badge{flex:0 0 auto;padding:0 8px;font-size:13px;line-height:20px}
+.task-meta-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .task-compact.done b{text-decoration:line-through;color:var(--muted)}
 /* P11-F11: a document row wraps -- filename on one line with an ellipsis, the controls on a second row */
 .row.source-doc-row{flex-wrap:wrap}
@@ -179,3 +183,10 @@ bdi,.bidi{unicode-bidi:isolate}
 @media (prefers-reduced-motion: reduce){
   .p-carousel-item,.p-carousel-track,.day-item[data-swipe-end]{transition:none !important}
 }
+/* P11-F11 (root cause of the remaining overflow): a .list grid's single auto column grew to fit a
+   no-wrap child (the document filename), pushing the whole page wider than the screen -- let the
+   column shrink so the ellipsis can do its job. */
+.list{grid-template-columns:minmax(0,1fr)}
+/* P11-F13 at 320px: the one-line Quick Access header needs ~266px but a 320px phone has 246px inside
+   the card, so below 340px it may wrap instead of overflowing the page by a pixel. */
+@media(max-width:340px){.quick-head{flex-wrap:wrap}.quick-links{flex-wrap:wrap}}

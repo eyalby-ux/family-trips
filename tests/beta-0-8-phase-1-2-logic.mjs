@@ -52,6 +52,17 @@ if(process.argv.includes('--child')){
     const long=item('long','activity',9,0,{endAt:stamp(10)});
     assert.equal(planToday([long,c],at(12,0)).leading?.id,'long');
   });
+  check('F1 ending the current item does not resurrect an earlier, already-passed item as current (found live on qa)',()=>{
+    const p=planToday([a,{...b,endedAt:'2026-10-04T12:20:00.000Z'}],at(12,30));
+    assert.equal(p.current,null);assert.equal(p.leading,null);assert.equal(ids(p.plan),'');assert.equal(ids(p.done),'a,b');
+  });
+  check('F1 ...and with something upcoming the upcoming item leads while both earlier items stay in the done section',()=>{
+    const p=planToday([a,{...b,endedAt:'x'},c],at(12,30));
+    assert.equal(p.leading?.id,'c');assert.equal(ids(p.plan),'');assert.equal(ids(p.done),'a,b');
+  });
+  check('F1 restoring the ended item (endedAt cleared) makes it current again',()=>{
+    const p=planToday([a,{...b,endedAt:''},c],at(12,30));assert.equal(p.leading?.id,'b');assert.equal(ids(p.plan),'c');assert.equal(ids(p.done),'a');
+  });
   check('F1 nothing today -> empty split',()=>{
     const p=planToday([],at(10,0));assert.equal(p.leading,null);assert.equal(ids(p.plan),'');assert.equal(ids(p.done),'');
   });

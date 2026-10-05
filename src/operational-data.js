@@ -303,15 +303,23 @@ export function itemStartMs(item){
 // leading; otherwise the most recently started item stays leading ("עכשיו") until the next item's
 // start time; with nothing to hand off to (the last item of the day) it auto-clears 3h after its
 // own start; an item the user ended (endedAt) never leads.
+// Phase 1.2: "current" is the most recently STARTED item counting ended ones too -- if that item is
+// ended there is simply no current item, rather than an older, already-superseded item coming
+// back as current (found live on qa: ending the 19:00 item resurrected the 17:00 one).
+function dayState(todayItems,now){
+  const nowMs=now.getTime(),byStart=(a,b)=>itemStartMs(a)-itemStartMs(b);
+  const timed=todayItems.filter(item=>item.startAt).sort(byStart);
+  const live=timed.filter(item=>!item.endedAt);
+  const upcoming=live.filter(item=>itemStartMs(item)>nowMs);
+  const latest=timed.filter(item=>itemStartMs(item)<=nowMs).at(-1)||null;
+  const current=latest&&!latest.endedAt&&(upcoming.length||nowMs-itemStartMs(latest)<THREE_HOURS_MS)?latest:null;
+  return {nowMs,byStart,live,upcoming,current};
+}
 export function selectLeading(todayItems,now=new Date()){
-  const nowMs=now.getTime();
-  const live=todayItems.filter(item=>item.startAt&&!item.endedAt).sort((a,b)=>itemStartMs(a)-itemStartMs(b));
+  const {nowMs,live,upcoming,current}=dayState(todayItems,now);
   const preempting=live.find(item=>TRANSPORT_TYPES.includes(item.type)&&itemStartMs(item)>nowMs&&itemStartMs(item)-nowMs<=THREE_HOURS_MS);
   if(preempting)return preempting;
-  const upcoming=live.filter(item=>itemStartMs(item)>nowMs);
-  const current=live.filter(item=>itemStartMs(item)<=nowMs).at(-1);
-  if(current&&(upcoming.length||nowMs-itemStartMs(current)<THREE_HOURS_MS))return current;
-  return upcoming[0]||null;
+  return current||upcoming[0]||null;
 }
 // Beta 0.8 Phase 1.2 (P11-F1/F7): splits today's items into the leading card, the plan, and the
 // done section. `current` is the most recently started, not-ended item (the one that stays "עכשיו"
@@ -321,12 +329,8 @@ export function selectLeading(todayItems,now=new Date()){
 // when something else (a pre-empting transport item) holds the leading slot.
 // endAt is deliberately never consulted (Product Owner rule, Phase 1.2 scope).
 export function planToday(todayItems,now=new Date()){
-  const nowMs=now.getTime(),byStart=(a,b)=>itemStartMs(a)-itemStartMs(b);
-  const live=todayItems.filter(item=>item.startAt&&!item.endedAt).sort(byStart);
-  const started=live.filter(item=>itemStartMs(item)<=nowMs),upcoming=live.filter(item=>itemStartMs(item)>nowMs);
-  const latest=started.at(-1)||null;
-  const autoCleared=Boolean(latest)&&!upcoming.length&&nowMs-itemStartMs(latest)>=THREE_HOURS_MS;
-  const current=latest&&!autoCleared?latest:null;
+  const {nowMs,byStart,live,upcoming,current}=dayState(todayItems,now);
+  const started=live.filter(item=>itemStartMs(item)<=nowMs);
   const leading=selectLeading(todayItems,now);
   const plan=[...upcoming,...(current?[current]:[])].filter(item=>item!==leading).sort(byStart);
   const done=[...todayItems.filter(item=>item.endedAt),...started.filter(item=>item!==current)].sort(byStart);
