@@ -58,7 +58,7 @@ The last item of a day should leave the lead 3 hours after it started; a transpo
 
 **Expect:** With nothing left to hand off to, the last item shows as "עכשיו" until exactly 3 hours after its start, then the lead clears (calm-day layout, game suggestion) and it sits in the done section. A genuine 3-hour wait is optional if you trust the check below.
 
-**Development Agent spot-check (qa):** ☑ run on **real items under a simulated clock** in the live bundle: tomorrow\'s 16:30 item led as "עכשיו" at 16:30 and at 19:29, and at exactly 19:30 it left the lead (done section 2, header date correct). The 3h-before pre-emption boundary is covered by the automated tests under four timezones. Not a real 3-hour wait.
+**Development Agent spot-check (qa):** ☑ run on **real items under a simulated clock** in the live bundle: tomorrow's 16:30 item led as "עכשיו" at 16:30 and at 19:29, and at exactly 19:30 it left the lead (done section 2, header date correct). The 3h-before pre-emption boundary is covered by the automated tests under four timezones. Not a real 3-hour wait.
 **Result:** ☐
 
 ## Test 5 — `P11-F5`: rescheduling an ended item
@@ -97,14 +97,14 @@ On an item with a document confirmed as ticket coverage, tap "כרטיסים" on
 
 Look at Today's Quick Access card and then the Tasks screen (from "משימות").
 
-**Expect:** The header — "גישה מהירה", "משימות", "קניות (N)" — is on **one line**. Each task row is a compact ~56px row: checkbox, the title, and one meta line that starts with the **priority chip** (High: dark text on the soft warm fill; Normal/Low: plain bordered chip) then the date and participant. **Tapping a row opens that task for editing**; there is no delete button on the row. The task\'s edit screen has "שמירה" pinned at the bottom and a red "מחיקת המשימה" (existing tasks only) that asks for confirmation. The same design appears on the Tasks screen. Equipment rows in Packing keep their delete button.
+**Expect:** The header — "גישה מהירה", "משימות", "קניות (N)" — is on **one line**. Each task row is a compact ~56px row: checkbox, the title, and one meta line that starts with the **priority chip** (High: dark text on the soft warm fill; Normal/Low: plain bordered chip) then the date and participant. **Tapping a row opens that task for editing**; there is no delete button on the row. The task's edit screen has "שמירה" pinned at the bottom and a red "מחיקת המשימה" (existing tasks only) that asks for confirmation. The same design appears on the Tasks screen. Equipment rows in Packing keep their delete button.
 
 **Development Agent spot-check (qa, emulated 375px):** ☑ header 44px tall (one line); ☑ rows 58–60px with the chip first; below 340px the header is allowed to wrap. **Not exercised:** deleting a task through the edit screen (no throwaway task was created), and a real phone.
 **Result:** ☐
 
 ## Test 9 — Phase 1.1 Test 10: the participant carousel (`P11-F14`, `P11-F15`, `P11-F17`)
 
-On Packing, on the phone, with the QA Trip\'s 6 options: swipe both ways, tap a neighbor, and (computer) click a neighbor and then press the arrow keys. Also try a fast swipe.
+On Packing, on the phone, with the QA Trip's 6 options: swipe both ways, tap a neighbor, and (computer) click a neighbor and then press the arrow keys. Also try a fast swipe.
 
 **Expect:** The selected option centered at full size, one neighbor each side, faded; at the first option the previous neighbor is the **last** option (it loops). One swipe/tap/arrow moves exactly one option, even on a fast swipe. The row **follows your finger and slides one position** (about 180ms) when released; a short drag snaps back. Dots show the real position. With 7 or more participants a **"N / total"** counter (such as "1 / 7") replaces the dots, readable left-to-right. On the computer, after a **mouse click** on a neighbor the arrow keys still work (focus stays on the selected option). With exactly 2 options both show side by side with no repeats. With "reduce motion" on, selection is instant.
 
@@ -117,7 +117,7 @@ On the computer, open Packing in a wide window, then narrow the window below abo
 
 **Expect:** In a wide window where everyone fits, **all participants are side by side on one line**, the selected one highlighted and the others faded, clicking selects, no dots and no counter. Narrowing the window below 768px, or to a width where they no longer fit, turns it into the carousel **without reloading**; widening it turns it back. (The landscape phone case: if the phone is ≥768px wide and everyone fits, it becomes the row; otherwise it stays a carousel.) Please tell the Development Agent the breakpoint reads right: 768px plus a measured fit.
 
-**Development Agent spot-check (qa):** ☑ at 1280px: 7 participants in a row, all inside the container, others faded, no indicator; ☑ the resize listener, triggered by dispatching the event, switched row → carousel (5 mounted). **Not exercised:** a native window resize or rotation — the emulated pane does not fire the browser\'s own `resize` event (0 fired), so this one is genuinely open for a real window.
+**Development Agent spot-check (qa):** ☑ at 1280px: 7 participants in a row, all inside the container, others faded, no indicator; ☑ the resize listener, triggered by dispatching the event, switched row → carousel (5 mounted). **Not exercised:** a native window resize or rotation — the emulated pane does not fire the browser's own `resize` event (0 fired), so this one is genuinely open for a real window.
 **Result:** ☐
 
 ## Test 11 — Phase 1.1 Test 11: Packing header (`P11-F17` of Phase 1.1)
@@ -129,7 +129,7 @@ On the computer, open Packing in a wide window, then narrow the window below abo
 
 ## Test 12 — `P11-F4`: the Beta label
 
-**Expect:** The browser tab reads "Family Trips · Beta 0.8.0-phase1.2"; the sign-in screen\'s kicker reads "Beta 0.8.0-phase1.2" (not a bare "Beta" or "Alpha"); the header subtitle on the first-run landing banner uses the same.
+**Expect:** The browser tab reads "Family Trips · Beta 0.8.0-phase1.2"; the sign-in screen's kicker reads "Beta 0.8.0-phase1.2" (not a bare "Beta" or "Alpha"); the header subtitle on the first-run landing banner uses the same.
 
 **Development Agent spot-check (qa):** ☑ the tab title is "Family Trips · Beta 0.8.0-phase1.2". **Not exercised:** the sign-in screen (the pane was signed in).
 **Result:** ☐
