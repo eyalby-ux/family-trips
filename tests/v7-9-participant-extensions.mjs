@@ -219,14 +219,26 @@ function test_0_7_9_task_filter_participant_change_handler_and_clear_are_wired()
 
 // --- Finding 4: permanent delete for Tasks and Equipment ----------------------------------------
 
+// Beta 0.8 Phase 1.2 (P11-F13, Product Owner decision 2026-10-05): this test used to pin a visible
+// delete button on EVERY task row. That is deliberately reversed for tasks -- on a phone the red
+// button on each row was easy to mis-tap -- so the task row is now compact (tap opens the task) and
+// "מחיקת המשימה" lives inside the task edit screen, still behind the confirm below. Equipment rows
+// (packRow) are unchanged and keep their row-level delete. Permanent delete for tasks itself, with
+// a confirmation, is preserved; only its location moved.
 function test_0_7_9_taskRow_and_packRow_offer_a_delete_button(){
   const taskStart=app.indexOf('function taskRow(task){');
-  assert(app.slice(taskStart,taskStart+900).includes('data-action="task-delete" data-id="${task.id}"'));
+  const taskRowSource=app.slice(taskStart,app.indexOf('\n',taskStart));
+  assert(!taskRowSource.includes('task-delete'),'the task row itself must no longer carry a delete button');
+  assert(taskRowSource.includes('data-action="task-edit" data-id="${task.id}"'),'tapping the task row opens it for edit');
+  const modalStart=app.indexOf('function simpleFormModal(){');
+  const taskModal=app.slice(modalStart,app.indexOf("if(type==='shopping'){",modalStart));
+  assert(taskModal.includes('data-action="task-delete" data-id="${task.id}"')&&taskModal.includes('${task.id?`'),'the task edit screen offers the delete, for an existing task only');
   const packStart=app.indexOf('function packRow(list,item){');
   assert(app.slice(packStart,packStart+900).includes('data-action="pack-delete" data-list="${list.id}" data-item="${item.id}"'));
 }
 function test_0_7_9_task_delete_and_pack_delete_handlers_confirm_before_permanently_removing(){
-  assert(app.includes("else if(action==='task-delete'){if(confirm('למחוק את המשימה לצמיתות?')){state.tasks=state.tasks.filter(x=>x.id!==button.dataset.id);save();render()}}"));
+  // Phase 1.2: the task delete now also closes the edit screen it is triggered from (state.modal=null).
+  assert(app.includes("else if(action==='task-delete'){if(confirm('למחוק את המשימה לצמיתות?')){state.tasks=state.tasks.filter(x=>x.id!==button.dataset.id);state.modal=null;save();render()}}"));
   assert(app.includes("else if(action==='pack-delete'){if(confirm('למחוק את פריט הציוד לצמיתות?')){const list=state.packing.find(x=>x.id===button.dataset.list);if(list)list.items=list.items.filter(x=>x.id!==button.dataset.item);save();render()}}"));
 }
 

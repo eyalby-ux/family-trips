@@ -418,15 +418,15 @@ test_V6_F23_import_rejects_malformed_trip_context_date();
 // version string is exactly what drifts). ---
 function test_V6_F24_index_html_version_synced_to_package_json(){
   const source=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
-  assert.match(source,new RegExp(`<title>Family Trips · Alpha ${APP_VERSION_PLACEHOLDER.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}</title>`),'index.html must hold the version placeholder in <title>, not a hardcoded literal that can go stale');
-  assert.match(source,new RegExp(`<meta name="description" content="Family Trips Alpha ${APP_VERSION_PLACEHOLDER.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}">`),'index.html must hold the version placeholder in <meta name="description">, not a hardcoded literal');
+  assert.match(source,new RegExp(`<title>Family Trips · Beta ${APP_VERSION_PLACEHOLDER.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}</title>`),'index.html must hold the version placeholder in <title>, not a hardcoded literal that can go stale');
+  assert.match(source,new RegExp(`<meta name="description" content="Family Trips Beta ${APP_VERSION_PLACEHOLDER.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}">`),'index.html must hold the version placeholder in <meta name="description">, not a hardcoded literal');
   assert(!/0\.5\.6|0\.6\.[0-3]\b/.test(source),'index.html must not contain a hardcoded stale version number');
 
   const pkg=JSON.parse(fs.readFileSync(new URL('../package.json',import.meta.url),'utf8'));
   const resolved=injectIndexHtmlVersion(source,pkg.version);
   assert(!resolved.includes(APP_VERSION_PLACEHOLDER),'the placeholder must be fully resolved in the built output');
-  assert.match(resolved,new RegExp(`<title>Family Trips · Alpha ${pkg.version}</title>`),'the resolved title must reflect the current package.json version');
-  assert.match(resolved,new RegExp(`<meta name="description" content="Family Trips Alpha ${pkg.version}">`),'the resolved description must reflect the current package.json version');
+  assert.match(resolved,new RegExp(`<title>Family Trips · Beta ${pkg.version}</title>`),'the resolved title must reflect the current package.json version');
+  assert.match(resolved,new RegExp(`<meta name="description" content="Family Trips Beta ${pkg.version}">`),'the resolved description must reflect the current package.json version');
 
   assert.throws(()=>injectIndexHtmlVersion('<title>no placeholder</title>','1.0.0'),'if the placeholder is ever accidentally removed from index.html, the build must fail loudly rather than silently shipping a stale title again');
 

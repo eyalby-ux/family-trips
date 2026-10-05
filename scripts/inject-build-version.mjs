@@ -60,7 +60,7 @@ function main() {
   let resolvedIndex = injectIndexHtmlVersion(fs.readFileSync(indexPath, 'utf8'), pkg.version);
   resolvedIndex = injectServiceWorkerVersion(resolvedIndex, buildVersion);
   fs.writeFileSync(indexPath, resolvedIndex);
-  console.log(`index.html title/description synced to Alpha ${pkg.version}, build meta synced to ${buildVersion}`);
+  console.log(`index.html title/description synced to Beta ${pkg.version}, build meta synced to ${buildVersion}`);
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {

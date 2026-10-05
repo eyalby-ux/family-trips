@@ -313,16 +313,47 @@ export function selectLeading(todayItems,now=new Date()){
   if(current&&(upcoming.length||nowMs-itemStartMs(current)<THREE_HOURS_MS))return current;
   return upcoming[0]||null;
 }
-// The first in-range item after today, only while it is near enough to be worth a line: within
-// 48h, or 7 days when it is a transport item.
+// Beta 0.8 Phase 1.2 (P11-F1/F7): splits today's items into the leading card, the plan, and the
+// done section. `current` is the most recently started, not-ended item (the one that stays "עכשיו"
+// until the next item starts); it only stays current while there is something upcoming to hand
+// off to, or for 3h after its own start. Done = items the user ended + items a later item has
+// superseded + a last item that has auto-cleared. `plan` = upcoming items plus the current item
+// when something else (a pre-empting transport item) holds the leading slot.
+// endAt is deliberately never consulted (Product Owner rule, Phase 1.2 scope).
+export function planToday(todayItems,now=new Date()){
+  const nowMs=now.getTime(),byStart=(a,b)=>itemStartMs(a)-itemStartMs(b);
+  const live=todayItems.filter(item=>item.startAt&&!item.endedAt).sort(byStart);
+  const started=live.filter(item=>itemStartMs(item)<=nowMs),upcoming=live.filter(item=>itemStartMs(item)>nowMs);
+  const latest=started.at(-1)||null;
+  const autoCleared=Boolean(latest)&&!upcoming.length&&nowMs-itemStartMs(latest)>=THREE_HOURS_MS;
+  const current=latest&&!autoCleared?latest:null;
+  const leading=selectLeading(todayItems,now);
+  const plan=[...upcoming,...(current?[current]:[])].filter(item=>item!==leading).sort(byStart);
+  const done=[...todayItems.filter(item=>item.endedAt),...started.filter(item=>item!==current)].sort(byStart);
+  return {leading,current,plan,done};
+}
+// P11-F8: the first item within 48h of now; if none qualifies, the first transport item within 7
+// days even when an ordinary item comes first but falls outside 48h. Only in-range items after
+// today, never an ended one.
 export function upNextItem(items,trip,now=new Date()){
-  const todayKey=today(now);
-  const first=items
+  const todayKey=today(now),nowMs=now.getTime();
+  const candidates=items
     .filter(item=>item.startAt&&!item.endedAt&&!['entire','none'].includes(item.schedule)&&String(item.startAt).slice(0,10)>todayKey&&!isItemOutsideTrip(item,trip))
-    .sort((a,b)=>itemStartMs(a)-itemStartMs(b))[0];
-  if(!first)return null;
-  const windowMs=(TRANSPORT_TYPES.includes(first.type)?7*24:48)*60*60*1000;
-  return itemStartMs(first)-now.getTime()<=windowMs?first:null;
+    .sort((a,b)=>itemStartMs(a)-itemStartMs(b));
+  const within=(item,hours)=>itemStartMs(item)-nowMs<=hours*60*60*1000;
+  return candidates.find(item=>within(item,48))||candidates.find(item=>TRANSPORT_TYPES.includes(item.type)&&within(item,7*24))||null;
+}
+// P11-F5: rescheduling an ended item to a time later than now un-ends it; any other edit keeps it.
+export function shouldClearEndedOnEdit(previousStartAt,nextStartAt,now=new Date()){
+  return Boolean(nextStartAt)&&nextStartAt!==previousStartAt&&itemStartMs({startAt:nextStartAt})>now.getTime();
+}
+// P11-F9: the short, one-line day label above the time in the up-next row: "מחר", or the weekday
+// letter plus day.month ("ו׳ 9.10") -- Israeli convention, no year.
+export function shortDayLabel(startAt,now=new Date()){
+  const start=new Date(String(startAt).length===10?`${startAt}T12:00:00`:startAt);
+  const tomorrow=new Date(now);tomorrow.setDate(tomorrow.getDate()+1);
+  if(today(start)===today(tomorrow))return 'מחר';
+  return `${new Intl.DateTimeFormat('he-IL',{weekday:'narrow'}).format(start)} ${new Intl.DateTimeFormat('he-IL',{day:'numeric',month:'numeric'}).format(start)}`;
 }
 function dateKey(date){return date.toISOString().slice(0,10)}
 

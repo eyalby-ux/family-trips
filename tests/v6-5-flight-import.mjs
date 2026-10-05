@@ -692,7 +692,7 @@ function test_V6_F31_landing_banner_synced_to_build_version_and_mentions_flight(
   // the document.title mechanism itself is asserted directly against app-version.js.
   assert.match(app,/import\s*\{\s*appVersionLabel\s*\}\s*from\s*['"]\.\/app-version\.js['"]/,'the banner\'s version label must come from the shared app-version.js module, not a private copy in v5-app.js');
   const versionModule=fs.readFileSync(new URL('../src/app-version.js',import.meta.url),'utf8');
-  assert.match(versionModule,/function appVersionLabel\(\)\{const match=String\(document\.title\|\|''\)\.match\(\/Alpha\\s\+/,'the shared version label must be derived from document.title (the same source __APP_VERSION__ resolves into at build time), not a hardcoded literal');
+  assert.match(versionModule,/function appVersionLabel\(\)\{const match=String\(document\.title\|\|''\)\.match\(\/Beta\\s\+/,'the shared version label must be derived from document.title (the same source __APP_VERSION__ resolves into at build time), not a hardcoded literal');
   assert.match(app,/\$\{appVersionLabel\(\)\} · Hotel \+ Flight Smart Import/,'the fallback subtitle must use the derived version label and mention Flight support, not just Hotel');
   console.log('PASS: V6-F31 the landing banner\'s version label is derived from the same build-version source as the tab title, and now mentions Flight support');
 }
@@ -714,8 +714,11 @@ function test_today_out_of_range_fallback_wiring(){
   // gates whether outOfRange is used at all, unchanged), and dayItemCard's own needs-attention
   // state (driven by the same conflict()/isItemOutsideTrip check) is what now carries the
   // "מחוץ לטווח" signal, in place of itemRow's badge.
-  assert.match(app,/const dayList=todayAll\.length\?todayAll:outOfRange;/,'Today must feed today\'s own items first into the leading/rest pipeline, only falling back to out-of-range items when there are none');
-  assert.match(app,/const todayList=rest\.length\?rest\.map\(item=>dayItemCard\(item\)\)\.join\(''\):dayList\.length\?'':/,'Today must render the real/fallback items through dayItemCard (which carries the "מחוץ לטווח" needs-attention state via conflict()), and only show the empty-state message when dayList itself is empty');
+  // Beta 0.8 Phase 1.2: `dayList`/`todayList` became `planItems`/`planBlock` when planToday() took
+  // over the leading/plan/done split (P11-F1) -- the fallback still replaces the plan only when it
+  // is non-empty (i.e. nothing today and nothing after), and renders through the same dayItemCard.
+  assert.match(app,/const planItems=outOfRange\.length\?outOfRange:split\.plan;/,'Today must show the out-of-range fallback items as the plan only when that fallback applies, otherwise today\'s own plan');
+  assert.match(app,/planItems\.map\(item=>dayItemCard\(item,\{current:item===split\.current\}\)\)\.join\(''\)/,'Today must render the real/fallback items through dayItemCard (which carries the "מחוץ לטווח" needs-attention state via conflict())');
   console.log('PASS: Today\'s out-of-range fallback is wired to show only when there is nothing else relevant, reusing the existing out-of-range badge/row rendering');
 }
 test_today_out_of_range_fallback_wiring();

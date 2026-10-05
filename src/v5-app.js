@@ -1,7 +1,8 @@
 import {ITEM_TYPES,TRANSPORT_MODES,TYPE_FIELDS,buildItemFormValues,confirmNeedsReviewField,createSuggestions,findPossibleDuplicates,flagReversedFlightDirection,isDismissibleWarning,manualCreateDefaults,mapsUrl,normalizeUrlInput,reconcileStaleNeedsReview,resolveMergeCandidate,resolveParticipantIdsFromDraft,scheduleForType,suggestionReviewDefaults,suggestionToItem,validateSource} from './ingestion.js';
 import {extractSourceContent,sha256File} from './content-extraction.js';
 import {MultipartQrCollector,decodeExternalText,importBatchToApp} from './external-import.js';
-import {availableTimelineModes,backfillTripDates,currentOperational,filterAndSortTasks,isDeletionEligible,isItemOutsideTrip,normalizeDateRange,normalizeOperationalState,packingDuplicate,periodBounds,QUARANTINE_DELETION_ELIGIBLE_DAYS,quickAccessTasks,sanitizeTripDates,shiftCursor,sortItemsByStartAt,TASK_DUE_SCOPES,TRANSPORT_TYPES,itemStartMs,selectLeading,today,uniqueRecordsById,upNextItem} from './operational-data.js';
+import {availableTimelineModes,backfillTripDates,currentOperational,filterAndSortTasks,isDeletionEligible,isItemOutsideTrip,normalizeDateRange,normalizeOperationalState,packingDuplicate,periodBounds,QUARANTINE_DELETION_ELIGIBLE_DAYS,quickAccessTasks,sanitizeTripDates,shiftCursor,sortItemsByStartAt,TASK_DUE_SCOPES,TRANSPORT_TYPES,itemStartMs,planToday,shortDayLabel,shouldClearEndedOnEdit,today,uniqueRecordsById,upNextItem} from './operational-data.js';
+import {carouselSlots,participantLayout,positionIndicator} from './participant-carousel.js';
 import {normalizeProposalLifecycle,rejectProposal} from './proposal-lifecycle.js';
 import {analyzeActivitySource,analyzeCarSource,analyzeFlightSource,analyzeHotelSource,analyzeInsuranceSource,analyzeSource} from './smart-import-client.js';
 import {MERGE_CONFLICT_WARNING_PREFIX,saveOnlySource,smartImportResultToSuggestion,preserveTrustedFieldsOnMerge} from './smart-import-adapter.js';
@@ -26,7 +27,7 @@ const EMPTY={trip:null,items:[],sources:[],suggestions:[],rejectedSuggestions:[]
 const qrCollector=new MultipartQrCollector();
 let cameraStream=null,cameraTimer=null;
 let timelineSwipeStartX=null;
-let suppressClickUntil=0,endSwipe=null;
+let suppressClickUntil=0;
 // Captured synchronously on file selection so an unrelated render() (which replaces the
 // whole #app tree, including the <input type=file>) can never wipe the chosen file — the
 // underlying cause of the file "disappearing" from Add and of the false "no document
@@ -383,14 +384,13 @@ const TABLER={
   check:'<path d="M5 12l5 5l10 -10"/>',
 };
 const tabler=name=>`<svg class="ti" viewBox="0 0 24 24" aria-hidden="true">${TABLER[name]}</svg>`;
-function dayItemActions(item,{endable=false}={}){
+function dayItemActions(item){
   const place=item.details?.canonicalPlace;
   const navHref=place?place.googleMapsUri||mapsUrl(`${place.latitude},${place.longitude}`):item.location?mapsUrl(mapSearchLocation(item)):'';
   return [
     navHref?`<a class="btn secondary" href="${esc(navHref)}" target="_blank" rel="noopener">${tabler('compass')} ניווט</a>`:'',
     item.website?`<a class="btn ghost" href="${esc(item.website)}" target="_blank" rel="noopener">${tabler('world')} אתר</a>`:'',
     hasConfirmedTicket(item)?`<button class="btn ghost" data-route="detail" data-id="${item.id}" data-anchor="item-tickets">${tabler('ticket')} כרטיסים</button>`:'',
-    endable?`<button class="btn ghost" data-action="item-end" data-id="${item.id}">${tabler('check')} הסתיים</button>`:'',
   ].filter(Boolean).join('');
 }
 const timeOnly=value=>value?new Intl.DateTimeFormat('he-IL',{hour:'2-digit',minute:'2-digit'}).format(new Date(value)):'';
@@ -411,43 +411,53 @@ function relativeTimeLabel(startAt){
 // needs-attention reuses conflict() (an item outside the Trip's own date range) -- the one
 // already-modeled "this needs a look" condition Today has actual data for; the spec's urgency
 // hierarchy doesn't tie this state to any specific Today data source itself (§4).
-// F6: manual "הסתיים" -- persisted on the item itself (a normal synced field, so every device and a
-// reload agree). Cleared to '' rather than deleted by item-unend, so both stay plain field writes.
+// F6: manual "סמן כהסתיים" -- persisted on the item itself (a normal synced field, so every device
+// and a reload agree). Cleared to '' rather than deleted (item-unend / "החזר"), so both stay plain
+// field writes. Phase 1.2 (P11-F1): an ended item now moves to the collapsed "הסתיימו היום" section
+// instead of vanishing, where "החזר" restores it.
 function endItem(id){const item=state.items.find(candidate=>candidate.id===id);if(!item)return;item.endedAt=new Date().toISOString();save();notify('הפריט סומן כהסתיים')}
 // F10a: a needs-attention card must say what is wrong. Out-of-range date is the only condition
 // Today has data for today (more conditions are backlog item F10b); with several, show a count.
 function attentionReasons(item){return conflict(item)?['התאריך מחוץ לטווח הטיול']:[]}
-// F6: only a leading item that has actually started can be ended early (button, or a horizontal
-// swipe on the card -- see the pointer listeners at the bottom of this file).
-function dayItemCard(item,{leading=false}={}){
+// Phase 1.2 (P11-F2/F7): only a started item (the leading one, or the current one waiting in the
+// plan while a transport item pre-empts the lead) can be ended early -- by the full-width
+// "סמן כהסתיים" button or a horizontal swipe on the card (pointer handlers at the bottom).
+function dayItemCard(item,{leading=false,current=false}={}){
   const reasons=attentionReasons(item),attention=reasons.length>0;
-  const endable=leading&&itemStartMs(item)<=Date.now();
+  const endable=(leading||current)&&itemStartMs(item)<=Date.now();
   const detail=TRANSPORT_TYPES.includes(item.type)?mapSearchLocation(item)||item.location:item.provider||item.location;
-  const timeArea=leading?`<bdi class="rel-time">${esc(relativeTimeLabel(item.startAt))}</bdi><span class="imminent-dot"></span><bdi>${esc(timeOnly(item.startAt))}</bdi>`:`<bdi>${esc(timeOnly(item.startAt))}</bdi>`;
-  const actions=dayItemActions(item,{endable});
-  return `<div class="day-item ${leading?'leading':''} ${attention?'needs-attention':''}" ${endable?`data-swipe-end="${item.id}"`:''}><button class="day-item-main" data-route="detail" data-id="${item.id}"><span class="day-item-time">${timeArea}</span><span class="day-item-body"><b>${attention?`<span class="urgency-icon-attention">${tabler('alert')}</span> `:''}${esc(item.title)}</b>${attention?`<p class="attention-reason">${reasons.length===1?reasons[0]:`${reasons.length} בעיות`}</p>`:''}${detail?`<p><bdi>${esc(detail)}</bdi>${item.confirmationNumber?` · <bdi>${esc(item.confirmationNumber)}</bdi>`:''}</p>`:''}</span></button>${actions?`<div class="day-item-actions">${actions}</div>`:''}</div>`;
+  const timeArea=leading?`<bdi class="rel-time">${esc(relativeTimeLabel(item.startAt))}</bdi><span class="imminent-dot"></span><bdi>${esc(timeOnly(item.startAt))}</bdi>`:current?`<bdi class="rel-time">עכשיו</bdi><bdi>${esc(timeOnly(item.startAt))}</bdi>`:`<bdi>${esc(timeOnly(item.startAt))}</bdi>`;
+  const actions=dayItemActions(item);
+  const endButton=endable?`<div class="day-item-end"><button class="end-btn" data-action="item-end" data-id="${item.id}">${tabler('check')} סמן כהסתיים</button></div>`:'';
+  return `<div class="day-item ${leading?'leading':''} ${current?'current':''} ${attention?'needs-attention':''}" ${endable?`data-swipe-end="${item.id}"`:''}><button class="day-item-main" data-route="detail" data-id="${item.id}"><span class="day-item-time">${timeArea}</span><span class="day-item-body"><b>${attention?`<span class="urgency-icon-attention">${tabler('alert')}</span> `:''}${esc(item.title)}</b>${attention?`<p class="attention-reason">${reasons.length===1?reasons[0]:`${reasons.length} בעיות`}</p>`:''}${detail?`<p><bdi>${esc(detail)}</bdi>${item.confirmationNumber?` · <bdi>${esc(item.confirmationNumber)}</bdi>`:''}</p>`:''}</span></button>${actions?`<div class="day-item-actions">${actions}</div>`:''}${endButton}</div>`;
 }
-// F3 (Fix B): a quiet "next in line" line below Today's plan -- never a card in the plan itself.
-// Always shows the day/date above the time (the old row showed time only, so a Jan 7 flight read as
-// happening today), no fill, no accent, no actions; tapping opens the item. upNextItem() decides
-// whether there is one at all (48h, or 7 days for transport; never an out-of-range item).
-function upNextLine(item){
-  const start=new Date(item.startAt.length===10?`${item.startAt}T12:00:00`:item.startAt);
-  const tomorrow=new Date();tomorrow.setDate(tomorrow.getDate()+1);
-  const day=today(start)===today(tomorrow)?'מחר':new Intl.DateTimeFormat('he-IL',{weekday:'short',day:'numeric',month:'short'}).format(start);
-  return `<button class="up-next" data-route="detail" data-id="${item.id}"><span class="up-next-when"><bdi>${esc(day)}</bdi><bdi>${esc(timeOnly(item.startAt))}</bdi></span><span class="up-next-body"><small class="muted">הבא בתור</small><b>${esc(item.title)}</b></span></button>`;
+// P11-F1: one greyed row in the collapsed "הסתיימו היום" section. "החזר" exists only for items the
+// user ended by hand (it clears endedAt, like the detail page's "ביטול"); an item that is here only
+// because a later one started, or because it auto-cleared, has nothing stored to undo and leaves
+// the section on its own once it is no longer today.
+function doneRow(item){
+  return `<div class="done-row"><button class="done-row-main" data-route="detail" data-id="${item.id}"><span class="done-row-time"><bdi>${esc(timeOnly(item.startAt))}</bdi></span><span class="done-row-title">${esc(item.title)}</span></button>${item.endedAt?`<button class="done-row-restore" data-action="item-unend" data-id="${item.id}">החזר</button>`:''}</div>`;
 }
+// F3 (Fix B) / P11-F9 / P11-F10: the quiet "next in line" row -- no box, no fill, no actions, never a
+// card in the plan itself. A short day label ("מחר" or "ו׳ 9.10") sits above the time so a future
+// item can never read as happening today. Under a plan it carries its own small "הבא בתור" label;
+// when nothing is left today it sits under a "הבא בתור" section heading instead (labelled:false).
+function upNextLine(item,{labelled=true}={}){
+  return `<button class="up-next" data-route="detail" data-id="${item.id}"><span class="up-next-when"><bdi>${esc(shortDayLabel(item.startAt))}</bdi><bdi>${esc(timeOnly(item.startAt))}</bdi></span><span class="up-next-body">${labelled?'<small class="muted">הבא בתור</small>':''}<b>${esc(item.title)}</b></span></button>`;
+}
+let doneTodayOpen=false;
 function todayView(){
   if(!state.trip)return empty();
   const op=currentOperational(state.items);
   // Beta 0.8 Phase 1.1 (F3): Today's plan lists ONLY today's own items. op.next used to be folded
   // into this list and rendered time-only, so a Jan 7 flight read as happening today -- it now
-  // appears separately, as the quiet "הבא בתור" line (upNextItem: within 48h, 7 days for transport,
-  // never out of range). An item the user ended (F6, endedAt) is gone from Today entirely.
-  const todayAll=op.todayItems.filter(item=>!item.endedAt);
+  // appears separately, as the quiet "הבא בתור" row (upNextItem: within 48h, else a transport item
+  // within 7 days; never out of range). Phase 1.2 (P11-F1): planToday() splits today's items into
+  // the leading card, the plan, and the done section (ended by hand, superseded, auto-cleared).
+  const split=planToday(op.todayItems);
   const upNext=upNextItem(state.items,state.trip);
   const pending=state.suggestions.filter(s=>['pending','deferred'].includes(s.status));
-  const eligibleTasks=state.tasks.filter(task=>!task.done),tasks=quickAccessTasks(eligibleTasks,today(),3),shownIds=new Set([...todayAll,upNext].filter(Boolean).map(item=>item.id));
+  const eligibleTasks=state.tasks.filter(task=>!task.done),tasks=quickAccessTasks(eligibleTasks,today(),3),shownIds=new Set([...op.todayItems,upNext].filter(Boolean).map(item=>item.id));
   const quick=uniqueRecordsById([op.currentHotel,op.nextTransport,...op.critical].filter(item=>item&&!shownIds.has(item.id)),5);
   const quickContent=tasks.length?tasks.map(taskRow).join(''):quick.length?`<div class="quick-grid">${quick.map(item=>`<button class="tile compact-tile" data-route="detail" data-id="${item.id}"><span class="ico">${ITEM_TYPES[item.type]?.icon}</span><b>${esc(item.title)}</b></button>`).join('')}</div>`:'';
   // F11-F13: the "ציוד" shortcut is gone (the Phase 1 nav's own "אריזה" item replaced it); "משימות"
@@ -458,24 +468,22 @@ function todayView(){
   // same "מחוץ לטווח" badge already shown in Trip Center/Timeline) when it has nothing else
   // relevant to show at all -- a real, in-range Today never gets these mixed in, so a bad date
   // extraction (e.g. FL-008's real 2025 boarding pass) surfaces somewhere instead of sitting
-  // unnoticed, without displacing genuinely current content. Unchanged by Phase 1.1: "nothing
+  // unnoticed, without displacing genuinely current content. Unchanged by Phase 1.1/1.2: "nothing
   // relevant" still means no item today and no item after today at all (op.todayItems / op.next).
   const outOfRange=op.todayItems.length||op.next?[]:sortItemsByStartAt(state.items.filter(item=>isItemOutsideTrip(item,state.trip)));
-  // Beta 0.8 Phase 1 (design spec V7 S4): the leading action card -- present, it's the "Busy
-  // day"/"Transit or flight day" case (one leading card + the compact remainder, no game
-  // suggestion); absent, it's the calm/free-day case: a plain compact list plus the spec's own "one
-  // game suggestion, only on a free day". Phase 1.1 (F6): selectLeading() compares on the device's
-  // own local clock (it used to compare local item times to a UTC string), keeps the current item
-  // as "עכשיו" until the next one starts, lets a transport item take over 3h before it departs, and
-  // auto-clears the last item of the day 3h after it started.
-  const dayList=todayAll.length?todayAll:outOfRange;
-  const leading=selectLeading(todayAll);
-  const rest=dayList.filter(item=>item!==leading);
+  const leading=split.leading;
+  const planItems=outOfRange.length?outOfRange:split.plan;
+  const nothingLeft=!leading&&!planItems.length;
   const suggestedGame=!leading&&state.games.length?[...state.games].sort((a,b)=>Number(b.favorite)-Number(a.favorite))[0]:null;
   const outOfRangeNote=outOfRange.length?'<p class="muted small">אין אירועים רלוונטיים היום — מוצגים פריטים מחוץ לטווח תאריכי הטיול לבדיקה.</p>':'';
-  const todayList=rest.length?rest.map(item=>dayItemCard(item)).join(''):dayList.length?'':'<div class="empty compact"><p class="muted">אין תכניות נוספות היום.</p></div>';
+  const planBlock=planItems.length?`<div class="today-section-label">היום בתכנית</div><div class="list">${planItems.map(item=>dayItemCard(item,{current:item===split.current})).join('')}</div>`:'';
+  // P11-F10: with nothing left today the plan heading becomes the "הבא בתור" heading over the quiet
+  // row; with nothing left and nothing coming, no heading at all (just a quiet line).
+  const upNextBlock=!upNext?'':nothingLeft?`<div class="today-section-label">הבא בתור</div>${upNextLine(upNext,{labelled:false})}`:upNextLine(upNext);
+  const emptyNote=nothingLeft&&!upNext?'<p class="muted today-empty">אין תכניות להיום.</p>':'';
+  const doneBlock=split.done.length?`<details class="done-today" ${doneTodayOpen?'open':''}><summary>הסתיימו היום (${split.done.length})</summary><div class="done-list">${split.done.map(doneRow).join('')}</div></details>`:'';
   const destinationLabel=(state.trip.destinationCountries||[]).join('، ');
-  return `<section class="card hero"><h2>היום</h2><p class="today-status">${destinationLabel?`${esc(destinationLabel)} · `:''}${fmt(today(),false)}</p>${outOfRangeNote}${leading?dayItemCard(leading,{leading:true}):''}<div class="today-section-label">היום בתכנית</div><div class="list">${todayList}</div>${upNext?upNextLine(upNext):''}${suggestedGame?`<div class="row day-item"><span class="row-main"><b>🎲 ${esc(suggestedGame.title)}</b><small class="muted">הצעת משחק ליום פנוי</small></span><button class="btn ghost" data-route="games">כל המשחקים</button></div>`:''}</section><section class="card"><div class="section-head"><h3>גישה מהירה</h3>${quickLinks}</div>${quickContent}</section>${pending.length?`<section class="card"><div class="section-head"><h3>הצעות לבדיקה</h3><span class="badge warn">${pending.length}</span></div><div class="list">${pending.map(suggestionRow).join('')}</div></section>`:''}`;
+  return `<section class="card hero"><h2>היום</h2><p class="today-status">${destinationLabel?`${esc(destinationLabel)} · `:''}${fmt(today(),false)}</p>${outOfRangeNote}${leading?dayItemCard(leading,{leading:true}):''}${planBlock}${upNextBlock}${emptyNote}${doneBlock}${suggestedGame?`<div class="row day-item"><span class="row-main"><b>🎲 ${esc(suggestedGame.title)}</b><small class="muted">הצעת משחק ליום פנוי</small></span><button class="btn ghost" data-route="games">כל המשחקים</button></div>`:''}</section><section class="card"><div class="section-head quick-head"><h3>גישה מהירה</h3>${quickLinks}</div>${quickContent}</section>${pending.length?`<section class="card"><div class="section-head"><h3>הצעות לבדיקה</h3><span class="badge warn">${pending.length}</span></div><div class="list">${pending.map(suggestionRow).join('')}</div></section>`:''}`;
 }
 function timelineCalendar(bounds){
   const cursor=state.timelineCursor||state.trip.startDate||today(),base=new Date(`${cursor}T12:00:00`),year=base.getFullYear(),month=base.getMonth(),first=new Date(year,month,1),last=new Date(year,month+1,0),cells=[];
@@ -539,7 +547,7 @@ function center(){
 // detailView's own per-item document list (never the generic Trip Center "documents" category
 // page, which shows every source across the whole Trip with no single owning item), so the
 // remove button only ever appears where there's a real item to unlink from.
-function sourceRow(source,itemType,itemId){const available=source.kind==='link'||source.storedOffline;const analyzing=source.processingState==='processing';const canAnalyze=!analyzing&&source.kind!=='link'&&['saved_only','failed'].includes(source.processingState)&&source.storedOffline;const participantNames=(source.participantIds||[]).map(id=>state.participants.find(p=>p.id===id)?.name).filter(Boolean);const ticketEligible=['flight','activity','car'].includes(itemType);const canOfferTicket=ticketEligible&&participantNames.length&&!source.ticketConfirmed;const ticketControls=source.ticketConfirmed?`<span class="badge blue">כרטיס מאושר</span><label class="checkbox-field"><input type="checkbox" data-action="source-ticket-toggle-used" data-id="${source.id}" ${source.ticketUsed?'checked':''}> נוצל</label>`:canOfferTicket?`<button class="btn secondary" data-action="source-confirm-ticket" data-id="${source.id}">אישור ככיסוי כרטיס</button>`:'';return `<div class="row"><span class="row-main"><b>${source.kind==='link'?'🔗':'📎'} ${esc(source.name||source.url)}</b><small class="muted">${source.kind==='link'?'קישור':'מסמך'} · ${esc(source.status)} · ${available?'זמין':'הקובץ אינו זמין אופליין'}${participantNames.length?` · שויך ל: ${esc(participantNames.join(', '))}`:''}</small></span>${analyzing?'<span class="badge blue">מנתח…</span>':''}${source.processingState==='failed'?'<span class="badge warn">ניתוח נכשל</span>':''}${state.participants.length?`<button class="btn ghost" data-action="source-edit-participants" data-id="${source.id}">שיוך למשתתף</button>`:''}${ticketControls}${canAnalyze?`<button class="btn secondary" data-action="analyze-source" data-id="${source.id}">ניתוח חכם</button>`:''}${source.kind==='link'?`<a class="btn ghost" href="${esc(source.url)}" target="_blank" rel="noopener">פתיחה</a>`:available?`<button class="btn ghost" data-action="open-source" data-id="${source.id}">פתיחה</button>`:'<span class="badge warn">מטא־נתונים בלבד</span>'}${itemId?`<button class="btn danger" data-action="source-unlink" data-id="${source.id}" data-item-id="${itemId}">הסרה</button>`:''}</div>`}
+function sourceRow(source,itemType,itemId){const available=source.kind==='link'||source.storedOffline;const analyzing=source.processingState==='processing';const canAnalyze=!analyzing&&source.kind!=='link'&&['saved_only','failed'].includes(source.processingState)&&source.storedOffline;const participantNames=(source.participantIds||[]).map(id=>state.participants.find(p=>p.id===id)?.name).filter(Boolean);const ticketEligible=['flight','activity','car'].includes(itemType);const canOfferTicket=ticketEligible&&participantNames.length&&!source.ticketConfirmed;const ticketControls=source.ticketConfirmed?`<span class="badge blue">כרטיס מאושר</span><label class="checkbox-field"><input type="checkbox" data-action="source-ticket-toggle-used" data-id="${source.id}" ${source.ticketUsed?'checked':''}> נוצל</label>`:canOfferTicket?`<button class="btn secondary" data-action="source-confirm-ticket" data-id="${source.id}">אישור ככיסוי כרטיס</button>`:'';return `<div class="row source-doc-row"><span class="row-main"><b>${source.kind==='link'?'🔗':'📎'} ${esc(source.name||source.url)}</b><small class="muted">${source.kind==='link'?'קישור':'מסמך'} · ${esc(source.status)} · ${available?'זמין':'הקובץ אינו זמין אופליין'}${participantNames.length?` · שויך ל: ${esc(participantNames.join(', '))}`:''}</small></span>${analyzing?'<span class="badge blue">מנתח…</span>':''}${source.processingState==='failed'?'<span class="badge warn">ניתוח נכשל</span>':''}${state.participants.length?`<button class="btn ghost" data-action="source-edit-participants" data-id="${source.id}">שיוך למשתתף</button>`:''}${ticketControls}${canAnalyze?`<button class="btn secondary" data-action="analyze-source" data-id="${source.id}">ניתוח חכם</button>`:''}${source.kind==='link'?`<a class="btn ghost" href="${esc(source.url)}" target="_blank" rel="noopener">פתיחה</a>`:available?`<button class="btn ghost" data-action="open-source" data-id="${source.id}">פתיחה</button>`:'<span class="badge warn">מטא־נתונים בלבד</span>'}${itemId?`<button class="btn danger" data-action="source-unlink" data-id="${source.id}" data-item-id="${itemId}">הסרה</button>`:''}</div>`}
 
 function gamesView(){const games=[...state.games].sort((a,b)=>Number(b.favorite)-Number(a.favorite));return `<section class="card"><h2>🎲 Games / Activities</h2><p class="muted">ההוראות נשמרות מקומית וזמינות גם ללא אינטרנט.</p><div class="game-grid">${games.map(game=>`<article class="card game-card"><div class="section-head"><h3>${esc(game.title)}</h3><button class="icon-btn ${game.favorite?'favorite':''}" data-action="game-favorite" data-id="${game.id}" aria-label="מועדף">★</button></div><p>${esc(game.instructions)}</p><dl><dt>ציוד</dt><dd>${esc(game.items)}</dd><dt>מתאים ל</dt><dd>${esc(game.participants)}</dd><dt>משך</dt><dd>${esc(game.duration)}</dd></dl></article>`).join('')}</div></section>`}
 // 0.7.4: shared list + personal list per participant, with switching between them (MVP scope's
@@ -551,28 +559,63 @@ function visiblePackingItems(list){
   if(view==='shared')return items.filter(item=>!(item.participantIds||[]).length);
   return items.filter(item=>!(item.participantIds||[]).length||(item.participantIds||[]).includes(view));
 }
-// Beta 0.8 Phase 1 (design spec V7 S5), reworked in Phase 1.1 (F15/F16/F18): the participant
-// selection carousel. It no longer scrolls: it renders only the selected option plus one neighbour
-// on each side (previous / next, wrapping around when there are 3 or more options -- an endless
-// loop that never dead-ends at two visible), and a swipe, an arrow key or a tap simply selects the
-// previous/next option and re-renders. One swipe therefore moves exactly one option by
-// construction (F15), with no scroll-snap or overshoot to tune. Exactly 2 options: both shown, no
-// loop, no repeats. Dots show the selected option's real position. Per §5 this suits 2-6 options;
-// from 7 the caller uses participantChips() instead ("do not use a carousel for a long list").
-// data-pos (prev/selected/next) is what the pointer and keydown delegates at the bottom of this
-// file act on.
+// Beta 0.8 Phase 1 (design spec V7 S5), reworked in Phase 1.1 and again in Phase 1.2
+// (P11-F14..F17): the participant selection control. Two layouts, chosen from the measured width
+// (participant-carousel.js, participantLayout): on a phone -- or whenever everyone does not fit on
+// one line -- a carousel; on a wide screen where everyone fits, a plain row of all participants
+// side by side (selected highlighted, others faded, no dots, no loop).
+// The carousel mounts five options (selected +-2, wrapping at 3+) so a neighbour can slide in from
+// off-screen; the outer two are clipped and hidden from assistive tech. A drag, tap or arrow key
+// selects exactly one neighbour: the track slides one position (160-220ms ease-out, skipped under
+// prefers-reduced-motion), and only when it lands is the screen re-rendered -- render() rebuilds
+// the DOM, which would otherwise kill the transition. Dots up to 6 options, a "4 / 9" counter above.
+// data-pos (prev/selected/next) is what the pointer and keydown delegates act on.
+function packingParticipantCount(){return 1+state.participants.filter(participant=>participant.active!==false).length}
+function currentParticipantLayout(count){
+  return participantLayout({count,viewportWidth:window.innerWidth,availableWidth:Math.min(window.innerWidth,1080)-74});
+}
+let lastParticipantLayout=null;
 function participantCarousel(options,selectedValue,action){
   const count=options.length,index=Math.max(0,options.findIndex(([value])=>value===selectedValue));
-  const at=position=>options[(position+count)%count];
-  const slots=count>=3?[[at(index-1),'prev'],[at(index),'selected'],[at(index+1),'next']]:options.map((option,position)=>[option,position===index?'selected':position<index?'prev':'next']);
-  return `<div class="p-carousel" data-carousel><div class="p-carousel-track" role="listbox" aria-label="בחירת משתתף">${slots.map(([[value,label],pos])=>`<button class="p-carousel-item ${pos}" role="option" aria-selected="${pos==='selected'}" data-action="${action}" data-participant="${value}" data-pos="${pos}"><span class="p-carousel-avatar">${esc(label.slice(0,1))}</span><span>${esc(label)}</span></button>`).join('')}</div><div class="p-carousel-dots">${options.map((option,position)=>`<span class="${position===index?'active':''}"></span>`).join('')}</div></div>`;
+  const layout=currentParticipantLayout(count);lastParticipantLayout=layout;
+  const items=carouselSlots(count,index,layout).map(({optionIndex,pos,hidden})=>{
+    const [value,label]=options[optionIndex];
+    return `<button class="p-carousel-item ${pos}" role="option" aria-selected="${pos==='selected'}" ${hidden?'aria-hidden="true" tabindex="-1"':''} data-action="${action}" data-participant="${value}" data-pos="${pos}"><span class="p-carousel-avatar">${esc(label.slice(0,1))}</span><span>${esc(label)}</span></button>`;
+  }).join('');
+  const indicator=layout==='row'?null:positionIndicator(count,index);
+  const indicatorHtml=!indicator?'':indicator.kind==='counter'?`<div class="p-carousel-counter" aria-live="polite">${indicator.text}</div>`:`<div class="p-carousel-dots">${options.map((option,position)=>`<span class="${position===index?'active':''}"></span>`).join('')}</div>`;
+  return `<div class="p-carousel ${layout==='row'?'p-row':''}" data-carousel data-layout="${layout}" data-count="${count}"><div class="p-carousel-viewport"><div class="p-carousel-track" role="listbox" aria-label="בחירת משתתף">${items}</div></div>${indicatorHtml}</div>`;
 }
-// F18: 7+ options -- compact chips in one horizontally scrollable row (ink selected, white/bordered
-// others, no terracotta fill, no wrapping), instead of the old large wrapping button grid.
-function participantChips(options,selectedValue,action){
-  return `<div class="p-chips" role="listbox" aria-label="בחירת משתתף">${options.map(([value,label])=>`<button class="p-chip ${selectedValue===value?'selected':''}" role="option" aria-selected="${selectedValue===value}" data-action="${action}" data-participant="${value}">${esc(label)}</button>`).join('')}</div>`;
+const prefersReducedMotion=()=>Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
+let participantBusy=false;
+function commitParticipant(value,refocus){
+  participantBusy=false;state.packingParticipantView=value;render();
+  // P11-F15: every selection re-renders, which drops focus to <body>; put it back on the selected
+  // item so the arrow keys keep working after a click, a tap or a previous arrow press.
+  if(refocus)document.querySelector('.p-carousel-item.selected')?.focus({preventScroll:true});
 }
-function packingView(){if(!state.trip)return empty();const activeParticipants=state.participants.filter(participant=>participant.active!==false);const participantOptions=[['shared','משותף'],...activeParticipants.map(participant=>[participant.id,participant.name])];return `<section class="card"><div class="section-head"><div><h2>רשימות אריזה</h2><p class="muted">פריטים שסומנו עוברים לאזור "נארזו" וניתן להחזירם.</p></div><button class="btn" data-action="add-list">קטגוריה חדשה</button></div>${!activeParticipants.length?'':participantOptions.length<=6?participantCarousel(participantOptions,state.packingParticipantView||'shared','packing-view-participant'):participantChips(participantOptions,state.packingParticipantView||'shared','packing-view-participant')}${state.packing.map(list=>{const visible=visiblePackingItems(list),active=visible.filter(item=>!item.done),packed=visible.filter(item=>item.done),collapsed=state.packingCollapsed[list.id];return `<section class="card nested"><button class="section-head collapse-button" data-action="pack-collapse" data-list="${list.id}"><h3>${esc(list.name)}</h3><span class="badge">${packed.length}/${visible.length}</span></button>${collapsed?'':`<div class="progress"><span style="width:${visible.length?packed.length/visible.length*100:0}%"></span></div>${active.map(packRow.bind(null,list)).join('')||'<p class="muted">הכול נארז.</p>'}<button class="btn secondary" data-action="pack-add" data-list="${list.id}">הוספת פריט</button>${packed.length?`<details ${state.packedCollapsed?'':'open'}><summary>נארזו (${packed.length})</summary>${packed.map(packRow.bind(null,list)).join('')}</details>`:''}`}</section>`}).join('')}</section>`}
+function carouselSlotPx(carousel){
+  const items=[...carousel.querySelectorAll('.p-carousel-item')];
+  const selected=items.find(item=>item.dataset.pos==='selected'),neighbour=items.find(item=>item.dataset.pos==='next')||items.find(item=>item.dataset.pos==='prev');
+  return selected&&neighbour?Math.abs(selected.getBoundingClientRect().left-neighbour.getBoundingClientRect().left):0;
+}
+function selectParticipant(carousel,value){
+  if(participantBusy||value===(state.packingParticipantView||'shared'))return;
+  if(!carousel||prefersReducedMotion()){commitParticipant(value,Boolean(carousel));return}
+  const track=carousel.querySelector('.p-carousel-track'),items=[...track.children];
+  const selected=items.find(item=>item.dataset.pos==='selected');
+  const target=items.find(item=>item.dataset.participant===value&&!item.hasAttribute('aria-hidden'))||items.find(item=>item.dataset.participant===value);
+  if(!selected||!target){commitParticipant(value,true);return}
+  participantBusy=true;
+  // Same classes the final render will have, flipped in place so the CSS opacity/scale transitions run.
+  selected.classList.remove('selected');target.classList.add('selected');
+  if(carousel.dataset.layout==='carousel'&&Number(carousel.dataset.count)>=3){
+    track.style.transition='transform 180ms ease-out';
+    track.style.transform=`translateX(${selected.getBoundingClientRect().left-target.getBoundingClientRect().left}px)`;
+  }
+  setTimeout(()=>commitParticipant(value,true),190);
+}
+function packingView(){if(!state.trip)return empty();const activeParticipants=state.participants.filter(participant=>participant.active!==false);const participantOptions=[['shared','משותף'],...activeParticipants.map(participant=>[participant.id,participant.name])];return `<section class="card"><div class="section-head"><div><h2>רשימות אריזה</h2><p class="muted">פריטים שסומנו עוברים לאזור "נארזו" וניתן להחזירם.</p></div><button class="btn" data-action="add-list">קטגוריה חדשה</button></div>${!activeParticipants.length?'':participantCarousel(participantOptions,state.packingParticipantView||'shared','packing-view-participant')}${state.packing.map(list=>{const visible=visiblePackingItems(list),active=visible.filter(item=>!item.done),packed=visible.filter(item=>item.done),collapsed=state.packingCollapsed[list.id];return `<section class="card nested"><button class="section-head collapse-button" data-action="pack-collapse" data-list="${list.id}"><h3>${esc(list.name)}</h3><span class="badge">${packed.length}/${visible.length}</span></button>${collapsed?'':`<div class="progress"><span style="width:${visible.length?packed.length/visible.length*100:0}%"></span></div>${active.map(packRow.bind(null,list)).join('')||'<p class="muted">הכול נארז.</p>'}<button class="btn secondary" data-action="pack-add" data-list="${list.id}">הוספת פריט</button>${packed.length?`<details ${state.packedCollapsed?'':'open'}><summary>נארזו (${packed.length})</summary>${packed.map(packRow.bind(null,list)).join('')}</details>`:''}`}</section>`}).join('')}</section>`}
 function packRow(list,item){const participantNames=(item.participantIds||[]).map(id=>state.participants.find(participant=>participant.id===id)?.name).filter(Boolean);return `<div class="pack-row-wrapper"><label class="check-row ${item.done?'done':''}"><input type="checkbox" data-action="pack-toggle" data-list="${list.id}" data-item="${item.id}" ${item.done?'checked':''}><span>${esc(item.name)} ${participantNames.length?`<small class="badge blue">${participantNames.map(esc).join(', ')}</small>`:item.owner&&item.owner!=='shared'?`<small class="badge blue">${esc(item.owner)}</small>`:''}</span></label><button class="btn ghost" data-action="pack-edit" data-list="${list.id}" data-item="${item.id}">עריכה</button><button class="btn danger" data-action="pack-delete" data-list="${list.id}" data-item="${item.id}">מחיקה</button></div>`}
 // 0.7.1: priority + due-date-scope filters, combined with AND, plus a clear/reset action -- see
 // filterAndSortTasks (operational-data.js) for the actual filter/sort logic, shared with nothing
@@ -600,7 +643,11 @@ function tasksView(){
 // participantIds). An already-existing task's own stored owner value, if any, simply goes
 // unread here -- not deleted from Firestore, just no longer shown (see the task-form modal's own
 // comment for the same non-destructive reasoning).
-function taskRow(task){const priorityLabel={High:'גבוהה',Normal:'רגילה',Low:'נמוכה'}[task.priority]||'רגילה';const participantLabel=participantAssignmentLabel(task);return `<article class="row check-row task-row ${task.done?'done':''}"><input type="checkbox" data-action="task-toggle" data-id="${task.id}" aria-label="סימון משימה" ${task.done?'checked':''}><span class="row-main"><b>${esc(task.title)}</b><small class="muted">${participantLabel?esc(participantLabel)+' · ':''}${task.mode==='entire'?'לכל הטיול':task.mode==='none'?'ללא תאריך':task.dueDate?fmt(task.dueDate,false):'ללא תאריך'} · <span class="badge priority-${task.priority||'Normal'}">${priorityLabel}</span></small></span><button class="btn ghost task-edit" data-action="task-edit" data-id="${task.id}">עריכה</button><button class="btn danger" data-action="task-delete" data-id="${task.id}">מחיקה</button></article>`}
+// Beta 0.8 Phase 1.2 (P11-F13): ~56px rows -- checkbox, title, one meta line with the inline priority
+// chip. Tapping the row opens the task for editing; the delete button moved INSIDE the edit screen
+// (it was a red button on every row, easy to mis-tap on a phone). This deliberately reverses the
+// 0.7.9 decision to show a delete button on each task row; equipment rows (packRow) keep theirs.
+function taskRow(task){const priorityLabel={High:'גבוהה',Normal:'רגילה',Low:'נמוכה'}[task.priority]||'רגילה';const participantLabel=participantAssignmentLabel(task);return `<article class="task-compact ${task.done?'done':''}"><input type="checkbox" data-action="task-toggle" data-id="${task.id}" aria-label="סימון משימה" ${task.done?'checked':''}><button class="task-compact-main" data-action="task-edit" data-id="${task.id}"><b>${esc(task.title)}</b><small class="muted">${participantLabel?esc(participantLabel)+' · ':''}${task.mode==='entire'?'לכל הטיול':task.mode==='none'?'ללא תאריך':task.dueDate?fmt(task.dueDate,false):'ללא תאריך'} · <span class="badge priority-${task.priority||'Normal'}">${priorityLabel}</span></small></button></article>`}
 // 0.7.7: shopping places/visits render directly inside this same view (via itemRow, the exact
 // generic row every Trip Center category page already uses) rather than a separate Trip Center
 // tile -- see visibleTypes' own comment above for why. A place may be undated (schedule:'none',
@@ -1069,7 +1116,7 @@ function smartImportPanel(source){
 // either a PDF or an image, so no server/validation change is needed.
 function attachmentModal(){const item=state.items.find(candidate=>candidate.id===state.modal.itemId);if(ingestBusy)return `<div class="modal-bg"><section class="modal"><div class="modal-head"><h2>הוספת מסמך ל־${esc(item?.title||'מלון')}</h2></div>${processingIndicator('מנתח את המסמך…')}</section></div>`;return `<div class="modal-bg"><section class="modal"><div class="modal-head"><h2>הוספת מסמך ל־${esc(item?.title||'מלון')}</h2><button class="close" data-action="close">✕</button></div><div class="field"><label>מסמך (PDF או תמונה)</label><input id="source-file" type="file" accept="application/pdf,.pdf,image/png,image/jpeg,image/webp,image/tiff,.tif,.tiff"></div><fieldset class="processing-choice"><legend>מה לבצע?</legend><label><input type="radio" name="processing-mode" value="attach" checked> צירוף בלבד — ללא AI</label><label><input type="radio" name="processing-mode" value="extract"> צירוף וחילוץ מידע להצעה</label></fieldset><button class="btn" data-action="attach-ingest" data-id="${item?.id||''}">המשך</button></section></div>`}
 function qrPanel(){const p=qrCollector.progress;return `<div class="privacy-warning">ה־QR מכיל מידע אישי ואינו מוצפן. אין לשתף אותו בפומבי.</div><video id="qr-video" class="qr-video" playsinline muted></video><div class="actions"><button class="btn" data-action="qr-camera">סריקה במצלמה</button><label class="btn secondary file-button">בחירת תמונת QR<input id="qr-image" type="file" accept="image/*"></label><button class="btn ghost" data-action="qr-reset">ביטול / התחלה מחדש</button></div>${p.total?`<div class="qr-progress"><b>חלקים שנקלטו: ${p.collected}/${p.total}</b><p>חסרים: ${p.missing.join(', ')||'אין'}</p></div>`:''}<div class="field"><label>הדבקת payload לבדיקה</label><textarea id="qr-text" dir="ltr" placeholder="FTI1:... או FTI1C|..."></textarea></div><button class="btn secondary" data-action="qr-text">קליטת payload</button>`}
-function editModal(){const item=state.items.find(candidate=>candidate.id===state.modal.itemId);return `<div class="modal-bg"><section class="modal"><div class="modal-head"><h2>עריכת פריט</h2><button class="close" data-action="close">✕</button></div><form id="edit-item-form" data-id="${item.id}">${proposalFields(item,{alwaysWebsite:true})}<button class="btn">שמירה</button></form></section></div>`}
+function editModal(){const item=state.items.find(candidate=>candidate.id===state.modal.itemId);return `<div class="modal-bg"><section class="modal"><div class="modal-head"><h2>עריכת פריט</h2><button class="close" data-action="close">✕</button></div><form id="edit-item-form" data-id="${item.id}">${proposalFields(item,{alwaysWebsite:true})}<div class="form-actions"><button class="btn">שמירה</button></div></form></section></div>`}
 function duplicateModal(){const {suggestionId,duplicateIds}=state.modal,suggestion=suggestionById(suggestionId),duplicates=state.items.filter(item=>duplicateIds.includes(item.id));return `<div class="modal-bg"><section class="modal"><div class="modal-head"><h2>נמצאה הזמנה דומה</h2><button class="close" data-action="close">✕</button></div><p>ערכים מיובאים ריקים לא ידרסו מידע קיים.</p><div class="list">${duplicates.map(itemRow).join('')}</div><div class="actions"><button class="btn" data-action="duplicate-merge" data-suggestion="${suggestion.id}" data-target="${duplicates[0]?.id||''}">מיזוג</button><button class="btn secondary" data-action="duplicate-keep" data-suggestion="${suggestion.id}">שמירת שניהם</button><button class="btn ghost" data-action="close">ביטול</button></div></section></div>`}
 // 0.7.9 correction (V7-F10, Test 4): the Development Agent's own round-1 report proposed keeping
 // the free-text owner field as a transition-period choice, since it could in principle hold a
@@ -1079,7 +1126,7 @@ function duplicateModal(){const {suggestionId,duplicateIds}=state.modal,suggesti
 // stored owner value is simply never read or written by this form again (values below no longer
 // includes it), so nothing already in Firestore is deleted -- the same non-destructive precedent
 // 0.7.4.1 established when it removed the old free-text `participants` field from item forms.
-function simpleFormModal(){const type=state.modal.type;if(type==='task'){const task=state.tasks.find(candidate=>candidate.id===state.modal.taskId)||{title:'',mode:'date',dueDate:'',priority:'Normal'};return `<div class="modal-bg"><section class="modal"><div class="modal-head"><h2>${state.modal.taskId?'עריכת משימה':'משימה חדשה'}</h2><button class="close" data-action="close">✕</button></div><form id="task-form" data-id="${task.id||''}"><p class="required-note"><span class="required" aria-hidden="true">*</span> שדה חובה</p><label class="field">${requiredLabel('משימה')}<input name="title" required aria-required="true" value="${esc(task.title)}"></label>${participantAssignmentField(task)}<label class="field">מועד<select name="mode"><option value="date" ${task.mode==='date'?'selected':''}>תאריך</option><option value="entire" ${task.mode==='entire'?'selected':''}>לכל הטיול</option><option value="none" ${task.mode==='none'?'selected':''}>ללא תאריך</option></select></label><label class="field">תאריך יעד<input type="date" name="dueDate" value="${esc(task.dueDate||'')}"></label><label class="field">עדיפות<select name="priority"><option value="High" ${task.priority==='High'?'selected':''}>גבוהה</option><option value="Normal" ${(task.priority||'Normal')==='Normal'?'selected':''}>רגילה</option><option value="Low" ${task.priority==='Low'?'selected':''}>נמוכה</option></select></label><button class="btn">שמירה</button></form></section></div>`}if(type==='shopping'){
+function simpleFormModal(){const type=state.modal.type;if(type==='task'){const task=state.tasks.find(candidate=>candidate.id===state.modal.taskId)||{title:'',mode:'date',dueDate:'',priority:'Normal'};return `<div class="modal-bg"><section class="modal"><div class="modal-head"><h2>${state.modal.taskId?'עריכת משימה':'משימה חדשה'}</h2><button class="close" data-action="close">✕</button></div><form id="task-form" data-id="${task.id||''}"><p class="required-note"><span class="required" aria-hidden="true">*</span> שדה חובה</p><label class="field">${requiredLabel('משימה')}<input name="title" required aria-required="true" value="${esc(task.title)}"></label>${participantAssignmentField(task)}<label class="field">מועד<select name="mode"><option value="date" ${task.mode==='date'?'selected':''}>תאריך</option><option value="entire" ${task.mode==='entire'?'selected':''}>לכל הטיול</option><option value="none" ${task.mode==='none'?'selected':''}>ללא תאריך</option></select></label><label class="field">תאריך יעד<input type="date" name="dueDate" value="${esc(task.dueDate||'')}"></label><label class="field">עדיפות<select name="priority"><option value="High" ${task.priority==='High'?'selected':''}>גבוהה</option><option value="Normal" ${(task.priority||'Normal')==='Normal'?'selected':''}>רגילה</option><option value="Low" ${task.priority==='Low'?'selected':''}>נמוכה</option></select></label><div class="form-actions"><button class="btn">שמירה</button>${task.id?`<button type="button" class="btn danger" data-action="task-delete" data-id="${task.id}">מחיקת המשימה</button>`:''}</div></form></section></div>`}if(type==='shopping'){
   // 0.7.7: an optional reference to a shopping place -- deliberately just a select, no cascading
   // delete anywhere: shoppingView()'s own render looks the place up by id at display time and
   // simply omits it if gone, so deleting a place can never delete or corrupt a list entry.
@@ -1167,11 +1214,6 @@ function render(){
   // admin with no Trip at all must still be able to reach it, exactly like the Trip switcher/
   // start-new-trip view already could with no Trip.
   normalizeOperationalState(state);const views={today:todayView,timeline,center,detail:detailView,suggestion:suggestionView,games:gamesView,packing:packingView,tasks:tasksView,shopping:shoppingView,locations:locationsView,settings:settingsView,trips:tripsView,admin:adminView},body=(!bootResolved?loading:!state.trip&&!['trips','admin'].includes(state.view)?empty:(views[state.view]||todayView))();document.querySelector('#app').innerHTML=`<div class="shell">${syncBanner()}${header()}<main>${body}</main>${nav()}${modal()}${state.toast?`<div class="toast">${esc(state.toast)}</div>`:''}</div>`;
-  // Beta 0.8 Phase 1 (design spec V7 S5): "the selected item is centered" -- keeps the carousel's
-  // own current selection centered after every render (a fresh selection click, or just landing on
-  // a screen that has one), not only after a manual drag; 'nearest'/no smooth behavior avoids any
-  // visible re-animation on renders the carousel itself wasn't involved in.
-  document.querySelector('.p-chip.selected')?.scrollIntoView({inline:'nearest',block:'nearest'});
 }
 
 // 0.7.2: source bytes now go to Firebase Storage (trips/{tripId}/sources/{sourceId}/...), not the
@@ -1586,7 +1628,7 @@ addEventListener('click',async event=>{if(Date.now()<suppressClickUntil)return;c
   // inspection, not a soft-delete/archive being upgraded. Same plain confirm() pattern delete-item
   // already uses (this project's own established destructive-action discipline for a one-off,
   // non-account-level action), permanently removing the record, not archiving it.
-  else if(action==='task-delete'){if(confirm('למחוק את המשימה לצמיתות?')){state.tasks=state.tasks.filter(x=>x.id!==button.dataset.id);save();render()}}
+  else if(action==='task-delete'){if(confirm('למחוק את המשימה לצמיתות?')){state.tasks=state.tasks.filter(x=>x.id!==button.dataset.id);state.modal=null;save();render()}}
   else if(action==='pack-delete'){if(confirm('למחוק את פריט הציוד לצמיתות?')){const list=state.packing.find(x=>x.id===button.dataset.list);if(list)list.items=list.items.filter(x=>x.id!==button.dataset.item);save();render()}}
   else if(action==='reset-trip-data'){if(confirm(`למחוק את כל נתוני הטיול "${state.trip?.name||''}"? שם הטיול והתאריכים יישמרו, אך הפריטים, המסמכים, המשימות, הקניות, האריזה והמיקומים יימחקו מהמכשיר.`)){try{await resetCurrentTrip(false)}catch(error){alert(error.message)}}}
   else if(action==='delete-current-trip'){if(confirm(`למחוק לצמיתות מהמכשיר את הטיול "${state.trip?.name||''}" ואת כל הנתונים המשויכים אליו?`)){try{await resetCurrentTrip(true)}catch(error){alert(error.message)}}}
@@ -1623,7 +1665,7 @@ addEventListener('click',async event=>{if(Date.now()<suppressClickUntil)return;c
   else if(action==='pack-collapse'){state.packingCollapsed[button.dataset.list]=!state.packingCollapsed[button.dataset.list];save();render()}
   else if(action==='pack-add'){state.modal={type:'packing-item',listId:button.dataset.list,itemId:null};render()}
   else if(action==='pack-edit'){state.modal={type:'packing-item',listId:button.dataset.list,itemId:button.dataset.item};render()}
-  else if(action==='packing-view-participant'){state.packingParticipantView=button.dataset.participant;render()}
+  else if(action==='packing-view-participant')selectParticipant(button.closest('[data-carousel]'),button.dataset.participant);
   else if(action==='task-add'){state.modal={type:'task'};render()}
   else if(action==='task-filter-clear'){state.taskFilters={priority:'all',due:'all',status:'all',participant:'all'};render()}
   else if(action==='task-edit'){state.modal={type:'task',taskId:button.dataset.id};render()}
@@ -1693,7 +1735,11 @@ addEventListener('submit',async event=>{event.preventDefault();const form=event.
       // same field already clears it on the pre-approval suggestion form.
       const changedFields=new Set(['title','provider','confirmationNumber','location','website','phone','startAt','endAt','notes'].filter(key=>String(item[key]||'')!==String(values[key]||'')));
       const reconciled=reconcileStaleNeedsReview(item,changedFields);
+      // Phase 1.2 (P11-F5): moving an ended item's date/time to later than now un-ends it, so a
+      // rescheduled item reappears on Today; every other edit leaves endedAt alone.
+      const unEnd=item.endedAt&&shouldClearEndedOnEdit(item.startAt,values.startAt);
       Object.assign(item,values,{details:reconciled.details,warnings:reconciled.warnings});
+      if(unEnd)item.endedAt='';
     }
     // 0.7.7: a newly-created shoppingPlace routes back to the "shopping" operational view it was
     // created from, not the generic per-type Trip Center category page every other type lands on
@@ -1747,30 +1793,90 @@ addEventListener('touchend',event=>{if(timelineSwipeStartX===null||!event.target
 addEventListener('online',render);addEventListener('offline',render);addEventListener('pagehide',stopCamera);
 // Beta 0.8 Phase 1 (design spec V7 S5): the carousel's own keyboard alternative (sequential Tab
 // works natively -- real <button> elements). Per §5, right/next and left/previous follow reading
-// direction, with no RTL branch since this app has no LTR mode. Phase 1.1: the carousel re-renders
-// around the selection, so the arrow keys click the neighbour marked data-pos next/prev (wrapping
-// included) and put focus back on the newly selected item, letting the keys keep working.
+// direction, with no RTL branch since this app has no LTR mode. The arrow keys click the neighbour
+// marked data-pos next/prev (wrapping at 3+ options); selectParticipant() re-focuses the newly
+// selected item once it lands (P11-F15), so the keys keep working.
 addEventListener('keydown',event=>{
   if(!['ArrowRight','ArrowLeft'].includes(event.key))return;
   const carousel=event.target.closest('[data-carousel]');if(!carousel)return;
   const target=carousel.querySelector(event.key==='ArrowRight'?'[data-pos="next"]':'[data-pos="prev"]');
-  if(target){event.preventDefault();target.click();document.querySelector('.p-carousel-item.selected')?.focus()}
+  if(target){event.preventDefault();target.click()}
 });
-// Phase 1.1: horizontal swipes. On the carousel (>=40px): dragging right selects the next option,
-// left the previous -- the spec's own reading-direction rule (§5), exactly one option per swipe.
-// On a started leading Today card (>=90px, clearly more horizontal than vertical): ends the item
-// early (F6), same as its "הסתיים" button. The click that follows a recognised swipe is swallowed.
+// Horizontal gestures (pointer events; pointercancel/up end them):
+//  - a started Today card (data-swipe-end): the card follows the finger and fades; released past a
+//    third of its width it slides out (200ms ease-out) and the cards below close up (180ms), then
+//    the item is ended; otherwise it snaps back (160ms). P11-F6.
+//  - the participant carousel: the track follows the finger; released past ~a third of a slot it
+//    slides one position and selects the previous/next option, otherwise it snaps back. Dragging
+//    right selects the next option (reading direction, §5). P11-F14.
+// Under prefers-reduced-motion nothing is animated: the card is ended / the option selected at once.
+// The click that follows a recognised drag is swallowed.
+let drag=null;
 addEventListener('pointerdown',event=>{
+  if(event.pointerType==='mouse'&&event.button!==0){drag=null;return}
   const carousel=event.target.closest('[data-carousel]'),card=event.target.closest('[data-swipe-end]');
-  endSwipe=carousel||card?{x:event.clientX,y:event.clientY,carousel,card}:null;
+  drag=carousel||card?{x:event.clientX,y:event.clientY,dx:0,carousel,card,active:false,slot:carousel?carouselSlotPx(carousel):0}:null;
 },{passive:true});
-addEventListener('pointerup',event=>{
-  if(!endSwipe)return;
-  const {x,y,carousel,card}=endSwipe,dx=event.clientX-x,dy=event.clientY-y;endSwipe=null;
-  if(Math.abs(dx)<(carousel?40:90)||Math.abs(dx)<2*Math.abs(dy))return;
-  if(carousel)carousel.querySelector(dx>0?'[data-pos="next"]':'[data-pos="prev"]')?.click();
-  else endItem(card.dataset.swipeEnd);
+addEventListener('pointermove',event=>{
+  if(!drag)return;
+  const dx=event.clientX-drag.x,dy=event.clientY-drag.y;
+  if(!drag.active){
+    if(Math.abs(dx)<8||Math.abs(dx)<Math.abs(dy))return;
+    drag.active=true;
+    const moving=drag.card||drag.carousel.querySelector('.p-carousel-track');
+    moving.style.transition='none';
+  }
+  drag.dx=dx;
+  if(drag.card){
+    drag.card.style.transform=`translateX(${dx}px)`;
+    drag.card.style.opacity=String(Math.max(.25,1-Math.abs(dx)/drag.card.offsetWidth*.9));
+  }else if(drag.slot&&drag.carousel.dataset.layout==='carousel'&&Number(drag.carousel.dataset.count)>=3){
+    drag.carousel.querySelector('.p-carousel-track').style.transform=`translateX(${Math.max(-drag.slot,Math.min(drag.slot,dx))}px)`;
+  }
+},{passive:true});
+function finishDrag(){
+  if(!drag)return;
+  const {carousel,card,dx,active,slot}=drag;drag=null;
+  if(!active)return;
   suppressClickUntil=Date.now()+400;
+  const reduced=prefersReducedMotion();
+  if(card){
+    const width=card.offsetWidth,id=card.dataset.swipeEnd;
+    if(Math.abs(dx)>width/3){
+      if(reduced){endItem(id);return}
+      card.style.transition='transform 200ms ease-out, opacity 200ms ease-out';
+      card.style.transform=`translateX(${dx>0?width:-width}px)`;card.style.opacity='0';
+      setTimeout(()=>{
+        card.style.height=`${card.offsetHeight}px`;void card.offsetHeight;
+        card.style.transition='height 180ms ease-out, margin-bottom 180ms ease-out, border-width 180ms ease-out';
+        card.style.height='0';card.style.marginBottom='-12px';card.style.borderWidth='0';
+      },200);
+      setTimeout(()=>endItem(id),390);
+    }else{
+      card.style.transition=reduced?'none':'transform 160ms ease-out, opacity 160ms ease-out';
+      card.style.transform='';card.style.opacity='';
+    }
+    return;
+  }
+  const track=carousel.querySelector('.p-carousel-track');
+  const direction=dx>0?'next':'prev';
+  const target=Math.abs(dx)>=Math.min(40,(slot||120)/3)?carousel.querySelector(`[data-pos="${direction}"]`):null;
+  if(target)selectParticipant(carousel,target.dataset.participant);
+  else{track.style.transition=reduced?'none':'transform 160ms ease-out';track.style.transform='translateX(0)'}
+}
+addEventListener('pointerup',finishDrag);
+addEventListener('pointercancel',finishDrag);
+// Remember whether the user opened the collapsed "הסתיימו היום" section, so the minute refresh and
+// any other render() keep it open.
+addEventListener('toggle',event=>{if(event.target.matches?.('.done-today'))doneTodayOpen=event.target.open},true);
+// P11-F16: the layout depends on the measured width, and nothing else re-renders on resize or
+// rotation -- re-render Packing only when a resize actually crosses between row and carousel.
+let resizeTimer=null;
+addEventListener('resize',()=>{
+  clearTimeout(resizeTimer);
+  resizeTimer=setTimeout(()=>{
+    if(state.view==='packing'&&!state.modal&&lastParticipantLayout&&currentParticipantLayout(packingParticipantCount())!==lastParticipantLayout)render();
+  },150);
 });
 // Beta 0.8 Phase 1: bridge from main.js's own account-bar settings button (see its own comment) --
 // this module owns route()/state.view, main.js deliberately doesn't reach into either directly.

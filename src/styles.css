@@ -10,10 +10,8 @@
 .field input,.field select,.field textarea{min-width:0;max-width:100%}
 .source-summary,.warning-list,.privacy-warning,.row-main{overflow-wrap:anywhere;word-break:break-word}
 .check-row.done .row-main{text-decoration:line-through;color:var(--muted)}
-.task-row .task-edit{flex:0 0 auto;padding:8px 10px}
 .proposal-archive{margin:16px 0;border:1px solid var(--line);border-radius:15px;background:#f7f9fb;padding:10px}.proposal-archive summary{cursor:pointer;font-weight:850;color:var(--muted)}.proposal-archive .list{margin-top:10px}.archived-suggestion{background:#f7f9fb;color:var(--muted)}
 .archive-at-bottom{margin-top:22px;margin-bottom:0}.experimental-warning{margin:0 0 14px;padding:12px;border:1px solid #f4c77a;border-radius:14px;background:#fff8e8;color:#744b08;overflow-wrap:anywhere}
-@media(max-width:420px){.task-row{align-items:flex-start;flex-wrap:wrap}.task-row .row-main{flex:1 1 calc(100% - 34px)}.task-row .task-edit{margin-inline-start:34px}}
 .participant-switcher{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.participant-picker{display:flex;flex-direction:column;gap:6px;margin-top:6px}.checkbox-field{display:flex;align-items:center;gap:8px;font-weight:600}.checkbox-field input{width:auto}.pack-row-wrapper{display:flex;align-items:center;gap:6px}.pack-row-wrapper .check-row{flex:1 1 auto}.row.inactive{opacity:.55}.ticket-row{align-items:center}
 
 /* ===== Beta 0.8 Phase 1 (FAMILYTRIPS_UI_IMPLEMENTATION_DESIGN_SPEC_V7.md) =====
@@ -100,13 +98,14 @@ bdi,.bidi{unicode-bidi:isolate}
 .today-section-label{font-size:22px;font-weight:600;margin:16px 0 10px}
 
 /* S5 participant carousel. */
-.p-carousel{position:relative;overflow:hidden;padding:8px 0;touch-action:pan-y;user-select:none}
-.p-carousel-track{display:flex;justify-content:center;align-items:flex-start;gap:8px}
-.p-carousel-item{flex:0 0 96px;display:flex;flex-direction:column;align-items:center;gap:6px;opacity:.5;transform:scale(.88);transition:opacity 180ms ease-out,transform 180ms ease-out;background:transparent;border:0;padding:4px}
+.p-carousel{position:relative;padding:8px 0;touch-action:pan-y;user-select:none}
+.p-carousel-viewport{overflow:hidden;width:100%}
+.p-carousel-track{display:flex;justify-content:center;align-items:flex-start;gap:8px;width:100%}
+.p-carousel-item{flex:0 0 calc((100% - 16px) / 3);min-width:0;display:flex;flex-direction:column;align-items:center;gap:6px;opacity:.5;transform:scale(.88);transition:opacity 180ms ease-out,transform 180ms ease-out;background:transparent;border:0;padding:4px}
 .p-carousel-item.selected{opacity:1;transform:scale(1)}
 .p-carousel-avatar{width:56px;height:56px;border-radius:50%;background:var(--teal-soft);color:var(--ink);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;overflow:hidden}
 .p-carousel-avatar img{width:100%;height:100%;object-fit:cover}
-.p-carousel-item span{font-size:15px;color:var(--ink);white-space:nowrap;max-width:96px;overflow:hidden;text-overflow:ellipsis}
+.p-carousel-item span{font-size:15px;color:var(--ink);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .p-carousel-dots{display:flex;justify-content:center;gap:6px;margin-top:8px}
 .p-carousel-dots span{width:6px;height:6px;border-radius:50%;background:var(--border)}
 .p-carousel-dots span.active{background:var(--ink)}
@@ -123,19 +122,60 @@ bdi,.bidi{unicode-bidi:isolate}
 /* F6: a leading card the user can swipe away */
 .day-item[data-swipe-end]{touch-action:pan-y}
 /* F3: the quiet "next in line" line -- no fill, no accent, no actions */
-.up-next{display:flex;align-items:center;gap:0;width:100%;margin-top:12px;padding:0;background:transparent;border:1px solid var(--border);border-radius:16px;text-align:right;cursor:pointer;color:var(--ink);font:inherit;overflow:hidden}
-.up-next:active{background-color:var(--border)}
-.up-next-when{flex:0 0 76px;width:76px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;border-inline-end:1px solid var(--border);color:var(--ink);font-weight:600;font-size:14px}
-.up-next-body{flex:1 1 auto;min-width:0;padding:8px 12px;display:flex;flex-direction:column}
-.up-next-body b{font-size:16px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* F11-F13: Quick Access header links */
-.quick-links{display:flex;gap:8px;flex-wrap:wrap}
 /* F14: task priority chips -- terracotta/accent-soft is reserved for needs-attention */
 .badge.priority-High{background:var(--accent-soft);color:var(--ink)}
 .badge.priority-Normal{background:var(--surface);color:var(--ink);border:1px solid var(--border)}
 .badge.priority-Low{background:var(--surface);color:var(--muted);border:1px solid var(--border)}
-/* F18: 7+ participants -- compact chips, one scrollable row, ink selected */
-.p-chips{display:flex;gap:8px;overflow-x:auto;padding:8px 0;margin-bottom:8px;scrollbar-width:none}
-.p-chips::-webkit-scrollbar{display:none}
-.p-chip{flex:0 0 auto;white-space:nowrap;padding:8px 14px;min-height:44px;border-radius:999px;border:1px solid var(--border);background:var(--surface);color:var(--ink);font:inherit;font-size:15px;cursor:pointer}
-.p-chip.selected{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+/* ===== Beta 0.8 Phase 1.2 (correction package) ===== */
+/* P11-F16: everyone side by side on a wide screen where they all fit */
+.p-row .p-carousel-item{flex:0 0 96px}
+/* P11-F17: counter instead of dots above 6 options */
+.p-carousel-counter{text-align:center;margin-top:8px;color:var(--muted);font-size:15px;font-variant-numeric:tabular-nums}
+/* P11-F2/F7: full-width filled-ink "סמן כהסתיים" under a divider */
+.day-item-end{border-top:1px solid var(--border);padding:12px}
+.end-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:44px;border:0;border-radius:12px;background:var(--ink);color:#fff;font:inherit;font-weight:700;cursor:pointer}
+.end-btn .ti{stroke:#fff}
+.end-btn:active{opacity:.9}
+/* P11-F3/F9/F10: the quiet up-next row -- no box, no fill, no actions */
+.up-next{display:flex;align-items:center;gap:12px;width:100%;margin-top:8px;padding:6px 0;background:transparent;border:0;border-radius:12px;text-align:right;cursor:pointer;color:var(--ink);font:inherit}
+.up-next:active{background-color:var(--border)}
+.up-next-when{flex:0 0 76px;width:76px;display:flex;flex-direction:column;align-items:center;gap:2px;padding-inline-end:12px;border-inline-end:1px solid var(--border);color:var(--ink);font-weight:600;font-size:14px}
+.up-next-when bdi{white-space:nowrap}
+.up-next-body{flex:1 1 auto;min-width:0;display:flex;flex-direction:column}
+.up-next-body b{font-size:16px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.today-empty{margin:12px 0 0}
+/* P11-F1: the collapsed "הסתיימו היום" section */
+.done-today{margin-top:16px;border-top:1px solid var(--border);padding-top:4px}
+.done-today summary{cursor:pointer;color:var(--muted);font-size:15px;min-height:44px;display:flex;align-items:center}
+.done-row{display:flex;align-items:center;gap:8px}
+.done-row-main{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:12px;padding:8px 0;background:transparent;border:0;text-align:right;color:var(--muted);font:inherit;cursor:pointer;opacity:.75}
+.done-row-time{flex:0 0 76px;text-align:center;font-weight:600}
+.done-row-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.done-row-restore{flex:0 0 auto;min-height:44px;padding:0 14px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--ink);font:inherit;cursor:pointer}
+/* P11-F13: Quick Access header on one line */
+.quick-head{flex-wrap:nowrap;gap:8px}
+.quick-head h3{margin:0;white-space:nowrap}
+.quick-links{display:flex;gap:8px;flex-wrap:nowrap}
+.quick-links .btn{padding:6px 12px;font-size:14px;min-height:44px;white-space:nowrap}
+/* P11-F13: compact ~56px task rows (Quick Access and the Tasks screen share one design) */
+.task-compact{display:flex;align-items:center;gap:8px;min-height:56px;margin-top:8px;padding:6px 10px;border:1px solid var(--border);border-radius:16px;background:var(--surface)}
+.task-compact input[type="checkbox"]{flex:0 0 auto;width:22px;height:22px;margin:11px}
+.task-compact-main{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:4px 0;background:transparent;border:0;text-align:right;color:var(--ink);font:inherit;cursor:pointer}
+.task-compact-main b{max-width:100%;font-size:16px;font-weight:600;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.task-compact-main small{max-width:100%;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.task-compact.done b{text-decoration:line-through;color:var(--muted)}
+/* P11-F11: a document row wraps -- filename on one line with an ellipsis, the controls on a second row */
+.row.source-doc-row{flex-wrap:wrap}
+.source-doc-row .row-main{flex:1 1 100%;min-width:0}
+.source-doc-row .row-main b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.source-doc-row .row-main small{display:block;overflow-wrap:anywhere}
+.source-doc-row>.btn,.source-doc-row>.badge,.source-doc-row>.checkbox-field{flex:0 0 auto}
+/* P11-F12: "שמירה" stays reachable at the bottom of a long form */
+.form-actions{position:sticky;bottom:0;display:flex;gap:8px;align-items:center;margin-top:12px;padding:12px 0 4px;background:var(--surface);border-top:1px solid var(--border)}
+.form-actions .btn{min-height:44px}
+/* P11-F6/F14: new motion respects prefers-reduced-motion (scoped to these animations) */
+@media (prefers-reduced-motion: reduce){
+  .p-carousel-item,.p-carousel-track,.day-item[data-swipe-end]{transition:none !important}
+}

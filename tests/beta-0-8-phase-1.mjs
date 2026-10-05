@@ -103,8 +103,11 @@ function test_beta_0_8_today_view_separates_a_leading_item_from_the_rest(){
   // `now` and compares on the device's local clock; the real behavior is covered by
   // tests/beta-0-8-phase-1-1-today-logic.mjs (run under four timezones). Here: it is still fed
   // only today's own, non-ended items -- never op.next.
-  assert.match(fn,/const leading=selectLeading\(todayAll\);/,'the leading action card must only be picked from items actually dated today (todayAll, from op.todayItems), never from the op.next "coming up" fallback');
-  assert.match(fn,/const rest=dayList\.filter\(item=>item!==leading\);/,'the leading item must be pulled out of the remainder list, not duplicated in it');
+  // Phase 1.2 (P11-F1): the leading/plan/done split moved into planToday(), which is fed only
+  // today's own items (op.todayItems) -- never op.next. The plan excludes the leading item, so it
+  // is never repeated (that exclusion is behaviorally tested in beta-0-8-phase-1-2-logic.mjs).
+  assert.match(fn,/const split=planToday\(op\.todayItems\);/,'the leading card, plan and done section must come from planToday() over items actually dated today (op.todayItems), never from the op.next "coming up" fallback');
+  assert.match(fn,/const leading=split\.leading;/,'the leading card is the split\'s leading item');
   console.log('PASS: todayView() finds one leading (imminent) item and renders the rest as a separate, compact list -- covers both the "Busy day" and "Transit or flight day" cases with one shared structure');
 }
 function test_beta_0_8_game_suggestion_only_shows_on_a_day_with_no_leading_item(){
@@ -149,17 +152,21 @@ test_beta_0_8_day_item_actions_are_gated_on_real_data();
 function test_beta_0_8_participant_carousel_renders_avatar_and_name_only(){
   const fn=extractFn(app,'participantCarousel');
   assert.match(fn,/class="p-carousel-avatar">\$\{esc\(label\.slice\(0,1\)\)\}/);
+  // Phase 1.2 (P11-F17): dots up to 6 options, a "4 / 9" counter above -- the position indicator
+  // comes from positionIndicator() (behaviorally tested in beta-0-8-phase-1-2-logic.mjs).
+  assert.match(fn,/positionIndicator\(count,index\)/);
   assert.match(fn,/class="p-carousel-dots"/);
-  console.log('PASS: participantCarousel() renders one avatar + name per option and an indicator-dots row, matching §5\'s "avatar and name only, no counters/badges"');
+  console.log('PASS: participantCarousel() renders one avatar + name per option and a position indicator (dots, or a counter above 6 options), matching §5\'s "avatar and name only, no counters/badges"');
 }
-function test_beta_0_8_packing_view_uses_the_carousel_up_to_6_options_and_chips_from_7(){
-  // Phase 1.1 (F18): the boundary moved from "2-5 carousel / larger button grid" to "2-6
-  // carousel / 7+ compact chips" (spec §5), and the old wrapping .participant-switcher is gone.
+function test_beta_0_8_packing_view_always_uses_the_participant_control(){
+  // Phase 1.2 (P11-F16/F17) reversed Phase 1.1's "carousel up to 6 / chips from 7" rule: the
+  // control always renders, and chooses row (wide screen, everyone fits) vs carousel from the
+  // measured width. The chips and the old wrapping button switcher are gone.
   const fn=extractFn(app,'packingView');
-  assert.match(fn,/participantOptions\.length<=6\?participantCarousel\(/,'§5: the carousel covers up to 6 options');
-  assert.match(fn,/:participantChips\(participantOptions/,'from 7 options a long list falls back to compact chips');
-  assert(!fn.includes('participant-switcher'),'the old large wrapping button switcher must be gone');
-  console.log('PASS: packingView() uses the carousel for up to 6 participant options and compact chips from 7, per §5 (F18)');
+  assert.match(fn,/participantCarousel\(participantOptions/,'packing always uses the participant control');
+  assert(!fn.includes('participantChips')&&!app.includes('function participantChips')&&!fn.includes('participant-switcher'),'the chips fallback and the old button switcher must be gone');
+  assert(!styles.includes('.p-chip'),'the chips CSS must be gone with the chips');
+  console.log('PASS: packingView() always uses the participant control (row on a wide screen where everyone fits, carousel otherwise); the chips and button-switcher fallbacks are gone');
 }
 function test_beta_0_8_arrow_keys_step_through_the_carousel_in_reading_order(){
   // Phase 1.1: the carousel re-renders around the selection, so the keys click the neighbour
@@ -169,16 +176,16 @@ function test_beta_0_8_arrow_keys_step_through_the_carousel_in_reading_order(){
   console.log('PASS: a keydown delegate selects the next option on ArrowRight and the previous on ArrowLeft, matching §5\'s reading-direction rule');
 }
 function test_beta_0_8_carousel_no_longer_scrolls_it_selects_one_neighbour_per_swipe(){
-  // Phase 1.1 (F15/F16): replaced the scroll-snap track (which could skip a participant on a fast
-  // swipe and dead-ended at two visible) with prev/selected/next slots that wrap. The old
-  // "recenter after every render" pass is gone with it.
-  assert(!/p-carousel-track\{[^}]*overflow-x:auto/.test(styles)&&!styles.includes('scroll-snap-type'),'the carousel track must no longer be a scrolling scroll-snap container');
-  assert.match(extractFn(app,'participantCarousel'),/count>=3\?\[\[at\(index-1\),'prev'\],\[at\(index\),'selected'\],\[at\(index\+1\),'next'\]\]/,'3+ options wrap: previous, selected, next');
+  // Phase 1.1 (F15/F16) replaced the scroll-snap track with slots that wrap; Phase 1.2 (P11-F14)
+  // mounts five (selected +-2) so a neighbour can slide in, via participant-carousel.js's
+  // carouselSlots() (behaviorally tested in beta-0-8-phase-1-2-logic.mjs).
+  assert(!/p-carousel-track\{[^}]*overflow-x:auto/.test(styles)&&!styles.includes('scroll-snap-type'),'the carousel track must not be a scrolling scroll-snap container');
+  assert.match(extractFn(app,'participantCarousel'),/carouselSlots\(count,index,layout\)/,'the mounted options come from carouselSlots()');
   assert(!app.includes(".p-carousel-item.selected')?.scrollIntoView"),'the scroll-recentering pass must be gone');
-  console.log('PASS: the carousel renders previous/selected/next (wrapping at 3+ options) instead of scrolling, so one swipe moves exactly one option');
+  console.log('PASS: the carousel mounts wrapping slots instead of scrolling, so one swipe moves exactly one option');
 }
 test_beta_0_8_participant_carousel_renders_avatar_and_name_only();
-test_beta_0_8_packing_view_uses_the_carousel_up_to_6_options_and_chips_from_7();
+test_beta_0_8_packing_view_always_uses_the_participant_control();
 test_beta_0_8_arrow_keys_step_through_the_carousel_in_reading_order();
 test_beta_0_8_carousel_no_longer_scrolls_it_selects_one_neighbour_per_swipe();
 

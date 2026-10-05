@@ -98,6 +98,8 @@ if(!process.argv.includes('--child')){
   });
   check('F3 items dated today are never up-next (they belong to Today\'s plan)',()=>assert.equal(upNextItem([item('later','activity',21)],trip,now),null));
   check('F3 an ended item is skipped',()=>assert.equal(upNextItem([{...nextDay,endedAt:'x'}],trip,now),null));
-  check('F3 the first in-range item decides: a far ordinary item hides a nearer-than-7-days flight behind it (literal "first item after today" rule)',()=>assert.equal(upNextItem([in64h,flightIn5d],trip,now),null));
+  // Phase 1.2 (P11-F8) reversed Phase 1.1's literal "first item after today decides" rule: an
+  // ordinary item outside 48h no longer hides a flight inside 7 days behind it.
+  check('P11-F8 a far ordinary item no longer hides a transport item within 7 days behind it',()=>assert.equal(upNextItem([in64h,flightIn5d],trip,now)?.id,'flight5d'));
   check('F3 chronological order, not input order',()=>assert.equal(ids([upNextItem([flightIn5d,nextDay],trip,now)]),'nextDay'));
 }

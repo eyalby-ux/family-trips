@@ -7,4 +7,7 @@
 // place. Reads document.title, which index.html's __APP_VERSION__ placeholder (resolved at build
 // time by scripts/inject-build-version.mjs from package.json) already sets before either script
 // ever runs.
-export function appVersionLabel(){const match=String(document.title||'').match(/Alpha\s+([^\s·]+)/);return match?`Alpha ${match[1]}`:'Alpha'}
+// Beta 0.8 Phase 1.2 (P11-F4): the label is parsed from the title text, so the regex and the title
+// ("Beta __APP_VERSION__" in index.html) change together -- changing only one would make the
+// sign-in screen and header fall back to the bare word.
+export function appVersionLabel(){const match=String(document.title||'').match(/Beta\s+([^\s·]+)/);return match?`Beta ${match[1]}`:'Beta'}
