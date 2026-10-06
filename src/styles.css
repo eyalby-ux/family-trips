@@ -360,7 +360,7 @@ bdi,.bidi{unicode-bidi:isolate}
 .cover-bar span{background:var(--ink);border-radius:3px}
 .t-carousel{margin:0 -16px;display:flex;flex-direction:column;gap:10px}
 .t-viewport{overflow:hidden;touch-action:pan-y;user-select:none;outline-offset:-2px;container-type:inline-size}
-.t-track{display:flex;gap:12px;padding:0 16px;transform:translateX(calc(var(--before,0) * (min(290px,100cqw - 64px) + 12px)))}
+.t-track{display:flex;gap:12px;padding:0 12px;transform:translateX(calc(var(--before,0) * (min(290px,100cqw - 64px) + 12px)))}
 .t-track .ticket{flex:0 0 min(290px,calc(100cqw - 64px));opacity:.55;transition:opacity 180ms ease-out,border-color 180ms ease-out}
 .t-track .ticket.selected{opacity:1;border-color:var(--ink)}
 .ticket-single .ticket{opacity:1;border-color:var(--ink)}
