@@ -8,6 +8,7 @@ import {largePalm,LARGE_PALM_PX} from '../src/import-status.js';
 import {addParticipantsToRecord,computeTicketCoverage,participantChipLabel} from '../src/operational-data.js';
 import {TICKET_ITEM_TYPES,coverageSummary,partitionItemDocuments,ticketHolderDetail,ticketPresentation} from '../src/ticket-card.js';
 import {carouselSlots} from '../src/participant-carousel.js';
+import {suggestionToItem} from '../src/ingestion.js';
 
 const read=path=>fs.readFileSync(new URL(path,import.meta.url),'utf8');
 const app=read('../src/v5-app.js'),css=read('../src/styles.css'),v4=read('../src/v4.css'),main=read('../src/main.js'),spec=read('../docs/design/FAMILYTRIPS_UI_IMPLEMENTATION_DESIGN_SPEC_V7.md');
@@ -125,6 +126,18 @@ test('P2-F3: the review/creation screen offers document-level linking and confir
   assert(!link.includes('checked=false'),'the review link never unticks anyone');
   assert(app.includes("const action=event.target.dataset.action;if(action==='review-doc-link'){reviewDocLink(event.target)}"));
   assert(app.includes('const add=addParticipantsToRecord(item,source.participantIds);if(add)Object.assign(item,add)'),'same add-on-link on the item page');
+});
+
+test('P2-F3 (found while testing): the review-screen participant choice is read back and reaches the new item',()=>{
+  const proposal=extra=>({sourceId:'s1',proposed:{type:'activity',title:'משחק',details:{},...extra}});
+  assert.deepEqual(suggestionToItem(proposal({participantScope:'specific',participantIds:['a','b']}),{},'').participantIds,['a','b'],'a new item gets the chosen participants');
+  assert.equal(suggestionToItem(proposal({participantScope:'specific',participantIds:['a']}),{},'').participantScope,'specific');
+  assert.equal(suggestionToItem(proposal({}),{},'').participantScope,undefined,'no choice -> nothing invented');
+  const merged=suggestionToItem(proposal({participantScope:'specific',participantIds:['b']}),{id:'i1',participantScope:'specific',participantIds:['a']},'');
+  assert.deepEqual(merged.participantIds,['a','b'],'merging into an existing item only ever adds');
+  assert.equal(suggestionToItem(proposal({participantScope:'specific',participantIds:['b']}),{id:'i1',participantScope:'all'},'').participantScope,'all','an item for everyone stays that way');
+  assert.deepEqual(suggestionToItem(proposal({}),{id:'i1',participantScope:'specific',participantIds:['a']},'').participantIds,['a'],'an update without a choice leaves the item people alone');
+  assert(app.includes('function reviewParticipantFields(form,before){')&&app.includes('...reviewParticipantFields(form,before)};'),'updateSuggestion reads the picker');
 });
 
 // ---- P2-F4 ---------------------------------------------------------------------------------------

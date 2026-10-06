@@ -251,7 +251,12 @@ export function suggestionToItem(suggestion,existing={},tripStartDate=''){
     ?[...new Set([...(existing.participants||[]),...(p.participants||[])])].filter(Boolean)
     :value('participants',[]);
   const incomingWarnings=p.warnings||suggestion.warnings||[];
-  return {...existing,id:existing.id||makeId('item'),type:value('type','document'),title:String(value('title','')).trim(),provider:String(value('provider','')).trim(),confirmationNumber:String(value('confirmationNumber','')).trim(),participants,location,website:String(value('website','')).trim(),phone:String(value('phone','')).trim(),schedule,startAt,endAt,notes:String(value('notes','')).trim(),details,dateMeta:{...(existing.dateMeta||{}),...(p.dateMeta||{})},fieldConfidence:{...(existing.fieldConfidence||{}),...(p.fieldConfidence||{})},warnings:[...(existing.warnings||[]),...(directionNowResolved?clearResolvedDirectionWarning(incomingWarnings):incomingWarnings)],sourceIds:[...new Set([...(existing.sourceIds||[]),...sourceIds])],updatedAt:new Date().toISOString()};
+  // Beta 0.8 Phase 2.1 (P2-F3): the participants chosen on the review screen reach the item. Merging into an existing item is
+  // ADD ONLY -- nobody already assigned is ever removed, and an item already assigned to "all" stays that way.
+  const participantFields=existing.participantScope==='all'||!p.participantScope||p.participantScope==='none'?{}
+    :p.participantScope==='all'?{participantScope:'all',participantIds:[]}
+    :{participantScope:'specific',participantIds:[...new Set([...(existing.participantScope==='specific'?existing.participantIds||[]:[]),...(p.participantIds||[])])]};
+  return {...existing,...participantFields,id:existing.id||makeId('item'),type:value('type','document'),title:String(value('title','')).trim(),provider:String(value('provider','')).trim(),confirmationNumber:String(value('confirmationNumber','')).trim(),participants,location,website:String(value('website','')).trim(),phone:String(value('phone','')).trim(),schedule,startAt,endAt,notes:String(value('notes','')).trim(),details,dateMeta:{...(existing.dateMeta||{}),...(p.dateMeta||{})},fieldConfidence:{...(existing.fieldConfidence||{}),...(p.fieldConfidence||{})},warnings:[...(existing.warnings||[]),...(directionNowResolved?clearResolvedDirectionWarning(incomingWarnings):incomingWarnings)],sourceIds:[...new Set([...(existing.sourceIds||[]),...sourceIds])],updatedAt:new Date().toISOString()};
 }
 // V6-F35 (reopened, fix pass 5): the fix-pass-4 version of this only cleared a stale warning when
 // a direction was resolved via the picker. Retesting FL-007 found the same class of bug on a

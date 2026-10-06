@@ -1710,6 +1710,15 @@ function reviewDocLink(box){
   }
   updateSuggestion(form,suggestion);save();render();
 }
+// Beta 0.8 Phase 2.1 (P2-F3, found while testing it): the review screen has always SHOWN the participant picker, but
+// updateSuggestion never read it back and suggestionToItem never carried it onto the new item -- the choice was dropped.
+// Read it here (only when the form has the picker) so it is kept on the proposal and reaches the item.
+function reviewParticipantFields(form,before){
+  const scopeField=form.elements.participantScope;
+  if(!scopeField)return {};
+  const scope=['none','all','specific'].includes(scopeField.value)?scopeField.value:'none';
+  return {participantScope:scope,participantIds:scope==='specific'?new FormData(form).getAll('participantIds').map(String):[]};
+}
 function updateSuggestion(form,suggestion){const data=new FormData(form),before=suggestion.proposed,type=String(data.get('type')),range=normalizeDateRange(data.get('startAt'),data.get('endAt'),{allowEndBeforeStart:type==='flight'});
   // 0.7.8 (found live, needed for reviewing a Transport suggestion): transportMode/email were both
   // already rendered by proposalFields() for type:'car' (transportMode since 0.7.4, email new this
@@ -1717,7 +1726,7 @@ function updateSuggestion(form,suggestion){const data=new FormData(form),before=
   // this candidate made a real car-type suggestion possible for the first time (0.7.4 itself only
   // ever reached buildItemFormValues' own manual-create/edit-item path, never this one, since no
   // extraction could produce a car suggestion before Transport Smart Import existed).
-  const next={type,title:String(data.get('title')||'').trim(),provider:String(data.get('provider')||'').trim(),confirmationNumber:String(data.get('confirmationNumber')||'').trim(),location:String(data.get('location')||'').trim(),website:normalizeUrlInput(data.get('website')),phone:String(data.get('phone')||'').trim(),email:String(data.get('email')||'').trim(),startAt:range.start,endAt:range.end,participants:String(data.get('participants')||'').split(',').map(x=>x.trim()).filter(Boolean),notes:String(data.get('notes')||'').trim(),transportMode:String(data.get('transportMode')||'').trim()||before.transportMode,schedule:scheduleForType(type,Boolean(range.start))};
+  const next={type,title:String(data.get('title')||'').trim(),provider:String(data.get('provider')||'').trim(),confirmationNumber:String(data.get('confirmationNumber')||'').trim(),location:String(data.get('location')||'').trim(),website:normalizeUrlInput(data.get('website')),phone:String(data.get('phone')||'').trim(),email:String(data.get('email')||'').trim(),startAt:range.start,endAt:range.end,participants:String(data.get('participants')||'').split(',').map(x=>x.trim()).filter(Boolean),notes:String(data.get('notes')||'').trim(),transportMode:String(data.get('transportMode')||'').trim()||before.transportMode,schedule:scheduleForType(type,Boolean(range.start)),...reviewParticipantFields(form,before)};
   const changedFields=new Set(['title','provider','confirmationNumber','location','website','phone','email','startAt','endAt','notes','transportMode'].filter(key=>String(before[key]||'')!==String(next[key]||'')));
   suggestion.proposed=reconcileStaleNeedsReview({...before,...next},changedFields);
   suggestion.warnings=suggestion.proposed.warnings;
