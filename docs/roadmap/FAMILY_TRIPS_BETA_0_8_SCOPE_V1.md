@@ -1,21 +1,34 @@
 # FamilyTrips Beta 0.8 — Scope: Visual and Interaction System
 
-Document revision: `V3`
+Document revision: `V4`
 Date: 2026-10-05
 From: Product Owner's planning/QA-assistant (document-only)
 
-**`V3` change note:** closes `G1`, the scope gap first flagged in Phase 1's own acceptance session
-(2026-10-04): every remaining app screen is now explicitly assigned to Phase 2 or Phase 3 below, so
-nothing is left implicit before Phase 2's kickoff. Also folds in three items Phase 1's correction rounds
-surfaced along the way: `P12-F5` (name the tickets/documents section explicitly, for every item type) and
-the sign-in screen's terracotta-filled "התחברות עם Google" button (found in Phase 1.2's own acceptance
-session, Test 12) both go into Phase 2's scope below; `P12-F1` (Low, the About section's bidi-scrambled
-build string) and `P12-F2` (Non-blocking, inactive participants still offered for new assignments) ride
-along as Phase 2 acceptance criteria. Phase 1 itself (including corrections `1.1` and `1.2`) is now closed
-— **GO**, 2026-10-05, on `0.8.0-phase1.2-ab9e513c` — see `MVP_DELIVERY_PLAN_CURRENT_STATE.md` for the full
-closure record. The screen-to-phase assignment below is this assistant's own scoping call, not a decision
-asked of the Product Owner; flag anything that reads wrong once Phase 2's kickoff is in front of you. No
-other content below changed from `V2`.
+**`V4` change note:** schedules the two Beta 0.8 backlog items `V3` had explicitly excluded. The Product
+Owner decided, 2026-10-05: **`P12-F3` (delete participants) and `P12-F4` (delete shopping items) fold
+into Phase 3** rather than becoming a separate candidate — Phase 3 already visits Settings' participants
+section and the Shopping screen for the visual restyle, so this adds the delete capability there once
+instead of touching those screens twice. Both are genuine functional additions, not restyle items, and
+are called out explicitly in Phase 3 below the same way the `endedAt` field was called out as an
+acknowledged exception in Phase 1.1 — Beta 0.8 otherwise stays visual/interaction only. `P12-F3`'s own
+scope was resolved directly by the Product Owner: **deleting a participant is blocked while they have any
+existing assignment** (document, ticket, task, or packing item) — the delete action stays disabled with a
+message pointing to the existing deactivation mechanism (`P12-F2`) instead; only a participant with zero
+existing assignments can be deleted. This needs no cascade-clear logic and leaves no orphaned references.
+Separately, the Product Owner confirmed the HMI design spec's one remaining unscheduled item — dark mode
+(`FAMILYTRIPS_UI_IMPLEMENTATION_DESIGN_SPEC_V7.md` §8) — **stays deferred, not part of Beta 0.8 in any
+form.** Every other design-spec section (§2–§7, §9) was independently cross-checked against this
+document's Phase 1/2/3 assignments and confirmed fully covered; nothing else is missing. **One new finding
+surfaced during that same cross-check, reported directly by the Product Owner and confirmed in source by
+this assistant: `P12-F6`** — the participant carousel's arrow keys move the highlight in the direction
+opposite their own name (Left Arrow visibly moves the selection right). Root cause: §5's arrow-key clause
+bound the keys to the same next/previous logic as the RTL drag rule, but this app's RTL layout actually
+renders the DOM-order "next" option to the visual *left* of center and "previous" to the visual *right* —
+the drag gesture is unaffected and remains correct; only the arrow-key binding inverted. The design spec
+is bumped to `V7.3` to fix §5's wording (arrow keys now specified by screen position, independent of the
+drag rule); `P12-F6` is added below as a third riding-along fix in Phase 2, alongside `P12-F1`/`P12-F2` —
+a small, isolated two-line code change, no reason to reopen the already-closed Phase 1 round for it. No
+other content below changed from `V3`.
 
 ## What this is
 
@@ -26,7 +39,10 @@ refinement items the Product Owner confirmed folding in (`MVP_DELIVERY_PLAN_CURR
 an already-finished spec, the same posture `0.7.4`/`0.7.7`/`0.7.8`/`0.7.9` used for their own design-gate
 decisions. **No discovery-document/benchmark entry gate applies either** — nothing here is a new AI Smart
 Import extraction vertical; the Smart Import status-pill work in Phase 2 is a visual/interaction treatment
-of an already-built pipeline, not new extraction logic.
+of an already-built pipeline, not new extraction logic. Phase 3 carries one small functional exception to
+this visual/interaction framing — the `P12-F3`/`P12-F4` delete actions (`V4`), scoped below — acknowledged
+directly rather than silently folded in, the same way Phase 1.1's `endedAt` field was called out as an
+exception.
 
 **This is a materially larger candidate than anything this project has scoped before** — a visual and
 interaction pass across nearly every screen, not a bounded feature. Sequenced into three phases at the
@@ -134,20 +150,44 @@ traffic screens (Settings, Timeline, Shopping) alongside games, per its own "rem
 - `P12-F2` (Non-blocking): every participant picker (document assignment, ticket coverage, event
   ownership, and any other existing picker) excludes inactive participants from new assignments; existing
   assignments to a since-deactivated participant stay, shown greyed with "(לא פעיל)" and removable.
+- `P12-F6` (Non-blocking): the participant carousel's arrow keys move the highlight by screen position,
+  per `FAMILYTRIPS_UI_IMPLEMENTATION_DESIGN_SPEC_V7.md` `V7.3`'s corrected §5 wording — Right Arrow
+  selects the neighbor rendered to the right, Left Arrow the neighbor rendered to the left — regardless
+  of the RTL drag rule's own reading-direction logic, which is unchanged and unaffected by this fix.
+  Verified against the carousel in at least two different screens that use it (e.g. Packing's
+  participant picker and one other).
 - General regression: existing Smart Import extraction/approval behavior, item editing, and the
   underlying data these items touch (ticket coverage, Editor removal, merge-conflict resolution,
   participant assignment) are otherwise unaffected — restyling and the two riding-along fixes change how
   things are surfaced/confirmed, not what data is stored.
 
 ## Phase 3 — Games, Settings, Timeline, Shopping, remaining empty/loading/offline coverage, full
-acceptance pass
+acceptance pass, plus two functional additions (`P12-F3`, `P12-F4`)
 
 Covers spec §6 (games list and game page), the Settings screen (trip settings form, participants
 management section, sharing section, admin/invitation section), the Timeline/calendar view, and the
 Shopping list screen — closing `G1`'s remaining lower-traffic screens — plus completing §7's
 empty/loading/offline-state principles across any screen not already covered by Phase 1 (Today) or Phase
 2 (Smart Import's own loading/processing treatment, item detail, add/edit forms). Closes with the full §9
-accessibility/visual acceptance pass across the whole of Beta 0.8, not just this phase.
+accessibility/visual acceptance pass across the whole of Beta 0.8, not just this phase. **Added in `V4`:**
+two small functional additions, confirmed by the Product Owner, 2026-10-05, riding along because Phase 3
+already visits both screens for the restyle:
+
+1. **`P12-F3`** — add a delete action for a participant from Settings' participants management section.
+   **Deleting is blocked while the participant has any existing assignment** (document, ticket, task, or
+   packing item) — the delete action stays visibly disabled with a message pointing to deactivation
+   instead (the existing `P12-F2`/active-toggle mechanism); only a participant with zero existing
+   assignments can be deleted. When available, the action requires a **double confirmation** — a first
+   tap to initiate, then an explicit second confirmation naming the participant before the irreversible
+   delete runs (consistent with the spec's caution around irreversible action controls) — followed by a
+   transient success notification, consistent with the spec's own transient-success pattern (§7's
+   "Attached" state, the offline/sync strip's success-is-transient rule). No cascade-clear logic is
+   needed and no orphaned references are possible, since the delete simply cannot run while assigned.
+2. **`P12-F4`** — add a delete action for a shopping-list item, following the **same pattern the current
+   Tasks screen uses** (post-`P11-F13`: delete lives inside the item's own edit screen, not as a direct
+   per-row control) — not a new, separate delete pattern. A single confirmation is sufficient, matching
+   the existing Tasks delete flow; this is a lower-consequence action than deleting a participant (no
+   cross-item assignments to protect).
 
 **Acceptance criteria:**
 - Games list matches §6: compact catalog (not a gallery), the five named filters, active/inactive filter
@@ -159,6 +199,14 @@ accessibility/visual acceptance pass across the whole of Beta 0.8, not just this
 - Settings (trip form, participants, sharing, admin), Timeline/calendar, and Shopping all match the
   spec's tokens, spacing, typography, and component rules — the same bar Phase 1 and 2 held their own
   screens to.
+- **`P12-F3`:** the delete action is present in Settings' participants section; attempting to delete an
+  assigned participant leaves the action disabled with the pointing-to-deactivation message, verified
+  against at least one participant with a real assignment; deleting an unassigned participant requires
+  the double confirmation naming that participant, then actually removes the record and shows the
+  transient success notification.
+- **`P12-F4`:** the delete action is present on shopping-list items, placed inside the item's edit screen
+  exactly like the current Tasks pattern, not as a separate per-row control; a single confirmation
+  precedes the delete; the item is actually removed.
 - Every remaining screen with an empty, loading, or offline/sync state (per §7's general principles) uses
   the specified treatment — line icon + headline + explanation for empty, the uniform
   `--border`-on-`--surface` skeleton (not a spinner) for loading, and the persistent `--accent-soft` top
@@ -168,21 +216,22 @@ accessibility/visual acceptance pass across the whole of Beta 0.8, not just this
   anywhere touched by Phases 1–3, and a side-by-side screenshot comparison against the spec's own
   described states.
 - General regression across the full app: nothing from Phases 1–2 has regressed by the time this phase
-  closes.
+  closes, and the two new delete actions don't affect any other existing participant/shopping-item
+  behavior.
 
 ## Non-goals
 
-- Dark mode — explicitly deferred in the spec itself (§8), an open product decision not made yet, not
-  part of Beta 0.8.
+- Dark mode — explicitly deferred in the spec itself (§8), an open product decision confirmed, 2026-10-05,
+  to stay deferred rather than being scheduled into any Beta 0.8 phase.
 - Any change to the datastore's access-control shape or the sync engine — Beta 0.8 is visual/interaction
   only; nothing here touches Firestore rules, Storage rules, or the sync/offline-reconnect mechanism
-  itself (only how offline/sync state is *displayed*, per Phase 3). Phase 1's corrections did add one
-  small, acknowledged exception — the `endedAt` item field (Phase 1.1, Decision 1) — a deliberate,
-  additive content field, not an access-control or sync-engine change.
+  itself (only how offline/sync state is *displayed*, per Phase 3). Two small, acknowledged exceptions
+  exist: the `endedAt` item field (Phase 1.1, Decision 1), a deliberate additive content field; and
+  Phase 3's participant/shopping-item delete actions (`P12-F3`, `P12-F4`, scoped above, `V4`) — genuine
+  functional additions, not restyle work, folded in because Phase 3 already visits both screens. Neither
+  touches Firestore/Storage *rules* or the sync engine itself.
 - Any new Smart Import extraction vertical or field — the status-pill work is a visual treatment of the
   existing pipeline, not new extraction scope.
-- Deleting participants or shopping-list items (`P12-F3`, `P12-F4`) — both routed to the backlog for the
-  Product Owner to schedule separately with this assistant, not part of any Beta 0.8 phase.
 - Any of the independent backlog items confirmed unrelated to Beta 0.8 at `V143` (`0.7.10`, calendar
   export, the Google Play Store note, `V7-F14`, `WC-001`) or the three new documents-bin findings from
   `0.7.9.2` (`V145`) — none of these are in scope for any Beta 0.8 phase.
@@ -192,4 +241,5 @@ accessibility/visual acceptance pass across the whole of Beta 0.8, not just this
 **Phase 1 is closed.** Phase 2 is scoped above, including the `G1` screen assignments and the two
 riding-along fixes (`P12-F1`, `P12-F2`); it is not yet kicked off — that is a separate prompt, staged but
 withheld until this assistant sends explicit authorization, matching every prior phase transition in this
-project. Phase 3's own kickoff follows once Phase 2 is accepted GO on `qa`.
+project. Phase 3 — now also scoped with its two functional additions (`P12-F3`, `P12-F4`, `V4`) — has no
+kickoff prompt yet; that follows once Phase 2 is accepted GO on `qa`.
