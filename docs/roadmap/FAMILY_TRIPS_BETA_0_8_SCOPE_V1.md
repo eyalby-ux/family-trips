@@ -1,8 +1,23 @@
 # FamilyTrips Beta 0.8 — Scope: Visual and Interaction System
 
-Document revision: `V5`
+Document revision: `V6`
 Date: 2026-10-06
 From: Product Owner's planning/QA-assistant (document-only)
+
+**`V6` change note:** `P12-F6` is fixed and tested live — removed from Phase 2's riding-along list below,
+closing it out of Beta 0.8 entirely rather than carrying it into Phase 2's own implementation pass.
+Independently confirmed directly in the repository before this edit: commit `db74e02` ("Fix `P12-F6`:
+carousel arrow keys follow screen position") changes exactly `src/participant-carousel.js` (a new pure
+`arrowKeyTarget()` picking the neighbor by measured screen position rather than a hard-coded prev/next
+swap — correct for the 3+ option carousel, the 2-option case, and the wide-screen row alike), `src/v5-app.js`
+(the keydown handler now measures via `getBoundingClientRect()` and calls `arrowKeyTarget()`, leaving the
+drag/swipe gesture's own reading-direction rule untouched), and the two test files (`arrowKeyTarget`
+exercised under both RTL and LTR placement, every position, every layout). `node tests/beta-0-8-phase-1-2-logic.mjs`
+and `node tests/beta-0-8-phase-1.mjs` both re-run directly — all pass, including the three new `P12-F6`
+checks. Design spec `V7.3`'s §5 wording already described the fix at the right level (by screen position,
+not by implementation mechanism) and needs no further change. Phase 2's acceptance-criteria bullet for
+`P12-F6` is removed below; the fix stands closed on its own, outside any phase's formal acceptance round,
+the same way a small isolated correction occasionally has throughout this project.
 
 **`V5` change note:** fixes a real gap the Development Agent caught while diffing `V4` against the live
 repository: `P12-F6`'s acceptance criterion asked for verification "in at least two different screens that
@@ -160,13 +175,6 @@ traffic screens (Settings, Timeline, Shopping) alongside games, per its own "rem
 - `P12-F2` (Non-blocking): every participant picker (document assignment, ticket coverage, event
   ownership, and any other existing picker) excludes inactive participants from new assignments; existing
   assignments to a since-deactivated participant stay, shown greyed with "(לא פעיל)" and removable.
-- `P12-F6` (Non-blocking): the participant carousel's arrow keys move the highlight by screen position,
-  per `FAMILYTRIPS_UI_IMPLEMENTATION_DESIGN_SPEC_V7.md` `V7.3`'s corrected §5 wording — Right Arrow
-  selects the neighbor rendered to the right, Left Arrow the neighbor rendered to the left — regardless
-  of the RTL drag rule's own reading-direction logic, which is unchanged and unaffected by this fix.
-  Verified on the Packing participant picker, the control's one existing caller today, plus any further
-  carousel call sites Phase 2's own add/edit-form redesign happens to introduce — not a requirement to
-  manufacture a second use case where none currently exists.
 - General regression: existing Smart Import extraction/approval behavior, item editing, and the
   underlying data these items touch (ticket coverage, Editor removal, merge-conflict resolution,
   participant assignment) are otherwise unaffected — restyling and the two riding-along fixes change how
