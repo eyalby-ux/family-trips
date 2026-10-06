@@ -1465,6 +1465,11 @@ async function runSmartAnalysis(source,file,targetItem=null){
   // category that's already certain). A brand-new source has no target yet, so it goes through
   // analyze_source, which classifies from content first -- see smart-import.mjs.
   source.status='בניתוח';source.processingState='processing';source.processingStartedAt=new Date().toISOString();save();render();
+  // Beta 0.8 Phase 2 (found live): save() above echoes back through the Trip listener, and mergeRemoteState REPLACES
+  // state.sources with new objects while the analysis is awaiting -- so the `source` captured here becomes a detached
+  // copy, and writing the outcome to it was silently lost: the source stayed "processing" forever (the four stuck
+  // sources already on the QA Trip). Every outcome below is written to whichever object is in state NOW.
+  const live=()=>sourceById(source.id)||source;
   try{
     const result=targetItem
       ?await (targetItem.type==='flight'?analyzeFlightSource({trip:state.trip,source,file}):targetItem.type==='activity'?analyzeActivitySource({trip:state.trip,source,file}):targetItem.type==='insurance'?analyzeInsuranceSource({trip:state.trip,source,file}):targetItem.type==='car'?analyzeCarSource({trip:state.trip,source,file}):analyzeHotelSource({trip:state.trip,source,file}))
@@ -1483,7 +1488,7 @@ async function runSmartAnalysis(source,file,targetItem=null){
     // variant -- the actual gap was this flow-scoping, not name-matching quality. Runs for every
     // flow now (new item and attach-to-existing alike); a confident match populates
     // source.participantIds, no match leaves it untouched (still manually correctable either way).
-    {const resolvedParticipantIds=resolveParticipantIdsFromDraft(result.draft,state.participants.filter(participant=>participant.active!==false));if(resolvedParticipantIds.length)source.participantIds=resolvedParticipantIds}
+    {const resolvedParticipantIds=resolveParticipantIdsFromDraft(result.draft,state.participants.filter(participant=>participant.active!==false));if(resolvedParticipantIds.length)live().participantIds=resolvedParticipantIds}
     // 0.7.8: smartImportTransportResultToSuggestion throws directly (not an empty array) when the
     // model honestly classifies transportMode as 'transfer'/'other' -- mirrors the unrecognized
     // throw immediately above, caught by this same function's own catch block below.
@@ -1496,13 +1501,11 @@ async function runSmartAnalysis(source,file,targetItem=null){
     if(targetItem)suggestions=suggestions.map(suggestion=>{const merged=preserveTrustedFieldsOnMerge(suggestion,targetItem);merged.targetItemId=targetItem.id;return merged});
     if(!suggestions.length)throw new Error('לא זוהה מקטע טיסה תקין במקור. לא נוצרה הצעה.');
     state.suggestions.push(...suggestions);
-    source.status=targetItem?'מצורף — חילוץ ממתין לאישור':'ממתין לאישור';
-    source.processingState='proposal_ready';source.processingAttemptId=result.attemptId;save();
+    Object.assign(live(),{status:targetItem?'מצורף — חילוץ ממתין לאישור':'ממתין לאישור',processingState:'proposal_ready',processingAttemptId:result.attemptId});save();
     route('suggestion',{suggestionId:suggestions[0].id});
     notify(targetItem?'נוצרה הצעת עדכון; דבר לא שונה עדיין':suggestions.length>1?`הניתוח הסתיים — ${suggestions.length} הצעות טיסה ממתינות לבדיקה`:'הניתוח הסתיים — יש לבדוק ולאשר כל שדה');
   }catch(error){
-    source.status=targetItem?'מצורף — החילוץ נכשל':'הניתוח נכשל — המקור נשמר';
-    source.processingState='failed';source.processingError=String(error.message||error);save();
+    Object.assign(live(),{status:targetItem?'מצורף — החילוץ נכשל':'הניתוח נכשל — המקור נשמר',processingState:'failed',processingError:String(error.message||error)});save();
     // The Add/Attach modal must close on failure, not just navigate the background view behind
     // it -- otherwise it stays open showing the "analyzing" spinner (ingestBusy is still true
     // here) until the user notices and closes it manually, even though the app has already

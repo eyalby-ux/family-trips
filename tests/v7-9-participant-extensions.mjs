@@ -54,7 +54,7 @@ function test_0_7_9_runSmartAnalysis_resolves_source_participantIds_for_every_fl
   // this flow-scoping. Now unconditional, so it also fires for new-item creation.
   const start=app.indexOf('async function runSmartAnalysis(');
   const body=app.slice(start,app.indexOf('async function smartIngest(',start));
-  assert(body.includes('{const resolvedParticipantIds=resolveParticipantIdsFromDraft(result.draft,state.participants.filter(participant=>participant.active!==false));if(resolvedParticipantIds.length)source.participantIds=resolvedParticipantIds}'));
+  assert(body.includes('{const resolvedParticipantIds=resolveParticipantIdsFromDraft(result.draft,state.participants.filter(participant=>participant.active!==false));if(resolvedParticipantIds.length)live().participantIds=resolvedParticipantIds}'));// Beta 0.8 Phase 2: written to the live source (see tests/beta-0-8-phase-2.mjs, "lost update")
   assert(!body.includes('if(targetItem){const resolvedParticipantIds'),'the resolution must no longer be gated behind targetItem alone');
   // Beta 0.8 Phase 2 (P12-F2): an inactive participant is never auto-linked to a newly analyzed document.
   assert(body.includes('participant.active!==false'));

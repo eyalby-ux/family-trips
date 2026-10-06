@@ -115,6 +115,17 @@ test('stale processing: a source whose analysis never finished becomes Failed (r
   assert(app.includes('source.processingStartedAt=new Date().toISOString()'),'a new analysis stamps its start');
 });
 
+test('lost update: the analysis outcome is written to the live source, not a copy detached by a remote snapshot',()=>{
+  const body=app.slice(app.indexOf('async function runSmartAnalysis('),app.indexOf('async function smartIngest('));
+  assert(body.includes('const live=()=>sourceById(source.id)||source;'));
+  assert(body.includes("Object.assign(live(),{status:targetItem?'מצורף — חילוץ ממתין לאישור':'ממתין לאישור',processingState:'proposal_ready'"),'success outcome');
+  assert(body.includes("processingState:'failed',processingError:String(error.message||error)});save();"),'failure outcome');
+  assert(body.includes('live().participantIds=resolvedParticipantIds'),'participant auto-link');
+  // nothing after the first await may mutate the captured object directly any more
+  const afterAwait=body.slice(body.indexOf('try{'));
+  assert(!/\n\s+source\.(status|processingState|processingError|participantIds)=/.test(afterAwait),'no direct writes to the captured source after the await');
+});
+
 // ---- S7 interaction rule (V6-F11) ----------------------------------------------------------------
 test('interaction rule: a confirming action is blocked while Processing, and while the state is unknown',()=>{
   const live={processingState:'processing',processingStartedAt:new Date().toISOString()};
