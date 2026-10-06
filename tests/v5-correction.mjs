@@ -85,7 +85,8 @@ assert(visibleTypesLine.includes("'link'"));
 assert(visibleTypesLine.includes("'participant'"));
 assert(!app.includes("['locations','📍','מיקומים'"));
 assert(!app.includes('source-link-title'));
-assert(app.includes("['link','🔗 קישור']"));
+// Beta 0.8 Phase 2.1 (P2-F6): the Add dialog's options are [key, Tabler icon, label] -- no emoji.
+assert(app.includes("['link','link','קישור']"));
 assert(app.includes('function smartImportPanel(source)'));
 assert(app.includes('function confirmOutOfRangeSave(values)'));
 assert(app.includes("if(!confirmOutOfRangeSave(values)){if(form.id==='edit-item-form')"));

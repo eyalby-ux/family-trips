@@ -11,6 +11,7 @@ import {
 } from 'firebase/auth';
 import { auth, googleProvider } from './firebase.js';
 import { appVersionLabel } from './app-version.js';
+import { largePalm } from './import-status.js';
 
 const authRoot = document.querySelector('#auth-root');
 const accountBar = document.querySelector('#account-bar');
@@ -58,7 +59,7 @@ function renderLogin(message = '') {
 
 async function handleSignIn() {
   const button = document.querySelector('#google-sign-in');
-  if (button) { button.disabled = true; button.textContent = 'מתחבר…'; }
+  if (button) renderPalm('מתחבר…');
   try { await signInWithPopup(auth, googleProvider); }
   catch (error) {
     const fallbacks = new Set(['auth/popup-blocked','auth/popup-closed-by-user','auth/cancelled-popup-request','auth/operation-not-supported-in-this-environment']);
@@ -133,7 +134,14 @@ async function registerServiceWorker() {
   }
 }
 
+// Beta 0.8 Phase 2.1 (P2-F2): the swaying palm is the app's one "in process" display -- large and floating for every
+// full-screen wait (app start / refresh, sign-in), replacing the old blank screen and hourglass.
+function renderPalm(phrase) {
+  authRoot.innerHTML = `<main class="auth-page"><div class="palm-screen">${largePalm({ phrases: [phrase] })}</div></main>`;
+}
+
 async function start() {
+  if (!authRoot.innerHTML.trim()) renderPalm('טוען…');
   const serviceWorkerReady = registerServiceWorker();
 
   // Local data must render before Firebase/authentication performs network work -- but 0.7.2's

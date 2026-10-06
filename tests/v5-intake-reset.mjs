@@ -6,7 +6,8 @@ const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
 const styles=fs.readFileSync(new URL('../src/styles.css',import.meta.url),'utf8');
 const manifest=fs.readFileSync(new URL('../public/manifest.webmanifest',import.meta.url),'utf8');
 
-assert(app.includes("choices=[['manual','✍️ ידני'],['document','📎 מסמך'],['link','🔗 קישור'],['json','⬆️ JSON'],['qr','▦ QR']]"));
+// Beta 0.8 Phase 2.1 (P2-F6): [key, Tabler icon, label] instead of emoji-prefixed labels; same five options in the same order.
+assert(app.includes("choices=[['manual','pencil','ידני'],['document','file','מסמך'],['link','link','קישור'],['json','upload','JSON'],['qr','qr','QR']]"));
 assert(app.includes('ניתוח והצעת פריט'));
 assert(app.includes('שמירת המקור בלבד — ללא AI'));
 assert(app.includes('function smartIngest()'));

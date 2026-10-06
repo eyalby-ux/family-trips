@@ -445,7 +445,8 @@ test_ux_attach_and_extract_still_uses_known_category();
 // own separate top-level option (a different, non-AI, schema-validated code path). ---
 function test_ux_document_option_merges_pdf_and_photo(){
   const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
-  assert.match(app,/choices=\[\['manual','[^']*'\],\['document','[^']*'\],\['link','[^']*'\],\['json','[^']*'\],\['qr','[^']*'\]\]/,'the top-level Add options must be exactly Manual / Document / Link / QR / JSON, in that order -- PDF and Picture are no longer separate options there (attachmentModal, the per-item "add document" screen, got the same merge separately in fix pass 4 / V6-F38, see test_V6_F38_attachment_modal_merges_pdf_and_photo)');
+  // Beta 0.8 Phase 2.1 (P2-F6): each option is [key, Tabler icon, label] now.
+  assert.match(app,/choices=\[\['manual','[^']*','[^']*'\],\['document','[^']*','[^']*'\],\['link','[^']*','[^']*'\],\['json','[^']*','[^']*'\],\['qr','[^']*','[^']*'\]\]/,'the top-level Add options must be exactly Manual / Document / Link / QR / JSON, in that order -- PDF and Picture are no longer separate options there (attachmentModal, the per-item "add document" screen, got the same merge separately in fix pass 4 / V6-F38, see test_V6_F38_attachment_modal_merges_pdf_and_photo)');
 
   // V6-F78 (0.6.7.1) added TIFF to this same accept attribute -- the underlying guarantee this
   // test checks (one merged Document input, PDF and image types together) is unchanged.

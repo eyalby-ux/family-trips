@@ -26,14 +26,25 @@ const ICONS={
   rejected:`${CIRCLE}<path d="M5.7 5.7l12.6 12.6"/>`,
 };
 
-// The Processing icon -- the spec's second and final "no illustrations" exception, within its boxed
-// limits: one 24px outline glyph, one stroke weight, --ink plus exactly two --accent coconuts, no
-// gradient/shading. The trunk is fixed; only the frond group (fronds + coconuts) sways, around the
-// crown at (12 9), +-6deg over 2.2s ease-in-out looping (.palm-fronds in styles.css).
-const PALM='<svg class="import-palm" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">'
-  +'<path class="palm-trunk" d="M12 22c0 -5 .8 -9 0 -13"/>'
+// The swaying palm -- the app's one in-progress symbol (spec V7.4 S7), in exactly two sizes: this 24px inline glyph
+// (status pills, list rows) and the large floating form below. Single outline stroke, --ink plus exactly two --accent
+// coconuts, no gradient/shading. The trunk is fixed; only the frond group (fronds + coconuts) sways around the crown
+// at (12 9), +-6deg over 2.2s ease-in-out looping (.palm-fronds in styles.css).
+const PALM_INNER='<path class="palm-trunk" d="M12 22c0 -5 .8 -9 0 -13"/>'
   +'<g class="palm-fronds"><path d="M12 9c-2 -4 -6 -5 -9 -3"/><path d="M12 9c2 -4 6 -5 9 -3"/><path d="M12 9c-4 0 -7 3 -8 6"/><path d="M12 9c4 0 7 3 8 6"/>'
-  +'<circle class="palm-coconut" cx="10.4" cy="10.6" r="1.4"/><circle class="palm-coconut" cx="13.6" cy="10.6" r="1.4"/></g></svg>';
+  +'<circle class="palm-coconut" cx="10.4" cy="10.6" r="1.4"/><circle class="palm-coconut" cx="13.6" cy="10.6" r="1.4"/></g>';
+const PALM=`<svg class="import-palm" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">${PALM_INNER}</svg>`;
+
+// P2-F1 / P2-F2: the large floating palm (~112px, inside the spec's 96-120px) for every FULL-SCREEN wait -- app start
+// or refresh, sign-in, Smart Import analysis. Sways like the small one plus a slight bob; a one-line status below it
+// (cross-fading when there are several phrases, static for one) and the 2px indeterminate hairline. Skeleton
+// placeholders for loading content are a different thing and are not replaced by this.
+export const LARGE_PALM_PX=112;
+export function largePalm({phrases=PROCESSING_PHRASES,hairline=true}={}){
+  const list=[...phrases];
+  const status=list.length>1?`<span class="import-phrases" aria-hidden="true">${list.map(phrase=>`<span>${phrase}</span>`).join('')}</span>`:`<span class="import-phrase-static">${list[0]||''}</span>`;
+  return `<div class="palm-loader" role="status" aria-live="polite"><svg class="import-palm palm-large" viewBox="0 0 24 24" width="${LARGE_PALM_PX}" height="${LARGE_PALM_PX}" aria-hidden="true">${PALM_INNER}</svg>${status}${hairline?'<span class="import-hairline" aria-hidden="true"></span>':''}</div>`;
+}
 
 const icon=name=>`<svg class="import-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">${ICONS[name]}</svg>`;
 

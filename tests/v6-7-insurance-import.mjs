@@ -644,7 +644,8 @@ function test_attach_and_extract_offered_for_insurance_items(){
   // 0.7.8 added 'car' to this list too -- narrowed to a substring check so a further addition
   // doesn't break this again.
   // Beta 0.8 Phase 2: the control now sits in the Documents block's own actions row.
-  assert(app.includes("['hotel','flight','activity','insurance','car'].includes(item.type)?`<div class=\"actions\"><button class=\"btn\" data-action=\"attach-source\""),'the attach-document control must be offered for insurance items too, matching Hotel/Flight/Attraction-Event -- Decision 7 explicitly includes Attach only/Attach and extract on an existing Insurance item');
+  // Beta 0.8 Phase 2.1 (P2-F4): the control is the card's own full-width "+ הוספת מסמך" button.
+  assert(app.includes("const canAttach=['hotel','flight','activity','insurance','car'].includes(item.type);")&&(app.includes('data-action="attach-source"')&&app.includes('+ הוספת מסמך</button>')),'the attach-document control must be offered for insurance items too, matching Hotel/Flight/Attraction-Event -- Decision 7 explicitly includes Attach only/Attach and extract on an existing Insurance item');
   console.log('PASS: the attach-document control is offered for insurance items, matching every other Smart Import-capable type');
 }
 function test_runSmartAnalysis_routes_insurance_attach_and_extract_to_the_insurance_operation(){

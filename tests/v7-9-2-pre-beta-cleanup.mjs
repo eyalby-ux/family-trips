@@ -145,7 +145,8 @@ function test_0_7_9_2_sourceRow_accepts_an_itemId_and_only_offers_unlink_when_pr
   assert(body.includes('${itemId?`<button class="btn danger" data-action="source-unlink"'));
 }
 function test_0_7_9_2_detailView_passes_the_items_own_id_into_sourceRow(){
-  assert(app.includes('sources.map(source=>sourceRow(source,item.id))'));
+  // Beta 0.8 Phase 2.1 (P2-F4): the item page's documents render through otherDocRow() / the ticket slides (each document once); sourceRow() remains Trip Center's Documents list row.
+  assert(app.includes('others.map(source=>otherDocRow(source,item.id))'));
 }
 function test_0_7_9_2_source_unlink_only_touches_item_sourceIds_never_state_sources(){
   const start=app.indexOf("else if(action==='source-unlink')");

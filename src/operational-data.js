@@ -542,3 +542,30 @@ export function computeTicketCoverage(sources,participants){
   const people=pickerParticipants(participants,[...coveredIds]);
   return {confirmed,coveredIds,people,coveredCount:people.filter(person=>coveredIds.has(person.id)).length};
 }
+
+// Beta 0.8 Phase 2.1 (P2-F5): the participant chip, always one line. Everyone assigned reads "כולם"; up to two
+// people are shown by full name; more than two show the first name plus a count ("אייל +4"). `participants` is
+// the full participant list; "everyone" means every ACTIVE participant is assigned (and there are at least two,
+// so a one-person trip still shows the name). scope 'all' is also "כולם". Returns '' when nobody is assigned.
+export function participantChipLabel(ids,participants,scope){
+  if(scope==='all')return 'כולם';
+  const assigned=[...new Set(ids||[])].map(id=>(participants||[]).find(participant=>participant.id===id)).filter(Boolean);
+  if(!assigned.length)return '';
+  const active=(participants||[]).filter(participant=>participant.active!==false);
+  if(active.length>=2&&active.every(participant=>assigned.some(person=>person.id===participant.id)))return 'כולם';
+  if(assigned.length<=2)return assigned.map(person=>person.name).join(', ');
+  return `${String(assigned[0].name).trim().split(/\s+/)[0]} +${assigned.length-1}`;
+}
+
+// Beta 0.8 Phase 2.1 (P2-F3): linking a ticket document to people adds them to the item's own participant list.
+// ADD ONLY -- nobody is ever removed, and 'all' already covers everyone. Returns the fields to merge into the item
+// / proposal, or null when nothing changes. Inactive participants are filtered out by the caller (pickers never
+// offer them), so ids here are whoever was just linked.
+export function addParticipantsToRecord(record,ids){
+  const linked=[...new Set(ids||[])];
+  if(!linked.length||record?.participantScope==='all')return null;
+  const existing=record?.participantScope==='specific'?(record.participantIds||[]):[];
+  const merged=[...new Set([...existing,...linked])];
+  if(record?.participantScope==='specific'&&merged.length===existing.length)return null;
+  return {participantScope:'specific',participantIds:merged};
+}

@@ -151,7 +151,8 @@ function test_V6_F62_activity_items_have_attach_document_control(){
   // guarantee this test checks (activity items have an attach-document control) is unchanged;
   // narrowed to a substring check so a further addition doesn't break this again.
   // Beta 0.8 Phase 2: the control sits in the Documents block's own actions row (ticketsAndDocumentsSection).
-  assert(app.includes("['hotel','flight','activity','insurance','car'].includes(item.type)?`<div class=\"actions\"><button class=\"btn\" data-action=\"attach-source\" data-id=\"${item.id}\">הוספת מסמך</button></div>`:''"),'detailView must render an attach-document control for activity items too, mirroring the existing Hotel/Flight control');
+  // Beta 0.8 Phase 2.1 (P2-F4): the control is the card's own full-width "+ הוספת מסמך" button.
+  assert(app.includes("const canAttach=['hotel','flight','activity','insurance','car'].includes(item.type);")&&(app.includes('data-action="attach-source"')&&app.includes('+ הוספת מסמך</button>')),'detailView must render an attach-document control for activity items too, mirroring the existing Hotel/Flight control');
   console.log('PASS: V6-F62 activity items now have an attach-existing-document control, matching Hotel/Flight');
 }
 
@@ -166,8 +167,8 @@ function test_V6_F57_activity_summary_block_wired_into_both_screens(){
   assert.match(app,/function activitySummaryBlock\(details(?:,\{holders=true\}=\{\})?\)\{/,'a dedicated read-only summary block must exist for Activity, mirroring flightSummaryBlock');
   assert.match(app,/function activityTicketHoldersTable\(ticketHolders\)\{/,'a dedicated per-ticket-holder table must exist for Activity, mirroring flightPassengersTable');
   assert.match(app,/holder\.dni\?`ת\.ז\.\/דרכון \$\{esc\(holder\.dni\)\}`:''/,'the ticket-holder table must render dni once V6-F56 makes it available');
-  // Beta 0.8 Phase 2: on the item detail page the holders table is rendered inside the ticket section instead (holders:false).
-  assert.match(app,/\$\{item\.type==='activity'\?activitySummaryBlock\(item\.details,\{holders:false\}\):''\}/,'detailView must actually call activitySummaryBlock for a saved activity item, not just define it');
+  // Beta 0.8 Phase 2.1 (P2-F4): on the item detail page the holders table is folded into a collapsed <details> (holders:'collapsed').
+  assert.match(app,/\$\{item\.type==='activity'\?activitySummaryBlock\(item\.details,\{holders:'collapsed'\}\):''\}/,'detailView must actually call activitySummaryBlock for a saved activity item, not just define it');
   assert.match(app,/\$\{p\.type==='activity'\?activitySummaryBlock\(p\.details\):''\}/,'suggestionView must actually call activitySummaryBlock for a pending activity suggestion');
   console.log('PASS: V6-F57 details.ticketHolders/amount/currency now have a real rendering path on both the suggestion review screen and the saved item detail view');
 }

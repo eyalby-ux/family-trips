@@ -142,7 +142,8 @@ test('interaction rule: wired into the review screen, its submit handler and the
   assert(review.includes('name="decision" value="approve"${disabled}')&&review.includes('name="decision" value="save"${disabled}'),'both confirming buttons carry the disabled attribute');
   assert(app.includes("else if(form.id==='suggestion-form'){const suggestion=suggestionById(form.dataset.id);if(!suggestion||isConfirmBlocked("),'a submit that slips through (Enter key) is ignored silently, never a false "no document selected"');
   const busy=app.slice(app.indexOf('function processingIndicator('),app.indexOf('function processingIndicator(')+520);
-  assert(busy.includes("importStatusPill('processing')")&&busy.includes('disabled aria-disabled="true">המשך</button>'),'the busy modal keeps a visibly disabled המשך');
+  // Beta 0.8 Phase 2.1 (P2-F1): the busy modal shows the LARGE palm; the disabled המשך rule is unchanged.
+  assert(busy.includes('largePalm()')&&busy.includes('disabled aria-disabled="true">המשך</button>'),'the busy modal keeps a visibly disabled המשך');
   assert(app.includes('async function smartIngest(){\n  if(ingestBusy)return;')&&app.includes('async function attachIngest(itemId){\n  if(ingestBusy)return;'));
   assert.match(css,/\.btn\[disabled\],\.btn\[aria-disabled="true"\]\{background:var\(--bg\);color:var\(--muted\)/,'visibly muted');
 });
@@ -194,17 +195,10 @@ test('V6-F80: a needs-review warning offers "not correct" next to "confirm as co
   const action=app.slice(app.indexOf("else if(action==='needs-review-edit')"),app.indexOf('// V6-F74: confirms a still-live'));
   assert(action.includes("state.modal={type:'edit-item',itemId:button.dataset.id}")&&action.includes('input?.focus()'),'it takes the reader to the flagged field');
 });
-test('V7-F15 / P12-F5: tickets and documents are ONE section with four distinct parts',()=>{
-  const section=app.slice(app.indexOf('function ticketsAndDocumentsSection('),app.indexOf('// Beta 0.8 Phase 2 (G1): the item detail page'));
-  assert(section.includes('id="item-tickets"><h3>כרטיסים ומסמכים</h3>${ticketCoverageBlock(item,sources)}${ticketHoldersBlock(item)}${docs}'),'coverage, confirmation, holders, documents -- in that order, one card');
-  const block=app.slice(app.indexOf('function ticketCoverageBlock('),app.indexOf('function ticketsAndDocumentsSection('));
-  for(const heading of ['כיסוי כרטיסים','אישור כרטיסים'])assert(block.includes(`<h4>${heading}</h4>`),heading);
-  assert(app.includes('<h4 id="item-documents">מסמכים מקושרים</h4>'));
-  const detail=app.slice(app.indexOf('function detailView('),app.indexOf('// V6-F37 (fix pass 4)'));
-  assert(detail.includes('flightSummaryBlock(item.details,{holders:false})')&&detail.includes('activitySummaryBlock(item.details,{holders:false})'),'holders no longer render as a separate table above');
-  assert(app.includes('function ticketHoldersBlock(item){'));
-  const row=app.slice(app.indexOf('function sourceRow('),app.indexOf('function ticketCoverage('));
-  assert(!row.includes('ticketConfirmed')&&!row.includes('ticketUsed'),'the document row carries name, status, open and remove only');
+test('V7-F15 / P12-F5 (superseded by P2-F4 in Phase 2.1): ONE card, each document once -- see tests/beta-0-8-phase-2-1.mjs',()=>{
+  const section=app.slice(app.indexOf('function ticketsAndDocumentsSection('),app.indexOf('// Beta 0.8 Phase 2 (G1) / Phase 2.1 (P2-F4): the item detail page'));
+  assert(section.includes('<h3>${heading}</h3>'),'one card with one heading');
+  assert(app.includes('id="item-documents"')&&section.includes("'id=\"item-tickets\"'")||section.includes('id="item-tickets"'),'the item-tickets anchor Today scrolls to is kept');
 });
 test('P12-F5: ticket coverage is derived from confirmed documents, per participant',()=>{
   const participants=[{id:'a',name:'א'},{id:'b',name:'ב'},{id:'c',name:'ג',active:false},{id:'d',name:'ד',active:false}];
@@ -222,8 +216,9 @@ test('P12-F5: ticket coverage is derived from confirmed documents, per participa
 test('V7-F16: a confirmed ticket can be un-confirmed (and "used" is cleared with it)',()=>{
   const handler=app.slice(app.indexOf("else if(action==='source-unconfirm-ticket')"),app.indexOf('// S7 Failed pill'));
   assert(handler.includes('source.ticketConfirmed=false;source.ticketUsed=false;save();render()'));
-  const block=app.slice(app.indexOf('function ticketCoverageBlock('),app.indexOf('function ticketsAndDocumentsSection('));
-  assert(block.includes('data-action="source-unconfirm-ticket"'));
+  // Beta 0.8 Phase 2.1: the undo now lives in the slide's "⋯" menu.
+  const slide=app.slice(app.indexOf('function ticketSlideHtml('),app.indexOf('function ticketCarousel('));
+  assert(slide.includes("confirmed?menuButton('source-unconfirm-ticket',source,'ביטול אישור')"));
   assert(app.includes("else if(action==='source-confirm-ticket'){const source=state.sources.find(candidate=>candidate.id===button.dataset.id);if(source){source.ticketConfirmed=true;save();render()}}"),'the confirm action itself is untouched');
 });
 test('CR-005: removing an Editor confirms that it worked',()=>{
@@ -290,7 +285,8 @@ test('G1 Trip Center / Packing: Tabler icons on tiles, spacing and card tokens',
   assert.match(css,/\.row\{min-height:64px;padding:12px 16px;border:1px solid var\(--border\);border-radius:16px;background:var\(--surface\)/);
   assert.match(css,/\.pack-row-wrapper\{display:flex;flex-wrap:wrap;[^}]*border:1px solid var\(--border\);border-radius:16px;background:var\(--surface\)\}/,'packing rows wrap on a narrow phone instead of overflowing');
   assert.match(css,/\.progress span\{background:var\(--ink\)\}/);
-  assert(app.includes('<div class="pack-actions"><button class="btn ghost" data-action="pack-edit"'));
+  // Beta 0.8 Phase 2.1 (P2-F5): packing rows are compact tap-to-edit rows now (no inline edit/delete buttons).
+  assert(app.includes('<button class="task-compact-main" data-action="pack-edit"'));
   assert(app.includes("class=\"ti icon-directional row-chevron\""),'the row chevron mirrors under RTL');
 });
 test('G1 item detail: header, fact list, bordered contact actions, ticket section, page actions',()=>{

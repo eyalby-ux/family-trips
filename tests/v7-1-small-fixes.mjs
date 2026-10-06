@@ -22,7 +22,8 @@ const operationalSrc=fs.readFileSync(new URL('../src/operational-data.js',import
 // ---------------------------------------------------------------------------------------------
 function test_0_7_1_task_creation_reachable_from_global_add(){
   const modalFn=app.slice(app.indexOf('function intakeModal(){'),app.indexOf('function intakeModal(){')+8000);
-  assert(modalFn.includes('const taskChoice=`<button data-action="task-add">✅ משימה</button>`;'),'intakeModal must offer a Task choice that reuses the existing task-add action');
+  // Beta 0.8 Phase 2.1 (P2-F6): a Tabler checklist icon instead of the emoji.
+  assert(modalFn.includes('const taskChoice=`<button data-action="task-add">${tabler(\'checklist\')} משימה</button>`;'),'intakeModal must offer a Task choice that reuses the existing task-add action');
   assert(modalFn.includes('${taskChoice}</div>${body}'),'the Task choice button must actually be rendered into the modal\'s choice bar, not just defined');
   console.log('PASS: 0.7.1 item 1 -- Task is now a selectable, creatable type from the global floating "+", reusing the existing task-creation modal rather than a new one');
 }

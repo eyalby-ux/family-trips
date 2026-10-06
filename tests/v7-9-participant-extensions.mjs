@@ -103,7 +103,8 @@ function test_0_7_9_task_form_submit_handler_captures_participantScope_and_parti
 function test_0_7_9_taskRow_displays_the_participant_assignment_and_no_longer_shows_owner(){
   const start=app.indexOf('function taskRow(task){');
   const body=app.slice(start,start+1100);
-  assert(body.includes('const participantLabel=participantAssignmentLabel(task);'));
+  // Beta 0.8 Phase 2.1 (P2-F5): the chip is one line -- two names in full, more than two "first +N", everyone "כולם" (operational-data.js participantChipLabel).
+  assert(body.includes('const participantLabel=participantChipLabel(task.participantIds,state.participants,task.participantScope);'));
   // Phase 1.2 (P11-F13): the compact row puts the priority chip first and the participant label
   // last in the ellipsised meta text (so truncation can only ever cut the participant, never the
   // chip) -- still shown, just after the date instead of before it.
@@ -122,30 +123,30 @@ function test_0_7_9_manual_add_ticket_flow_is_fully_retired(){
   assert(!app.includes("action==='ticket-toggle-used'"));
 }
 // Beta 0.8 Phase 2 (P12-F5): ticket coverage left the document row for its own block inside the unified item section.
+// Beta 0.8 Phase 2.1 (P2-F4): a ticket document is one linked to a participant on a ticket-eligible item (confirmed or not); the slide offers the confirm.
 function test_0_7_9_sourceRow_offers_confirm_as_ticket_coverage_only_for_ticket_eligible_linked_documents(){
-  assert(app.includes("const TICKET_TYPES=['flight','activity','car'];"),'the ticket section applies to the same three types the confirm offer always did');
-  const start=app.indexOf('function ticketCoverageBlock(');
-  const body=app.slice(start,app.indexOf('function ticketsAndDocumentsSection(',start));
-  assert(body.includes("const pending=sources.filter(source=>!source.ticketConfirmed&&(source.participantIds||[]).length);"),'only an unconfirmed document that is already linked to a participant is offered');
-  assert(body.includes('data-action="source-confirm-ticket"'));
+  const ticketCard=fs.readFileSync(new URL('../src/ticket-card.js',import.meta.url),'utf8');
+  assert(ticketCard.includes("TICKET_ITEM_TYPES=Object.freeze(['flight','activity','car'])"),'the ticket card applies to the same three types the confirm offer always did');
+  assert(ticketCard.includes('(eligible&&(source.participantIds||[]).length?tickets:others).push(source)'),'only a document already linked to a participant is a ticket');
+  const slide=app.slice(app.indexOf('function ticketSlideHtml('),app.indexOf('function ticketCarousel('));
+  assert(slide.includes('data-action="source-confirm-ticket"'));
   const rowStart=app.indexOf('function sourceRow(source,itemId){');
-  assert(!app.slice(rowStart,app.indexOf('function gamesView(',rowStart)).includes('source-confirm-ticket'),'the document row itself no longer carries ticket controls');
+  assert(!app.slice(rowStart,app.indexOf('function gamesView(',rowStart)).includes('source-confirm-ticket'),'the document row itself carries no ticket controls');
 }
 
 function test_0_7_9_sourceRow_shows_a_shared_used_toggle_once_a_ticket_is_confirmed_not_before(){
-  const start=app.indexOf('function ticketCoverageBlock(');
-  const body=app.slice(start,app.indexOf('function ticketsAndDocumentsSection(',start));
-  // The used-toggle is rendered only for CONFIRMED documents, and a pending one gets only the confirm button.
-  const confirmedRows=body.slice(body.indexOf('const confirmedRows='),body.indexOf('const pendingRows='));
-  assert(confirmedRows.includes('data-action="source-ticket-toggle-used" data-id="${source.id}" ${source.ticketUsed?\'checked\':\'\'}'));
-  const pendingRows=body.slice(body.indexOf('const pendingRows='),body.indexOf('const hint='));
-  assert(!pendingRows.includes('source-ticket-toggle-used'),'never a used-toggle before confirmation');
-  assert(confirmedRows.includes('data-action="source-unconfirm-ticket"'),'V7-F16: a confirmed ticket can be un-confirmed');
+  const start=app.indexOf('function ticketSlideHtml(');
+  const body=app.slice(start,app.indexOf('function ticketCarousel(',start));
+  // Beta 0.8 Phase 2.1 (P2-F4): on the slide, "נוצל" and "אישור ככרטיס" are mutually exclusive on one ternary -- never a used-toggle before confirmation.
+  assert(body.includes('confirmed?`<label class="used"><input type="checkbox" data-action="source-ticket-toggle-used" data-id="${source.id}" ${source.ticketUsed?\'checked\':\'\'}>'));
+  assert(body.includes(':`<button class="btn primary" type="button" data-action="source-confirm-ticket"'));
+  assert(body.includes("confirmed?menuButton('source-unconfirm-ticket',source,'ביטול אישור')"),'V7-F16: a confirmed ticket can be un-confirmed');
 }
 
 function test_0_7_9_detailView_passes_the_items_own_type_into_sourceRow(){
   // 0.7.9.2 added item.id (soft-unlink); Beta 0.8 Phase 2 removed the type argument. See tests/v7-9-2-pre-beta-cleanup.mjs.
-  assert(app.includes('sources.map(source=>sourceRow(source,item.id))'));
+  // Beta 0.8 Phase 2.1 (P2-F4): the item page's documents render through otherDocRow() / the ticket slides (each document once); sourceRow() remains Trip Center's Documents list row.
+  assert(app.includes('others.map(source=>otherDocRow(source,item.id))'));
 }
 
 function test_0_7_9_source_confirm_ticket_and_toggle_used_handlers_are_wired(){
@@ -156,7 +157,7 @@ function test_0_7_9_ticketsSection_is_reduced_to_only_the_uncovered_participants
   // Beta 0.8 Phase 2: the coverage summary is a derived view, never a second copy of per-document state -- it reads the
   // confirmed documents and offers no confirm/used controls of its own (those live in the rows below it).
   const start=app.indexOf('function ticketCoverage(');
-  const body=app.slice(start,app.indexOf('function ticketHoldersBlock(',start));
+  const body=app.slice(start,app.indexOf('const ticketIndex',start));
   assert(body.includes('computeTicketCoverage(sources,state.participants)'),'the derivation itself is the pure computeTicketCoverage (behaviorally tested in tests/beta-0-8-phase-2.mjs)');
   assert(!body.includes('data-action="source-confirm-ticket"'));
   assert(!body.includes('data-action="source-ticket-toggle-used"'));
@@ -192,12 +193,12 @@ function test_0_7_9_the_two_ticket_related_sections_have_distinct_non_confusable
   // Activity's own Smart-Import ticketHolders table (explicitly out of scope, untouched) keeps
   // its own distinct round-2 header.
   assert(app.includes('<h4>פרטי כרטיסים מהמסמך (${ticketHolders.length})</h4>'));
-  // Beta 0.8 Phase 2 (P12-F5, V7-F15): the two ticket-related areas are now ONE section (id="item-tickets", the anchor Today's
-  // "כרטיסים" action scrolls to -- Phase 1.1 F4) whose parts keep distinct sub-headings: coverage, confirmation, holders, documents.
-  assert(app.includes('id="item-tickets"><h3>כרטיסים ומסמכים</h3>'));
-  assert(app.includes('<h4>כיסוי כרטיסים</h4>'));
-  assert(app.includes('<h4>אישור כרטיסים</h4>'));
-  assert(app.includes('<h4 id="item-documents">מסמכים מקושרים</h4>'));
+  // Beta 0.8 Phase 2.1 (P2-F4): ONE card (id="item-tickets", the anchor Today's "כרטיסים" action scrolls to -- Phase 1.1 F4), a single
+  // "כרטיסים ומסמכים" heading; the coverage summary, the ticket slides and "מסמכים נוספים" are parts of it, not separate sections.
+  assert(app.includes('id="item-tickets"'));
+  assert(app.includes("const heading=eligible?'כרטיסים ומסמכים':'מסמכים';"));
+  assert(app.includes('כרטיסים: <bdi>${summary.covered}</bdi>'));
+  assert(app.includes("eligible?'מסמכים נוספים':'מסמכים מצורפים'"));
   assert(!app.includes('<h3>מעקב כרטיסים ידני</h3>'),'the retired manual-ticket section header must be gone');
   assert(!app.includes('<h4>כרטיסים (${ticketHolders.length})</h4>'),'the old, identically-worded ticketHolders header must be gone');
 }
@@ -238,8 +239,9 @@ function test_0_7_9_task_filter_participant_change_handler_and_clear_are_wired()
 // Beta 0.8 Phase 1.2 (P11-F13, Product Owner decision 2026-10-05): this test used to pin a visible
 // delete button on EVERY task row. That is deliberately reversed for tasks -- on a phone the red
 // button on each row was easy to mis-tap -- so the task row is now compact (tap opens the task) and
-// "מחיקת המשימה" lives inside the task edit screen, still behind the confirm below. Equipment rows
-// (packRow) are unchanged and keep their row-level delete. Permanent delete for tasks itself, with
+// "מחיקת המשימה" lives inside the task edit screen, still behind the confirm below. Beta 0.8 Phase 2.1 (P2-F5)
+// reverses the equipment exception too: packing rows (packRow) are compact tap-to-edit rows and the delete lives inside
+// the packing item's edit screen, exactly like a task's (Shopping the same, closing P12-F4). Permanent delete for tasks itself, with
 // a confirmation, is preserved; only its location moved.
 function test_0_7_9_taskRow_and_packRow_offer_a_delete_button(){
   const taskStart=app.indexOf('function taskRow(task){');
@@ -249,13 +251,15 @@ function test_0_7_9_taskRow_and_packRow_offer_a_delete_button(){
   const modalStart=app.indexOf('function simpleFormModal(){');
   const taskModal=app.slice(modalStart,app.indexOf("if(type==='shopping'){",modalStart));
   assert(taskModal.includes('data-action="task-delete" data-id="${task.id}"')&&taskModal.includes('${task.id?`'),'the task edit screen offers the delete, for an existing task only');
-  const packStart=app.indexOf('function packRow(list,item){');
-  assert(app.slice(packStart,packStart+900).includes('data-action="pack-delete" data-list="${list.id}" data-item="${item.id}"'));
+  const packRowSource=app.split(String.fromCharCode(10)).find(line=>line.startsWith('function packRow('));
+  assert(!packRowSource.includes('pack-delete')&&packRowSource.includes('data-action="pack-edit"'),'the packing row itself no longer carries a delete button');
+  const packModal=app.slice(app.indexOf('function packingItemModal('),app.indexOf('function sourceParticipantsModal('));
+  assert(packModal.includes('data-action="pack-delete" data-list="${state.modal.listId}" data-item="${state.modal.itemId}"'),'the packing edit screen offers the delete');
 }
 function test_0_7_9_task_delete_and_pack_delete_handlers_confirm_before_permanently_removing(){
   // Phase 1.2: the task delete now also closes the edit screen it is triggered from (state.modal=null).
   assert(app.includes("else if(action==='task-delete'){if(confirm('למחוק את המשימה לצמיתות?')){state.tasks=state.tasks.filter(x=>x.id!==button.dataset.id);state.modal=null;save();render()}}"));
-  assert(app.includes("else if(action==='pack-delete'){if(confirm('למחוק את פריט הציוד לצמיתות?')){const list=state.packing.find(x=>x.id===button.dataset.list);if(list)list.items=list.items.filter(x=>x.id!==button.dataset.item);save();render()}}"));
+  assert(app.includes("else if(action==='pack-delete'){if(confirm('למחוק את פריט הציוד לצמיתות?')){const list=state.packing.find(x=>x.id===button.dataset.list);if(list)list.items=list.items.filter(x=>x.id!==button.dataset.item);state.modal=null;save();render()}}"));
 }
 
 const tests=[

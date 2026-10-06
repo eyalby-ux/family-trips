@@ -159,7 +159,7 @@ function test_0_7_4_participantAssignmentField_offers_none_all_and_specific_scop
   // Beta 0.8 Phase 2 (P12-F2): the checkbox list itself is the shared participantCheckboxes() helper every picker uses.
   assert(body.includes('participantCheckboxes(p.participantIds)'));
   const helperStart=app.indexOf('function participantCheckboxes(');
-  assert(app.slice(helperStart,helperStart+700).includes('name="participantIds"'));
+  assert(app.slice(helperStart,helperStart+900).includes("name='participantIds'"),'the helper still defaults to the participantIds field every submit handler reads');
 }
 function test_0_7_4_participantAssignmentLabel_reflects_scope_on_the_item_detail_page(){
   const start=app.indexOf('function participantAssignmentLabel(item){');
@@ -173,11 +173,14 @@ function test_0_7_4_participantAssignmentLabel_reflects_scope_on_the_item_detail
 // --- Tickets and passes ---------------------------------------------------------------------
 
 // Beta 0.8 Phase 2: ticketsSection() became ticketsAndDocumentsSection(); a non-ticket type gets a plain Documents block.
+// Beta 0.8 Phase 2.1 (P2-F4): the section is one card; a non-ticket type simply gets "מסמכים" instead of "כרטיסים ומסמכים".
 function test_0_7_4_ticketsSection_applies_only_to_attractions_flights_and_transport(){
   // MVP scope: "For attractions, flights, transport, and events" -- mapped to this app's own type
   // set (activity covers both attraction and event; car is the broadened Transport type).
-  assert(app.includes("const TICKET_TYPES=['flight','activity','car'];"));
-  assert(app.includes("if(!TICKET_TYPES.includes(item.type))return `<section class=\"card nested item-docs\"><h3>מסמכים</h3>"));
+  const ticketCard=fs.readFileSync(new URL('../src/ticket-card.js',import.meta.url),'utf8');
+  assert(ticketCard.includes("TICKET_ITEM_TYPES=Object.freeze(['flight','activity','car'])"));
+  assert(app.includes('const TICKET_TYPES=TICKET_ITEM_TYPES;'));
+  assert(app.includes("const heading=eligible?'כרטיסים ומסמכים':'מסמכים';"));
 }
 
 // 0.7.4's own manual "add a ticket"/item.tickets[] flow (per-ticket used-state toggle,
@@ -191,13 +194,13 @@ function test_0_7_4_ticketsSection_applies_only_to_attractions_flights_and_trans
 // `participants` field. Full coverage for the new document-driven design lives in
 // tests/v7-9-participant-extensions.mjs.
 function test_0_7_4_tickets_support_per_ticket_used_state_and_show_remaining_participants(){
-  // Beta 0.8 Phase 2: the aggregate "participants without a ticket" line grew into the section's own coverage list
-  // (a row per participant, covered or not); the retired manual flow stays retired.
-  const start=app.indexOf('function ticketCoverageBlock(');
-  const body=app.slice(start,app.indexOf('function ticketsAndDocumentsSection(',start));
-  assert(!body.includes('data-action="ticket-toggle-used"'),'the manual per-ticket used-toggle was retired by 0.7.9 round 3 -- used lives on the confirmed document row');
+  // Beta 0.8 Phase 2.1 (P2-F4): the manual flow stays retired; the remaining-participants line is the card's coverage summary now.
+  const start=app.indexOf('function ticketSlideHtml(');
+  const body=app.slice(start,app.indexOf('function selectTicket(',start));
+  assert(!body.includes('data-action="ticket-toggle-used"'),'the manual per-ticket used-toggle was retired by 0.7.9 round 3 -- used lives on the ticket slide');
   assert(!body.includes('id="ticket-add-form"'),'the manual add-ticket form was retired by 0.7.9 round 3');
-  assert(body.includes('ללא כרטיס'),'participants without a ticket must still be visible, now as a row per participant');
+  const summary=app.slice(app.indexOf('function ticketSummaryBlock('),app.indexOf('function otherDocRow('));
+  assert(summary.includes('ללא כרטיס:'),'participants without a ticket must still be visible');
 }
 
 function test_0_7_4_ticket_handlers_are_wired(){
@@ -240,7 +243,8 @@ function test_0_7_4_packRow_shows_assigned_participant_names_and_an_edit_control
   const start=app.indexOf('function packRow(list,item){');
   const body=app.slice(start,app.indexOf('\n',start));
   assert(body.includes('data-action="pack-edit"'));
-  assert(body.includes('participantNames'));
+  // Beta 0.8 Phase 2.1 (P2-F5): the assigned participants show as ONE chip line (participantChipLabel) and the whole row is the edit control.
+  assert(body.includes('participantChipLabel('));
 }
 function test_0_7_4_packingParticipantView_is_preserved_as_an_ephemeral_field_across_remote_updates(){
   assert(app.includes('packingParticipantView:\'shared\''));// EMPTY's own default
