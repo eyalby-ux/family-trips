@@ -331,9 +331,12 @@ bdi,.bidi{unicode-bidi:isolate}
 .progress{height:6px;margin:8px 0 4px;background:var(--border)}
 .progress span{background:var(--ink)}
 .pack-row-wrapper{display:flex;flex-wrap:wrap;align-items:center;gap:0 8px;margin-top:8px;padding:2px 10px;border:1px solid var(--border);border-radius:16px;background:var(--surface)}
-.pack-row-wrapper .check-row{flex:1 1 140px;min-width:0;min-height:48px;padding:8px 0;border:0;border-radius:0;background:transparent}
+.pack-row-wrapper .check-row{flex:1 1 72px;min-width:0;min-height:48px;padding:8px 0;border:0;border-radius:0;background:transparent}
 .pack-row-wrapper .check-row input[type="checkbox"]{flex:0 0 auto;width:22px;height:22px}
-.pack-actions{display:flex;flex:0 0 auto;gap:6px;margin-inline-start:auto;padding-bottom:6px}
-.pack-actions .btn{min-height:40px;padding:4px 10px;font-size:14px}
+.pack-actions{display:flex;flex:0 0 auto;gap:4px;margin-inline-start:auto}
+.pack-actions .btn{min-height:40px;padding:4px 8px;font-size:13px;gap:4px}
+.pack-actions .ti{width:14px;height:14px}
+.section-head>.btn{flex:0 0 auto;white-space:nowrap}
 
 .hero{background:var(--surface)}
+.ticket-row .row-main b,.ticket-row .row-main small{display:block}

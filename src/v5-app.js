@@ -594,7 +594,7 @@ function center(){
 function sourceRow(source,itemId){
   const available=source.kind==='link'||source.storedOffline;
   const stateName=sourceImportState(source,{flashAttached:attachedFlash.has(source.id)});
-  const canRetry=source.kind!=='link'&&source.storedOffline&&['saved_only','failed'].includes(source.processingState);
+  const canRetry=source.kind!=='link'&&source.storedOffline&&(['saved_only','failed'].includes(source.processingState)||stateName==='failed');
   const failedActions=`${canRetry?`<button class="btn" type="button" data-action="analyze-source" data-id="${source.id}">נסה שוב</button>`:''}<button class="btn" type="button" data-action="source-delete" data-id="${source.id}">מחק</button>`;
   const pill=stateName?`<span class="doc-status"${stateName==='attached'?` data-flash-source="${source.id}"`:''}>${importStatusPill(stateName,{actions:failedActions})}</span>`:'';
   const names=(source.participantIds||[]).map(participantName).filter(Boolean);
@@ -1464,7 +1464,7 @@ async function runSmartAnalysis(source,file,targetItem=null){
   // matching analyze_* operation directly (no reason to spend an extra classification call on a
   // category that's already certain). A brand-new source has no target yet, so it goes through
   // analyze_source, which classifies from content first -- see smart-import.mjs.
-  source.status='בניתוח';source.processingState='processing';save();render();
+  source.status='בניתוח';source.processingState='processing';source.processingStartedAt=new Date().toISOString();save();render();
   try{
     const result=targetItem
       ?await (targetItem.type==='flight'?analyzeFlightSource({trip:state.trip,source,file}):targetItem.type==='activity'?analyzeActivitySource({trip:state.trip,source,file}):targetItem.type==='insurance'?analyzeInsuranceSource({trip:state.trip,source,file}):targetItem.type==='car'?analyzeCarSource({trip:state.trip,source,file}):analyzeHotelSource({trip:state.trip,source,file}))

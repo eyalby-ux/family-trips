@@ -155,7 +155,7 @@ const now=new Date('2027-01-20T12:00:00Z');
 {
   const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
   // Beta 0.8 Phase 2: sourceRow's canAnalyze became canRetry (same condition; a source in flight is never in this list).
-  assert.match(app,/canRetry=source\.kind!=='link'&&source\.storedOffline&&\['saved_only','failed'\]\.includes\(source\.processingState\)/,'a saved-only (or failed), not-already-analyzing source must expose a later explicit analyze action');
+  assert(app.includes("canRetry=source.kind!=='link'&&source.storedOffline&&(['saved_only','failed'].includes(source.processingState)||stateName==='failed')"),'a saved-only (or failed), not-already-analyzing source must expose a later explicit analyze action');
   assert.match(app,/data-action="analyze-source"/,'the Analyze action must be wired into the source row');
   assert.match(app,/async function analyzeSavedSource\(id\)\{/,'analyzing a saved source must run analysis on the already-saved source without requiring re-upload');
   assert.match(app,/action==='analyze-source'\)await analyzeSavedSource/);

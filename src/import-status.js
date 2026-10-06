@@ -42,12 +42,22 @@ const icon=name=>`<svg class="import-icon" viewBox="0 0 24 24" width="18" height
 // through Smart Import); a value outside this list is genuinely unknown.
 const KNOWN_SOURCE_STATES=['saved_only','processing','proposal_ready','failed','attached_only'];
 
+// A source whose analysis never finished (the page was closed or the request died mid-flight) would stay
+// "processing" forever -- spinning, and blocking the confirm button for good. Analysis runs up to ~30s, so a
+// "processing" source is only believed for STALE_PROCESSING_MS after processingStartedAt; a source with no
+// timestamp (written before Phase 2) or an older one is treated as Failed, which offers retry / delete.
+export const STALE_PROCESSING_MS=5*60*1000;
+export function isProcessingLive(source,now=Date.now()){
+  const started=Date.parse(source?.processingStartedAt);
+  return source?.processingState==='processing'&&Number.isFinite(started)&&now-started<STALE_PROCESSING_MS;
+}
+
 // A single source's state, or null when it has nothing to show. `proposal_ready` shows nothing here:
 // the proposal itself (suggestionImportState) carries partial / needs-review from then on. `attached`
 // is the spec's transient confirmation, so it is only reported while `flashAttached` is true.
-export function sourceImportState(source,{flashAttached=false}={}){
+export function sourceImportState(source,{flashAttached=false,now=Date.now()}={}){
   switch(source?.processingState){
-    case 'processing':return 'processing';
+    case 'processing':return isProcessingLive(source,now)?'processing':'failed';
     case 'failed':return 'failed';
     case 'saved_only':return 'queued';
     case 'attached_only':return flashAttached?'attached':null;
@@ -58,11 +68,11 @@ export function sourceImportState(source,{flashAttached=false}={}){
 // S7 interaction rule: a confirming action is blocked while any source is Processing, and also when a
 // source's state is defined but unknown ("if the underlying state is genuinely unknown, the action
 // stays disabled rather than guessing"). A legacy source with no processingState never blocks.
-export function isSourceStateBlocking(source){
+export function isSourceStateBlocking(source,now=Date.now()){
   const stateName=source?.processingState;
-  return stateName==='processing'||(stateName!==undefined&&stateName!==null&&!KNOWN_SOURCE_STATES.includes(stateName));
+  return isProcessingLive(source,now)||(stateName!=='processing'&&stateName!==undefined&&stateName!==null&&!KNOWN_SOURCE_STATES.includes(stateName));
 }
-export function isConfirmBlocked(sources){return (sources||[]).some(isSourceStateBlocking)}
+export function isConfirmBlocked(sources,now=Date.now()){return (sources||[]).some(source=>isSourceStateBlocking(source,now))}
 
 // What still needs the reviewer's decision before approval: a field flagged needs-review, a conflicting
 // merge candidate, or an ambiguous flight direction nobody has picked (or inherited) yet.
@@ -88,11 +98,11 @@ export function isPartialProposal(suggestion){
 
 // A suggestion's state. Approved suggestions have become items, so they show nothing; a clean pending
 // draft has no pill either (S7 defines seven outcomes and "ready" is not one of them).
-export function suggestionImportState(suggestion,sources=[]){
+export function suggestionImportState(suggestion,sources=[],now=Date.now()){
   if(!suggestion)return null;
   if(suggestion.status==='rejected')return 'rejected';
   if(suggestion.status==='approved')return null;
-  if(sources.some(source=>source?.processingState==='processing'))return 'processing';
+  if(sources.some(source=>isProcessingLive(source,now)))return 'processing';
   if(hasReviewBlockers(suggestion.proposed))return 'needsReview';
   if(isPartialProposal(suggestion))return 'partial';
   return null;

@@ -1034,11 +1034,11 @@ test_V6_F41_map_search_wiring();
 async function test_V6_F42_retry_analysis_shows_loading_indicator(){
   const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
   const status=await import('../src/import-status.js');
-  assert.equal(status.sourceImportState({processingState:'processing'}),'processing','a source being (re)analyzed must map to the Processing state');
+  assert.equal(status.sourceImportState({processingState:'processing',processingStartedAt:new Date().toISOString()}),'processing','a source being (re)analyzed must map to the Processing state');
   assert.match(app,/const stateName=sourceImportState\(source,/,'sourceRow must derive its status from the shared state mapping');
   assert.match(app,/importStatusPill\(stateName,\{actions:failedActions\}\)/,'sourceRow must render the shared status pill, which carries the loading indicator while Processing');
   assert.match(status.importStatusPill('processing'),/import-dots/,'the Processing pill must render its loading indicator');
-  assert.match(app,/const canRetry=source\.kind!=='link'&&source\.storedOffline&&\['saved_only','failed'\]\.includes\(source\.processingState\)/,'the retry button itself must not remain clickable while an analysis is already in flight (processing is not in this list)');
+  assert(app.includes("const canRetry=source.kind!=='link'&&source.storedOffline&&(['saved_only','failed'].includes(source.processingState)||stateName==='failed');"),'the retry button itself must not remain clickable while an analysis is already in flight (a LIVE processing source is neither saved_only/failed nor a stale one)');
   console.log('PASS: V6-F42 retrying a failed analysis now shows a loading indicator instead of looking stuck');
 }
 await test_V6_F42_retry_analysis_shows_loading_indicator();

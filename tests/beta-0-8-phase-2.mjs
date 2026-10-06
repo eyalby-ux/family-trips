@@ -4,7 +4,7 @@
 // v5-app.js, which cannot be imported in plain Node (it needs a DOM and Firebase).
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {IMPORT_LABELS,IMPORT_STATES,PROCESSING_PHRASES,importStatusPill,isConfirmBlocked,sourceImportState,suggestionImportState,hasReviewBlockers} from '../src/import-status.js';
+import {IMPORT_LABELS,IMPORT_STATES,PROCESSING_PHRASES,STALE_PROCESSING_MS,isProcessingLive,importStatusPill,isConfirmBlocked,sourceImportState,suggestionImportState,hasReviewBlockers} from '../src/import-status.js';
 import {computeTicketCoverage,pickerParticipants} from '../src/operational-data.js';
 import {flightRouteDeparture,needsReviewFormField} from '../src/ingestion.js';
 import {NOTES_ITEM_LIMIT,scopeNoteLines} from '../src/smart-import-adapter.js';
@@ -73,7 +73,8 @@ test('S7: Processing animates per the spec -- sway +-6deg 2.2s ease-in-out, 3 do
   assert.match(css,/prefers-reduced-motion: reduce\)\{\s*\.palm-fronds,\.import-dots i,\.import-hairline::after\{animation:none !important\}/,'motion respects reduced-motion');
 });
 test('S7: state mapping from sources and suggestions',()=>{
-  assert.equal(sourceImportState({processingState:'processing'}),'processing');
+  const live={processingState:'processing',processingStartedAt:new Date().toISOString()};
+  assert.equal(sourceImportState(live),'processing');
   assert.equal(sourceImportState({processingState:'failed'}),'failed');
   assert.equal(sourceImportState({processingState:'saved_only'}),'queued');
   assert.equal(sourceImportState({processingState:'proposal_ready'}),null,'the proposal carries the state from then on');
@@ -84,7 +85,7 @@ test('S7: state mapping from sources and suggestions',()=>{
   assert.equal(suggestionImportState(clean,[]),null,'a clean draft has no pill');
   assert.equal(suggestionImportState({...clean,status:'rejected'},[]),'rejected');
   assert.equal(suggestionImportState({...clean,status:'approved'},[]),null);
-  assert.equal(suggestionImportState(clean,[{processingState:'processing'}]),'processing');
+  assert.equal(suggestionImportState(clean,[live]),'processing');
   assert.equal(suggestionImportState({...clean,proposed:{...clean.proposed,details:{needsReviewFields:[{key:'startDate',value:'x'}]}}},[]),'needsReview');
   assert.equal(suggestionImportState({...clean,proposed:{...clean.proposed,details:{mergeCandidates:{phone:'1'}}}},[]),'needsReview');
   assert.equal(suggestionImportState({...clean,confidence:'low'},[]),'partial');
@@ -100,10 +101,25 @@ test('S7: state mapping from sources and suggestions',()=>{
   assert(!hasReviewBlockers({location:'',details:{directionCandidates:[direction],directionPickIndex:0}}));
 });
 
+// ---- a stuck "processing" must not spin or block forever (found on the real QA Trip: four such sources)
+test('stale processing: a source whose analysis never finished becomes Failed (retry/delete), never an eternal spinner',()=>{
+  const now=Date.parse('2026-10-06T12:00:00Z');
+  const fresh={processingState:'processing',processingStartedAt:'2026-10-06T11:58:00Z'};
+  const old={processingState:'processing',processingStartedAt:new Date(now-STALE_PROCESSING_MS-1000).toISOString()};
+  const legacy={processingState:'processing'};
+  assert.equal(isProcessingLive(fresh,now),true);assert.equal(isProcessingLive(old,now),false);assert.equal(isProcessingLive(legacy,now),false);
+  assert.equal(sourceImportState(fresh,{now}),'processing');
+  assert.equal(sourceImportState(old,{now}),'failed');assert.equal(sourceImportState(legacy,{now}),'failed');
+  assert.equal(isConfirmBlocked([old,legacy],now),false,'a dead analysis must not keep the review screen locked');
+  assert.equal(isConfirmBlocked([fresh],now),true);
+  assert(app.includes('source.processingStartedAt=new Date().toISOString()'),'a new analysis stamps its start');
+});
+
 // ---- S7 interaction rule (V6-F11) ----------------------------------------------------------------
 test('interaction rule: a confirming action is blocked while Processing, and while the state is unknown',()=>{
-  assert.equal(isConfirmBlocked([{processingState:'processing'}]),true);
-  assert.equal(isConfirmBlocked([{processingState:'proposal_ready'},{processingState:'processing'}]),true);
+  const live={processingState:'processing',processingStartedAt:new Date().toISOString()};
+  assert.equal(isConfirmBlocked([live]),true);
+  assert.equal(isConfirmBlocked([{processingState:'proposal_ready'},live]),true);
   assert.equal(isConfirmBlocked([{processingState:'mystery'}]),true,'unknown stays disabled rather than guessing');
   for(const known of ['saved_only','proposal_ready','failed','attached_only'])assert.equal(isConfirmBlocked([{processingState:known}]),false,known);
   assert.equal(isConfirmBlocked([{}]),false,'a legacy source that never went through Smart Import is not blocked');
