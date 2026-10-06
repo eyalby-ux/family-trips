@@ -172,10 +172,11 @@ test('P2-F4: carousel mechanics -- one swipe = one ticket, loops from 3, neighbo
   assert(app.includes('<bdi class="muted" dir="ltr" aria-live="polite">${index+1} / ${count}</bdi>'),'1 / N counter');
   assert(app.includes("const way=selectedSlide?arrowKeyTarget(event.key,centerX(selectedSlide),near):null;"),'arrow keys follow screen position (P12-F6)');
   assert(app.includes("tcar=event.target.closest('[data-tcarousel]')")&&app.includes('selectTicket(tcar,way)'),'swipe');
-  assert.match(css,/\.t-track \.ticket\{flex:0 0 min\(290px,calc\(100% - 32px\)\);opacity:\.55/,'290px slides, the neighbour faded ~55% and peeking');
-  assert.match(css,/\.t-track\{display:flex;gap:12px;padding:0 16px;transform:translateX\(calc\(var\(--before,0\) \* \(min\(290px,100% - 32px\) \+ 12px\)\)\)\}/,'12px gap, selected aligned to the start edge');
+  assert.match(css,/\.t-track \.ticket\{flex:0 0 min\(290px,calc\(100cqw - 64px\)\);opacity:\.55/,'290px slides, the neighbour faded ~55% and peeking');
+  assert.match(css,/\.t-track\{display:flex;gap:12px;padding:0 16px;transform:translateX\(calc\(var\(--before,0\) \* \(min\(290px,100cqw - 64px\) \+ 12px\)\)\)\}/,'12px gap, selected aligned to the start edge');
   assert.match(css,/\.t-track \.ticket\.selected\{opacity:1;border-color:var\(--ink\)\}/,'the selected slide has an ink border');
-  assert.match(css,/\.t-viewport\{[^}]*touch-action:pan-y/);
+  assert.match(css,/\.t-viewport\{[^}]*touch-action:pan-y[^}]*container-type:inline-size/,'slide width and stride are measured against the same container (cqw), so they cannot drift apart');
+  assert(app.includes("const TICKET_STRIDE='(min(290px,100cqw - 64px) + 12px)';"));
 });
 test('P2-F4: slide content follows the mockup -- holder, status chip, seat detail, file, "נוצל" / "אישור ככרטיס", פתיחה, ⋯',()=>{
   const slide=app.slice(app.indexOf('function ticketSlideHtml('),app.indexOf('function ticketCarousel('));

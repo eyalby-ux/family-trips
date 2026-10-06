@@ -853,7 +853,7 @@ const TICKET_TYPES=TICKET_ITEM_TYPES;
 function ticketCoverage(item,sources){return computeTicketCoverage(sources,state.participants)}
 const ticketIndex={};
 let ticketBusy=false;
-const TICKET_STRIDE='(min(290px,100% - 32px) + 12px)';
+const TICKET_STRIDE='(min(290px,100cqw - 64px) + 12px)';
 function sourceOpenControl(source,cls='btn secondary'){
   const available=source.kind==='link'||source.storedOffline;
   return source.kind==='link'?`<a class="${cls}" href="${esc(source.url)}" target="_blank" rel="noopener">פתיחה</a>`:available?`<button class="${cls}" type="button" data-action="open-source" data-id="${source.id}">פתיחה</button>`:'';
