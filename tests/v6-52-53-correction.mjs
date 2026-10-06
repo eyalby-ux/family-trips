@@ -16,7 +16,8 @@ function test_V6_F52_signin_version_matches_about(){
   const main=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
   assert.doesNotMatch(main,/auth-kicker">Alpha 0\.\d/,'the sign-in screen must never hardcode a literal Alpha version string again -- that is exactly how it drifted from the shipped build in the first place');
   assert.match(main,/import\s*\{\s*appVersionLabel\s*\}\s*from\s*['"]\.\/app-version\.js['"]/,'the sign-in screen must import the shared version-label source, not a private copy');
-  assert.match(main,/auth-kicker">\$\{appVersionLabel\(\)\}/,'the sign-in screen must actually render the shared version label, not just import it unused');
+  // Beta 0.8 Phase 2 (P12-F1): now rendered inside <bdi>.
+  assert.match(main,/auth-kicker"><bdi>\$\{appVersionLabel\(\)\}<\/bdi>/,'the sign-in screen must actually render the shared version label, not just import it unused');
 
   const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
   assert.match(app,/import\s*\{\s*appVersionLabel\s*\}\s*from\s*['"]\.\/app-version\.js['"]/,'the landing banner (v5-app.js) must use the SAME shared module as the sign-in screen, not its own separate copy of the function -- two independent copies is exactly the shape of bug that let them drift apart');

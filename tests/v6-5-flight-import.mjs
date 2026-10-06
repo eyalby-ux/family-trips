@@ -693,7 +693,8 @@ function test_V6_F31_landing_banner_synced_to_build_version_and_mentions_flight(
   assert.match(app,/import\s*\{\s*appVersionLabel\s*\}\s*from\s*['"]\.\/app-version\.js['"]/,'the banner\'s version label must come from the shared app-version.js module, not a private copy in v5-app.js');
   const versionModule=fs.readFileSync(new URL('../src/app-version.js',import.meta.url),'utf8');
   assert.match(versionModule,/function appVersionLabel\(\)\{const match=String\(document\.title\|\|''\)\.match\(\/Beta\\s\+/,'the shared version label must be derived from document.title (the same source __APP_VERSION__ resolves into at build time), not a hardcoded literal');
-  assert.match(app,/\$\{appVersionLabel\(\)\} · Hotel \+ Flight Smart Import/,'the fallback subtitle must use the derived version label and mention Flight support, not just Hotel');
+  // Beta 0.8 Phase 2 (P12-F1): the label is wrapped in <bdi>.
+  assert.match(app,/<bdi>\$\{appVersionLabel\(\)\}<\/bdi> · Hotel \+ Flight Smart Import/,'the fallback subtitle must use the derived version label and mention Flight support, not just Hotel');
   console.log('PASS: V6-F31 the landing banner\'s version label is derived from the same build-version source as the tab title, and now mentions Flight support');
 }
 test_V6_F31_landing_banner_synced_to_build_version_and_mentions_flight();
@@ -1027,14 +1028,20 @@ test_V6_F41_map_search_wiring();
 // --- V6-F42: retrying a failed analysis from the document list already sets
 // source.processingState to 'processing' and re-renders immediately (runSmartAnalysis), but
 // nothing in that row reflected it -- it looked stuck until it suddenly completed. ---
-function test_V6_F42_retry_analysis_shows_loading_indicator(){
+// Beta 0.8 Phase 2: the row's own "מנתח…" badge is replaced by the shared Smart Import status pill (import-status.js),
+// so this now pins the same three guarantees against the new wiring: an in-flight (re)analysis is detected,
+// it shows a visible loading indicator, and the retry button is not offered while it runs.
+async function test_V6_F42_retry_analysis_shows_loading_indicator(){
   const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
-  assert.match(app,/const analyzing=source\.processingState==='processing'/,'sourceRow must detect an in-flight (re)analysis');
-  assert.match(app,/analyzing\?'<span class="badge blue">מנתח…<\/span>':''/,'sourceRow must render a visible loading indicator while an analysis (initial or retry) is in progress');
-  assert.match(app,/const canAnalyze=!analyzing&&/,'the retry button itself must not remain clickable while an analysis is already in flight');
+  const status=await import('../src/import-status.js');
+  assert.equal(status.sourceImportState({processingState:'processing'}),'processing','a source being (re)analyzed must map to the Processing state');
+  assert.match(app,/const stateName=sourceImportState\(source,/,'sourceRow must derive its status from the shared state mapping');
+  assert.match(app,/importStatusPill\(stateName,\{actions:failedActions\}\)/,'sourceRow must render the shared status pill, which carries the loading indicator while Processing');
+  assert.match(status.importStatusPill('processing'),/import-dots/,'the Processing pill must render its loading indicator');
+  assert.match(app,/const canRetry=source\.kind!=='link'&&source\.storedOffline&&\['saved_only','failed'\]\.includes\(source\.processingState\)/,'the retry button itself must not remain clickable while an analysis is already in flight (processing is not in this list)');
   console.log('PASS: V6-F42 retrying a failed analysis now shows a loading indicator instead of looking stuck');
 }
-test_V6_F42_retry_analysis_shows_loading_indicator();
+await test_V6_F42_retry_analysis_shows_loading_indicator();
 
 // --- V6-F40: the tab title/landing banner only ever showed the Alpha version, which does not
 // change between fix passes -- there was no visual way to confirm exactly which build is
@@ -1050,7 +1057,8 @@ function test_V6_F40_build_specific_identifier_visible(){
 
   const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
   assert.match(app,/function buildVersionLabel\(\)\{return document\.querySelector\('meta\[name="build-version"\]'\)\?\.content\|\|''\}/,'a helper must read the build-version meta tag back out at runtime');
-  assert.match(app,/בנייה \$\{esc\(buildVersionLabel\(\)\)\}/,'Settings must surface the build-specific identifier somewhere checkable, per V6-F40 (it does not need to be prominent)');
+  // Beta 0.8 Phase 2 (P12-F1): the build string is wrapped in <bdi> so it renders in its own order.
+  assert.match(app,/בנייה <bdi>\$\{esc\(buildVersionLabel\(\)\)\}<\/bdi>/,'Settings must surface the build-specific identifier somewhere checkable, per V6-F40 (it does not need to be prominent)');
 
   console.log('PASS: V6-F40 a build-specific identifier (package.json version + git SHA) is embedded at build time and surfaced in Settings for QA to check');
 }

@@ -156,23 +156,30 @@ function test_0_7_4_participantAssignmentField_offers_none_all_and_specific_scop
   assert(body.includes('value="none"'));
   assert(body.includes('value="all"'));
   assert(body.includes('value="specific"'));
-  assert(body.includes('name="participantIds"'));
+  // Beta 0.8 Phase 2 (P12-F2): the checkbox list itself is the shared participantCheckboxes() helper every picker uses.
+  assert(body.includes('participantCheckboxes(p.participantIds)'));
+  const helperStart=app.indexOf('function participantCheckboxes(');
+  assert(app.slice(helperStart,helperStart+700).includes('name="participantIds"'));
 }
 function test_0_7_4_participantAssignmentLabel_reflects_scope_on_the_item_detail_page(){
   const start=app.indexOf('function participantAssignmentLabel(item){');
-  const body=app.slice(start,app.indexOf('function ticketsSection(',start));
+  const body=app.slice(start,app.indexOf('const TICKET_TYPES',start));
   assert(body.includes("item.participantScope==='all'"));
   assert(body.includes("item.participantScope==='specific'"));
-  assert(app.includes('participantAssignmentLabel(item)?`<p><b>משויך ל:</b>'));
+  // Beta 0.8 Phase 2: the detail page's facts are a <dl> now (detailFact), not <p><b>label:</b> rows.
+  assert(app.includes("detailFact('משויך ל',participantAssignmentLabel(item)?"));
 }
 
 // --- Tickets and passes ---------------------------------------------------------------------
 
+// Beta 0.8 Phase 2: ticketsSection() became ticketsAndDocumentsSection(); a non-ticket type gets a plain Documents block.
 function test_0_7_4_ticketsSection_applies_only_to_attractions_flights_and_transport(){
   // MVP scope: "For attractions, flights, transport, and events" -- mapped to this app's own type
   // set (activity covers both attraction and event; car is the broadened Transport type).
-  assert(app.includes("if(!['flight','activity','car'].includes(item.type))return '';"));
+  assert(app.includes("const TICKET_TYPES=['flight','activity','car'];"));
+  assert(app.includes("if(!TICKET_TYPES.includes(item.type))return `<section class=\"card nested item-docs\"><h3>מסמכים</h3>"));
 }
+
 // 0.7.4's own manual "add a ticket"/item.tickets[] flow (per-ticket used-state toggle,
 // remove button, add-ticket form) was retired outright by 0.7.9's own correction round 3
 // (Finding 2) -- a genuine Product Owner product decision, not a regression: ticket coverage is
@@ -184,12 +191,15 @@ function test_0_7_4_ticketsSection_applies_only_to_attractions_flights_and_trans
 // `participants` field. Full coverage for the new document-driven design lives in
 // tests/v7-9-participant-extensions.mjs.
 function test_0_7_4_tickets_support_per_ticket_used_state_and_show_remaining_participants(){
-  const start=app.indexOf('function ticketsSection(item){');
-  const body=app.slice(start,app.indexOf('function detailView(',start));
-  assert(!body.includes('data-action="ticket-toggle-used"'),'the manual per-ticket used-toggle was retired by 0.7.9 round 3 -- used now lives on sourceRow');
+  // Beta 0.8 Phase 2: the aggregate "participants without a ticket" line grew into the section's own coverage list
+  // (a row per participant, covered or not); the retired manual flow stays retired.
+  const start=app.indexOf('function ticketCoverageBlock(');
+  const body=app.slice(start,app.indexOf('function ticketsAndDocumentsSection(',start));
+  assert(!body.includes('data-action="ticket-toggle-used"'),'the manual per-ticket used-toggle was retired by 0.7.9 round 3 -- used lives on the confirmed document row');
   assert(!body.includes('id="ticket-add-form"'),'the manual add-ticket form was retired by 0.7.9 round 3');
-  assert(body.includes('משתתפים ללא כרטיס'),'the aggregate remaining-participants summary survives the redesign, just computed from confirmed sources now');
+  assert(body.includes('ללא כרטיס'),'participants without a ticket must still be visible, now as a row per participant');
 }
+
 function test_0_7_4_ticket_handlers_are_wired(){
   assert(!app.includes("action==='ticket-toggle-used'"),'retired by 0.7.9 round 3 -- see source-ticket-toggle-used in tests/v7-9-participant-extensions.mjs');
   assert(!app.includes("action==='ticket-remove'"),'retired by 0.7.9 round 3 -- a document is unlinked via its own participant-edit affordance, not a per-ticket remove button');
@@ -219,7 +229,8 @@ function test_0_7_4_packing_add_item_replaced_prompt_with_a_real_multi_select_mo
   assert(app.includes("else if(action==='pack-add'){state.modal={type:'packing-item',listId:button.dataset.list,itemId:null};render()}"));
   const modalStart=app.indexOf('function packingItemModal(){');
   const modalBody=app.slice(modalStart,app.indexOf('function modal(){',modalStart));
-  assert(modalBody.includes('name="participantIds"'));
+  // Beta 0.8 Phase 2 (P12-F2): every picker's checkbox list is the shared participantCheckboxes() helper.
+  assert(modalBody.includes('participantCheckboxes(item.participantIds)'));
 }
 function test_0_7_4_packing_item_form_still_checks_for_cross_category_duplicate_names(){
   // The old prompt()-based flow's packingDuplicate() safeguard must survive the modal rewrite.

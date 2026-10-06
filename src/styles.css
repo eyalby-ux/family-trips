@@ -190,3 +190,150 @@ bdi,.bidi{unicode-bidi:isolate}
 /* P11-F13 at 320px: the one-line Quick Access header needs ~266px but a 320px phone has 246px inside
    the card, so below 340px it may wrap instead of overflowing the page by a pixel. */
 @media(max-width:340px){.quick-head{flex-wrap:wrap}.quick-links{flex-wrap:wrap}}
+
+/* ===== Beta 0.8 Phase 2 ===== */
+/* S7 Smart Import status pill -- one component, seven states (import-status.js). --accent-soft is used
+   by exactly one of them (needs review); Processing and Partial never get it. */
+.import-status{display:inline-flex;flex-direction:column;align-items:flex-start;gap:4px;max-width:100%;min-width:0}
+.import-pill{display:inline-flex;align-items:center;gap:6px;min-height:28px;padding:2px 10px;border:1px solid var(--border);border-radius:999px;background:var(--bg);color:var(--muted);font-size:15px;line-height:1.4;font-weight:600;white-space:nowrap}
+.import-icon{flex:none;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.import-status-queued .import-pill,.import-status-rejected .import-pill{color:var(--muted)}
+.import-status-rejected .import-pill{background:transparent;border-color:transparent;padding-inline:0}
+.import-status-partial .import-pill,.import-status-processing .import-pill{color:var(--ink)}
+.import-status-needsReview .import-pill{background:var(--accent-soft);border-color:var(--accent-soft);color:var(--ink)}
+.import-status-failed .import-pill{background:#FDECEA;border-color:#F4C7C3;color:var(--danger)}
+.import-status-attached .import-pill{background:transparent;border-color:transparent;color:var(--ink);padding-inline:0}
+.import-subtext{color:var(--muted);font-size:14px;line-height:1.4;white-space:normal}
+.import-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:2px}
+.import-actions .btn{min-height:36px;padding:4px 12px;font-size:14px;background:var(--surface);color:var(--ink);border:1px solid var(--border)}
+/* Processing: swaying palm (trunk fixed, frond group rocks +-6deg / 2.2s ease-in-out, looping) */
+.import-palm{flex:none;stroke:var(--ink);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;overflow:visible}
+.palm-fronds{transform-origin:12px 9px;animation:palm-sway 2.2s ease-in-out infinite}
+.palm-coconut{fill:var(--accent);stroke:var(--accent)}
+@keyframes palm-sway{0%,100%{transform:rotate(-6deg)}50%{transform:rotate(6deg)}}
+/* three --accent dots; each pulse is 200ms ease-out, the dots take turns */
+.import-dots{display:inline-flex;align-items:center;gap:3px}
+.import-dots i{width:5px;height:5px;border-radius:50%;background:var(--accent);opacity:.35;animation:import-dot 1.2s ease-out infinite}
+.import-dots i:nth-child(2){animation-delay:.4s}
+.import-dots i:nth-child(3){animation-delay:.8s}
+@keyframes import-dot{0%{opacity:.35;transform:scale(1)}16.6%{opacity:1;transform:scale(1.35)}33%,100%{opacity:.35;transform:scale(1)}}
+/* the rotating one-line status: three phrases cross-fading, ~2s each, no percentage */
+.import-phrases{position:relative;display:block;height:22px;min-width:9em;color:var(--muted);font-size:14px;line-height:22px}
+.import-phrases span{position:absolute;inset-inline-start:0;top:0;white-space:nowrap;opacity:0;animation:import-phrase 6s ease-in-out infinite}
+.import-phrases span:nth-child(2){animation-delay:2s}
+.import-phrases span:nth-child(3){animation-delay:4s}
+@keyframes import-phrase{0%{opacity:0}6%,28%{opacity:1}34%,100%{opacity:0}}
+/* 2px indeterminate hairline */
+.import-hairline{position:relative;display:block;width:100%;min-width:9em;height:2px;overflow:hidden;background:var(--border)}
+.import-hairline::after{content:"";position:absolute;top:0;bottom:0;width:35%;background:var(--accent);animation:import-hairline 1.4s ease-in-out infinite}
+@keyframes import-hairline{0%{inset-inline-start:-35%}100%{inset-inline-start:100%}}
+/* the binding S7 interaction rule: visibly disabled, not tappable, while a source is Processing */
+.btn[disabled],.btn[aria-disabled="true"]{background:var(--bg);color:var(--muted);border:1px solid var(--border);cursor:not-allowed;opacity:1}
+.btn[disabled]:active{background-color:var(--bg)}
+@media (prefers-reduced-motion: reduce){
+  .palm-fronds,.import-dots i,.import-hairline::after{animation:none !important}
+  .import-dots i{opacity:1}
+  .import-hairline::after{inset-inline-start:0;width:35%}
+  .import-phrases span{animation:none !important;opacity:0}
+  .import-phrases span:first-child{opacity:1}
+}
+
+/* ===== Beta 0.8 Phase 2 (G1): item detail, forms, sign-in, Trip Center, Packing chrome ===== */
+/* Shared: the primary action is --ink (spec S2: "primary text / action"); terracotta is reserved for the
+   one "needs attention" meaning, so it is no longer the default fill of every button. */
+.btn{background:var(--ink);color:#fff;border:1px solid var(--ink);min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-weight:600}
+.btn:not(.secondary):not(.ghost):not(.danger):not(.warn):active{background-color:#0B2A2C}
+.btn.secondary,.btn.ghost,.btn.warn{background:var(--surface);color:var(--ink);border:1px solid var(--border)}
+.btn.danger{background:#FDECEA;color:var(--danger);border:1px solid #F4C7C3}
+.btn.danger .ti{stroke:var(--danger)}
+.btn[disabled]{background:var(--bg);color:var(--muted);border:1px solid var(--border)}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:999px;background:var(--surface);color:var(--ink);border:1px solid var(--border);font-size:14px;font-weight:600;line-height:20px}
+.badge.blue{background:var(--teal-soft);border-color:var(--teal-soft)}
+.badge.warn{background:var(--bg);color:var(--muted)}
+.badge.danger{background:#FDECEA;border-color:#F4C7C3;color:var(--danger)}
+.row.conflict{border-color:var(--accent);background:var(--accent-soft)}
+.row.conflict .badge.warn{background:var(--surface);color:var(--ink);border-color:var(--accent)}
+.toast{background:var(--ink)}
+.modal-bg{background:rgba(18,63,66,.45)}
+.top{background:var(--surface);color:var(--ink);border-bottom:1px solid var(--border);box-shadow:none}
+.brand p{color:var(--muted)}
+.status{border-color:var(--border);background:var(--bg);color:var(--ink)}
+
+/* Trip Center: category tiles and lists */
+.tile{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-height:96px;padding:16px;border:1px solid var(--border);border-radius:16px;background:var(--surface);color:var(--ink);text-align:start}
+.tile .ico{display:inline-flex}
+.tile .ico .ti{width:24px;height:24px}
+.tile b{margin:4px 0 0;font-size:20px;font-weight:600;line-height:1.35}
+.tile small{font-size:15px}
+.row{min-height:64px;padding:12px 16px;border:1px solid var(--border);border-radius:16px;background:var(--surface);color:var(--ink)}
+.row .ti-type,.row-main .ti-type{vertical-align:-4px;margin-inline-end:4px}
+.row-chevron{flex:0 0 auto;width:20px;height:20px;stroke:var(--muted)}
+.ti-type{width:22px;height:22px}
+
+/* Item detail */
+.item-detail .detail-head{margin:12px 0}
+.detail-head h2{display:flex;align-items:center;gap:8px;margin:8px 0 0}
+.detail-facts{margin:0 0 12px;border:1px solid var(--border);border-radius:16px;background:var(--surface)}
+.fact{display:flex;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border)}
+.fact:last-child{border-bottom:0}
+.fact dt{flex:0 0 92px;color:var(--muted);font-size:15px}
+.fact dd{flex:1 1 auto;min-width:0;margin:0;overflow-wrap:anywhere}
+.detail-links{margin:0 0 12px}
+.detail-links .btn{min-height:44px}
+.detail-notes h4{margin:12px 0 4px;font-size:16px;font-weight:600}
+.form-actions.detail-actions{position:static;margin-top:16px}
+.card.nested{border-radius:16px;box-shadow:none;background:var(--bg);padding:16px}
+.item-tickets h3,.item-docs h3{margin:0 0 4px}
+.item-tickets h4,.item-docs h4{margin:16px 0 8px;font-size:16px;font-weight:600;color:var(--ink)}
+.ticket-summary{margin:0 0 8px}
+.coverage-list{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+.coverage-row{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;padding:6px 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
+.coverage-chip{display:inline-flex;align-items:center;gap:4px;color:var(--muted);font-size:14px;white-space:nowrap}
+.coverage-chip.covered{color:var(--ink);font-weight:600}
+.ticket-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
+.ticket-row .row-main{flex:1 1 100%}
+.ticket-row .row-main b{white-space:normal;overflow-wrap:anywhere;font-size:16px}
+.ticket-used{min-height:44px}
+.item-tickets .list+.list{margin-top:8px}
+.doc-status{flex:1 1 100%}
+.doc-actions{display:flex;flex-wrap:wrap;gap:8px;flex:1 1 100%}
+.review-status{margin:8px 0}
+.merge-conflict{margin:12px 0;padding:12px 14px;border:1px solid var(--accent);border-radius:16px;background:var(--accent-soft)}
+.merge-conflict p{margin:0 0 8px}
+.merge-compare{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0 0 4px}
+.merge-compare dt{color:var(--muted);font-size:14px}
+.merge-compare dd{margin:2px 0 0;font-weight:600;overflow-wrap:anywhere}
+
+/* Add / edit forms: grouped, one column on a phone, two only where there is room */
+.modal{background:var(--surface);border-radius:16px 16px 0 0;padding:20px 20px calc(20px + env(safe-area-inset-bottom))}
+.modal-head h2{font-size:22px;font-weight:600;line-height:1.3}
+.field{gap:6px;margin-bottom:12px}
+.field-label,label.field{color:var(--ink);font-size:15px;font-weight:600}
+.field input,.field select,.field textarea{min-height:44px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--ink);font-size:16px;font-weight:400}
+.field textarea{min-height:96px}
+.field input[type="checkbox"]{min-height:0}
+.required{color:var(--danger)}
+.form-group{min-width:0;margin:0 0 12px;padding:12px 14px 2px;border:1px solid var(--border);border-radius:16px}
+.form-group legend{padding:0 6px;color:var(--muted);font-size:15px;font-weight:600}
+.form-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:0 12px}
+@media(min-width:560px){.form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.participant-picker{display:grid;gap:2px}
+.checkbox-field{display:flex;align-items:center;gap:10px;min-height:44px}
+.checkbox-field input{flex:0 0 auto;width:22px;height:22px;margin:0}
+.source-choice button{border:1px solid var(--border);border-radius:16px;background:var(--surface);color:var(--ink)}
+.source-choice button.active{border-color:var(--ink);background:var(--teal-soft);color:var(--ink)}
+.processing-indicator{padding:24px 8px}
+.processing-indicator .btn{width:100%;max-width:320px}
+
+/* Packing: category cards and item rows */
+.collapse-button{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:44px;padding:0;border:0;background:transparent;color:var(--ink);text-align:start}
+.collapse-button h3{margin:0}
+.progress{height:6px;margin:8px 0 4px;background:var(--border)}
+.progress span{background:var(--ink)}
+.pack-row-wrapper{display:flex;flex-wrap:wrap;align-items:center;gap:0 8px;margin-top:8px;padding:2px 10px;border:1px solid var(--border);border-radius:16px;background:var(--surface)}
+.pack-row-wrapper .check-row{flex:1 1 140px;min-width:0;min-height:48px;padding:8px 0;border:0;border-radius:0;background:transparent}
+.pack-row-wrapper .check-row input[type="checkbox"]{flex:0 0 auto;width:22px;height:22px}
+.pack-actions{display:flex;flex:0 0 auto;gap:6px;margin-inline-start:auto;padding-bottom:6px}
+.pack-actions .btn{min-height:40px;padding:4px 10px;font-size:14px}
+
+.hero{background:var(--surface)}

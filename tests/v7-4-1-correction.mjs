@@ -68,11 +68,13 @@ function test_0_7_4_1_old_free_text_participants_field_is_gone_from_proposalFiel
 function test_0_7_4_1_participantAssignmentField_the_real_0_7_4_picker_is_unaffected(){
   const start=app.indexOf('function proposalFields(');
   const body=app.slice(start,app.indexOf('function header(',start));
-  assert(body.includes('${participantAssignmentField(p)}'));
+  // Beta 0.8 Phase 2: proposalFields groups its output, so the picker is bound to a const first.
+  assert(body.includes('const assignment=participantAssignmentField(p);'));
   const pickerStart=app.indexOf('function participantAssignmentField(p){');
   const pickerBody=app.slice(pickerStart,app.indexOf('function proposalFields(',pickerStart));
   assert(pickerBody.includes('name="participantScope"'));
-  assert(pickerBody.includes('name="participantIds"'));
+  // Beta 0.8 Phase 2 (P12-F2): the checkboxes come from the shared participantCheckboxes() helper.
+  assert(pickerBody.includes('participantCheckboxes(p.participantIds)'));
 }
 function test_0_7_4_1_type_change_rebuild_and_manual_create_defaults_no_longer_reference_the_old_field(){
   // Cosmetic cleanup, not just the visible form field -- the type-change handler's own values
@@ -85,7 +87,8 @@ function test_0_7_4_1_type_change_rebuild_and_manual_create_defaults_no_longer_r
   // wrapped it in a shoppingPlace-only conditional (see tests/v7-7-shopping-places.mjs) rather than
   // calling it unconditionally.
   assert(app.includes('manualCreateDefaults(state.trip)'));
-  assert(app.includes("notes:''})}<button class=\"btn\">יצירת פריט</button>"));
+  // Beta 0.8 Phase 2: the submit button sits in the sticky .form-actions footer.
+  assert(app.includes("notes:''})}<div class=\"form-actions\"><button class=\"btn\">יצירת פריט</button></div>"));
 }
 
 const tests=[

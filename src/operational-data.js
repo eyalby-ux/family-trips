@@ -524,3 +524,21 @@ const SMART_IMPORT_ERROR_MESSAGES={
 export function resolveSmartImportErrorMessage(code,status,serverMessage){
   return SMART_IMPORT_ERROR_MESSAGES[code]||serverMessage||`ניתוח המקור נכשל (${status}).`;
 }
+
+// Beta 0.8 Phase 2 (P12-F2): the participants a picker may offer. A participant who has since been
+// deactivated is never offered for a NEW assignment, but one already assigned stays in the list --
+// greyed "(לא פעיל)" by the caller -- so the existing assignment remains visible and removable.
+export function pickerParticipants(participants,selectedIds=[]){
+  const selected=new Set(selectedIds);
+  return (participants||[]).filter(participant=>participant.active!==false||selected.has(participant.id));
+}
+
+// Beta 0.8 Phase 2 (P12-F5): who holds a confirmed ticket for one item. Coverage is derived, never typed:
+// a participant is covered when a CONFIRMED linked document names them. The people listed are the active
+// participants plus anyone already covered (a since-deactivated participant who holds a ticket stays visible).
+export function computeTicketCoverage(sources,participants){
+  const confirmed=(sources||[]).filter(source=>source.ticketConfirmed);
+  const coveredIds=new Set(confirmed.flatMap(source=>source.participantIds||[]));
+  const people=pickerParticipants(participants,[...coveredIds]);
+  return {confirmed,coveredIds,people,coveredCount:people.filter(person=>coveredIds.has(person.id)).length};
+}

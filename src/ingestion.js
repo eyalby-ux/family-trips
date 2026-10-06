@@ -456,3 +456,15 @@ function isSafeConfirmation(candidate,text,index){if(/^(SCREENSHOT|YITZHAK|IMAGE
 function contextLabel(text,index){return text.slice(Math.max(0,index-35),index).match(/(check[ -]?in|check[ -]?out|departure|arrival|start|end|יציאה|הגעה|כניסה|עזיבה)[^\n]{0,20}$/i)?.[1]||''}
 function stopAtNextLabel(value){return value.split(/\s+(?:check[ -]?in|check[ -]?out|phone|tel|booking|confirmation|arrival|departure)\s*[:#-]?/i)[0]}
 function safeDecode(value){try{return decodeURIComponent(value)}catch{return value}}function pad(value){return String(value).padStart(2,'0')}function normalized(value=''){return String(value).trim().toLowerCase().replace(/\s+/g,' ')}function dateOnly(value=''){return String(value).slice(0,10)}function makeId(prefix){return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`}function monthNumber(value){return ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'].indexOf(String(value).slice(0,3).toLowerCase())+1}function isBlank(value){return value==null||value===''||(Array.isArray(value)&&!value.length)}function clone(value){return JSON.parse(JSON.stringify(value))}
+
+// Beta 0.8 Phase 2: a Flight's location label reads the single departure airport ("BKK") instead of the
+// whole route ("BKK → TLV"). Purely a label -- map resolution (mapSearchLocation) is unaffected. Returns ''
+// when the text is not an airport-to-airport route, so a hand-typed place name is never altered.
+export function flightRouteDeparture(location){
+  const match=String(location||'').match(/^\s*([A-Z]{3})\s*(?:→|-|–)\s*[A-Z]{3}\s*$/);
+  return match?match[1]:'';
+}
+
+// V6-F80: which form field a needs-review key is edited through (the field whose edit clears the flag --
+// see NEEDS_REVIEW_FIELD_MAP above); a key with no mapping is assumed to be a form field name already.
+export function needsReviewFormField(key){return (NEEDS_REVIEW_FIELD_MAP[key]||[key])[0]}

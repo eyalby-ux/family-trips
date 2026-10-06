@@ -45,7 +45,7 @@ function renderLogin(message = '') {
     <main class="auth-page">
       <section class="auth-card" aria-labelledby="auth-title">
         <img class="auth-logo" src="/assets/icons/icon-192.png" alt="">
-        <p class="auth-kicker">${appVersionLabel()}</p>
+        <p class="auth-kicker"><bdi>${appVersionLabel()}</bdi></p>
         <h1 id="auth-title">Family Trips</h1>
         <p>התחברות מאובטחת באמצעות חשבון Google למשתמשים מוזמנים בלבד.</p>
         ${message ? `<p class="auth-error" role="alert">${escapeHtml(message)}</p>` : ''}

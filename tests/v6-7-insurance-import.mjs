@@ -625,7 +625,8 @@ function test_relatedItemsPanel_and_reverse_lookup_are_wired(){
   const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
   assert.match(app,/function insuranceCoveringItems\(item\)\{return state\.items\.filter\(candidate=>candidate\.type==='insurance'&&\(candidate\.relatedItemIds\|\|\[\]\)\.includes\(item\.id\)\)\}/,'insuranceCoveringItems must scan the trip\'s insurance items for EVERY one whose relatedItemIds includes this item\'s id (V6-F82: not just the first)');
   assert.match(app,/const insuredByList=item\.type!=='insurance'\?insuranceCoveringItems\(item\):\[\];/,'detailView must compute the reverse lookup for every non-insurance item');
-  assert.match(app,/insuredByList\.map\(policy=>`<button class="row" data-route="detail" data-id="\$\{policy\.id\}">🛡️ מבוטח באמצעות \$\{esc\(policy\.title\)\}<\/button>`\)\.join\(''\)/,'a non-insurance item covered by one or more policies must show a tappable "insured by" line for EACH one, not just the first');
+  // Beta 0.8 Phase 2: the glyph is the Tabler shield icon (typeIcon), not the old emoji.
+  assert.match(app,/insuredByList\.map\(policy=>`<button class="row" data-route="detail" data-id="\$\{policy\.id\}">\$\{typeIcon\('insurance'\)\} מבוטח באמצעות \$\{esc\(policy\.title\)\}<\/button>`\)\.join\(''\)/,'a non-insurance item covered by one or more policies must show a tappable "insured by" line for EACH one, not just the first');
   assert.match(app,/function relatedItemsPanel\(item\)\{/,'relatedItemsPanel must exist to render the insurance item\'s own linked-items list and edit control');
   assert.match(app,/data-action="toggle-related-item"/,'relatedItemsPanel must offer a control to add/remove a linked item, wired through the toggle-related-item action');
   assert.match(app,/item\.type==='insurance'\?relatedItemsPanel\(item\):''/,'detailView must render relatedItemsPanel specifically for insurance items');
@@ -642,7 +643,8 @@ function test_attach_and_extract_offered_for_insurance_items(){
   const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
   // 0.7.8 added 'car' to this list too -- narrowed to a substring check so a further addition
   // doesn't break this again.
-  assert(app.includes("['hotel','flight','activity','insurance','car'].includes(item.type)?`<button class=\"btn\" data-action=\"attach-source\""),'the attach-document control must be offered for insurance items too, matching Hotel/Flight/Attraction-Event -- Decision 7 explicitly includes Attach only/Attach and extract on an existing Insurance item');
+  // Beta 0.8 Phase 2: the control now sits in the Documents block's own actions row.
+  assert(app.includes("['hotel','flight','activity','insurance','car'].includes(item.type)?`<div class=\"actions\"><button class=\"btn\" data-action=\"attach-source\""),'the attach-document control must be offered for insurance items too, matching Hotel/Flight/Attraction-Event -- Decision 7 explicitly includes Attach only/Attach and extract on an existing Insurance item');
   console.log('PASS: the attach-document control is offered for insurance items, matching every other Smart Import-capable type');
 }
 function test_runSmartAnalysis_routes_insurance_attach_and_extract_to_the_insurance_operation(){

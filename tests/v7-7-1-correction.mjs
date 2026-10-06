@@ -39,20 +39,22 @@ function test_0_7_7_1_linkedShoppingListEntries_mirrors_insuranceCoveringItems_p
 }
 
 function test_0_7_7_1_detailView_computes_linkedShoppingList_only_for_shoppingPlace(){
+  // Beta 0.8 Phase 2: detailView is a multi-line function now (it used to be one line).
   const start=app.indexOf('function detailView');
-  const body=app.slice(start,app.indexOf('\n',start));
+  const body=app.slice(start,app.indexOf('\n}\n',start));
   assert(body.includes("const linkedShoppingList=item.type==='shoppingPlace'?linkedShoppingListEntries(item):[];"));
 }
 
+// Beta 0.8 Phase 2: tickets and documents are ONE section now (ticketsAndDocumentsSection), so the old "between the
+// tickets section and the Documents heading" insertion point no longer exists; the reverse lookup renders
+// immediately before that section instead.
 function test_0_7_7_1_detailView_renders_the_reverse_lookup_section_after_ticketsSection(){
   const start=app.indexOf('function detailView');
-  const body=app.slice(start,app.indexOf('\n',start));
-  const ticketsIndex=body.indexOf('${ticketsSection(item)}');
+  const body=app.slice(start,app.indexOf('\n}\n',start));
   const sectionIndex=body.indexOf('linkedShoppingList.map(entry=>');
-  const documentsHeadingIndex=body.indexOf('<h3 id="item-documents">מסמכים</h3>');// Phase 1.1 (F4): gained an anchor id
-  assert(ticketsIndex>-1&&sectionIndex>-1&&documentsHeadingIndex>-1);
-  // Must sit between ticketsSection and the Documents heading, exactly the confirmed insertion point.
-  assert(ticketsIndex<sectionIndex&&sectionIndex<documentsHeadingIndex);
+  const ticketsIndex=body.indexOf('${ticketsAndDocumentsSection(item,sources)}');
+  assert(ticketsIndex>-1&&sectionIndex>-1);
+  assert(sectionIndex<ticketsIndex);
 }
 
 function test_0_7_7_1_v2_reverse_lookup_rows_are_now_interactive_by_explicit_authorization(){
@@ -61,9 +63,9 @@ function test_0_7_7_1_v2_reverse_lookup_rows_are_now_interactive_by_explicit_aut
   // Still no data-route/click-through to a detail page that doesn't exist for a list entry -- only
   // the checkbox and edit button are interactive, not full-row navigation.
   const start=app.indexOf('function detailView');
-  const body=app.slice(start,app.indexOf('\n',start));
+  const body=app.slice(start,app.indexOf('\n}\n',start));
   const sectionStart=body.indexOf('${linkedShoppingList.length?');
-  const sectionText=body.slice(sectionStart,body.indexOf('<h3>מסמכים</h3>',sectionStart));
+  const sectionText=body.slice(sectionStart,body.indexOf('${ticketsAndDocumentsSection(item,sources)}',sectionStart));
   assert(!sectionText.includes('data-route'));
   assert(sectionText.includes('data-action="shopping-toggle"'));
   assert(sectionText.includes('data-action="shopping-edit"'));

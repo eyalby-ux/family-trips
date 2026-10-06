@@ -13,7 +13,8 @@ const netlify=fs.readFileSync('netlify.toml','utf8');
 // "V4 — Smart Ingestion" literal, with nobody noticing it was encoding the defect as correct.
 // Now checks the auth-kicker renders from the shared, build-injected source instead of any
 // literal; see tests/v6-52-53-correction.mjs for the full regression coverage.
-assert(main.includes('<p class="auth-kicker">${appVersionLabel()}</p>'));
+// Beta 0.8 Phase 2 (P12-F1): the label is now wrapped in <bdi> so it can never render bidi-scrambled; still the shared source.
+assert(main.includes('<p class="auth-kicker"><bdi>${appVersionLabel()}</bdi></p>'));
 assert(!main.includes('V4 — Smart Ingestion'));
 
 const flight={id:'flight-1',type:'flight'};

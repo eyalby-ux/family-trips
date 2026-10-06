@@ -9,3 +9,16 @@
 .account-settings svg{width:22px;height:22px;stroke:#fff;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
 .account-actions{display:flex;align-items:center;gap:4px}
 .smart-import-disclosure{padding:14px 16px;margin:12px 0;border-radius:14px;background:#eef8f3;border:1px solid #b7dec9;color:#174d36}.processing-choice{display:grid;gap:10px;margin:16px 0;padding:14px 16px;border:1px solid #d6dde8;border-radius:14px}.processing-choice label{display:flex;gap:10px;align-items:flex-start}.processing-choice input{width:auto;margin-top:3px}.evidence-panel{margin:16px 0;border:1px solid #d6dde8;border-radius:14px;padding:12px 14px;background:#fbfcfe}.evidence-panel summary{cursor:pointer;font-weight:800}.evidence-list{display:grid;gap:10px;margin-top:12px}.evidence-list article{padding:10px 12px;border-inline-start:4px solid #2f946b;background:white;border-radius:10px}.evidence-list p{margin:5px 0;white-space:pre-wrap}.evidence-list small{color:#5f6b7a}.preserve-lines{white-space:pre-wrap}
+
+/* Beta 0.8 Phase 2 (G1): the sign-in screen on the spec tokens. Lives here, not in styles.css, because this
+   file loads after it and carries the original .auth-* rules. */
+.auth-page{background:var(--bg)}
+.auth-card{border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);padding:32px 24px}
+.auth-logo{width:72px;height:72px;border-radius:16px}
+.auth-kicker{color:var(--muted);font-weight:600}
+.auth-note{color:var(--muted)}
+.auth-error{background:#FDECEA;color:var(--danger)}
+
+.smart-import-disclosure{background:var(--bg);border:1px solid var(--border);color:var(--ink)}
+.processing-choice,.evidence-panel{border-color:var(--border);background:var(--surface)}
+.evidence-list article{border-inline-start:4px solid var(--border)}

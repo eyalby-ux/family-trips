@@ -137,14 +137,15 @@ async function test_0_7_9_2_consumeDailyQuota_larger_race_never_overshoots_the_l
 // --- Document removal: a soft unlink, with an extra warning for confirmed ticket coverage ---
 
 function test_0_7_9_2_sourceRow_accepts_an_itemId_and_only_offers_unlink_when_present(){
-  const start=app.indexOf('function sourceRow(source,itemType,itemId){');
-  assert(start>-1,'sourceRow must accept itemId as a third parameter');
+  // Beta 0.8 Phase 2: sourceRow no longer needs the item type (ticket controls moved out), so itemId is its 2nd parameter.
+  const start=app.indexOf('function sourceRow(source,itemId){');
+  assert(start>-1,'sourceRow must accept itemId as a second parameter');
   const body=app.slice(start,start+2500);
   assert(body.includes('data-action="source-unlink" data-id="${source.id}" data-item-id="${itemId}"'));
   assert(body.includes('${itemId?`<button class="btn danger" data-action="source-unlink"'));
 }
 function test_0_7_9_2_detailView_passes_the_items_own_id_into_sourceRow(){
-  assert(app.includes('sources.map(source=>sourceRow(source,item.type,item.id))'));
+  assert(app.includes('sources.map(source=>sourceRow(source,item.id))'));
 }
 function test_0_7_9_2_source_unlink_only_touches_item_sourceIds_never_state_sources(){
   const start=app.indexOf("else if(action==='source-unlink')");

@@ -21,6 +21,13 @@ const MERGE_FIELDS=['title','provider','confirmationNumber','location','website'
 // all stay in lockstep -- previously this string was only ever inline here, with no way for any
 // other module to reliably recognize "this warning is a merge-conflict notice" without duplicating
 // the literal text.
+// V6-F14: at most this many detail lines go into a Hotel proposal's free-text notes.
+export const NOTES_ITEM_LIMIT=5;
+export function scopeNoteLines(lines,limit=NOTES_ITEM_LIMIT){
+  const unique=[...new Set((lines||[]).filter(Boolean))];
+  if(unique.length<=limit)return unique;
+  return [...unique.slice(0,limit),`ועוד ${unique.length-limit} פרטים — מופיעים ב"כל המידע והראיות" ובמסמך המקור`];
+}
 export const MERGE_CONFLICT_WARNING_PREFIX='ערך חדש התגלה עבור ';
 
 export function smartImportResultToSuggestion(result,source,now=new Date()){
@@ -91,7 +98,11 @@ export function smartImportResultToSuggestion(result,source,now=new Date()){
   // otherFields site already used -- Hotel had this exact byte-identical doubling bug in its own
   // otherFields mapping, and BOTH adapters' importantNotes mapping was never touched at all.
   const noteLines=[...(draft.importantNotes||[]).map(note=>`${normalizedGenericLabel(note.title)}: ${stripDuplicateLabelPrefix(note.title,note.text)}`),...otherFields.map(field=>`${normalizedGenericLabel(field.label)}: ${stripDuplicateLabelPrefix(field.label,field.rawValue)}`)];
-  proposed.notes=noteLines.join('\n');
+  // V6-F14 (Beta 0.8 Phase 2): the notes field used to restate every extracted value in full. It now carries
+  // only the few most important items that have no structured field of their own (important notes first,
+  // then the remaining fields); everything else stays in details.smartImportFields / importantNotes, i.e. in
+  // the review screen's "כל המידע והראיות" panel and the attached source document.
+  proposed.notes=scopeNoteLines(noteLines).join('\n');
   proposed.details.smartImportFields=[...(draft.fields||[]),...fallbackEvidenceFields];
   if(needsReviewFields.length)proposed.details.needsReviewFields=needsReviewFields;
   const needsReviewWarnings=needsReviewFields.map(field=>({message:`דורש בדיקה — ${field.label}: ${field.value} (${field.evidence||'ללא הפניה למקור'})`,needsReviewRef:{key:field.key,value:field.value}}));
