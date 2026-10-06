@@ -1,8 +1,18 @@
 # FamilyTrips Beta 0.8 — Scope: Visual and Interaction System
 
-Document revision: `V4`
-Date: 2026-10-05
+Document revision: `V5`
+Date: 2026-10-06
 From: Product Owner's planning/QA-assistant (document-only)
+
+**`V5` change note:** fixes a real gap the Development Agent caught while diffing `V4` against the live
+repository: `P12-F6`'s acceptance criterion asked for verification "in at least two different screens that
+use the carousel," but `participantCarousel()` has exactly one caller today (`packingView()`) — the
+Development Agent confirmed this directly (`grep` across `src/v5-app.js`), and separately confirmed the
+bug itself live (the "next" option measured on the left of the selected one, with Right Arrow selecting
+it) before any code changed, since no implementation is authorized yet. The criterion below now asks for
+verification on the one screen that actually has the control, plus any further carousel call sites Phase
+2's own add/edit-form work happens to introduce along the way — it does not require manufacturing a second
+use case to satisfy the test. No other content below changed from `V4`.
 
 **`V4` change note:** schedules the two Beta 0.8 backlog items `V3` had explicitly excluded. The Product
 Owner decided, 2026-10-05: **`P12-F3` (delete participants) and `P12-F4` (delete shopping items) fold
@@ -154,8 +164,9 @@ traffic screens (Settings, Timeline, Shopping) alongside games, per its own "rem
   per `FAMILYTRIPS_UI_IMPLEMENTATION_DESIGN_SPEC_V7.md` `V7.3`'s corrected §5 wording — Right Arrow
   selects the neighbor rendered to the right, Left Arrow the neighbor rendered to the left — regardless
   of the RTL drag rule's own reading-direction logic, which is unchanged and unaffected by this fix.
-  Verified against the carousel in at least two different screens that use it (e.g. Packing's
-  participant picker and one other).
+  Verified on the Packing participant picker, the control's one existing caller today, plus any further
+  carousel call sites Phase 2's own add/edit-form redesign happens to introduce — not a requirement to
+  manufacture a second use case where none currently exists.
 - General regression: existing Smart Import extraction/approval behavior, item editing, and the
   underlying data these items touch (ticket coverage, Editor removal, merge-conflict resolution,
   participant assignment) are otherwise unaffected — restyling and the two riding-along fixes change how
