@@ -169,11 +169,15 @@ function test_beta_0_8_packing_view_always_uses_the_participant_control(){
   console.log('PASS: packingView() always uses the participant control (row on a wide screen where everyone fits, carousel otherwise); the chips and button-switcher fallbacks are gone');
 }
 function test_beta_0_8_arrow_keys_step_through_the_carousel_in_reading_order(){
-  // Phase 1.1: the carousel re-renders around the selection, so the keys click the neighbour
-  // marked data-pos next/prev rather than walking DOM siblings.
+  // Phase 1.1: the carousel re-renders around the selection, so the keys click a neighbour marked
+  // data-pos next/prev rather than walking DOM siblings. P12-F6 (spec V7.3) REVERSED the old rule
+  // this test used to pin ("ArrowRight = next in reading order"): under dir="rtl" that moved the
+  // highlight opposite the key's own name. The keys now follow screen position, chosen by measured
+  // position through arrowKeyTarget() (behaviorally tested in beta-0-8-phase-1-2-logic.mjs).
   assert.match(app,/addEventListener\('keydown',event=>\{/);
-  assert.match(app,/carousel\.querySelector\(event\.key==='ArrowRight'\?'\[data-pos="next"\]':'\[data-pos="prev"\]'\)/,'§5: arrow-right must move to the NEXT option in reading order (not the previous), matching the spec\'s own explicit reading-direction rule');
-  console.log('PASS: a keydown delegate selects the next option on ArrowRight and the previous on ArrowLeft, matching §5\'s reading-direction rule');
+  assert.match(app,/arrowKeyTarget\(event\.key,centerX\(selected\),neighbours\)/,'the arrow keys must pick the neighbour by where it is rendered, not by a fixed next/prev binding');
+  assert(!/event\.key==='ArrowRight'\?'\[data-pos="next"\]'/.test(app),'the old reading-order binding (ArrowRight -> next) must be gone');
+  console.log('PASS: a keydown delegate selects the neighbour rendered on the key\'s own side (P12-F6), not a fixed next/prev');
 }
 function test_beta_0_8_carousel_no_longer_scrolls_it_selects_one_neighbour_per_swipe(){
   // Phase 1.1 (F15/F16) replaced the scroll-snap track with slots that wrap; Phase 1.2 (P11-F14)

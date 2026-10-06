@@ -38,6 +38,20 @@ export function carouselSlots(count,index,layout='carousel'){
   }));
 }
 
+// P12-F6: the arrow keys follow SCREEN position, not reading order -- Right Arrow selects whichever
+// neighbour is rendered to the right of the selected item, Left Arrow the one rendered to the left.
+// The drag gesture keeps its reading-direction rule (dragging right = next); the keys deliberately
+// do not: under dir="rtl" the DOM-order "next" renders to the LEFT of the selection, so binding
+// ArrowRight to "next" moved the highlight opposite the key's own name. Choosing by measured
+// position (neighbours: [{pos,centerX}]) rather than by a hard-coded prev/next swap keeps this
+// correct whatever the CSS direction or layout does. Returns 'prev', 'next', or null (nothing
+// rendered on that side, e.g. at the end of a 2-option or row layout).
+export function arrowKeyTarget(key,selectedCenterX,neighbours){
+  const side=key==='ArrowRight'?1:key==='ArrowLeft'?-1:0;
+  if(!side)return null;
+  return neighbours.find(neighbour=>Math.sign(neighbour.centerX-selectedCenterX)===side)?.pos??null;
+}
+
 // P11-F17: dots up to 6 options, a counter above that.
 export function positionIndicator(count,index){
   return count>COUNTER_ABOVE?{kind:'counter',text:`${index+1} / ${count}`}:{kind:'dots',active:index,count};

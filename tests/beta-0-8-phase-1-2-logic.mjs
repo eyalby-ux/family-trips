@@ -111,7 +111,7 @@ if(process.argv.includes('--child')){
     console.log(`PASS: Phase 1.2 Today logic (planToday / upNextItem / shouldClearEndedOnEdit / shortDayLabel) under TZ=${tz} -- ${run.stdout.trim().split('\n').length} checks`);
   }
 
-  const {carouselSlots,participantLayout,positionIndicator,WIDE_FROM_PX,ITEM_WIDTH_PX,GAP_PX,COUNTER_ABOVE}=await import('../src/participant-carousel.js');
+  const {arrowKeyTarget,carouselSlots,participantLayout,positionIndicator,WIDE_FROM_PX,ITEM_WIDTH_PX,GAP_PX,COUNTER_ABOVE}=await import('../src/participant-carousel.js');
   const names=(count,index,layout)=>carouselSlots(count,index,layout).map(s=>s.optionIndex+':'+s.pos).join(' ');
   const t=(name,fn)=>{fn();console.log('PASS: '+name)};
 
@@ -145,6 +145,48 @@ if(process.argv.includes('--child')){
     assert.deepEqual(positionIndicator(6,2),{kind:'dots',active:2,count:6});
     assert.deepEqual(positionIndicator(9,3),{kind:'counter',text:'4 / 9'});
     assert.equal(positionIndicator(7,0).kind,'counter');
+  });
+
+  // --- P12-F6: the arrow keys follow screen position ---------------------------------------------------
+  // Place the mounted slots the way a flex row actually renders them: under dir="rtl" the first item
+  // in DOM order sits at the right-hand end, under dir="ltr" at the left-hand end. Slot width 100px.
+  const place=(count,index,layout,dir)=>{
+    const slots=carouselSlots(count,index,layout).filter(slot=>!slot.hidden);
+    const x=(domIndex)=>dir==='rtl'?500-domIndex*100:100+domIndex*100;
+    // domIndex counts within the VISIBLE items (the two hidden far slots sit off-screen at each end)
+    const selectedAt=x(slots.findIndex(slot=>slot.pos==='selected'));
+    return {selectedAt,neighbours:slots.map((slot,domIndex)=>({slot,centerX:x(domIndex)})).filter(item=>item.slot.pos==='prev'||item.slot.pos==='next').map(item=>({pos:item.slot.pos,centerX:item.centerX}))};
+  };
+  const pressed=(key,placed)=>arrowKeyTarget(key,placed.selectedAt,placed.neighbours);
+  const sideOf=(placed,pos)=>Math.sign(placed.neighbours.find(n=>n.pos===pos).centerX-placed.selectedAt);
+  t('P12-F6 RTL carousel (3+ options): Right Arrow selects the option rendered to the right (DOM "previous"), Left Arrow the one rendered to the left (DOM "next")',()=>{
+    const placed=place(6,2,'carousel','rtl');
+    assert.equal(sideOf(placed,'prev'),1,'under RTL the DOM-order previous option renders to the right');
+    assert.equal(sideOf(placed,'next'),-1,'and the DOM-order next option renders to the left');
+    assert.equal(pressed('ArrowRight',placed),'prev');
+    assert.equal(pressed('ArrowLeft',placed),'next');
+  });
+  t('P12-F6 the keys depend on where things are rendered, not on a fixed prev/next binding: the same rule holds if the layout were left-to-right',()=>{
+    const placed=place(6,2,'carousel','ltr');
+    assert.equal(pressed('ArrowRight',placed),'next');
+    assert.equal(pressed('ArrowLeft',placed),'prev');
+  });
+  t('P12-F6 every key press, in every position and layout, lands on an option rendered on that key\'s own side',()=>{
+    for(const dir of ['rtl','ltr'])for(const [count,layout] of [[3,'carousel'],[6,'carousel'],[9,'carousel'],[2,'carousel'],[5,'row'],[7,'row']])for(let index=0;index<count;index++){
+      const placed=place(count,index,layout,dir);
+      for(const [key,side] of [['ArrowRight',1],['ArrowLeft',-1]]){
+        const target=pressed(key,placed);
+        if(target===null){assert.ok(placed.neighbours.every(n=>Math.sign(n.centerX-placed.selectedAt)!==side),`${key} returned nothing although something is rendered on that side (${dir} ${layout} ${count} @${index})`);continue}
+        assert.equal(sideOf(placed,target),side,`${key} must select the option rendered on its own side (${dir} ${layout} ${count} @${index})`);
+      }
+    }
+  });
+  t('P12-F6 with nothing rendered on a key\'s side (the ends of a 2-option or row layout) the key does nothing',()=>{
+    const first=place(2,0,'carousel','rtl'),second=place(2,1,'carousel','rtl');
+    assert.equal(pressed('ArrowRight',first),null);assert.equal(pressed('ArrowLeft',first),'next');
+    assert.equal(pressed('ArrowLeft',second),null);assert.equal(pressed('ArrowRight',second),'prev');
+    assert.equal(arrowKeyTarget('ArrowRight',100,[]),null);
+    assert.equal(arrowKeyTarget('ArrowUp',100,[{pos:'next',centerX:50}]),null);
   });
 
   // --- source wiring for what only exists in the browser ----------------------------------------------
@@ -199,6 +241,10 @@ if(process.argv.includes('--child')){
   t('P11-F15 every selection re-focuses the selected item so the arrow keys keep working',()=>{
     assert.match(fnBody('commitParticipant'),/if\(refocus\)document\.querySelector\('\.p-carousel-item\.selected'\)\?\.focus\(\{preventScroll:true\}\)/);
     assert.match(app,/else if\(action==='packing-view-participant'\)selectParticipant\(button\.closest\('\[data-carousel\]'\),button\.dataset\.participant\);/);
+  });
+  t('P12-F6 the keydown handler uses arrowKeyTarget on measured positions; the drag gesture keeps its reading-direction rule untouched',()=>{
+    assert.match(app,/const target=arrowKeyTarget\(event\.key,centerX\(selected\),neighbours\);/);
+    assert.match(app,/const direction=dx>0\?'next':'prev';/,'dragging right still selects the next option in reading order');
   });
   t('P11-F16 a debounced resize listener re-renders Packing only when the row/carousel decision changes',()=>{
     assert.match(app,/addEventListener\('resize',\(\)=>\{[\s\S]*setTimeout\(\(\)=>\{[\s\S]*currentParticipantLayout\(packingParticipantCount\(\)\)!==lastParticipantLayout\)render\(\);[\s\S]*\},150\);/);

@@ -2,7 +2,7 @@ import {ITEM_TYPES,TRANSPORT_MODES,TYPE_FIELDS,buildItemFormValues,confirmNeedsR
 import {extractSourceContent,sha256File} from './content-extraction.js';
 import {MultipartQrCollector,decodeExternalText,importBatchToApp} from './external-import.js';
 import {availableTimelineModes,backfillTripDates,currentOperational,filterAndSortTasks,isDeletionEligible,isItemOutsideTrip,normalizeDateRange,normalizeOperationalState,packingDuplicate,periodBounds,QUARANTINE_DELETION_ELIGIBLE_DAYS,quickAccessTasks,sanitizeTripDates,shiftCursor,sortItemsByStartAt,TASK_DUE_SCOPES,TRANSPORT_TYPES,itemStartMs,planToday,shortDayLabel,shouldClearEndedOnEdit,today,uniqueRecordsById,upNextItem} from './operational-data.js';
-import {carouselSlots,participantLayout,positionIndicator} from './participant-carousel.js';
+import {arrowKeyTarget,carouselSlots,participantLayout,positionIndicator} from './participant-carousel.js';
 import {normalizeProposalLifecycle,rejectProposal} from './proposal-lifecycle.js';
 import {analyzeActivitySource,analyzeCarSource,analyzeFlightSource,analyzeHotelSource,analyzeInsuranceSource,analyzeSource} from './smart-import-client.js';
 import {MERGE_CONFLICT_WARNING_PREFIX,saveOnlySource,smartImportResultToSuggestion,preserveTrustedFieldsOnMerge} from './smart-import-adapter.js';
@@ -1795,15 +1795,19 @@ addEventListener('touchstart',event=>{if(event.target.closest('[data-timeline-ca
 addEventListener('touchend',event=>{if(timelineSwipeStartX===null||!event.target.closest('[data-timeline-calendar]'))return;const endX=event.changedTouches[0]?.clientX??timelineSwipeStartX,delta=endX-timelineSwipeStartX;timelineSwipeStartX=null;if(Math.abs(delta)<50||state.timelineMode!=='week')return;state.timelineCursor=shiftCursor(state.timelineCursor,'week',delta<0?1:-1);render()},{passive:true});
 addEventListener('online',render);addEventListener('offline',render);addEventListener('pagehide',stopCamera);
 // Beta 0.8 Phase 1 (design spec V7 S5): the carousel's own keyboard alternative (sequential Tab
-// works natively -- real <button> elements). Per §5, right/next and left/previous follow reading
-// direction, with no RTL branch since this app has no LTR mode. The arrow keys click the neighbour
-// marked data-pos next/prev (wrapping at 3+ options); selectParticipant() re-focuses the newly
-// selected item once it lands (P11-F15), so the keys keep working.
+// works natively -- real <button> elements). P12-F6 (spec V7.3): the arrow keys follow SCREEN position
+// -- Right Arrow selects the neighbour rendered to the right of the selected item, Left Arrow the one
+// rendered to the left -- chosen by measured position (arrowKeyTarget), not by a prev/next swap, so it
+// holds for the 3+ option carousel, the 2-option case and the wide-screen row alike. The drag gesture
+// below keeps its own reading-direction rule. selectParticipant() re-focuses the newly selected item
+// once it lands (P11-F15), so the keys keep working.
 addEventListener('keydown',event=>{
   if(!['ArrowRight','ArrowLeft'].includes(event.key))return;
   const carousel=event.target.closest('[data-carousel]');if(!carousel)return;
-  const target=carousel.querySelector(event.key==='ArrowRight'?'[data-pos="next"]':'[data-pos="prev"]');
-  if(target){event.preventDefault();target.click()}
+  const selected=carousel.querySelector('[data-pos="selected"]');if(!selected)return;
+  const neighbours=['prev','next'].map(pos=>({pos,element:carousel.querySelector(`[data-pos="${pos}"]`)})).filter(neighbour=>neighbour.element).map(neighbour=>({pos:neighbour.pos,centerX:centerX(neighbour.element)}));
+  const target=arrowKeyTarget(event.key,centerX(selected),neighbours);
+  if(target){event.preventDefault();carousel.querySelector(`[data-pos="${target}"]`).click()}
 });
 // Horizontal gestures (pointer events; pointercancel/up end them):
 //  - a started Today card (data-swipe-end): the card follows the finger and fades; released past a
