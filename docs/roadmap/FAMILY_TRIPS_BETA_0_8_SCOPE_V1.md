@@ -1,8 +1,35 @@
 # FamilyTrips Beta 0.8 — Scope: Visual and Interaction System
 
-Document revision: `V6`
+Document revision: `V7`
 Date: 2026-10-06
 From: Product Owner's planning/QA-assistant (document-only)
+
+**`V7` change note:** records Phase 2's build and the Product Owner's resolution of the three open
+decisions the Development Agent raised while implementing it. **Phase 2 is built, committed (five commits,
+`4af4373`…`8a18f43`, `version/V7`), and live on `qa` at `0.8.0-phase2-7f5e33fa`** — independently confirmed
+directly in the repository before this edit (commit history, `git show --stat` on each commit, the gate's
+own test file re-run directly, the acceptance-session document read in full). Not yet accepted GO; that
+follows the Product Owner's and QA agent's own acceptance session against
+`docs/versions/V7/0.8.0-phase2/EXECUTABLE_TEST_SESSION_V1.md`'s 14 tests. Two pre-existing bugs, unrelated
+to Phase 2's own scope, were found and fixed along the way (a lost analysis result overwriting a
+since-replaced source copy; a "processing" status with no timeout, now failing after 5 minutes with retry
+and delete) — both are why the QA Trip had stuck sources before this round. **Three decisions, resolved
+directly by the Product Owner, 2026-10-06:**
+1. **Ticket confirmation moved out of the document row** (so a document can now appear in both the
+   confirmation list and the documents list) — this differs from the explicit round-3 "one place only"
+   instruction, but the Product Owner confirmed **keep as implemented**; Phase 2's four-piece section
+   (coverage, confirmation, holders, linked documents, `P12-F5`) stands as built, no revert needed.
+2. **Header restyle** (green gradient → the spec's surface colour), done outside this round's formal
+   scope — the Product Owner confirmed **keep it**. Implemented as an added overriding CSS rule rather
+   than an edit to the original `.top{}` rule (confirmed directly in `src/styles.css`); a minor
+   code-cleanliness item, not a functional one — left as a backlog tidy-up note, not a blocking finding.
+3. **Orphan sources** (no delete action exists for a source that isn't in the `failed` state) — the
+   Product Owner confirmed **add to backlog**: scoped below as `P12-F7`, folded into Phase 3 alongside
+   `P12-F3`/`P12-F4`, the same way those two were folded in at `V4`.
+
+The fourth item the Development Agent flagged — the "ממתין בתור" ("queued") label standing in for a real
+queue state, since the app has none — is accepted as a reasonable technical necessity and needs no
+Product Owner decision; no change below.
 
 **`V6` change note:** `P12-F6` is fixed and tested live — removed from Phase 2's riding-along list below,
 closing it out of Beta 0.8 entirely rather than carrying it into Phase 2's own implementation pass.
@@ -92,7 +119,12 @@ Non-blocking findings. **Accepted GO by the Product Owner, 2026-10-05, on `0.8.0
 full detail in `MVP_DELIVERY_PLAN_CURRENT_STATE.md`. Kept here for the record; no further action.
 
 ## Phase 2 — Item detail, add/edit forms, sign-in, Trip Center, Packing's own chrome, Smart Import status
-system, and the eight refinement items
+system, and the eight refinement items — **built, committed, live on `qa`; awaiting acceptance**
+
+**Built as of `V7`:** implemented, committed (`4af4373`, `8bab6ca`, `5c93d00`, `7f5e33f`, `8a18f43` on
+`version/V7`), deployed to `0.8.0-phase2-7f5e33fa` on `qa`. Acceptance session document:
+`docs/versions/V7/0.8.0-phase2/EXECUTABLE_TEST_SESSION_V1.md`, 14 tests. Not yet GO — see the `V7` change
+note above for the two pre-existing bugs found/fixed and the three decisions resolved.
 
 Covers spec §7's Smart Import processing-states subsection (the seven-state status pill and its binding
 interaction rule, reused across the Intake Inbox, an item's Documents/Tickets area, and the proposal
@@ -207,6 +239,14 @@ already visits both screens for the restyle:
    per-row control) — not a new, separate delete pattern. A single confirmation is sufficient, matching
    the existing Tasks delete flow; this is a lower-consequence action than deleting a participant (no
    cross-item assignments to protect).
+3. **`P12-F7`** — added `V7`, 2026-10-06, confirmed by the Product Owner while reviewing Phase 2's build:
+   a source stuck in any non-`failed` state (e.g. `rejected`, or `needs review`/`partial` with no confirmed
+   ticket coverage) has no delete action in the UI today — only `failed` sources do (`sourceRow()`'s
+   `failedActions`, gated by `canRetry`). Add a delete action for these, following the same single-
+   confirmation pattern the existing failed-source delete already uses. **`attached` sources (confirmed
+   ticket coverage) are explicitly excluded** — removing a document already confirmed as ticket coverage
+   needs its own, more deliberate flow (likely tied to un-confirming coverage first), not folded into this
+   fix.
 
 **Acceptance criteria:**
 - Games list matches §6: compact catalog (not a gallery), the five named filters, active/inactive filter
@@ -226,6 +266,10 @@ already visits both screens for the restyle:
 - **`P12-F4`:** the delete action is present on shopping-list items, placed inside the item's edit screen
   exactly like the current Tasks pattern, not as a separate per-row control; a single confirmation
   precedes the delete; the item is actually removed.
+- **`P12-F7`:** a delete action is present for a source in any non-`failed`, non-`attached` state (verified
+  against at least one `rejected` source and one `needs review`/`partial` source with no confirmed ticket
+  coverage); a single confirmation precedes the delete; `attached` sources still have no delete action
+  from this fix alone.
 - Every remaining screen with an empty, loading, or offline/sync state (per §7's general principles) uses
   the specified treatment — line icon + headline + explanation for empty, the uniform
   `--border`-on-`--surface` skeleton (not a spinner) for loading, and the persistent `--accent-soft` top
@@ -257,8 +301,7 @@ already visits both screens for the restyle:
 
 ## What's needed now
 
-**Phase 1 is closed.** Phase 2 is scoped above, including the `G1` screen assignments and the two
-riding-along fixes (`P12-F1`, `P12-F2`); it is not yet kicked off — that is a separate prompt, staged but
-withheld until this assistant sends explicit authorization, matching every prior phase transition in this
-project. Phase 3 — now also scoped with its two functional additions (`P12-F3`, `P12-F4`, `V4`) — has no
-kickoff prompt yet; that follows once Phase 2 is accepted GO on `qa`.
+**Phase 1 is closed.** Phase 2 is built, committed, and live on `qa` (`V7`, above) — awaiting the Product
+Owner's and QA agent's acceptance session against its 14-test document before this assistant records a
+GO/NO-GO. Phase 3 — scoped with its three functional additions (`P12-F3`, `P12-F4`, `V4`; `P12-F7`, `V7`)
+— has no kickoff prompt yet; that follows once Phase 2 is accepted GO on `qa`.
