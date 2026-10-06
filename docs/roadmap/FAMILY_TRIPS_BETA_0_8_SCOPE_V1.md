@@ -1,8 +1,18 @@
 # FamilyTrips Beta 0.8 — Scope: Visual and Interaction System
 
-Document revision: `V7`
+Document revision: `V8`
 Date: 2026-10-06
 From: Product Owner's planning/QA-assistant (document-only)
+
+**`V8` change note:** Phase 2's acceptance session ended **NO-GO**, 2026-10-06
+(`docs/versions/V7/0.8.0-phase2/EXECUTABLE_TEST_SESSION_V1.md`). No Blocking findings; one Medium
+(`P2-F5`, which also closes backlog item `P12-F4`) and five Non-blocking (`P2-F1`–`P2-F4`, `P2-F6`) are
+routed into a new Phase 2.1 correction round, scoped in full in
+`FAMILY_TRIPS_BETA_0_8_PHASE_2_1_CORRECTION_SCOPE_V1.md`. `P2-F7` (participant photos) goes to the
+backlog. `P2-F8` — the Development Agent's note that Phase 3's own scope should name the Shopping screen
+explicitly rather than leave it folded into a general mention — is addressed directly below: Phase 3's
+Shopping bullet now names the line-icon replacement for its emoji, quieter place cards, and the compact
+row layout `P2-F5` introduces for Packing/Shopping. No other content below changed from `V7`.
 
 **`V7` change note:** records Phase 2's build and the Product Owner's resolution of the three open
 decisions the Development Agent raised while implementing it. **Phase 2 is built, committed (five commits,
@@ -119,12 +129,17 @@ Non-blocking findings. **Accepted GO by the Product Owner, 2026-10-05, on `0.8.0
 full detail in `MVP_DELIVERY_PLAN_CURRENT_STATE.md`. Kept here for the record; no further action.
 
 ## Phase 2 — Item detail, add/edit forms, sign-in, Trip Center, Packing's own chrome, Smart Import status
-system, and the eight refinement items — **built, committed, live on `qa`; awaiting acceptance**
+system, and the eight refinement items — **NO-GO; correction round Phase 2.1 scoped**
 
 **Built as of `V7`:** implemented, committed (`4af4373`, `8bab6ca`, `5c93d00`, `7f5e33f`, `8a18f43` on
 `version/V7`), deployed to `0.8.0-phase2-7f5e33fa` on `qa`. Acceptance session document:
-`docs/versions/V7/0.8.0-phase2/EXECUTABLE_TEST_SESSION_V1.md`, 14 tests. Not yet GO — see the `V7` change
-note above for the two pre-existing bugs found/fixed and the three decisions resolved.
+`docs/versions/V7/0.8.0-phase2/EXECUTABLE_TEST_SESSION_V1.md`, 14 tests. See the `V7` change note above
+for the two pre-existing bugs found/fixed and the three decisions resolved at that session.
+
+**Result as of `V8`:** that session ended **NO-GO**, 2026-10-06. One Medium and five Non-blocking
+findings routed into Phase 2.1, scoped in full in
+`FAMILY_TRIPS_BETA_0_8_PHASE_2_1_CORRECTION_SCOPE_V1.md`; see the `V8` change note above. Phase 2 does not
+close until that correction round's own acceptance session returns GO.
 
 Covers spec §7's Smart Import processing-states subsection (the seven-state status pill and its binding
 interaction rule, reused across the Intake Inbox, an item's Documents/Tickets area, and the proposal
@@ -213,11 +228,13 @@ traffic screens (Settings, Timeline, Shopping) alongside games, per its own "rem
   things are surfaced/confirmed, not what data is stored.
 
 ## Phase 3 — Games, Settings, Timeline, Shopping, remaining empty/loading/offline coverage, full
-acceptance pass, plus two functional additions (`P12-F3`, `P12-F4`)
+acceptance pass, plus one remaining functional addition (`P12-F3`)
 
 Covers spec §6 (games list and game page), the Settings screen (trip settings form, participants
 management section, sharing section, admin/invitation section), the Timeline/calendar view, and the
-Shopping list screen — closing `G1`'s remaining lower-traffic screens — plus completing §7's
+Shopping list screen (named explicitly, `P2-F8`, `V8`: replace its 🛒/📍 emoji with Tabler outline line
+icons, quieter place cards instead of the current heavy ones, and the compact tap-to-edit row layout
+`P2-F5` introduces for Packing/Shopping) — closing `G1`'s remaining lower-traffic screens — plus completing §7's
 empty/loading/offline-state principles across any screen not already covered by Phase 1 (Today) or Phase
 2 (Smart Import's own loading/processing treatment, item detail, add/edit forms). Closes with the full §9
 accessibility/visual acceptance pass across the whole of Beta 0.8, not just this phase. **Added in `V4`:**
@@ -234,11 +251,10 @@ already visits both screens for the restyle:
    transient success notification, consistent with the spec's own transient-success pattern (§7's
    "Attached" state, the offline/sync strip's success-is-transient rule). No cascade-clear logic is
    needed and no orphaned references are possible, since the delete simply cannot run while assigned.
-2. **`P12-F4`** — add a delete action for a shopping-list item, following the **same pattern the current
-   Tasks screen uses** (post-`P11-F13`: delete lives inside the item's own edit screen, not as a direct
-   per-row control) — not a new, separate delete pattern. A single confirmation is sufficient, matching
-   the existing Tasks delete flow; this is a lower-consequence action than deleting a participant (no
-   cross-item assignments to protect).
+2. ~~`P12-F4`~~ — **closed ahead of Phase 3, `V8`.** Its delete-action need is folded into `P2-F5`'s
+   Phase 2.1 fix (Packing and Shopping rows both move to the Tasks tap-to-edit pattern, delete inside the
+   edit screen), pulled forward by the Product Owner rather than waiting for this phase. No separate
+   action needed here.
 3. **`P12-F7`** — added `V7`, 2026-10-06, confirmed by the Product Owner while reviewing Phase 2's build:
    a source stuck in any non-`failed` state (e.g. `rejected`, or `needs review`/`partial` with no confirmed
    ticket coverage) has no delete action in the UI today — only `failed` sources do (`sourceRow()`'s
@@ -255,17 +271,19 @@ already visits both screens for the restyle:
 - Game page matches §6: uniform page shape (name, description, match, duration, primary action);
   interactive games show "התחל משחק"/"המשך משחק" and run in-app; non-interactive activities show
   instructions plus "התחל פעילות".
-- Settings (trip form, participants, sharing, admin), Timeline/calendar, and Shopping all match the
-  spec's tokens, spacing, typography, and component rules — the same bar Phase 1 and 2 held their own
-  screens to.
+- Settings (trip form, participants, sharing, admin) and Timeline/calendar match the spec's tokens,
+  spacing, typography, and component rules — the same bar Phase 1 and 2 held their own screens to.
+- **Shopping (`P2-F8`, `V8`):** no emoji remain (🛒/📍 replaced with Tabler outline line icons, `--ink`);
+  place cards are quieter — bordered, spec tokens, no heavy illustration-style treatment; rows use the
+  same compact tap-to-edit layout `P2-F5` introduces for Packing (checkbox/name/participant chip, delete
+  inside the edit screen).
 - **`P12-F3`:** the delete action is present in Settings' participants section; attempting to delete an
   assigned participant leaves the action disabled with the pointing-to-deactivation message, verified
   against at least one participant with a real assignment; deleting an unassigned participant requires
   the double confirmation naming that participant, then actually removes the record and shows the
   transient success notification.
-- **`P12-F4`:** the delete action is present on shopping-list items, placed inside the item's edit screen
-  exactly like the current Tasks pattern, not as a separate per-row control; a single confirmation
-  precedes the delete; the item is actually removed.
+- ~~`P12-F4`~~ — closed ahead of this phase by `P2-F5` (Phase 2.1, `V8`); verified in that round's own
+  acceptance session, not repeated here.
 - **`P12-F7`:** a delete action is present for a source in any non-`failed`, non-`attached` state (verified
   against at least one `rejected` source and one `needs review`/`partial` source with no confirmed ticket
   coverage); a single confirmation precedes the delete; `attached` sources still have no delete action
@@ -289,10 +307,10 @@ already visits both screens for the restyle:
 - Any change to the datastore's access-control shape or the sync engine — Beta 0.8 is visual/interaction
   only; nothing here touches Firestore rules, Storage rules, or the sync/offline-reconnect mechanism
   itself (only how offline/sync state is *displayed*, per Phase 3). Two small, acknowledged exceptions
-  exist: the `endedAt` item field (Phase 1.1, Decision 1), a deliberate additive content field; and
-  Phase 3's participant/shopping-item delete actions (`P12-F3`, `P12-F4`, scoped above, `V4`) — genuine
-  functional additions, not restyle work, folded in because Phase 3 already visits both screens. Neither
-  touches Firestore/Storage *rules* or the sync engine itself.
+  exist: the `endedAt` item field (Phase 1.1, Decision 1), a deliberate additive content field; and the
+  participant/shopping-item delete actions (`P12-F3`, scoped in Phase 3 below, `V4`; `P12-F4`'s own need
+  closed ahead of schedule by `P2-F5` in Phase 2.1, `V8`) — genuine functional additions, not restyle
+  work. Neither touches Firestore/Storage *rules* or the sync engine itself.
 - Any new Smart Import extraction vertical or field — the status-pill work is a visual treatment of the
   existing pipeline, not new extraction scope.
 - Any of the independent backlog items confirmed unrelated to Beta 0.8 at `V143` (`0.7.10`, calendar
@@ -301,7 +319,8 @@ already visits both screens for the restyle:
 
 ## What's needed now
 
-**Phase 1 is closed.** Phase 2 is built, committed, and live on `qa` (`V7`, above) — awaiting the Product
-Owner's and QA agent's acceptance session against its 14-test document before this assistant records a
-GO/NO-GO. Phase 3 — scoped with its three functional additions (`P12-F3`, `P12-F4`, `V4`; `P12-F7`, `V7`)
-— has no kickoff prompt yet; that follows once Phase 2 is accepted GO on `qa`.
+**Phase 1 is closed.** Phase 2's acceptance session ended NO-GO (`V8`, above) — the correction round,
+Phase 2.1, is scoped in full in `FAMILY_TRIPS_BETA_0_8_PHASE_2_1_CORRECTION_SCOPE_V1.md`, awaiting its own
+kickoff. Phase 3 — scoped with its functional additions (`P12-F3`, `P12-F4`'s underlying need now closed
+by `P2-F5`, `V8`; `P12-F7`, `V7`) and the Shopping screen now named explicitly (`P2-F8`, `V8`) — has no
+kickoff prompt yet; that follows once Phase 2.1 is accepted GO on `qa`.
