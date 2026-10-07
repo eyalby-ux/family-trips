@@ -141,9 +141,9 @@ test('interaction rule: wired into the review screen, its submit handler and the
   assert(review.includes("const confirmBlocked=isConfirmBlocked(sources)"));
   assert(review.includes('name="decision" value="approve"${disabled}')&&review.includes('name="decision" value="save"${disabled}'),'both confirming buttons carry the disabled attribute');
   assert(app.includes("else if(form.id==='suggestion-form'){const suggestion=suggestionById(form.dataset.id);if(!suggestion||isConfirmBlocked("),'a submit that slips through (Enter key) is ignored silently, never a false "no document selected"');
-  const busy=app.slice(app.indexOf('function processingIndicator('),app.indexOf('function processingIndicator(')+520);
+  const busy=app.slice(app.indexOf('function analyzingModal('),app.indexOf('function analyzingModal(')+700);
   // Beta 0.8 Phase 2.1 (P2-F1): the busy modal shows the LARGE palm; the disabled המשך rule is unchanged.
-  assert(busy.includes('largePalm()')&&busy.includes('disabled aria-disabled="true">המשך</button>'),'the busy modal keeps a visibly disabled המשך');
+  assert(busy.includes('largePalm(')&&busy.includes('disabled aria-disabled="true">המשך</button>'),'the busy modal keeps a visibly disabled המשך');
   assert(app.includes('async function smartIngest(){\n  if(ingestBusy)return;')&&app.includes('async function attachIngest(itemId){\n  if(ingestBusy)return;'));
   assert.match(css,/\.btn\[disabled\],\.btn\[aria-disabled="true"\]\{background:var\(--bg\);color:var\(--muted\)/,'visibly muted');
 });
@@ -175,7 +175,7 @@ test('Flight route label: the single departure airport code; the map search is u
   assert.equal(flightRouteDeparture('Bangkok Suvarnabhumi'),'','a place name is never altered');
   assert.equal(flightRouteDeparture('BKK'),'');assert.equal(flightRouteDeparture(''),'');assert.equal(flightRouteDeparture(undefined),'');
   assert(app.includes("function locationLabel(item){return item.type==='flight'?flightRouteDeparture(mapSearchLocation(item))||mapSearchLocation(item)||item.location:item.location}"));
-  assert(app.includes("detailFact('מיקום',item.location?`${esc(locationLabel(item))}"),'the detail page shows the label');
+  assert(app.includes("link(navHref,'pin',esc(locationLabel(item)),'fact-underline')"),'the detail page shows the label (as the inline map link, Beta 0.8 Phase 2.2)');
   assert(app.includes('mapsUrl(mapSearchLocation(item))'),'navigation still resolves through mapSearchLocation');
 });
 test('one-click accept-new-value: each conflicting field offers use-new / keep-saved as buttons',()=>{
@@ -291,9 +291,11 @@ test('G1 Trip Center / Packing: Tabler icons on tiles, spacing and card tokens',
 });
 test('G1 item detail: header, fact list, bordered contact actions, ticket section, page actions',()=>{
   const detail=app.slice(app.indexOf('function detailView('),app.indexOf('// V6-F37 (fix pass 4)'));
-  for(const part of ['<header class="detail-head">','<dl class="detail-facts">','class="actions detail-links"','ticketsAndDocumentsSection(item,sources)','<div class="form-actions detail-actions">'])assert(detail.includes(part),part);
+  for(const part of ['<header class="detail-head">','<dl class="detail-facts">','<div class="detail-top">','ticketsAndDocumentsSection(item,sources)','<div class="form-actions detail-actions">'])assert(detail.includes(part),part);
   assert(detail.includes("detailFact('מספר הזמנה',item.confirmationNumber?`<bdi>${esc(item.confirmationNumber)}</bdi>`:'')"),'booking numbers are isolated');
-  for(const icon of ["tabler('compass')","tabler('world')","tabler('phone')","tabler('mail')"])assert(detail.includes(icon),icon);
+  // Beta 0.8 Phase 2.2 (P21-F2/F3): map / website / phone / e-mail are inline links on their fact rows, not separate buttons.
+  for(const icon of ["'pin'","'world'","'phone'","'mail'"])assert(detail.includes(icon),icon);
+  assert(!detail.includes('detail-links'),'no separate contact buttons any more');
   assert.match(css,/\.fact dt\{flex:0 0 92px/);
   assert.match(css,/\.form-actions\.detail-actions\{position:static/,'the page actions do not hide behind the fixed bottom nav');
 });

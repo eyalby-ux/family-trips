@@ -40,10 +40,10 @@ const PALM=`<svg class="import-palm" viewBox="0 0 24 24" width="24" height="24" 
 // (cross-fading when there are several phrases, static for one) and the 2px indeterminate hairline. Skeleton
 // placeholders for loading content are a different thing and are not replaced by this.
 export const LARGE_PALM_PX=112;
-export function largePalm({phrases=PROCESSING_PHRASES,hairline=true}={}){
+export function largePalm({phrases=PROCESSING_PHRASES,hairline=true,label='',note=''}={}){
   const list=[...phrases];
   const status=list.length>1?`<span class="import-phrases" aria-hidden="true">${list.map(phrase=>`<span>${phrase}</span>`).join('')}</span>`:`<span class="import-phrase-static">${list[0]||''}</span>`;
-  return `<div class="palm-loader" role="status" aria-live="polite"><svg class="import-palm palm-large" viewBox="0 0 24 24" width="${LARGE_PALM_PX}" height="${LARGE_PALM_PX}" aria-hidden="true">${PALM_INNER}</svg>${status}${hairline?'<span class="import-hairline" aria-hidden="true"></span>':''}</div>`;
+  return `<div class="palm-loader" role="status" aria-live="polite"><svg class="import-palm palm-large" viewBox="0 0 24 24" width="${LARGE_PALM_PX}" height="${LARGE_PALM_PX}" aria-hidden="true">${PALM_INNER}</svg>${label?`<b class="palm-label">${label}</b>`:''}${status}${hairline?'<span class="import-hairline" aria-hidden="true"></span>':''}${note?`<span class="palm-note">${note}</span>`:''}</div>`;
 }
 
 const icon=name=>`<svg class="import-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">${ICONS[name]}</svg>`;

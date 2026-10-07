@@ -145,8 +145,9 @@ const now=new Date('2027-01-20T12:00:00Z');
 }
 {
   const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
-  assert.match(app,/function processingIndicator\(message\)/,'a visible processing/progress indicator must be rendered during analysis');
-  assert.match(app,/function smartImportPanel\(source\)\{\s*\n\s*if\(ingestBusy\)return processingIndicator/,'the Add panel must show the progress indicator instead of the Continue button while busy');
+  // Beta 0.8 Phase 2.2 (P21-F10): the analysis state is the full-screen analyzingModal (large palm), no longer a processingIndicator inside the dialog.
+  assert.match(app,/function analyzingModal\(title\)/,'a visible processing/progress indicator must be rendered during analysis');
+  assert.match(app,/function intakeModal\(\)\{if\(ingestBusy\)return analyzingModal\(/,'the Add dialog must show the analysis screen (with a disabled, greyed Continue) instead of its form while busy');
   assert.match(app,/if\(ingestBusy\)return;/,'a second Continue invocation while analysis is in progress must be a no-op, never a false "no document selected" error');
   console.log('PASS: V6-F11 a progress indicator is shown during analysis and a duplicate Continue click cannot produce a false "no document selected" error');
 }

@@ -547,14 +547,22 @@ export function computeTicketCoverage(sources,participants){
 // people are shown by full name; more than two show the first name plus a count ("אייל +4"). `participants` is
 // the full participant list; "everyone" means every ACTIVE participant is assigned (and there are at least two,
 // so a one-person trip still shows the name). scope 'all' is also "כולם". Returns '' when nobody is assigned.
-export function participantChipLabel(ids,participants,scope){
+export function participantChipLabel(ids,participants,scope,{viewerId=''}={}){
   if(scope==='all')return 'כולם';
   const assigned=[...new Set(ids||[])].map(id=>(participants||[]).find(participant=>participant.id===id)).filter(Boolean);
   if(!assigned.length)return '';
   const active=(participants||[]).filter(participant=>participant.active!==false);
   if(active.length>=2&&active.every(participant=>assigned.some(person=>person.id===participant.id)))return 'כולם';
+  // Beta 0.8 Phase 2.2 (P21-F5): in a participant's OWN view the chip starts with that participant, by first name ("פאולה +4",
+  // "פאולה, דניאל"); the shared view keeps the original rule.
+  const firstName=person=>String(person.name).trim().split(/\s+/)[0];
+  const viewer=viewerId?assigned.find(person=>person.id===viewerId):null;
+  if(viewer&&assigned.length>1){
+    const ordered=[viewer,...assigned.filter(person=>person!==viewer)];
+    return ordered.length===2?ordered.map(firstName).join(', '):`${firstName(viewer)} +${ordered.length-1}`;
+  }
   if(assigned.length<=2)return assigned.map(person=>person.name).join(', ');
-  return `${String(assigned[0].name).trim().split(/\s+/)[0]} +${assigned.length-1}`;
+  return `${firstName(assigned[0])} +${assigned.length-1}`;
 }
 
 // Beta 0.8 Phase 2.1 (P2-F3): linking a ticket document to people adds them to the item's own participant list.

@@ -4,7 +4,7 @@ import {MultipartQrCollector,decodeExternalText,importBatchToApp} from './extern
 import {availableTimelineModes,backfillTripDates,currentOperational,filterAndSortTasks,isDeletionEligible,isItemOutsideTrip,normalizeDateRange,normalizeOperationalState,packingDuplicate,periodBounds,QUARANTINE_DELETION_ELIGIBLE_DAYS,quickAccessTasks,sanitizeTripDates,shiftCursor,sortItemsByStartAt,TASK_DUE_SCOPES,TRANSPORT_TYPES,itemStartMs,planToday,shortDayLabel,shouldClearEndedOnEdit,today,addParticipantsToRecord,computeTicketCoverage,participantChipLabel,pickerParticipants,uniqueRecordsById,upNextItem} from './operational-data.js';
 import {COUNTER_ABOVE,arrowKeyTarget,carouselSlots,participantLayout,positionIndicator} from './participant-carousel.js';
 import {normalizeProposalLifecycle,rejectProposal} from './proposal-lifecycle.js';
-import {TICKET_ITEM_TYPES,coverageSummary,partitionItemDocuments,ticketHolderDetail} from './ticket-card.js';
+import {TICKET_ITEM_TYPES,coverageSummary,partitionItemDocuments,ticketHolderDetail,ticketHolderLabel} from './ticket-card.js';
 import {importStatusPill,largePalm,isConfirmBlocked,sourceImportState,suggestionImportState} from './import-status.js';
 import {analyzeActivitySource,analyzeCarSource,analyzeFlightSource,analyzeHotelSource,analyzeInsuranceSource,analyzeSource} from './smart-import-client.js';
 import {MERGE_CONFLICT_WARNING_PREFIX,saveOnlySource,smartImportResultToSuggestion,preserveTrustedFieldsOnMerge} from './smart-import-adapter.js';
@@ -407,6 +407,9 @@ Object.assign(TABLER,{
   chevron:'<path d="M9 6l6 6l-6 6"/>',
   pencil:'<path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4"/><path d="M13.5 6.5l4 4"/>',
   trash:'<path d="M4 7l16 0"/><path d="M10 11l0 6"/><path d="M14 11l0 6"/><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12"/><path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3"/>',
+  arrow:'<path d="M5 12l14 0"/><path d="M5 12l6 6"/><path d="M5 12l6 -6"/>',
+  plus:'<path d="M12 5l0 14"/><path d="M5 12l14 0"/>',
+  x:'<path d="M18 6l-12 12"/><path d="M6 6l12 12"/>',
   dots:'<path d="M5 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/><path d="M12 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/><path d="M19 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/>',
   lock:'<path d="M5 13a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-6"/><path d="M11 16a1 1 0 1 0 2 0a1 1 0 0 0 -2 0"/><path d="M8 11v-4a4 4 0 1 1 8 0v4"/>',
   upload:'<path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"/><path d="M7 9l5 -5l5 5"/><path d="M12 4l0 12"/>',
@@ -677,8 +680,8 @@ function selectParticipant(carousel,value){
   }
   setTimeout(()=>commitParticipant(value,true),190);
 }
-function packingView(){if(!state.trip)return empty();const activeParticipants=state.participants.filter(participant=>participant.active!==false);const participantOptions=[['shared','משותף'],...activeParticipants.map(participant=>[participant.id,participant.name])];return `<section class="card"><div class="section-head"><div><h2>רשימות אריזה</h2><p class="muted">פריטים שסומנו עוברים לאזור "נארזו" וניתן להחזירם.</p></div><button class="btn" data-action="add-list">קטגוריה חדשה</button></div>${!activeParticipants.length?'':participantCarousel(participantOptions,state.packingParticipantView||'shared','packing-view-participant')}${state.packing.map(list=>{const visible=visiblePackingItems(list),active=visible.filter(item=>!item.done),packed=visible.filter(item=>item.done),collapsed=state.packingCollapsed[list.id];return `<section class="card nested"><button class="section-head collapse-button" data-action="pack-collapse" data-list="${list.id}" aria-expanded="${collapsed?'false':'true'}"><h3>${esc(list.name)}</h3><span class="badge"><bdi>${packed.length}/${visible.length}</bdi></span></button>${collapsed?'':`<div class="progress"><span style="width:${visible.length?packed.length/visible.length*100:0}%"></span></div>${active.map(packRow.bind(null,list)).join('')||'<p class="muted">הכול נארז.</p>'}<button class="btn secondary" data-action="pack-add" data-list="${list.id}">הוספת פריט</button>${packed.length?`<details ${state.packedCollapsed?'':'open'}><summary>נארזו (${packed.length})</summary>${packed.map(packRow.bind(null,list)).join('')}</details>`:''}`}</section>`}).join('')}</section>`}
-function packRow(list,item){const label=participantChipLabel(item.participantIds,state.participants,item.participantScope)||(item.owner&&item.owner!=='shared'?item.owner:'');return `<article class="task-compact ${item.done?'done':''}"><input type="checkbox" data-action="pack-toggle" data-list="${list.id}" data-item="${item.id}" aria-label="סימון פריט" ${item.done?'checked':''}><button class="task-compact-main" data-action="pack-edit" data-list="${list.id}" data-item="${item.id}"><b>${esc(item.name)}</b>${label?`<small class="muted task-meta"><span class="badge chip-participants">${esc(label)}</span></small>`:''}</button></article>`}
+function packingView(){if(!state.trip)return empty();const activeParticipants=state.participants.filter(participant=>participant.active!==false);const participantOptions=[['shared','משותף'],...activeParticipants.map(participant=>[participant.id,participant.name])];return `<section class="card packing-card"><div class="page-head"><h2>רשימות אריזה</h2><button class="btn ghost small-btn" data-action="add-list">${tabler('plus')} קטגוריה</button></div>${!activeParticipants.length?'':participantCarousel(participantOptions,state.packingParticipantView||'shared','packing-view-participant')}${state.packing.map(list=>{const visible=visiblePackingItems(list),active=visible.filter(item=>!item.done),packed=visible.filter(item=>item.done),collapsed=state.packingCollapsed[list.id];const body=!visible.length?'<p class="muted">אין פריטים בקטגוריה</p>':`<div class="progress"><span style="width:${packed.length/visible.length*100}%"></span></div>${active.map(packRow.bind(null,list)).join('')||'<p class="muted">הכול נארז.</p>'}`;return `<section class="card nested"><button class="section-head collapse-button" data-action="pack-collapse" data-list="${list.id}" aria-expanded="${collapsed?'false':'true'}"><h3>${esc(list.name)}</h3>${visible.length?`<span class="badge"><bdi>${packed.length}/${visible.length}</bdi></span>`:''}</button>${collapsed?'':`${body}<button class="add-dashed" data-action="pack-add" data-list="${list.id}">+ הוספת פריט</button>${packed.length?`<details ${state.packedCollapsed?'':'open'}><summary>נארזו (${packed.length})</summary>${packed.map(packRow.bind(null,list)).join('')}</details>`:''}`}</section>`}).join('')}</section>`}
+function packRow(list,item){const viewerId=state.packingParticipantView&&state.packingParticipantView!=='shared'?state.packingParticipantView:'';const label=participantChipLabel(item.participantIds,state.participants,item.participantScope,{viewerId})||(item.owner&&item.owner!=='shared'?item.owner:'');return `<article class="task-compact ${item.done?'done':''}"><input type="checkbox" data-action="pack-toggle" data-list="${list.id}" data-item="${item.id}" aria-label="סימון פריט" ${item.done?'checked':''}><button class="task-compact-main" data-action="pack-edit" data-list="${list.id}" data-item="${item.id}"><span class="row-line"><b>${esc(item.name)}</b>${label?`<span class="badge chip-participants">${esc(label)}</span>`:''}</span></button></article>`}
 // 0.7.1: priority + due-date-scope filters, combined with AND, plus a clear/reset action -- see
 // filterAndSortTasks (operational-data.js) for the actual filter/sort logic, shared with nothing
 // else so this view's own filter state (state.taskFilters) is the only thing driving it. The
@@ -709,7 +712,7 @@ function tasksView(){
 // chip. Tapping the row opens the task for editing; the delete button moved INSIDE the edit screen
 // (it was a red button on every row, easy to mis-tap on a phone). This deliberately reverses the
 // 0.7.9 decision to show a delete button on each task row; equipment rows (packRow) keep theirs.
-function taskRow(task){const priorityLabel={High:'גבוהה',Normal:'רגילה',Low:'נמוכה'}[task.priority]||'רגילה';const participantLabel=participantChipLabel(task.participantIds,state.participants,task.participantScope);return `<article class="task-compact ${task.done?'done':''}"><input type="checkbox" data-action="task-toggle" data-id="${task.id}" aria-label="סימון משימה" ${task.done?'checked':''}><button class="task-compact-main" data-action="task-edit" data-id="${task.id}"><b>${esc(task.title)}</b><small class="muted task-meta"><span class="badge priority-${task.priority||'Normal'}">${priorityLabel}</span><span class="task-meta-text">${task.mode==='entire'?'לכל הטיול':task.mode==='none'?'ללא תאריך':task.dueDate?fmt(task.dueDate,false):'ללא תאריך'}${participantLabel?' · '+esc(participantLabel):''}</span></small></button></article>`}
+function taskRow(task){const priorityLabel={High:'גבוהה',Normal:'רגילה',Low:'נמוכה'}[task.priority]||'רגילה';const participantLabel=participantChipLabel(task.participantIds,state.participants,task.participantScope);return `<article class="task-compact ${task.done?'done':''}"><input type="checkbox" data-action="task-toggle" data-id="${task.id}" aria-label="סימון משימה" ${task.done?'checked':''}><button class="task-compact-main" data-action="task-edit" data-id="${task.id}"><span class="row-line"><b>${esc(task.title)}</b>${participantLabel?`<span class="badge chip-participants">${esc(participantLabel)}</span>`:''}</span><small class="muted task-meta"><span class="badge priority-${task.priority||'Normal'}">${priorityLabel}</span><span class="task-meta-text">${task.mode==='entire'?'לכל הטיול':task.mode==='none'?'ללא תאריך':task.dueDate?fmt(task.dueDate,false):'ללא תאריך'}</span></small></button></article>`}
 // 0.7.7: shopping places/visits render directly inside this same view (via itemRow, the exact
 // generic row every Trip Center category page already uses) rather than a separate Trip Center
 // tile -- see visibleTypes' own comment above for why. A place may be undated (schedule:'none',
@@ -853,19 +856,40 @@ const TICKET_TYPES=TICKET_ITEM_TYPES;
 function ticketCoverage(item,sources){return computeTicketCoverage(sources,state.participants)}
 const ticketIndex={};
 let ticketBusy=false;
-const TICKET_STRIDE='(min(290px,100cqw - 64px) + 12px)';
+const TICKET_STRIDE='(min(290px,100cqw - 44px) + 12px)';
 function sourceOpenControl(source,cls='btn secondary'){
   const available=source.kind==='link'||source.storedOffline;
   return source.kind==='link'?`<a class="${cls}" href="${esc(source.url)}" target="_blank" rel="noopener">פתיחה</a>`:available?`<button class="${cls}" type="button" data-action="open-source" data-id="${source.id}">פתיחה</button>`:'';
 }
 function moreMenu(items){
-  return `<details class="t-more"><summary class="btn secondary more" aria-label="פעולות נוספות">${tabler('dots')}</summary><div class="t-menu">${items.join('')}</div></details>`;
+  return `<button class="btn secondary more" type="button" data-action="more-menu" aria-haspopup="menu" aria-expanded="false" aria-label="פעולות נוספות">${tabler('dots')}</button><template>${items.join('')}</template>`;
+}
+// Beta 0.8 Phase 2.2 (P21-F11): the menu used to live inside the slide, so the card's and the carousel's overflow clipped it. It is
+// now ONE element appended to <body>, positioned from the button's own rectangle (below it, or above when there is no room),
+// so nothing can clip it; it closes on any other tap, scroll, resize or Escape.
+function closeMoreMenu(){
+  document.querySelector('#more-menu')?.remove();
+  document.querySelectorAll('[data-action="more-menu"][aria-expanded="true"]').forEach(button=>button.setAttribute('aria-expanded','false'));
+}
+function openMoreMenu(button){
+  const wasOpen=button.getAttribute('aria-expanded')==='true';
+  closeMoreMenu();
+  const template=button.nextElementSibling;
+  if(wasOpen||!template)return;
+  const menu=document.createElement('div');
+  menu.id='more-menu';menu.className='t-menu';menu.setAttribute('role','menu');menu.innerHTML=template.innerHTML;
+  document.body.appendChild(menu);
+  const anchor=button.getBoundingClientRect(),box=menu.getBoundingClientRect();
+  const fitsBelow=anchor.bottom+6+box.height<=window.innerHeight-8;
+  menu.style.top=`${Math.max(8,fitsBelow?anchor.bottom+6:anchor.top-6-box.height)}px`;
+  menu.style.left=`${Math.min(Math.max(8,anchor.left),window.innerWidth-box.width-8)}px`;
+  button.setAttribute('aria-expanded','true');
 }
 const menuButton=(action,source,label,itemId)=>`<button class="t-menu-item" type="button" data-action="${action}" data-id="${source.id}"${itemId?` data-item-id="${itemId}"`:''}>${label}</button>`;
 function ticketSlideHtml(item,source,{pos='single',hidden=false}={}){
   const confirmed=Boolean(source.ticketConfirmed);
   const people=(source.participantIds||[]).map(id=>state.participants.find(participant=>participant.id===id)).filter(Boolean);
-  const holder=participantChipLabel(source.participantIds,state.participants)||participantName((source.participantIds||[])[0])||'משתתף';
+  const holder=ticketHolderLabel(people)||participantName((source.participantIds||[])[0])||'משתתף';
   const detail=ticketHolderDetail(item,people.map(person=>person.name));
   const menu=[confirmed?menuButton('source-unconfirm-ticket',source,'ביטול אישור'):'',menuButton('source-edit-participants',source,'שיוך'),menuButton('source-unlink',source,'הסרה',item.id)].join('');
   return `<article class="ticket ${pos}" data-pos="${pos}"${hidden?' aria-hidden="true" inert':''}><div class="ticket-head"><span class="holder">${esc(holder)}</span><span class="chip ${confirmed?'ok':'no'}">${confirmed?'כרטיס מאושר':'לא אושר ככרטיס'}</span></div>${detail?`<div class="ticket-detail">${esc(detail)}</div>`:''}<bdi class="file">${esc(source.name||source.url||'מסמך')}</bdi><div class="ticket-actions">${confirmed?`<label class="used"><input type="checkbox" data-action="source-ticket-toggle-used" data-id="${source.id}" ${source.ticketUsed?'checked':''}> נוצל</label>`:`<button class="btn primary" type="button" data-action="source-confirm-ticket" data-id="${source.id}">אישור ככרטיס</button>`}${sourceOpenControl(source)}${moreMenu([menu])}</div></article>`;
@@ -897,7 +921,7 @@ function selectTicket(carousel,direction){
 function ticketSummaryBlock(item,sources){
   const summary=coverageSummary(ticketCoverage(item,sources));
   if(!summary.total)return '';
-  return `<div class="ticket-summary"><div class="summary-row"><b>כרטיסים: <bdi>${summary.covered}</bdi> מתוך <bdi>${summary.total}</bdi> משתתפים</b><span class="cover-bar" aria-hidden="true"><span style="width:${summary.percent}%"></span></span></div>${summary.missing.length?`<div class="muted">ללא כרטיס: ${esc(summary.missing.join(', '))}</div>`:''}</div>`;
+  return `<div class="ticket-summary"><div class="summary-row" aria-label="${summary.covered} מתוך ${summary.total} משתתפים עם כרטיס"><b>כרטיסים: <bdi dir="ltr">${summary.covered}/${summary.total}</bdi></b><span class="cover-bar" aria-hidden="true"><span style="width:${summary.percent}%"></span></span></div>${summary.missing.length?`<div class="muted">ללא כרטיס: ${esc(summary.missing.join(', '))}</div>`:''}</div>`;
 }
 // A document that is not a ticket for a participant: compact row -- icon, name, open, "⋯" -- with the Smart Import
 // status pill (queued / processing / failed + retry/delete / attached) underneath when there is one.
@@ -930,20 +954,30 @@ function detailView(){
   if(!item)return '<section class="card">הפריט לא נמצא.</section>';
   const sources=state.sources.filter(source=>item.sourceIds?.includes(source.id)),place=item.details?.canonicalPlace;
   const navHref=place?place.googleMapsUri||mapsUrl(`${place.latitude},${place.longitude}`):item.location?mapsUrl(mapSearchLocation(item)):'';
-  const contactActions=[navHref?`<a class="btn secondary" href="${esc(navHref)}" target="_blank" rel="noopener">${tabler('compass')} ${place?'ניווט':'חיפוש במפה'}</a>`:'',item.website?`<a class="btn ghost" href="${esc(item.website)}" target="_blank" rel="noopener">${tabler('world')} אתר</a>`:'',item.phone?`<a class="btn ghost" href="tel:${esc(item.phone)}">${tabler('phone')} התקשרות</a>`:'',item.email?`<a class="btn ghost" href="mailto:${esc(item.email)}">${tabler('mail')} אימייל</a>`:''].filter(Boolean).join('');
   const warningEntries=itemWarningEntries(item);
   const insuredByList=item.type!=='insurance'?insuranceCoveringItems(item):[];
   const linkedShoppingList=item.type==='shoppingPlace'?linkedShoppingListEntries(item):[];
   const detailBadgeLabel=item.type==='car'&&item.transportMode?TRANSPORT_MODES[item.transportMode]||ITEM_TYPES.car.label:ITEM_TYPES[item.type]?.label;
+  // Beta 0.8 Phase 2.2 (P21-F2/F3): map, website, phone and e-mail are INLINE links on their fact rows, on every item type --
+  // the location name itself is the map link; "אתר" sits at the end of the provider row (or its own row when there is no
+  // provider); "התקשרות" / "אימייל" are links on their own rows. There are no separate action buttons any more.
+  const link=(href,icon,text,extra='')=>`<a class="fact-link ${extra}" href="${esc(href)}"${/^https?:/.test(href)?' target="_blank" rel="noopener"':''}>${tabler(icon)} ${text}</a>`;
+  const siteLink=item.website?link(item.website,'world','אתר'):'';
+  const providerRow=item.provider?`<div class="fact"><dt>ספק</dt><dd class="fact-split"><span>${esc(item.provider)}</span>${siteLink}</dd></div>`:'';
+  const siteRow=!item.provider&&item.website?detailFact('אתר',siteLink):'';
+  const locationRow=item.location?detailFact('מיקום',`${navHref?link(navHref,'pin',esc(locationLabel(item)),'fact-underline'):esc(locationLabel(item))} ${place?'<span class="badge blue">אומת</span>':'<span class="badge warn">שם לחיפוש</span>'}`):'';
   const facts=[
-    detailFact('ספק',item.provider?esc(item.provider):''),
+    providerRow,siteRow,
     detailFact('מספר הזמנה',item.confirmationNumber?`<bdi>${esc(item.confirmationNumber)}</bdi>`:''),
-    detailFact('מיקום',item.location?`${esc(locationLabel(item))} ${place?'<span class="badge blue">אומת</span>':'<span class="badge warn">שם לחיפוש</span>'}`:''),
+    locationRow,
+    item.phone?detailFact('טלפון',link(`tel:${item.phone}`,'phone','התקשרות')):'',
+    item.email?detailFact('אימייל',link(`mailto:${item.email}`,'mail','אימייל')):'',
     detailFact('מועד',item.startAt?`<bdi>${fmt(item.startAt,true,item.dateMeta?.startPrecision)}</bdi>`:''),
     detailFact('סיום',item.endAt?`<bdi>${fmt(item.endAt,true,item.dateMeta?.endPrecision)}</bdi>`:''),
     detailFact('משויך ל',participantAssignmentLabel(item)?esc(participantAssignmentLabel(item)):''),
   ].join('');
-  return `<section class="card item-detail ${conflict(item)?'conflict':''}"><button class="btn ghost" data-route="center" data-cat="${item.type}">חזרה</button><header class="detail-head"><span class="badge">${esc(detailBadgeLabel)}</span><h2>${typeIcon(item.type)} ${esc(item.title)}</h2>${item.endedAt?`<p class="muted">סומן כהסתיים · <button class="btn ghost" data-action="item-unend" data-id="${item.id}">ביטול</button></p>`:''}</header>${facts?`<dl class="detail-facts">${facts}</dl>`:''}${contactActions?`<div class="actions detail-links">${contactActions}</div>`:''}${insuredByList.map(policy=>`<button class="row" data-route="detail" data-id="${policy.id}">${typeIcon('insurance')} מבוטח באמצעות ${esc(policy.title)}</button>`).join('')}${warningEntries.length?`<div class="warning-list">${warningEntries.map(({warning,index})=>warningRow(warning,item.details,'item',item.id,index)).join('')}</div>`:''}${mergeCandidatePanel('item',item.id,item,item.details)}${item.type==='flight'?flightSummaryBlock(item.details,{holders:'collapsed'}):''}${item.type==='activity'?activitySummaryBlock(item.details,{holders:'collapsed'}):''}${item.type==='insurance'?insuranceSummaryBlock(item.details):''}${item.type==='insurance'?relatedItemsPanel(item):''}${linkedShoppingList.length?`<h3>פריטי קניות מקושרים</h3><div class="list">${linkedShoppingList.map(entry=>`<article class="task-compact ${entry.purchased?'done':''}"><input type="checkbox" data-action="shopping-toggle" data-id="${entry.id}" aria-label="סימון פריט" ${entry.purchased?'checked':''}><button class="task-compact-main" data-action="shopping-edit" data-id="${entry.id}"><b>${esc(entry.name)} × ${esc(entry.quantity||'1')}</b></button></article>`).join('')}</div>`:''}${ticketsAndDocumentsSection(item,sources)}${item.notes?`<div class="detail-notes"><h4>הערות</h4><p class="preserve-lines">${esc(item.notes)}</p></div>`:''}<div class="form-actions detail-actions"><button class="btn secondary" data-action="edit-item" data-id="${item.id}">עריכה</button><button class="btn danger" data-action="delete-item" data-id="${item.id}">מחיקה</button></div></section>`;
+  // P21-F4: the "פרטי הכרטיס" card (and the folded holder list) is gone -- ticket and holder detail lives only in the ticket card.
+  return `<section class="card item-detail ${conflict(item)?'conflict':''}"><div class="detail-top"><button class="icon-btn back-btn" data-route="center" data-cat="${item.type}" aria-label="חזרה">${tabler('arrow').replace('class="ti"','class="ti icon-directional"')}</button><span class="badge">${esc(detailBadgeLabel)}</span></div><header class="detail-head"><h2>${typeIcon(item.type)} ${esc(item.title)}</h2>${item.endedAt?`<p class="muted">סומן כהסתיים · <button class="btn ghost" data-action="item-unend" data-id="${item.id}">ביטול</button></p>`:''}</header>${facts?`<dl class="detail-facts">${facts}</dl>`:''}${insuredByList.map(policy=>`<button class="row" data-route="detail" data-id="${policy.id}">${typeIcon('insurance')} מבוטח באמצעות ${esc(policy.title)}</button>`).join('')}${warningEntries.length?`<div class="warning-list">${warningEntries.map(({warning,index})=>warningRow(warning,item.details,'item',item.id,index)).join('')}</div>`:''}${mergeCandidatePanel('item',item.id,item,item.details)}${item.type==='flight'?flightSummaryBlock(item.details,{holders:false}):''}${item.type==='insurance'?insuranceSummaryBlock(item.details):''}${item.type==='insurance'?relatedItemsPanel(item):''}${linkedShoppingList.length?`<h3>פריטי קניות מקושרים</h3><div class="list">${linkedShoppingList.map(entry=>`<article class="task-compact ${entry.purchased?'done':''}"><input type="checkbox" data-action="shopping-toggle" data-id="${entry.id}" aria-label="סימון פריט" ${entry.purchased?'checked':''}><button class="task-compact-main" data-action="shopping-edit" data-id="${entry.id}"><b>${esc(entry.name)} × ${esc(entry.quantity||'1')}</b></button></article>`).join('')}</div>`:''}${ticketsAndDocumentsSection(item,sources)}${item.notes?`<div class="detail-notes"><h4>הערות</h4><p class="preserve-lines">${esc(item.notes)}</p></div>`:''}<div class="form-actions detail-actions"><button class="btn secondary" data-action="edit-item" data-id="${item.id}">עריכה</button><button class="btn danger" data-action="delete-item" data-id="${item.id}">מחיקה</button></div></section>`;
 }
 // V6-F37 (fix pass 4): the update-confirmation copy hardcoded "המלון" (the hotel) regardless of
 // the suggestion's actual type, so a Flight update-review screen incorrectly talked about a
@@ -1267,7 +1301,7 @@ function tripsView(){
   return `<section class="card"><h2>הטיולים שלי</h2>${owned.length?`<h3>בבעלותי</h3><div class="list">${owned.map(row).join('')}</div>`:''}${shared.length?`<h3>משותפים איתי</h3><div class="list">${shared.map(row).join('')}</div>`:''}${!owned.length&&!shared.length?'<p class="muted">אין עדיין טיולים.</p>':''}${migrationBanner()}<div class="actions"><button class="btn" data-action="start-new-trip">התחלת טיול חדש</button>${myInvitation?.isAdmin?'<button class="btn ghost" data-route="admin">ניהול הרשאות גישה</button>':''}</div></section>`;
 }
 
-function intakeModal(){const source=state.modal?.source||'manual',choices=[['manual','pencil','ידני'],['document','file','מסמך'],['link','link','קישור'],['json','upload','JSON'],['qr','qr','QR']];let body='';
+function intakeModal(){if(ingestBusy)return analyzingModal('הוספה · מסמך');const source=state.modal?.source||'manual',choices=[['manual','pencil','ידני'],['document','file','מסמך'],['link','link','קישור']];let body='';
   // 0.7.1 (V5-F09): category-level Add previously always defaulted the manual-creation type
   // dropdown to 'hotel', regardless of which category the user opened Add from -- this "create"
   // action is the exact same one the global "+" uses, so it had no way to know. Fixed by reading
@@ -1296,20 +1330,23 @@ function intakeModal(){const source=state.modal?.source||'manual',choices=[['man
   // click listener is a single delegated dispatcher keyed only on data-action, gated by no modal
   // state, so reusing it here needed no new rendering or save logic at all.
   const taskChoice=`<button data-action="task-add">${tabler('checklist')} משימה</button>`;
-  return `<div class="modal-bg"><section class="modal wide-modal"><div class="modal-head"><h2>הוספת מקור או פריט</h2><button class="close" data-action="close">✕</button></div><div class="source-choice">${choices.map(([key,icon,label])=>`<button class="${source===key?'active':''}" data-action="source" data-source="${key}">${tabler(icon)} ${label}</button>`).join('')}${taskChoice}</div>${body}</section></div>`}
-function processingIndicator(message){return `<div class="processing-indicator">${largePalm()}<p class="muted small">${message} הניתוח יכול לקחת מספר שניות. אין צורך ללחוץ שוב.</p><button class="btn" type="button" disabled aria-disabled="true">המשך</button></div>`}
+  return `<div class="modal-bg"><section class="modal wide-modal"><div class="modal-head"><h2>הוספה</h2><button class="close" data-action="close" aria-label="סגירה">✕</button></div><div class="source-choice source-tiles">${choices.map(([key,icon,label])=>`<button class="${source===key?'active':''}" data-action="source" data-source="${key}">${tabler(icon)} ${label}</button>`).join('')}${taskChoice}</div>${body}</section></div>`}
+// Beta 0.8 Phase 2.2 (P21-F10): while a document is analyzed the dialog's own content is REPLACED -- the large palm centred on the
+// screen with "מנתח…", the rotating status line, the hairline and a reassurance line, and the greyed "המשך" at the bottom (the
+// interaction rule: never tappable mid-analysis, never a false "no document selected").
+function analyzingModal(title){return `<div class="modal-bg"><section class="modal analyzing"><div class="modal-head"><h2>${esc(title)}</h2><button class="close" data-action="close" aria-label="סגירה">✕</button></div><div class="analyzing-body">${largePalm({label:'מנתח…',note:'הניתוח יכול לקחת מספר שניות. אין צורך לסגור את המסך.'})}</div><button class="btn" type="button" disabled aria-disabled="true">המשך</button></section></div>`}
 // V6-F fix pass: removed the manual Hotel/Flight picker -- the server now classifies from
 // content the same way it already determines VOID vs. real segments (see analyze_source in
 // smart-import.mjs). Document also replaces the separate PDF/Picture options: one broad-accept
 // file input with no forced capture attribute lets the OS present its native camera/gallery/
 // file choice (the underlying pipeline already treats them as one ingestion path).
 function smartImportPanel(source){
-  if(ingestBusy)return processingIndicator('מנתח את המקור…');
-  // V6-F78: this accept attribute (and its attachmentModal/validateSmartSource counterparts
-  // below) never included TIFF, even though Decision 7 (INSURANCE_SMART_IMPORT_DISCOVERY.md)
-  // explicitly confirms scanned/fax-quality images -- INS-006's own real format -- as in scope.
-  const input=source==='link'?'<div class="field"><label>כתובת אתר ציבורי רשמי של המלון</label><input id="source-url" type="text" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://…"></div>':'<div class="field"><label>מסמך (PDF או תמונה)</label><input id="source-file" type="file" accept="application/pdf,.pdf,image/png,image/jpeg,image/webp,image/tiff,.tif,.tiff"></div>';
-  return `<div class="smart-import-disclosure"><b>Smart Import:</b> הניתוח מתבצע רק לאחר אישור. עותק העיבוד אינו נשמר בשרת, והמקור המקורי נשמר במכשיר.</div>${input}<fieldset class="processing-choice"><legend>מה לבצע?</legend><label><input type="radio" name="processing-mode" value="analyze" checked> ניתוח והצעת פריט</label><label><input type="radio" name="processing-mode" value="save"> שמירת המקור בלבד — ללא AI</label></fieldset><button class="btn" data-action="smart-ingest">המשך</button>`;
+  // V6-F78: this accept attribute (and its attachmentModal/validateSmartSource counterparts below) never included TIFF, even though
+  // Decision 7 (INSURANCE_SMART_IMPORT_DISCOVERY.md) explicitly confirms scanned/fax-quality images -- INS-006's own real format -- as in scope.
+  // Beta 0.8 Phase 2.2 (P21-F9): compact -- one file field, ONE checkbox for "analyze", a one-line note and "המשך", so the whole form
+  // fits on screen under the four tiles. (While analysis runs the whole dialog is replaced by analyzingModal, P21-F10.)
+  const input=source==='link'?'<label class="field"><span class="field-label">כתובת אתר ציבורי רשמי של המלון</span><input id="source-url" type="text" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://…"></label>':'<label class="field file-field"><span class="field-label">מסמך (PDF או תמונה)</span><input id="source-file" type="file" accept="application/pdf,.pdf,image/png,image/jpeg,image/webp,image/tiff,.tif,.tiff"></label>';
+  return `${input}<label class="checkbox-field analyze-toggle"><input type="checkbox" name="processing-mode" value="analyze" checked> ניתוח והצעת פריט</label><p class="muted small analyze-note">הניתוח מתבצע רק לאחר אישור; עותק העיבוד אינו נשמר בשרת והמקור נשמר במכשיר. ללא סימון — שמירת המקור בלבד — ללא AI.</p><button class="btn" data-action="smart-ingest">המשך</button>`;
 }
 // V6-F38 (fix pass 4): the per-item "add document" modal still showed separate PDF/תמונה tabs
 // after the global Add flow merged them into one Document option (V6 fix pass 1) -- applying the
@@ -1317,7 +1354,7 @@ function smartImportPanel(source){
 // lets the OS present its native camera/gallery/file choice, exactly like the Add screen's
 // Document option; validateSmartSource's existing kind==='document' branch already accepts
 // either a PDF or an image, so no server/validation change is needed.
-function attachmentModal(){const item=state.items.find(candidate=>candidate.id===state.modal.itemId);if(ingestBusy)return `<div class="modal-bg"><section class="modal"><div class="modal-head"><h2>הוספת מסמך ל־${esc(item?.title||'מלון')}</h2></div>${processingIndicator('מנתח את המסמך…')}</section></div>`;return `<div class="modal-bg"><section class="modal"><div class="modal-head"><h2>הוספת מסמך ל־${esc(item?.title||'מלון')}</h2><button class="close" data-action="close">✕</button></div><div class="field"><label>מסמך (PDF או תמונה)</label><input id="source-file" type="file" accept="application/pdf,.pdf,image/png,image/jpeg,image/webp,image/tiff,.tif,.tiff"></div><fieldset class="processing-choice"><legend>מה לבצע?</legend><label><input type="radio" name="processing-mode" value="attach" checked> צירוף בלבד — ללא AI</label><label><input type="radio" name="processing-mode" value="extract"> צירוף וחילוץ מידע להצעה</label></fieldset><button class="btn" data-action="attach-ingest" data-id="${item?.id||''}">המשך</button></section></div>`}
+function attachmentModal(){const item=state.items.find(candidate=>candidate.id===state.modal.itemId);if(ingestBusy)return analyzingModal(`הוספת מסמך ל־${item?.title||'מלון'}`);return `<div class="modal-bg"><section class="modal"><div class="modal-head"><h2>הוספת מסמך ל־${esc(item?.title||'מלון')}</h2><button class="close" data-action="close">✕</button></div><div class="field"><label>מסמך (PDF או תמונה)</label><input id="source-file" type="file" accept="application/pdf,.pdf,image/png,image/jpeg,image/webp,image/tiff,.tif,.tiff"></div><fieldset class="processing-choice"><legend>מה לבצע?</legend><label><input type="radio" name="processing-mode" value="attach" checked> צירוף בלבד — ללא AI</label><label><input type="radio" name="processing-mode" value="extract"> צירוף וחילוץ מידע להצעה</label></fieldset><button class="btn" data-action="attach-ingest" data-id="${item?.id||''}">המשך</button></section></div>`}
 function qrPanel(){const p=qrCollector.progress;return `<div class="privacy-warning">ה־QR מכיל מידע אישי ואינו מוצפן. אין לשתף אותו בפומבי.</div><video id="qr-video" class="qr-video" playsinline muted></video><div class="actions"><button class="btn" data-action="qr-camera">סריקה במצלמה</button><label class="btn secondary file-button">בחירת תמונת QR<input id="qr-image" type="file" accept="image/*"></label><button class="btn ghost" data-action="qr-reset">ביטול / התחלה מחדש</button></div>${p.total?`<div class="qr-progress"><b>חלקים שנקלטו: ${p.collected}/${p.total}</b><p>חסרים: ${p.missing.join(', ')||'אין'}</p></div>`:''}<div class="field"><label>הדבקת payload לבדיקה</label><textarea id="qr-text" dir="ltr" placeholder="FTI1:... או FTI1C|..."></textarea></div><button class="btn secondary" data-action="qr-text">קליטת payload</button>`}
 function editModal(){const item=state.items.find(candidate=>candidate.id===state.modal.itemId);return `<div class="modal-bg"><section class="modal"><div class="modal-head"><h2>עריכת פריט</h2><button class="close" data-action="close">✕</button></div><form id="edit-item-form" data-id="${item.id}">${proposalFields(item,{alwaysWebsite:true})}<div class="form-actions"><button class="btn">שמירה</button></div></form></section></div>`}
 function duplicateModal(){const {suggestionId,duplicateIds}=state.modal,suggestion=suggestionById(suggestionId),duplicates=state.items.filter(item=>duplicateIds.includes(item.id));return `<div class="modal-bg"><section class="modal"><div class="modal-head"><h2>נמצאה הזמנה דומה</h2><button class="close" data-action="close">✕</button></div><p>ערכים מיובאים ריקים לא ידרסו מידע קיים.</p><div class="list">${duplicates.map(itemRow).join('')}</div><div class="actions"><button class="btn" data-action="duplicate-merge" data-suggestion="${suggestion.id}" data-target="${duplicates[0]?.id||''}">מיזוג</button><button class="btn secondary" data-action="duplicate-keep" data-suggestion="${suggestion.id}">שמירת שניהם</button><button class="btn ghost" data-action="close">ביטול</button></div></section></div>`}
@@ -1329,6 +1366,16 @@ function duplicateModal(){const {suggestionId,duplicateIds}=state.modal,suggesti
 // stored owner value is simply never read or written by this form again (values below no longer
 // includes it), so nothing already in Firestore is deleted -- the same non-destructive precedent
 // 0.7.4.1 established when it removed the old free-text `participants` field from item forms.
+// Beta 0.8 Phase 2.2 (P21-F14): the Shopping item's owner is a dropdown of the trip's ACTIVE participants (inactive ones are never
+// offered -- P12-F2) plus "משותף". The stored value is still the owner's name, exactly as the free-text field stored it, so existing
+// items keep working; an owner who is no longer an active participant (or an old typed name) stays selectable so editing never drops it.
+function shoppingOwnerField(entry){
+  const current=entry.owner&&entry.owner!=='shared'?entry.owner:'';
+  const names=state.participants.filter(participant=>participant.active!==false).map(participant=>participant.name);
+  const kept=current&&!names.includes(current)?[current]:[];
+  const inactive=name=>state.participants.some(participant=>participant.name===name&&participant.active===false);
+  return `<label class="field">בעלים<select name="owner"><option value="">משותף</option>${[...names,...kept].map(name=>`<option value="${esc(name)}" ${name===current?'selected':''}>${esc(name)}${inactive(name)?' (לא פעיל)':''}</option>`).join('')}</select></label>`;
+}
 function simpleFormModal(){const type=state.modal.type;if(type==='task'){const task=state.tasks.find(candidate=>candidate.id===state.modal.taskId)||{title:'',mode:'date',dueDate:'',priority:'Normal'};return `<div class="modal-bg"><section class="modal"><div class="modal-head"><h2>${state.modal.taskId?'עריכת משימה':'משימה חדשה'}</h2><button class="close" data-action="close">✕</button></div><form id="task-form" data-id="${task.id||''}"><p class="required-note"><span class="required" aria-hidden="true">*</span> שדה חובה</p><fieldset class="form-group"><legend>המשימה</legend><label class="field"><span class="field-label">${requiredLabel('משימה')}</span><input name="title" required aria-required="true" value="${esc(task.title)}"></label>${participantAssignmentField(task)}</fieldset><fieldset class="form-group"><legend>מועד ועדיפות</legend><label class="field">מועד<select name="mode"><option value="date" ${task.mode==='date'?'selected':''}>תאריך</option><option value="entire" ${task.mode==='entire'?'selected':''}>לכל הטיול</option><option value="none" ${task.mode==='none'?'selected':''}>ללא תאריך</option></select></label><label class="field">תאריך יעד<input type="date" name="dueDate" value="${esc(task.dueDate||'')}"></label><label class="field">עדיפות<select name="priority"><option value="High" ${task.priority==='High'?'selected':''}>גבוהה</option><option value="Normal" ${(task.priority||'Normal')==='Normal'?'selected':''}>רגילה</option><option value="Low" ${task.priority==='Low'?'selected':''}>נמוכה</option></select></label></fieldset><div class="form-actions"><button class="btn">שמירה</button>${task.id?`<button type="button" class="btn danger" data-action="task-delete" data-id="${task.id}">מחיקת המשימה</button>`:''}</div></form></section></div>`}if(type==='shopping'){
   // 0.7.7: an optional reference to a shopping place -- deliberately just a select, no cascading
   // delete anywhere: shoppingView()'s own render looks the place up by id at display time and
@@ -1338,7 +1385,7 @@ function simpleFormModal(){const type=state.modal.type;if(type==='task'){const t
   // form, same fields, just already-populated and keyed by data-id instead of always blank.
   const places=state.items.filter(item=>item.type==='shoppingPlace');
   const entry=state.shopping.find(candidate=>candidate.id===state.modal.shoppingId)||{name:'',quantity:'1',owner:'shared',linkedNeed:'',placeId:''};
-  return `<div class="modal-bg"><section class="modal"><div class="modal-head"><h2>${state.modal.shoppingId?'עריכת פריט קניות':'פריט קניות חדש'}</h2><button class="close" data-action="close">✕</button></div><form id="shopping-form" data-id="${entry.id||''}"><p class="required-note"><span class="required" aria-hidden="true">*</span> שדה חובה</p><label class="field"><span class="field-label">${requiredLabel('פריט')}</span><input name="name" required aria-required="true" value="${esc(entry.name)}"></label><label class="field">כמות<input name="quantity" value="${esc(entry.quantity||'1')}"></label><label class="field">בעלים<input name="owner" placeholder="משותף או שם משתתף" value="${esc(entry.owner==='shared'?'':entry.owner||'')}"></label><label class="field">קישור לצורך אריזה/הכנה<input name="linkedNeed" value="${esc(entry.linkedNeed||'')}"></label><label class="field">מקום קניות מקושר (אופציונלי)<select name="placeId"><option value="">ללא</option>${places.map(place=>`<option value="${place.id}" ${place.id===entry.placeId?'selected':''}>${esc(place.title)}</option>`).join('')}</select></label><div class="form-actions"><button class="btn">שמירה</button>${state.modal.shoppingId?`<button type="button" class="btn danger" data-action="shopping-delete" data-id="${entry.id}">מחיקת הפריט</button>`:''}</div></form></section></div>`;
+  return `<div class="modal-bg"><section class="modal"><div class="modal-head"><h2>${state.modal.shoppingId?'עריכת פריט קניות':'פריט קניות חדש'}</h2><button class="close" data-action="close">✕</button></div><form id="shopping-form" data-id="${entry.id||''}"><p class="required-note"><span class="required" aria-hidden="true">*</span> שדה חובה</p><label class="field"><span class="field-label">${requiredLabel('פריט')}</span><input name="name" required aria-required="true" value="${esc(entry.name)}"></label><label class="field">כמות<input name="quantity" value="${esc(entry.quantity||'1')}"></label>${shoppingOwnerField(entry)}<label class="field">קישור לצורך אריזה/הכנה<input name="linkedNeed" value="${esc(entry.linkedNeed||'')}"></label><label class="field">מקום קניות מקושר (אופציונלי)<select name="placeId"><option value="">ללא</option>${places.map(place=>`<option value="${place.id}" ${place.id===entry.placeId?'selected':''}>${esc(place.title)}</option>`).join('')}</select></label><div class="form-actions"><button class="btn">שמירה</button>${state.modal.shoppingId?`<button type="button" class="btn danger" data-action="shopping-delete" data-id="${entry.id}">מחיקת הפריט</button>`:''}</div></form></section></div>`;
 }return `<div class="modal-bg"><section class="modal"><div class="modal-head"><h2>מיקום</h2><button class="close" data-action="close">✕</button></div><form id="location-form" data-id="${state.modal.locationId||''}"><p class="required-note"><span class="required" aria-hidden="true">*</span> שדה חובה</p><label class="field"><span class="field-label">${requiredLabel('שם מקום')}</span><input name="placeName" required aria-required="true" value="${esc(state.modal.record?.placeName||'')}"></label><label class="field"><span class="field-label">${requiredLabel('כתובת / חיפוש')}</span><input name="address" required aria-required="true" value="${esc(state.modal.record?.address||'')}"></label><div class="grid two"><label class="field">קו רוחב<input name="lat" inputmode="decimal" value="${esc(state.modal.record?.coordinates?.lat||'')}"></label><label class="field">קו אורך<input name="lng" inputmode="decimal" value="${esc(state.modal.record?.coordinates?.lng||'')}"></label></div><label class="field">מקור<input name="source" value="${esc(state.modal.record?.source||'manual')}"></label><label class="field">ביטחון<select name="confidence"><option>high</option><option selected>medium</option><option>low</option></select></label><a class="btn ghost" href="${mapsUrl(state.modal.record?.address||'Thailand')}" target="_blank" rel="noopener">חיפוש / הצבת סיכה במפה</a><div class="form-actions"><button class="btn">אישור ושמירה</button></div></form></section></div>`}
 // 0.7.4: participant add/edit modal, per Trip Settings' new participant-management scope. A
 // dedicated function rather than folded into simpleFormModal() -- its field set (role/relationship,
@@ -1591,7 +1638,7 @@ async function runSmartAnalysis(source,file,targetItem=null){
 }
 async function smartIngest(){
   if(ingestBusy)return;
-  ensureTrip({name:'טיול חדש'});const kind=state.modal.source,mode=document.querySelector('input[name="processing-mode"]:checked')?.value||'analyze',file=kind==='link'?null:pendingSourceFile,url=normalizeUrlInput(document.querySelector('#source-url')?.value);
+  ensureTrip({name:'טיול חדש'});const kind=state.modal.source,mode=document.querySelector('input[name="processing-mode"][value="analyze"]')?.checked===false?'save':'analyze',file=kind==='link'?null:pendingSourceFile,url=normalizeUrlInput(document.querySelector('#source-url')?.value);
   try{validateSmartSource(kind,file,url)}catch(error){alert(error.message);return}
   // 0.7.6 round 4 (Test 5, found live): the busy-state UI below (smartImportPanel's own
   // processingIndicator) already existed but never actually appeared -- nothing re-rendered
@@ -1770,8 +1817,9 @@ function approveSuggestion(suggestion,mode='check',targetId=''){if(!suggestion||
   }else state.items.push(suggestionToItem(suggestion,{},state.trip?.startDate||''));
   suggestion.status='approved';for(const sourceId of suggestion.sourceIds||[suggestion.sourceId]){const source=sourceById(sourceId);if(source)source.status='משויך לפריט'}save();state.modal=null;route(mode==='merge'?'detail':'center',mode==='merge'?{itemId:targetId}:{category:suggestion.proposed.type});notify(mode==='merge'?(mergeHadConflict?'העדכון אושר ומוזג — נמצאו ערכים סותרים, הערך הקיים נשמר והערך החדש סומן לבדיקה בפרטי הפריט':'העדכון אושר ומוזג בלי לדרוס ערכים קיימים בערכים ריקים'):'ההצעה אושרה ונוצר פריט')}
 
-addEventListener('click',async event=>{if(Date.now()<suppressClickUntil)return;const routeButton=event.target.closest('[data-route]');if(routeButton){const view=routeButton.dataset.route;route(view,{category:routeButton.dataset.cat,itemId:routeButton.dataset.id,suggestionId:routeButton.dataset.id,anchor:routeButton.dataset.anchor});if(view==='settings'&&state.trip?.ownerUid===currentUid())refreshEditorHistory();else if(view==='admin')refreshAdminInvitations();return}const button=event.target.closest('[data-action]');if(!button)return;const action=button.dataset.action;
+addEventListener('click',async event=>{if(Date.now()<suppressClickUntil)return;if(event.target.closest('#more-menu')||!event.target.closest('[data-action="more-menu"]'))closeMoreMenu();const routeButton=event.target.closest('[data-route]');if(routeButton){const view=routeButton.dataset.route;route(view,{category:routeButton.dataset.cat,itemId:routeButton.dataset.id,suggestionId:routeButton.dataset.id,anchor:routeButton.dataset.anchor});if(view==='settings'&&state.trip?.ownerUid===currentUid())refreshEditorHistory();else if(view==='admin')refreshAdminInvitations();return}const button=event.target.closest('[data-action]');if(!button)return;const action=button.dataset.action;
   if(action==='create'){state.modal={type:'intake',source:'manual'};render()}
+  else if(action==='more-menu')openMoreMenu(button);
   else if(action==='item-end')endItem(button.dataset.id);
   else if(action==='item-unend'){const item=state.items.find(candidate=>candidate.id===button.dataset.id);if(item){item.endedAt='';save();render()}}
   else if(action==='close'){stopCamera();pendingSourceFile=null;state.modal=null;render()}
@@ -2135,6 +2183,9 @@ function finishDrag(){
 }
 addEventListener('pointerup',finishDrag);
 addEventListener('pointercancel',finishDrag);
+addEventListener('scroll',closeMoreMenu,{passive:true,capture:true});
+addEventListener('resize',closeMoreMenu);
+addEventListener('keydown',event=>{if(event.key==='Escape')closeMoreMenu()});
 // Remember whether the user opened the collapsed "הסתיימו היום" section, so the minute refresh and
 // any other render() keep it open.
 addEventListener('toggle',event=>{if(event.target.matches?.('.done-today'))doneTodayOpen=event.target.open},true);

@@ -108,7 +108,8 @@ function test_0_7_9_taskRow_displays_the_participant_assignment_and_no_longer_sh
   // Phase 1.2 (P11-F13): the compact row puts the priority chip first and the participant label
   // last in the ellipsised meta text (so truncation can only ever cut the participant, never the
   // chip) -- still shown, just after the date instead of before it.
-  assert(body.includes('${participantLabel?\' · \'+esc(participantLabel):\'\'}'));
+  // Beta 0.8 Phase 2.2 (P21-F6): the participant chip is on the title's line (row-line), not appended to the meta text.
+  assert(body.includes('${participantLabel?`<span class="badge chip-participants">${esc(participantLabel)}</span>`:\'\'}'));
   assert(!body.includes('task.owner'),'taskRow must no longer read/display the removed owner field');
 }
 
@@ -197,7 +198,7 @@ function test_0_7_9_the_two_ticket_related_sections_have_distinct_non_confusable
   // "כרטיסים ומסמכים" heading; the coverage summary, the ticket slides and "מסמכים נוספים" are parts of it, not separate sections.
   assert(app.includes('id="item-tickets"'));
   assert(app.includes("const heading=eligible?'כרטיסים ומסמכים':'מסמכים';"));
-  assert(app.includes('כרטיסים: <bdi>${summary.covered}</bdi>'));
+  assert(app.includes('כרטיסים: <bdi dir="ltr">${summary.covered}/${summary.total}</bdi>'));
   assert(app.includes("eligible?'מסמכים נוספים':'מסמכים מצורפים'"));
   assert(!app.includes('<h3>מעקב כרטיסים ידני</h3>'),'the retired manual-ticket section header must be gone');
   assert(!app.includes('<h4>כרטיסים (${ticketHolders.length})</h4>'),'the old, identically-worded ticketHolders header must be gone');

@@ -40,7 +40,7 @@ test('P2-F2: every full-screen wait uses the large palm and no hourglass / spinn
   assert(app.includes("function loading(){return `<div class=\"palm-screen\">${largePalm({phrases:['טוען…']})}</div>`}"),'app start / refresh');
   assert(main.includes("largePalm({ phrases: [phrase] })")&&main.includes("renderPalm('מתחבר…')")&&main.includes("renderPalm('טוען…')"),'sign-in and the very first paint');
   assert(!main.includes("button.textContent = 'מתחבר…'"));
-  assert(app.includes("function processingIndicator(message){return `<div class=\"processing-indicator\">${largePalm()}"),'Smart Import analysis');
+  assert(app.includes("<div class=\"modal-bg\"><section class=\"modal analyzing\">")&&app.includes('${largePalm({label:')&&app.includes('disabled aria-disabled="true">המשך</button>'),'Smart Import analysis (Beta 0.8 Phase 2.2: the full-screen analyzingModal)');
   assert(app.includes('disabled aria-disabled="true">המשך</button>'),'המשך stays disabled throughout');
   assert(!app.includes('⏳')&&!main.includes('⏳'));
   assert(!/<span class="spinner"/.test(app+main),'no spinner element is rendered anywhere');
@@ -88,7 +88,7 @@ test('P2-F5: Packing and Shopping rows are tap-to-edit compact rows; delete live
 
 // ---- P2-F6 ---------------------------------------------------------------------------------------
 test('P2-F6: the Add dialog uses Tabler line icons and the spec\'s selection style; no emoji on the screens Phase 2 touched',()=>{
-  assert(app.includes("choices=[['manual','pencil','ידני'],['document','file','מסמך'],['link','link','קישור'],['json','upload','JSON'],['qr','qr','QR']]"));
+  assert(app.includes("choices=[['manual','pencil','ידני'],['document','file','מסמך'],['link','link','קישור']]"),'Beta 0.8 Phase 2.2 (P21-F8): QR and JSON removed');
   assert(app.includes('${tabler(icon)} ${label}</button>'));
   assert(app.includes("const taskChoice=`<button data-action=\"task-add\">${tabler('checklist')} משימה</button>`;"));
   assert.match(v4,/\.source-choice button\.active\{border-color:var\(--ink\);background:var\(--teal-soft\)\}/,'selected = --teal-soft background, ink border');
@@ -172,11 +172,11 @@ test('P2-F4: carousel mechanics -- one swipe = one ticket, loops from 3, neighbo
   assert(app.includes('<bdi class="muted" dir="ltr" aria-live="polite">${index+1} / ${count}</bdi>'),'1 / N counter');
   assert(app.includes("const way=selectedSlide?arrowKeyTarget(event.key,centerX(selectedSlide),near):null;"),'arrow keys follow screen position (P12-F6)');
   assert(app.includes("tcar=event.target.closest('[data-tcarousel]')")&&app.includes('selectTicket(tcar,way)'),'swipe');
-  assert.match(css,/\.t-track \.ticket\{flex:0 0 min\(290px,calc\(100cqw - 64px\)\);opacity:\.55/,'290px slides, the neighbour faded ~55% and peeking');
-  assert.match(css,/\.t-track\{display:flex;gap:12px;padding:0 12px;transform:translateX\(calc\(var\(--before,0\) \* \(min\(290px,100cqw - 64px\) \+ 12px\)\)\)\}/,'12px gap, selected aligned to the start edge');
+  assert.match(css,/\.t-track \.ticket\{flex:0 0 min\(290px,calc\(100cqw - 44px\)\);opacity:\.55/,'290px slides, the neighbour faded ~55% and peeking');
+  assert.match(css,/\.t-track\{display:flex;gap:12px;padding:0 12px;transform:translateX\(calc\(var\(--before,0\) \* \(min\(290px,100cqw - 44px\) \+ 12px\)\)\)\}/,'12px gap, selected aligned to the start edge');
   assert.match(css,/\.t-track \.ticket\.selected\{opacity:1;border-color:var\(--ink\)\}/,'the selected slide has an ink border');
   assert.match(css,/\.t-viewport\{[^}]*touch-action:pan-y[^}]*container-type:inline-size/,'slide width and stride are measured against the same container (cqw), so they cannot drift apart');
-  assert(app.includes("const TICKET_STRIDE='(min(290px,100cqw - 64px) + 12px)';"));
+  assert(app.includes("const TICKET_STRIDE='(min(290px,100cqw - 44px) + 12px)';"));
 });
 test('P2-F4: slide content follows the mockup -- holder, status chip, seat detail, file, "נוצל" / "אישור ככרטיס", פתיחה, ⋯',()=>{
   const slide=app.slice(app.indexOf('function ticketSlideHtml('),app.indexOf('function ticketCarousel('));
@@ -185,7 +185,7 @@ test('P2-F4: slide content follows the mockup -- holder, status chip, seat detai
   assert(slide.includes('confirmed?`<label class="used">')&&slide.includes(':`<button class="btn primary" type="button" data-action="source-confirm-ticket"'),'confirmed -> נוצל; unconfirmed -> filled-ink אישור ככרטיס');
   assert(slide.includes('${sourceOpenControl(source)}${moreMenu(['),'פתיחה then the ⋯ overflow');
   assert.match(css,/\.chip\.ok\{background:var\(--teal-soft\)\}/);
-  assert.match(css,/\.holder\{[^}]*font-size:20px;font-weight:600/);
+  assert.match(css,/\.holder\{[^}]*white-space:nowrap[^}]*font-size:18px;font-weight:600/,'the holder name is one line (Phase 2.2, P21-F11)');
   assert.match(css,/\.add-doc\{min-height:48px;border:1\.5px dashed var\(--border\);border-radius:12px/,'dashed full-width add button');
   assert(app.includes('<span class="muted">${eligible?\'מסמכים נוספים\':\'מסמכים מצורפים\'}</span>'));
   assert(app.includes('+ הוספת מסמך</button>'));
@@ -195,7 +195,7 @@ test('P2-F4: coverage summary "כרטיסים: N מתוך M" + who still has non
   const summary=coverageSummary(coverage);
   assert.deepEqual({covered:summary.covered,total:summary.total,percent:summary.percent,missing:summary.missing},{covered:2,total:5,percent:40,missing:['דניאל לוי','עמית','עפרי']});
   assert.equal(coverageSummary(computeTicketCoverage([],[])).total,0);
-  assert(app.includes('כרטיסים: <bdi>${summary.covered}</bdi> מתוך <bdi>${summary.total}</bdi> משתתפים')&&app.includes('ללא כרטיס: ${esc(summary.missing.join'));
+  assert(app.includes('כרטיסים: <bdi dir="ltr">${summary.covered}/${summary.total}</bdi>')&&app.includes('ללא כרטיס: ${esc(summary.missing.join'),'one-line "כרטיסים: N/M" (Phase 2.2, P21-F11)');
   const activity={type:'activity',details:{ticketHolders:[{name:'Paula Cohen',seatOrSection:'שער 8; שורה 36; כסא 202'},{name:'אייל בן יצחק',seatOrSection:'שער 8; שורה 35; כסא 201',ticketNumber:'777'}]}};
   assert.equal(ticketHolderDetail(activity,['אייל בן יצחק']),'שער 8; שורה 35; כסא 201 · כרטיס 777');
   assert.equal(ticketHolderDetail(activity,['דניאל']),'','no match -> no detail line rather than a wrong one');
@@ -204,7 +204,7 @@ test('P2-F4: coverage summary "כרטיסים: N מתוך M" + who still has non
 });
 test('P2-F4: page order -- facts and contact actions, the one card, then notes, then עריכה / מחיקה',()=>{
   const detail=app.slice(app.indexOf('function detailView('),app.indexOf('// V6-F37 (fix pass 4)'));
-  const order=['<dl class="detail-facts">','class="actions detail-links"','${ticketsAndDocumentsSection(item,sources)}','<div class="detail-notes">','<div class="form-actions detail-actions">'].map(marker=>detail.indexOf(marker));
+  const order=['<div class="detail-top">','<dl class="detail-facts">','${ticketsAndDocumentsSection(item,sources)}','<div class="detail-notes">','<div class="form-actions detail-actions">'].map(marker=>detail.indexOf(marker));
   assert(order.every(index=>index>-1),'all parts present');
   assert.deepEqual([...order].sort((a,b)=>a-b),order,'in the approved order');
   assert.equal((detail.match(/ticketsAndDocumentsSection\(/g)||[]).length,1,'exactly one card');

@@ -168,7 +168,8 @@ function test_V6_F57_activity_summary_block_wired_into_both_screens(){
   assert.match(app,/function activityTicketHoldersTable\(ticketHolders\)\{/,'a dedicated per-ticket-holder table must exist for Activity, mirroring flightPassengersTable');
   assert.match(app,/holder\.dni\?`ת\.ז\.\/דרכון \$\{esc\(holder\.dni\)\}`:''/,'the ticket-holder table must render dni once V6-F56 makes it available');
   // Beta 0.8 Phase 2.1 (P2-F4): on the item detail page the holders table is folded into a collapsed <details> (holders:'collapsed').
-  assert.match(app,/\$\{item\.type==='activity'\?activitySummaryBlock\(item\.details,\{holders:'collapsed'\}\):''\}/,'detailView must actually call activitySummaryBlock for a saved activity item, not just define it');
+  // Beta 0.8 Phase 2.2 (P21-F4): the "פרטי הכרטיס" card is removed from the saved item page entirely -- ticket / holder detail lives only in the ticket card.
+  assert(!/activitySummaryBlock\(item\.details/.test(app),'detailView must no longer render the duplicate activity summary card');
   assert.match(app,/\$\{p\.type==='activity'\?activitySummaryBlock\(p\.details\):''\}/,'suggestionView must actually call activitySummaryBlock for a pending activity suggestion');
   console.log('PASS: V6-F57 details.ticketHolders/amount/currency now have a real rendering path on both the suggestion review screen and the saved item detail view');
 }

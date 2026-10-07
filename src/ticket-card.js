@@ -31,3 +31,14 @@ export function coverageSummary(coverage){
   const total=coverage.people.length;
   return {covered:coverage.coveredCount,total,percent:total?Math.round(coverage.coveredCount/total*100):0,missing:coverage.people.filter(person=>!coverage.coveredIds.has(person.id)).map(person=>person.name)};
 }
+
+// Beta 0.8 Phase 2.2 (P21-F11): the holder name on a slide is ONE line. One person -> the full name; two -> their first names;
+// more -> the first person's first name and a count ("אייל +2"), like the participant chip.
+export function ticketHolderLabel(people){
+  const list=(people||[]).filter(Boolean);
+  const first=person=>String(person.name).trim().split(/\s+/)[0];
+  if(!list.length)return '';
+  if(list.length===1)return String(list[0].name).trim();
+  if(list.length===2)return list.map(first).join(', ');
+  return `${first(list[0])} +${list.length-1}`;
+}
