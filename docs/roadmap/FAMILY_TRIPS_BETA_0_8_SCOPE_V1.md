@@ -1,8 +1,15 @@
 # FamilyTrips Beta 0.8 — Scope: Visual and Interaction System
 
-Document revision: `V8`
-Date: 2026-10-06
+Document revision: `V9`
+Date: 2026-10-07
 From: Product Owner's planning/QA-assistant (document-only)
+
+**`V9` change note:** Phase 2.1's own acceptance session ended **NO-GO**, 2026-10-07
+(`docs/versions/V7/0.8.0-phase2.1/EXECUTABLE_TEST_SESSION_V1.md`, committed `9d2347d`). No Blocking or
+Medium findings; fourteen Non-blocking (`P21-F1`–`P21-F14`). Thirteen route into a new Phase 2.2
+correction round, scoped in full in `FAMILY_TRIPS_BETA_0_8_PHASE_2_2_CORRECTION_SCOPE_V1.md`. `P21-F7`
+(Shopping's "מקום חדש"/"פריט חדש" header misalignment) is addressed directly below, folded into Phase 3's
+already-explicit Shopping bullet (`P2-F8`, `V8`). No other content below changed from `V8`.
 
 **`V8` change note:** Phase 2's acceptance session ended **NO-GO**, 2026-10-06
 (`docs/versions/V7/0.8.0-phase2/EXECUTABLE_TEST_SESSION_V1.md`). No Blocking findings; one Medium
@@ -129,7 +136,7 @@ Non-blocking findings. **Accepted GO by the Product Owner, 2026-10-05, on `0.8.0
 full detail in `MVP_DELIVERY_PLAN_CURRENT_STATE.md`. Kept here for the record; no further action.
 
 ## Phase 2 — Item detail, add/edit forms, sign-in, Trip Center, Packing's own chrome, Smart Import status
-system, and the eight refinement items — **NO-GO; correction round Phase 2.1 scoped**
+system, and the eight refinement items — **NO-GO; correction round Phase 2.2 scoped**
 
 **Built as of `V7`:** implemented, committed (`4af4373`, `8bab6ca`, `5c93d00`, `7f5e33f`, `8a18f43` on
 `version/V7`), deployed to `0.8.0-phase2-7f5e33fa` on `qa`. Acceptance session document:
@@ -138,8 +145,12 @@ for the two pre-existing bugs found/fixed and the three decisions resolved at th
 
 **Result as of `V8`:** that session ended **NO-GO**, 2026-10-06. One Medium and five Non-blocking
 findings routed into Phase 2.1, scoped in full in
-`FAMILY_TRIPS_BETA_0_8_PHASE_2_1_CORRECTION_SCOPE_V1.md`; see the `V8` change note above. Phase 2 does not
-close until that correction round's own acceptance session returns GO.
+`FAMILY_TRIPS_BETA_0_8_PHASE_2_1_CORRECTION_SCOPE_V1.md`; see the `V8` change note above.
+
+**Result as of `V9`:** Phase 2.1's own acceptance session also ended **NO-GO**, 2026-10-07. No Blocking
+or Medium findings; of fourteen Non-blocking findings, thirteen route into Phase 2.2, scoped in full in
+`FAMILY_TRIPS_BETA_0_8_PHASE_2_2_CORRECTION_SCOPE_V1.md`; `P21-F7` folds into Phase 3's Shopping bullet
+below. Phase 2 does not close until a Phase 2.x correction round's own acceptance session returns GO.
 
 Covers spec §7's Smart Import processing-states subsection (the seven-state status pill and its binding
 interaction rule, reused across the Intake Inbox, an item's Documents/Tickets area, and the proposal
@@ -234,7 +245,9 @@ Covers spec §6 (games list and game page), the Settings screen (trip settings f
 management section, sharing section, admin/invitation section), the Timeline/calendar view, and the
 Shopping list screen (named explicitly, `P2-F8`, `V8`: replace its 🛒/📍 emoji with Tabler outline line
 icons, quieter place cards instead of the current heavy ones, and the compact tap-to-edit row layout
-`P2-F5` introduces for Packing/Shopping) — closing `G1`'s remaining lower-traffic screens — plus completing §7's
+`P2-F5` introduces for Packing/Shopping; `P21-F7`, `V9`: "מקום חדש"/"פריט חדש" get identical header rows —
+title plus a matching small outline "+" button, same size, vertically centered) — closing `G1`'s
+remaining lower-traffic screens — plus completing §7's
 empty/loading/offline-state principles across any screen not already covered by Phase 1 (Today) or Phase
 2 (Smart Import's own loading/processing treatment, item detail, add/edit forms). Closes with the full §9
 accessibility/visual acceptance pass across the whole of Beta 0.8, not just this phase. **Added in `V4`:**
@@ -273,10 +286,11 @@ already visits both screens for the restyle:
   instructions plus "התחל פעילות".
 - Settings (trip form, participants, sharing, admin) and Timeline/calendar match the spec's tokens,
   spacing, typography, and component rules — the same bar Phase 1 and 2 held their own screens to.
-- **Shopping (`P2-F8`, `V8`):** no emoji remain (🛒/📍 replaced with Tabler outline line icons, `--ink`);
-  place cards are quieter — bordered, spec tokens, no heavy illustration-style treatment; rows use the
-  same compact tap-to-edit layout `P2-F5` introduces for Packing (checkbox/name/participant chip, delete
-  inside the edit screen).
+- **Shopping (`P2-F8`, `V8`; `P21-F7`, `V9`):** no emoji remain (🛒/📍 replaced with Tabler outline line
+  icons, `--ink`); place cards are quieter — bordered, spec tokens, no heavy illustration-style treatment;
+  rows use the same compact tap-to-edit layout `P2-F5` introduces for Packing (checkbox/name/participant
+  chip, delete inside the edit screen); "מקום חדש" and "פריט חדש" each sit in a header row matching the
+  other, title plus a same-size outline "+" button, vertically centered.
 - **`P12-F3`:** the delete action is present in Settings' participants section; attempting to delete an
   assigned participant leaves the action disabled with the pointing-to-deactivation message, verified
   against at least one participant with a real assignment; deleting an unassigned participant requires
@@ -319,8 +333,9 @@ already visits both screens for the restyle:
 
 ## What's needed now
 
-**Phase 1 is closed.** Phase 2's acceptance session ended NO-GO (`V8`, above) — the correction round,
-Phase 2.1, is scoped in full in `FAMILY_TRIPS_BETA_0_8_PHASE_2_1_CORRECTION_SCOPE_V1.md`, awaiting its own
-kickoff. Phase 3 — scoped with its functional additions (`P12-F3`, `P12-F4`'s underlying need now closed
-by `P2-F5`, `V8`; `P12-F7`, `V7`) and the Shopping screen now named explicitly (`P2-F8`, `V8`) — has no
-kickoff prompt yet; that follows once Phase 2.1 is accepted GO on `qa`.
+**Phase 1 is closed.** Phase 2.1's own acceptance session also ended NO-GO (`V9`, above) — the next
+correction round, Phase 2.2, is scoped in full in
+`FAMILY_TRIPS_BETA_0_8_PHASE_2_2_CORRECTION_SCOPE_V1.md`, awaiting its own kickoff. Phase 3 — scoped with
+its functional additions (`P12-F3`, `P12-F4`'s underlying need now closed by `P2-F5`, `V8`; `P12-F7`,
+`V7`), and the Shopping screen now named explicitly (`P2-F8`, `V8`; `P21-F7`, `V9`) — has no kickoff
+prompt yet; that follows once a Phase 2.x correction round is accepted GO on `qa`.

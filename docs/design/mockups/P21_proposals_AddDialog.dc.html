@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="he">
+<head>
+<meta charset="utf-8">
+<title>Add dialog — compact</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div dir="rtl" style="width: 390px; height: 844px; box-sizing: border-box; background: rgba(18,63,66,.45); font-family: Heebo, Arial, sans-serif; color: #123F42; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end">
+<section style="background: #FFFFFF; border-radius: 20px 20px 0 0; padding: 16px 20px 24px; display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; align-items: center; justify-content: space-between">
+<h1 style="margin: 0; font-size: 22px; font-weight: 700">הוספה</h1>
+<button aria-label="סגירה" style="width: 44px; height: 44px; border: 0; border-radius: 12px; background: #FCFAF7; color: #123F42; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px">
+<button style="min-height: 72px; border: 1px solid #E7E1DA; border-radius: 12px; background: #FFFFFF; color: #123F42; font-family: Heebo, Arial, sans-serif; font-size: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L18.5 9.5a2.8 2.8 0 0 0-4-4L4 16v4M13.5 6.5l4 4"></path></svg>ידני</button>
+<button style="min-height: 72px; border: 1.5px solid #123F42; border-radius: 12px; background: #E8F3F1; color: #123F42; font-family: Heebo, Arial, sans-serif; font-size: 14px; font-weight: 600; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v4a1 1 0 0 0 1 1h4"></path><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2zM9 13h6M9 17h6"></path></svg>מסמך</button>
+<button style="min-height: 72px; border: 1px solid #E7E1DA; border-radius: 12px; background: #FFFFFF; color: #123F42; font-family: Heebo, Arial, sans-serif; font-size: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 15l6-6M11 6l.5-.5a4.2 4.2 0 0 1 6 6L17 12M13 18l-.5.5a4.2 4.2 0 0 1-6-6L7 12"></path></svg>קישור</button>
+<button style="min-height: 72px; border: 1px solid #E7E1DA; border-radius: 12px; background: #FFFFFF; color: #123F42; font-family: Heebo, Arial, sans-serif; font-size: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"></path><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"></path></svg>משימה</button>
+</div>
+
+<div style="border-top: 1px solid #E7E1DA; padding-top: 14px; display: flex; flex-direction: column; gap: 12px">
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 15px; font-weight: 600">קובץ (תמונה או PDF)
+<span style="min-height: 52px; border: 1.5px dashed #E7E1DA; border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 400; color: #726B66"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2M7 9l5-5 5 5M12 4v12"></path></svg>בחירת קובץ</span>
+</label>
+<label style="display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 15px"><input type="checkbox" checked style="width: 20px; height: 20px; margin: 0">ניתוח והצעת פריט</label>
+</div>
+
+<button style="min-height: 52px; border: 0; border-radius: 12px; background: #123F42; color: #FFFFFF; font-family: Heebo, Arial, sans-serif; font-size: 17px; font-weight: 600">המשך</button>
+</section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
