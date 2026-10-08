@@ -119,7 +119,7 @@ function test_0_7_1_tasksView_wires_filters_and_clear_action(){
   assert(viewFn.includes('id="task-filter-due"'),'tasksView must render a due-date-scope filter select');
   assert(viewFn.includes('id="task-filter-status"'),'tasksView must render a status (open-only) filter select (V7-F02)');
   assert(viewFn.includes("filterAndSortTasks(state.tasks,filters)"),'tasksView must actually apply the combined filter/sort to what it displays, not just render the controls decoratively');
-  assert(viewFn.includes("isFiltered?'<button class=\"btn ghost\" data-action=\"task-filter-clear\">איפוס</button>':''"),'a clear/reset control must appear once a filter is active');
+  assert(viewFn.includes("isFiltered?'<button class=\"btn ghost filters-reset\" data-action=\"task-filter-clear\">איפוס</button>':''"),'a clear/reset control must appear once a filter is active');
   // 0.7.9 correction round 3 (Finding 3) added a fourth filter (participant) -- updated in place,
   // same superseding-update discipline this project always uses when a later candidate genuinely
   // extends an earlier one's own claim.
