@@ -936,7 +936,7 @@ function additionalDetailsBlock(item){
   const rows=additionalDetails(item.details);
   if(!rows.length)return '';
   const open=extraOpenFor===item.id,count=rows.length===1?'פרט אחד':`${rows.length} פרטים`;
-  const body=open?`<dl class="extra-facts">${rows.map(row=>`<div class="fact"><dt>${row.label}</dt><dd>${row.map?`<a class="fact-link fact-underline" href="${esc(mapsUrl(row.value))}" target="_blank" rel="noopener">${tabler('pin')} ${esc(row.value)}</a>`:esc(row.value)}${row.notIncluded?`<div class="muted small">לא כלול: ${esc(row.notIncluded)}</div>`:''}</dd></div>`).join('')}</dl>`:'';
+  const body=open?`<dl class="extra-facts">${rows.map(row=>`<div class="fact"><dt>${row.label}</dt><dd>${row.map?`<a class="fact-link fact-underline" href="${esc(mapsUrl(row.value))}" target="_blank" rel="noopener">${tabler('pin')} <bdi>${esc(row.value)}</bdi></a>`:`<bdi>${esc(row.value)}</bdi>`}${row.notIncluded?`<div class="muted small">לא כלול: ${esc(row.notIncluded)}</div>`:''}</dd></div>`).join('')}</dl>`:'';
   return `<div class="extra ${open?'open':''}"><button class="extra-head" type="button" data-action="extra-toggle" data-id="${item.id}" aria-expanded="${open}">${tabler('info')}<span class="extra-title">פרטים נוספים</span><span class="muted extra-count">${count}</span>${tabler(open?'chevup':'chevdown')}</button>${body}</div>`;
 }
 // A document that is not a ticket for a participant: compact row -- icon, name, open, "⋯" -- with the Smart Import

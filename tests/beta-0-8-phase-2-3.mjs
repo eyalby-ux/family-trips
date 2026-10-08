@@ -93,8 +93,8 @@ test('P22-F7: every page with a back action uses the compact header -- no "חז�
 });
 
 test('P22-F8: a Packing / task row gives the name more room and lets it wrap to two lines before it is cut; the chip stays whole',()=>{
-  assert.match(css,/\.packing-card\{padding:12px\}/);
-  assert.match(css,/\.packing-card \.card\.nested\{padding:10px\}/,'one layer of card padding less');
+  assert.match(css,/\.packing-card\{padding:10px\}/);
+  assert.match(css,/\.packing-card \.card\.nested\{padding:8px\}/,'one layer of card padding less (16 -> 8)');
   assert.match(css,/\.task-compact input\[type="checkbox"\]\{margin:8px\}/);
   assert.match(css,/\.row-line b\{[^}]*-webkit-line-clamp:2[^}]*\}/,'up to two lines, then an ellipsis');
   assert.match(css,/\.row-line \.chip-participants\{flex:0 0 auto;max-width:55%/,'the chip keeps its width');

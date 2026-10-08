@@ -474,8 +474,8 @@ bdi,.bidi{unicode-bidi:isolate}
 .extra-facts .fact:last-child{border-bottom:0}
 .extra-facts .fact dt{flex:0 0 104px}
 /* P22-F8: wider Packing / task rows on a phone -- one fewer padded layer, and a name may take two lines before it is cut */
-.packing-card{padding:12px}
-.packing-card .card.nested{padding:10px}
+.packing-card{padding:10px}
+.packing-card .card.nested{padding:8px}
 .task-compact input[type="checkbox"]{margin:8px}
 .row-line b{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.3;overflow-wrap:anywhere}
 .task-compact{height:auto;padding-top:4px;padding-bottom:4px}
@@ -488,5 +488,5 @@ bdi,.bidi{unicode-bidi:isolate}
 .file-drop.has-file{border-style:solid;border-color:var(--ink);color:var(--ink)}
 .file-drop.has-file .file-empty{display:none}
 .file-drop.has-file .file-chosen{display:flex}
-.file-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:start}
+.file-name{display:block;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:start}
 .file-replace{flex:0 0 auto;font-weight:600;text-decoration:underline;text-underline-offset:3px}
