@@ -427,7 +427,7 @@ bdi,.bidi{unicode-bidi:isolate}
 /* P21-F5 / F6: the chip shares the name's line; the name truncates first */
 .row-line{display:flex;align-items:center;gap:8px;min-width:0;width:100%}
 .row-line b{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.row-line .chip-participants{flex:0 1 auto;max-width:55%;padding:0 8px;font-size:13px;line-height:20px}
+.row-line .chip-participants{flex:0 0 auto;max-width:55%;padding:0 8px;font-size:13px;line-height:20px}
 .task-compact-main{width:100%}
 /* P21-F12: one compact header row and a smaller carousel */
 .page-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -451,7 +451,7 @@ bdi,.bidi{unicode-bidi:isolate}
 .analyze-toggle{min-height:44px;font-size:15px}
 .analyze-note{margin:0 0 12px;font-size:13px;line-height:1.4}
 /* P21-F10: the analysis screen replaces the dialog's content */
-.modal.analyzing{width:100%;max-width:none;min-height:100dvh;border-radius:0;display:flex;flex-direction:column;background:var(--bg)}
+.modal.analyzing{width:100%;max-width:none;min-height:100dvh;padding-top:72px;border-radius:0;display:flex;flex-direction:column;background:var(--bg)}
 .analyzing-body{flex:1 1 auto;display:grid;place-items:center}
 .palm-label{font-size:18px;font-weight:600}
 .palm-note{max-width:260px;color:var(--muted);font-size:14px;line-height:1.4}

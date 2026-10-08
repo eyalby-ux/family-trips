@@ -94,7 +94,7 @@ test('P21-F6: the chip shares the name\'s line (Packing and task rows); the name
   const task=line('function taskRow(');
   assert(task.includes('<span class="row-line"><b>${esc(task.title)}</b>${participantLabel?`<span class="badge chip-participants">')&&!task.includes("' · '+esc(participantLabel)"),'tasks: on the title line, no longer appended to the meta');
   assert.match(css,/\.row-line b\{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap\}/);
-  assert.match(css,/\.row-line \.chip-participants\{flex:0 1 auto;max-width:55%/,'the chip is never wider than 55% of the row');
+  assert.match(css,/\.row-line \.chip-participants\{flex:0 0 auto;max-width:55%/,'the chip keeps its width (the name truncates first) and is never wider than 55% of the row');
   assert.match(css,/\.chip-participants\{[^}]*white-space:nowrap/);
 });
 
@@ -144,7 +144,7 @@ test('P21-F10: the analysis screen REPLACES the dialog -- centred palm, "מנת�
   assert(!screen.includes('source-choice'),'none of the dialog\'s own options are shown');
   const html=largePalm({label:'מנתח…',note:'הערה'});
   assert(html.indexOf('palm-label')<html.indexOf('import-phrases')&&html.indexOf('import-phrases')<html.indexOf('import-hairline')&&html.indexOf('import-hairline')<html.indexOf('palm-note'),'palm, label, status line, hairline, note -- in the mockup\'s order');
-  assert.match(css,/\.modal\.analyzing\{[^}]*min-height:100dvh/);
+  assert.match(css,/\.modal\.analyzing\{[^}]*min-height:100dvh[^}]*padding-top:72px/,'full height, and clear of the sticky account bar so the title and close button stay reachable');
   assert.match(css,/\.analyzing-body\{[^}]*place-items:center/);
 });
 
