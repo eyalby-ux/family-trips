@@ -211,11 +211,41 @@ bdi,.bidi{unicode-bidi:isolate}
 .participant-note{margin:0;padding:0 4px}
 .confirm-inline{padding:12px 14px;border:1px solid var(--accent);border-radius:16px;background:var(--accent-soft);color:var(--ink)}
 .confirm-inline p{margin:0 0 8px}
+/* Beta 0.8 Phase 3: Settings -- a screen title, section titles at the section scale, compact participant / destination rows. */
+.settings-page .screen-title{margin:4px 0 12px}
+.settings-page .card>h2{font-size:22px;font-weight:600;line-height:1.3;margin:0 0 6px}
+.participant-item .row{flex-wrap:wrap;gap:8px;min-height:0;padding:12px 14px}
+.participant-item .row .row-main{flex:1 1 100%}
+.participant-item .row .actions{flex:1 1 100%;display:flex;gap:8px;margin:0}
+.participant-item .row .actions .btn{flex:1 1 0;min-width:0}
+.participant-item .row .actions .icon-only{flex:0 0 44px}
+.destination-row{flex-wrap:wrap;gap:8px;min-height:0;padding:12px 14px}
+.destination-row .actions{display:flex;gap:8px;margin:0}
+/* Beta 0.8 Phase 3: Timeline / calendar on the tokens -- ink filter chips, one accent, neutral dots, teal-soft selection. */
+.tabs{flex-wrap:wrap;overflow:visible;gap:8px;padding-bottom:0}
+.tabs button{min-height:44px;padding:0 14px;border:1px solid var(--border);background:var(--surface);color:var(--ink);font-size:15px;font-weight:600}
+.tabs button.active{background:var(--ink);border-color:var(--ink);color:#fff}
+.timeline-calendar{border:1px solid var(--border);border-radius:16px;background:var(--surface)}
+#calendar-month{min-height:44px;padding:0 10px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--ink);font-size:15px}
+.cal-weekday{color:var(--muted);font-size:13px;font-weight:600}
+.cal-cell{border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--ink);font-weight:600}
+.cal-cell.in-trip{background:var(--bg)}
+.cal-cell.active-period{border-color:var(--border);background:var(--teal-soft)}
+.cal-cell.today{border:2px solid var(--accent)}
+.cal-cell.selected{background:var(--teal-soft);border:2px solid var(--ink);box-shadow:none}
+.timeline-calendar .cal-dot.cal-dot{background:var(--ink)}
+.day-head{color:var(--ink);font-weight:700}
+.period-nav b{font-size:15px;font-weight:600}
+.task-filters,.shopping-filters{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
+.task-filters .field{margin-bottom:0}
+.filters-reset{grid-column:1 / -1}
 .shop-head{margin:16px 0 8px}
 .shop-head h3{margin:0}
 .place-row{min-height:56px;padding:8px 14px}
 .place-row .row-main b{display:flex;align-items:center;gap:8px;font-size:17px}
 .place-row .row-main small{display:flex;align-items:center;gap:4px}
+.place-row .row-main{display:grid;gap:2px}
+.detail-title .ti{width:26px;height:26px;flex:0 0 auto}
 .place-row .ti,.shopping-count .ti{width:18px;height:18px}
 .shopping-filters{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;margin:4px 0 0}
 .shopping-filters .field{margin-bottom:0}
