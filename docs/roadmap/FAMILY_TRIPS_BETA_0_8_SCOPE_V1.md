@@ -1,8 +1,18 @@
 # FamilyTrips Beta 0.8 — Scope: Visual and Interaction System
 
-Document revision: `V10`
+Document revision: `V11`
 Date: 2026-10-08
 From: Product Owner's planning/QA-assistant (document-only)
+
+**`V11` change note:** Phase 2.3's own acceptance session ended **GO**, 2026-10-08
+(`docs/versions/V7/0.8.0-phase2.3/EXECUTABLE_TEST_SESSION_V1.md`, committed `39c47b4`). **Phase 2 (with
+corrections 2.1, 2.2, and 2.3) is accepted on `qa`.** No Blocking or Medium findings; all eight `P22`
+findings routed into Phase 2.3 verified fixed. Two new Non-blocking findings, both routed straight to
+Phase 3 (addressed directly below): `P23-F1` (a category page's back arrow, type icon, and title share
+one line — the compact header wasn't yet applied there) and `P23-F2` (highlight overdue open tasks).
+Phase 3 — scoped in full below with every open item now disposed (`P22-F9`, `P21-F7`/`P2-F8`, `P12-F3`,
+`P12-F7`, `P23-F1`, `P23-F2`; `P22-F6` needs no change) — is kicked off directly in
+`PROMPT_FOR_CLAUDE_CODE_BETA_0_8_PHASE_3_KICKOFF_V1.md`. No other content below changed from `V10`.
 
 **`V10` change note:** Phase 2.2's own acceptance session also ended **NO-GO**, 2026-10-08
 (`docs/versions/V7/0.8.0-phase2.2/EXECUTABLE_TEST_SESSION_V1.md`, committed `9866f4e`). No Blocking or
@@ -144,7 +154,7 @@ Non-blocking findings. **Accepted GO by the Product Owner, 2026-10-05, on `0.8.0
 full detail in `MVP_DELIVERY_PLAN_CURRENT_STATE.md`. Kept here for the record; no further action.
 
 ## Phase 2 — Item detail, add/edit forms, sign-in, Trip Center, Packing's own chrome, Smart Import status
-system, and the eight refinement items — **NO-GO; correction round Phase 2.3 scoped**
+system, and the eight refinement items — **closed, GO (with corrections 2.1–2.3)**
 
 **Built as of `V7`:** implemented, committed (`4af4373`, `8bab6ca`, `5c93d00`, `7f5e33f`, `8a18f43` on
 `version/V7`), deployed to `0.8.0-phase2-7f5e33fa` on `qa`. Acceptance session document:
@@ -164,7 +174,11 @@ below.
 or Medium findings; of ten Non-blocking findings (`P22-F1`–`P22-F10`), eight route into Phase 2.3, scoped
 in full in `FAMILY_TRIPS_BETA_0_8_PHASE_2_3_CORRECTION_SCOPE_V1.md`; `P22-F9` folds into Phase 3's
 Shopping bullet below (an enhancement, not a finding); `P22-F6` is a planning note, no change for now.
-Phase 2 does not close until a Phase 2.x correction round's own acceptance session returns GO.
+
+**Result as of `V11`:** Phase 2.3's own acceptance session ended **GO**, 2026-10-08. **Phase 2 (with
+corrections 2.1, 2.2, and 2.3) is accepted on `qa`** — closed, pending only Phase 3's own eventual GO for
+the single combined Production promotion (`V147`). All eight `P22` findings verified fixed; two new
+Non-blocking findings (`P23-F1`, `P23-F2`) route straight to Phase 3, addressed directly below.
 
 Covers spec §7's Smart Import processing-states subsection (the seven-state status pill and its binding
 interaction rule, reused across the Intake Inbox, an item's Documents/Tickets area, and the proposal
@@ -253,7 +267,8 @@ traffic screens (Settings, Timeline, Shopping) alongside games, per its own "rem
   things are surfaced/confirmed, not what data is stored.
 
 ## Phase 3 — Games, Settings, Timeline, Shopping, remaining empty/loading/offline coverage, full
-acceptance pass, plus one remaining functional addition (`P12-F3`)
+acceptance pass, plus the remaining functional additions (`P12-F3`, `P12-F7`) and two carried findings
+(`P23-F1`, `P23-F2`) — **kicked off**
 
 Covers spec §6 (games list and game page), the Settings screen (trip settings form, participants
 management section, sharing section, admin/invitation section), the Timeline/calendar view, and the
@@ -291,7 +306,18 @@ already visits both screens for the restyle:
    confirmation pattern the existing failed-source delete already uses. **`attached` sources (confirmed
    ticket coverage) are explicitly excluded** — removing a document already confirmed as ticket coverage
    needs its own, more deliberate flow (likely tied to un-confirming coverage first), not folded into this
-   fix.
+   fix. **Once this ships, use it to clean up the leftover `QA12-*`/`QA22-*`/`QA23-*` document sources**
+   the UI couldn't remove during Phases 2/2.1/2.2/2.3's own acceptance sessions.
+4. **`P23-F1`** — added `V11`, 2026-10-08, from Phase 2.3's own acceptance session: category pages (Trip
+   Center → a category, e.g. טיסה) already got the compact header in Phase 2.3 (no "פריטים" label, a
+   small back arrow), but still leave the back arrow alone on its own row, with the type icon and the
+   title on the next row. Put the back arrow, the type icon, and the category title on **one line**,
+   matching the single-row header `P21-F1`/`P22-F7` already established for item and detail pages; the
+   list starts directly below. Applies to every category page.
+5. **`P23-F2`** — added `V11`, 2026-10-08, from Phase 2.3's own acceptance session: a task whose due date
+   has passed (and isn't done) looks identical to any other open task. Highlight overdue open tasks (the
+   date rendered in `--accent`, with "באיחור," and/or a subtle `--accent-soft` row tint) — a done task is
+   never highlighted this way, even if its due date has passed.
 
 **Acceptance criteria:**
 - Games list matches §6: compact catalog (not a gallery), the five named filters, active/inactive filter
@@ -319,7 +345,12 @@ already visits both screens for the restyle:
 - **`P12-F7`:** a delete action is present for a source in any non-`failed`, non-`attached` state (verified
   against at least one `rejected` source and one `needs review`/`partial` source with no confirmed ticket
   coverage); a single confirmation precedes the delete; `attached` sources still have no delete action
-  from this fix alone.
+  from this fix alone; the leftover `QA12-*`/`QA22-*`/`QA23-*` sources are cleaned up using it once it
+  ships.
+- **`P23-F1`:** every category page's back arrow, type icon, and title share one line (no second row, no
+  wasted space above the list), matching the single-row header already used elsewhere.
+- **`P23-F2`:** an overdue, not-done task is visibly distinguished from a normal open task (date in
+  `--accent` and/or row tint, with "באיחור"); a done task with a past due date is never shown this way.
 - Every remaining screen with an empty, loading, or offline/sync state (per §7's general principles) uses
   the specified treatment — line icon + headline + explanation for empty, the uniform
   `--border`-on-`--surface` skeleton (not a spinner) for loading, and the persistent `--accent-soft` top
@@ -351,10 +382,12 @@ already visits both screens for the restyle:
 
 ## What's needed now
 
-**Phase 1 is closed.** Phase 2.2's own acceptance session also ended NO-GO (`V10`, above) — the next
-correction round, Phase 2.3, is scoped in full in
-`FAMILY_TRIPS_BETA_0_8_PHASE_2_3_CORRECTION_SCOPE_V1.md`, kicked off directly per precedent. Phase 3 —
-scoped with its functional additions (`P12-F3`, `P12-F4`'s underlying need now closed by `P2-F5`, `V8`;
-`P12-F7`, `V7`), and the Shopping screen now named explicitly (`P2-F8`, `V8`; `P21-F7`, `V9`; `P22-F9`,
-`V10`) — has no kickoff prompt yet; that follows once a Phase 2.x correction round is accepted GO on
-`qa`.
+**Phase 1 and Phase 2 (with corrections 2.1–2.3) are both closed, GO** (`V11`, above) — nothing further
+needed for either. **Phase 3 is kicked off directly in
+`PROMPT_FOR_CLAUDE_CODE_BETA_0_8_PHASE_3_KICKOFF_V1.md`**, against this scope's own Phase 3 section
+above — every open item now disposed: its functional additions (`P12-F3`; `P12-F4`'s underlying need
+already closed by `P2-F5`, `V8`; `P12-F7`, `V7`, now also the route to cleaning up the leftover QA
+document sources), the Shopping screen named explicitly (`P2-F8`, `V8`; `P21-F7`, `V9`; `P22-F9`, `V10`),
+and the two findings Phase 2.3 carried forward (`P23-F1`, `P23-F2`, `V11`). This closes out Beta 0.8's
+scoping — Phase 3's own acceptance session is what decides the single combined Production promotion
+(`V147`).
