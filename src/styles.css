@@ -239,6 +239,15 @@ bdi,.bidi{unicode-bidi:isolate}
 .task-filters,.shopping-filters{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
 .task-filters .field{margin-bottom:0}
 .filters-reset{grid-column:1 / -1}
+/* Beta 0.8 Phase 3 (S9 audit): every tappable control is at least 44px; the calendar day cells are as wide as the screen allows. */
+.close{width:44px;height:44px;background:var(--surface);border:1px solid var(--border)}
+.close .ti{width:20px;height:20px}
+.import-actions .btn,.pack-actions .btn,.doc .btn{min-height:44px}
+.task-compact-main{align-self:stretch;justify-content:center;min-height:44px}
+.timeline-card{padding:12px}
+.timeline-card .timeline-calendar{padding:0;border:0;background:transparent}
+.timeline-card .calendar{gap:2px}
+.cal-cell{min-height:48px;padding:4px}
 .shop-head{margin:16px 0 8px}
 .shop-head h3{margin:0}
 .place-row{min-height:56px;padding:8px 14px}
