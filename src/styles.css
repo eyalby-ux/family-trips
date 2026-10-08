@@ -585,3 +585,5 @@ bdi,.bidi{unicode-bidi:isolate}
 .file-drop.has-file .file-chosen{display:flex}
 .file-name{display:block;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:start}
 .file-replace{flex:0 0 auto;font-weight:600;text-decoration:underline;text-underline-offset:3px}
+/* Beta 0.8 Phase 3: an e-mail address in a list row is an LTR run at body size (it used to break mid-word at 20px). */
+.row-main b.email{font-size:16px;font-weight:600;overflow-wrap:anywhere}

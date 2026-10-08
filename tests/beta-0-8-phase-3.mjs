@@ -173,6 +173,13 @@ test('Settings and Timeline on the tokens: a screen title, section-scale titles,
   assert.match(css,/\.task-filters,\.shopping-filters\{display:grid;grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\)/,'filters in two columns, not four stacked rows');
 });
 
+test('S3 bidi: an e-mail address in a list row is an LTR isolate at body size',()=>{
+  const code=app.split('\n').filter(line=>!line.trim().startsWith('//')).join('\n');
+  assert.equal((code.match(/<b class="email"><bdi dir="ltr">\$\{esc\((email|entry\.email|invitation\.email)\)\}<\/bdi><\/b>/g)||[]).length,4,'admin, quarantine, editors and the revoked history');
+  assert(!/<b>\$\{esc\((email|entry\.email|invitation\.email)\)\}<\/b>/.test(code));
+  assert.match(css,/\.row-main b\.email\{font-size:16px/);
+});
+
 test('S9 audit: every tappable control is at least 44px',()=>{
   assert.match(css,/\.close\{width:44px;height:44px/);
   assert.match(css,/\.import-status \.import-actions \.btn,\.pack-actions \.btn,\.doc \.btn\{min-height:44px\}/);
