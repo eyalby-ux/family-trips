@@ -157,6 +157,29 @@ test('P22-F10 (follow-up): a long chosen file name can never widen the file box 
   assert.match(css,/\.file-field\{grid-template-columns:minmax\(0,1fr\)\}/);
 });
 
+test('Settings and Timeline on the tokens: a screen title, section-scale titles, ink filter chips, one accent, neutral dots, teal-soft selection',()=>{
+  const settings=fn('settingsView');
+  assert(settings.includes('<div class="settings-page"><h2 class="screen-title">הגדרות</h2>')&&settings.trimEnd().endsWith('</section></div>`}')||settings.includes('</section></div>`}'),'the page is wrapped and titled');
+  assert.match(css,/\.settings-page \.card>h2\{font-size:22px;font-weight:600/,'sections at the 22px section scale');
+  assert.match(css,/\.participant-item \.row \.actions\{flex:1 1 100%;display:flex;gap:8px/,'one compact action row per participant');
+  assert.match(css,/\.tabs button\.active\{background:var\(--ink\);border-color:var\(--ink\);color:#fff\}/,'the active mode chip is ink, like every other filter');
+  assert.match(css,/\.cal-cell\.selected\{background:var\(--teal-soft\);border:2px solid var\(--ink\)/);
+  assert.match(css,/\.cal-cell\.today\{border:2px solid var\(--accent\)\}/);
+  assert.match(css,/\.timeline-calendar \.cal-dot\.cal-dot\{background:var\(--ink\)\}/,'no colour-coded dots: one accent per area');
+  assert(app.includes("${key===today()?'today':''}"),'today is marked in the grid');
+  assert.match(css,/\.timeline-card \.calendar\{gap:2px\}/);assert.match(css,/\.cal-cell\{min-height:48px/);
+  const tasks=fn('tasksView');
+  assert(tasks.includes('<div class="page-head"><h2>משימות</h2><button class="btn ghost small-btn" data-action="task-add">'),'the Tasks header is the Packing/Shopping header');
+  assert.match(css,/\.task-filters,\.shopping-filters\{display:grid;grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\)/,'filters in two columns, not four stacked rows');
+});
+
+test('S9 audit: every tappable control is at least 44px',()=>{
+  assert.match(css,/\.close\{width:44px;height:44px/);
+  assert.match(css,/\.import-status \.import-actions \.btn,\.pack-actions \.btn,\.doc \.btn\{min-height:44px\}/);
+  assert.match(css,/\.task-compact-main\{align-self:stretch;justify-content:center;min-height:44px\}/,'the whole row, not a 29px strip of it, opens the editor');
+  assert.match(css,/\.game-star\{[^}]*width:44px;height:44px/);assert.match(css,/\.filter-chip\{min-height:44px/);assert.match(css,/\.small-btn\{min-height:44px/);
+});
+
 test('S9: every token pair used for text meets 4.5:1, and --accent is never used as text colour',()=>{
   const channel=value=>{const c=value/255;return c<=0.03928?c/12.92:((c+0.055)/1.055)**2.4};
   const luminance=hex=>{const [r,g,b]=[1,3,5].map(i=>channel(parseInt(hex.slice(i,i+2),16)));return 0.2126*r+0.7152*g+0.0722*b};

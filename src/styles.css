@@ -242,7 +242,7 @@ bdi,.bidi{unicode-bidi:isolate}
 /* Beta 0.8 Phase 3 (S9 audit): every tappable control is at least 44px; the calendar day cells are as wide as the screen allows. */
 .close{width:44px;height:44px;background:var(--surface);border:1px solid var(--border)}
 .close .ti{width:20px;height:20px}
-.import-actions .btn,.pack-actions .btn,.doc .btn{min-height:44px}
+.import-status .import-actions .btn,.pack-actions .btn,.doc .btn{min-height:44px}
 .task-compact-main{align-self:stretch;justify-content:center;min-height:44px}
 .timeline-card{padding:12px}
 .timeline-card .timeline-calendar{padding:0;border:0;background:transparent}
