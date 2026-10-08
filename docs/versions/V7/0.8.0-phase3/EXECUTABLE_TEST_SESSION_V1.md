@@ -1,7 +1,7 @@
 # Family Trips Beta 0.8 Phase 3 (final phase) — Executable Acceptance Test Session
 
 **Document revision:** `V1`
-**Candidate:** `0.8.0-phase3` (build `0.8.0-phase3-f7b7e13d`) on `https://qa--familytripz.netlify.app` (qa only — **not** promoted to Production). This is the last phase: **Phase 3's own GO triggers the single combined Production promotion of Beta 0.8 (Phases 1–3), decision `V147`.** Scope: `docs/roadmap/FAMILY_TRIPS_BETA_0_8_SCOPE_V1.md` (`V11`), Phase 3 section — Games, Settings, Timeline, Shopping, `P12-F3`, `P12-F7`, `P23-F1`, `P23-F2`, §7 empty/loading/offline coverage, and the §9 pass.
+**Candidate:** `0.8.0-phase3` (build `0.8.0-phase3-f7ef017e`) on `https://qa--familytripz.netlify.app` (qa only — **not** promoted to Production). This is the last phase: **Phase 3's own GO triggers the single combined Production promotion of Beta 0.8 (Phases 1–3), decision `V147`.** Scope: `docs/roadmap/FAMILY_TRIPS_BETA_0_8_SCOPE_V1.md` (`V11`), Phase 3 section — Games, Settings, Timeline, Shopping, `P12-F3`, `P12-F7`, `P23-F1`, `P23-F2`, §7 empty/loading/offline coverage, and the §9 pass.
 **Session number:** `V1`. No Product Owner test has been run yet. The Development Agent ran every check it could on the live `qa` build (marked "Development Agent verification"); that is supporting evidence, not sign-off.
 **Instructions:** a **real phone** pass over the areas below. Settings → אודות shows the exact `0.8.0-phase3-<hash>`.
 
