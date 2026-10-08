@@ -233,7 +233,22 @@ bdi,.bidi{unicode-bidi:isolate}
 .cal-cell.active-period{border-color:var(--border);background:var(--teal-soft)}
 .cal-cell.today{border:2px solid var(--accent)}
 .cal-cell.selected{background:var(--teal-soft);border:2px solid var(--ink);box-shadow:none}
-.timeline-calendar .cal-dot.cal-dot{background:var(--ink)}
+/* Each kind of event keeps its own colour on the calendar (Product Owner, 2026-10-08) -- the legend under the grid names them,
+   so colour is never the only carrier. A multi-day event (hotel, rental, ferry) is a bar through every day it covers. */
+.timeline-calendar .cal-dot.type-flight,.timeline-calendar .cal-span.type-flight{background:#2867b2}
+.timeline-calendar .cal-dot.type-hotel,.timeline-calendar .cal-span.type-hotel{background:#7b4fa3}
+.timeline-calendar .cal-dot.type-car,.timeline-calendar .cal-span.type-car{background:#d07a19}
+.timeline-calendar .cal-dot.type-activity,.timeline-calendar .cal-span.type-activity{background:#2f8f63}
+.timeline-calendar .cal-dot.type-restaurant,.timeline-calendar .cal-span.type-restaurant{background:#a8324f}
+.timeline-calendar .cal-dot.type-shoppingPlace,.timeline-calendar .cal-span.type-shoppingPlace{background:#1a7f8e}
+.cal-cell{position:relative}
+.cal-span{position:absolute;bottom:calc(3px + var(--row,0) * 6px);height:4px;inset-inline:-2px;border-radius:0;background:var(--ink)}
+.cal-span.is-start{inset-inline-start:6px;border-start-start-radius:2px;border-end-start-radius:2px}
+.cal-span.is-end{inset-inline-end:6px;border-start-end-radius:2px;border-end-end-radius:2px}
+.cal-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;font-size:13px;color:var(--muted)}
+.cal-legend span{display:inline-flex;align-items:center;gap:6px}
+.cal-legend .cal-dot{margin:0}
+.cal-cell{min-height:56px}
 .day-head{color:var(--ink);font-weight:700}
 .period-nav b{font-size:15px;font-weight:600}
 .task-filters,.shopping-filters{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}

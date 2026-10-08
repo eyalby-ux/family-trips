@@ -165,7 +165,12 @@ test('Settings and Timeline on the tokens: a screen title, section-scale titles,
   assert.match(css,/\.tabs button\.active\{background:var\(--ink\);border-color:var\(--ink\);color:#fff\}/,'the active mode chip is ink, like every other filter');
   assert.match(css,/\.cal-cell\.selected\{background:var\(--teal-soft\);border:2px solid var\(--ink\)/);
   assert.match(css,/\.cal-cell\.today\{border:2px solid var\(--accent\)\}/);
-  assert.match(css,/\.timeline-calendar \.cal-dot\.cal-dot\{background:var\(--ink\)\}/,'no colour-coded dots: one accent per area');
+  // Product Owner, 2026-10-08: each kind of event keeps its own colour; a multi-day event is a bar through its days.
+  for(const type of ['flight','hotel','car','activity','restaurant','shoppingPlace'])assert(css.includes(`.timeline-calendar .cal-dot.type-${type},.timeline-calendar .cal-span.type-${type}{background:`),`${type} has its own colour`);
+  assert(app.includes("const isMultiDay=item=>item.schedule==='range'&&Boolean(item.startAt)&&Boolean(item.endAt)&&dateOnly(item.endAt)>dateOnly(item.startAt);"));
+  assert(app.includes('spans=state.items.filter(item=>isMultiDay(item)&&dateOnly(item.startAt)<=key&&key<=dateOnly(item.endAt))'),'a bar on every day from start to end, inclusive');
+  assert(app.includes('<span class="cal-span type-${item.type}')&&app.includes('class="cal-legend"'),'a bar per multi-day event and a legend naming the colours');
+  assert.match(css,/\.cal-span\{position:absolute;[^}]*inset-inline:-2px/,'the bar reaches into the neighbouring cell so consecutive days read as one line');
   assert(app.includes("${key===today()?'today':''}"),'today is marked in the grid');
   assert.match(css,/\.timeline-card \.calendar\{gap:2px\}/);assert.match(css,/\.cal-cell\{min-height:48px/);
   const tasks=fn('tasksView');
