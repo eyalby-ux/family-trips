@@ -59,7 +59,7 @@ Add → מסמך → pick a document → "המשך".
 
 **Expect:** the dialog's options **disappear** and the screen shows a large palm **centred**, "מנתח…", the rotating status line, the thin bar, "הניתוח יכול לקחת מספר שניות. אין צורך לסגור את המסך.", and a **greyed "המשך" at the bottom**; the title and ✕ at the top are visible (not under the dark bar). When the analysis ends you land on the review screen as before.
 
-**Development Agent verification (qa, real PDF analysis):** ☑ the palm measured 112px and centred (x=195 of 390), label, note and a disabled "המשך" present, the tiles gone; the analysis finished and opened the review screen. The top-bar overlap was fixed after seeing it (padding below the bar) and is covered by a test, but **not re-viewed live** after that last build — look at it first. **Result:** ☐
+**Development Agent verification (qa, real PDF analysis):** ☑ the palm measured 112px and centred (x=195 of 390), label, note and a disabled "המשך" present, the tiles gone; the analysis finished and opened the review screen. The top-bar overlap found on the first look (title and ✕ hidden under the dark bar) was fixed, and re-checked on the final build `0.8.0-phase2.2-a13825f7`: the title row starts at y=72, below the bar's y=58. **Result:** ☐
 
 ## Finding verification notes (one per finding)
 
