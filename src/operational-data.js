@@ -1,10 +1,11 @@
+// onTheGo: playable in the car / on the move with no setup (the "בנסיעה" filter, design spec S6).
 export const BUILTIN_GAMES=[
-  {id:'game-road-story',title:'סיפור בהמשכים',instructions:'כל אחד מוסיף משפט אחד. אסור לבטל פרט שכבר נאמר.',items:'ללא ציוד',participants:'כל המשפחה',duration:'15–30 דקות'},
-  {id:'game-20-questions',title:'20 שאלות',instructions:'בוחרים אדם, מקום או חפץ. האחרים שואלים עד 20 שאלות כן/לא.',items:'ללא ציוד',participants:'3 ומעלה',duration:'10–20 דקות'},
+  {id:'game-road-story',onTheGo:true,title:'סיפור בהמשכים',instructions:'כל אחד מוסיף משפט אחד. אסור לבטל פרט שכבר נאמר.',items:'ללא ציוד',participants:'כל המשפחה',duration:'15–30 דקות'},
+  {id:'game-20-questions',onTheGo:true,title:'20 שאלות',instructions:'בוחרים אדם, מקום או חפץ. האחרים שואלים עד 20 שאלות כן/לא.',items:'ללא ציוד',participants:'3 ומעלה',duration:'10–20 דקות'},
   {id:'game-airport-bingo',title:'בינגו שדה תעופה',instructions:'חפשו מזוודה אדומה, מטוס, מדים, מסוע, לוח המראות ושער עלייה.',items:'פתק או טלפון',participants:'2 ומעלה',duration:'15 דקות'},
-  {id:'game-thailand-trivia',title:'טריוויה תאילנד',instructions:'כל משתתף שואל שאלה על תאילנד. נקודה על תשובה ונקודה נוספת על עובדה מעניינת.',items:'ללא ציוד',participants:'כל המשפחה',duration:'20 דקות'},
-  {id:'game-photo-hunt',title:'ציד תמונות',instructions:'בחרו חמש תמונות לצלם בדרך: שלט מצחיק, אוכל חדש, צבע מסוים, בעל חיים וחיוך משפחתי.',items:'מצלמה',participants:'כל המשפחה',duration:'במהלך היום'},
-  {id:'game-who-am-i',title:'מי אני?',instructions:'אדם אחד בוחר דמות. האחרים מגלים אותה בשאלות כן/לא.',items:'ללא ציוד',participants:'3 ומעלה',duration:'10 דקות'},
+  {id:'game-thailand-trivia',onTheGo:true,title:'טריוויה תאילנד',instructions:'כל משתתף שואל שאלה על תאילנד. נקודה על תשובה ונקודה נוספת על עובדה מעניינת.',items:'ללא ציוד',participants:'כל המשפחה',duration:'20 דקות'},
+  {id:'game-photo-hunt',onTheGo:true,title:'ציד תמונות',instructions:'בחרו חמש תמונות לצלם בדרך: שלט מצחיק, אוכל חדש, צבע מסוים, בעל חיים וחיוך משפחתי.',items:'מצלמה',participants:'כל המשפחה',duration:'במהלך היום'},
+  {id:'game-who-am-i',onTheGo:true,title:'מי אני?',instructions:'אדם אחד בוחר דמות. האחרים מגלים אותה בשאלות כן/לא.',items:'ללא ציוד',participants:'3 ומעלה',duration:'10 דקות'},
 ];
 
 // 0.7.2: Firestore subcollection sync logic, extracted here (dependency-free) rather than left
@@ -218,7 +219,19 @@ export function taskDueRank(task,when=today()){
   if(task.dueDate===when)return 1;
   return 2;
 }
+// Beta 0.8 Phase 3 (P22-F9): the two combinable Shopping filters. owner: 'all' | 'shared' | a participant's name
+// (the owner is stored as the name -- see shoppingOwnerField); place: 'all' | 'none' (no place) | a place id.
+export const isSharedShoppingItem=item=>!item?.owner||item.owner==='shared';
+export function filterShoppingItems(items,filters={}){
+  const owner=filters?.owner||'all',place=filters?.place||'all';
+  return (Array.isArray(items)?items:[]).filter(item=>(owner==='all'||(owner==='shared'?isSharedShoppingItem(item):item.owner===owner))&&(place==='all'||(place==='none'?!item.placeId:item.placeId===place)));
+}
 export const TASK_DUE_SCOPES=['overdue','today','upcoming','undated'];
+// Beta 0.8 Phase 3 (P23-F2): an overdue task is an OPEN task whose shown due date has passed. A done
+// task is never overdue however old its date is; a task with no shown date ("לכל הטיול" / none) never is.
+export function isTaskOverdue(task,when=today()){
+  return Boolean(task&&!task.done&&task.mode!=='entire'&&task.mode!=='none'&&task.dueDate&&taskDueRank(task,when)===0);
+}
 // 0.7.1: High/Normal/Low priority, Normal default -- see normalizeOperationalState. Numeric rank
 // only for deterministic sorting (lower sorts first); never persisted or shown to the user as a
 // number.
@@ -541,6 +554,20 @@ export function computeTicketCoverage(sources,participants){
   const coveredIds=new Set(confirmed.flatMap(source=>source.participantIds||[]));
   const people=pickerParticipants(participants,[...coveredIds]);
   return {confirmed,coveredIds,people,coveredCount:people.filter(person=>coveredIds.has(person.id)).length};
+}
+
+// Beta 0.8 Phase 3 (P12-F3): everything that names one participant explicitly -- documents/tickets (sources), items,
+// tasks, packing items, and shopping items they own (stored by name). A participant with none of these can be deleted;
+// otherwise the delete stays disabled and points to deactivation. "Everyone" scopes name nobody, so they never count.
+export function participantAssignments(state,participantId){
+  const has=record=>Array.isArray(record?.participantIds)&&record.participantIds.includes(participantId);
+  const participant=(state?.participants||[]).find(candidate=>candidate.id===participantId);
+  const documents=(state?.sources||[]).filter(has).length;
+  const items=(state?.items||[]).filter(has).length;
+  const tasks=(state?.tasks||[]).filter(has).length;
+  const packing=(state?.packing||[]).reduce((sum,list)=>sum+(list.items||[]).filter(has).length,0);
+  const shopping=participant?(state?.shopping||[]).filter(item=>item.owner&&item.owner===participant.name).length:0;
+  return {documents,items,tasks,packing,shopping,total:documents+items+tasks+packing+shopping};
 }
 
 // Beta 0.8 Phase 2.1 (P2-F5): the participant chip, always one line. Everyone assigned reads "כולם"; up to two

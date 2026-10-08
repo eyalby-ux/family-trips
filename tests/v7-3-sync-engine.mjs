@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {diffById} from '../src/operational-data.js';
+import {syncStripText} from '../src/ui-states.js';
 
 // diffById is the one genuinely pure, deterministic piece of the sync engine's logic --
 // everything else (cloud-store.js's syncTripState/subscribeToTrip, v5-app.js's save()/render()/
@@ -193,11 +194,12 @@ function test_0_7_3_save_tracks_pendingSyncCount_around_each_write(){
 function test_0_7_3_syncBanner_shows_offline_first_then_pending_sync_then_nothing(){
   const start=app.indexOf('function syncBanner(){');
   const body=app.slice(start,app.indexOf('function render(){',start));
-  assert(body.includes('if(!navigator.onLine)return'));
-  assert(body.includes('if(pendingSyncCount>0)return'));
-  const offlineIndex=body.indexOf('!navigator.onLine');
-  const pendingIndex=body.indexOf('pendingSyncCount>0');
-  assert(offlineIndex<pendingIndex); // offline is checked (and wins) before pending-sync
+  // Beta 0.8 Phase 3 (spec S7): the wording moved to the pure syncStripText (src/ui-states.js); the banner only feeds it the two facts.
+  assert(body.includes('syncStripText({online:navigator.onLine,pending:pendingSyncCount})'));
+  assert(body.includes("return strip?`<div class=\"offline\" role=\"status\">")&&body.includes(":''"));
+  assert(syncStripText({online:false,pending:3}).text.startsWith('אופליין')); // offline wins over pending-sync
+  assert.equal(syncStripText({online:true,pending:0}),null); // nothing to say once synced
+  assert.match(syncStripText({online:true,pending:2}).text,/ממתינים לסנכרון/);
 }
 function test_0_7_3_render_uses_syncBanner_instead_of_the_old_inline_offline_check(){
   const start=app.indexOf('function render(){');

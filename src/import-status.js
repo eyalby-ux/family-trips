@@ -133,3 +133,14 @@ export function importStatusPill(stateName,{subtext='',actions=''}={}){
   const role=processing?' role="status" aria-live="polite"':'';
   return `<span class="import-status import-status-${stateName}" data-import-state="${stateName}"${role}><span class="import-pill">${lead}<span class="import-label">${label}</span>${trail}</span>${sub}${phrases}${inline}</span>`;
 }
+
+// Beta 0.8 Phase 3 (P12-F7): a source may be deleted from the UI unless it is confirmed ticket coverage -- a source in the
+// Failed state already has its own "מחק" inside the status pill. (Un-confirming the ticket comes first for the rest.)
+export function canDeleteSource(source,stateName=''){
+  return Boolean(source)&&!source.ticketConfirmed&&stateName!=='failed';
+}
+// Deleting a source also drops the still-open proposals that came only from it (their analysis data goes with the file);
+// a proposal merged from several sources stays, and the rejected archive is history, left alone.
+export function suggestionsAfterSourceDelete(suggestions,sourceId){
+  return (suggestions||[]).filter(suggestion=>!(['pending','deferred'].includes(suggestion.status)&&(suggestion.sourceIds||[suggestion.sourceId]).every(id=>id===sourceId)));
+}

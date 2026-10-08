@@ -113,8 +113,10 @@ function test_0_7_4_participant_item_type_kept_defined_but_excluded_from_new_cre
   assert(visibleTypesLine.includes("'link'")&&visibleTypesLine.includes("'participant'"));
 }
 function test_0_7_4_participantsSection_is_wired_into_settingsView_the_sole_entry_point(){
-  const start=app.indexOf('function participantsSection(){');
+  // Beta 0.8 Phase 3 (P12-F3): the row markup moved into participantRow(), which participantsSection maps over.
+  const start=app.indexOf('function participantRow(');
   const body=app.slice(start,app.indexOf('function settingsView(',start));
+  assert(body.includes('participants.map(participantRow)'));
   assert(body.includes("data-action=\"participant-edit\""));
   assert(body.includes("data-action=\"participant-toggle-active\""));
   assert(body.includes("data-action=\"participant-add\""));

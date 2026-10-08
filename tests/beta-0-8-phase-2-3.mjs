@@ -75,11 +75,11 @@ test('P22-F5: the unconfirmed slide\'s confirm action is "אישור" with a che
 
 test('P22-F7: every page with a back action uses the compact header -- no "חזרה" button, no "פריטים" label',()=>{
   const back=fn('backRow');
-  assert(back.includes('<div class="detail-top"><button class="icon-btn back-btn"')&&back.includes('aria-label="חזרה"')&&back.includes('class="ti icon-directional"'));
+  assert(back.includes('<div class="detail-top${title?\' with-title\':\'\'}"><button class="icon-btn back-btn"')&&back.includes('aria-label="חזרה"')&&back.includes('class="ti icon-directional"'));
   // every page the audit found with a back action
   assert(fn('detailView').includes("${backRow('center',item.type,"),'item page, every type');
-  assert(line('function center(){')!==''||app.includes("<section class=\"card\">${backRow('center')}<h2>${typeIcon(state.category)}"),'category pages');
-  assert(app.includes("<section class=\"card\">${backRow('center')}<h2>${typeIcon(state.category)}"),'category pages (hotel, flight, transport, activity, ...)');
+  // Beta 0.8 Phase 3 (P23-F1): the category page's back arrow, type icon and title share the one backRow() line.
+  assert(app.includes("<section class=\"card\">${backRow('center','','',`${typeIcon(state.category)} ${ITEM_TYPES[state.category]?.label||''}`)}"),'category pages (hotel, flight, transport, activity, ...)');
   assert(app.includes("${backRow('center','document',`<span class=\"badge\">"),'the proposal review screen, its chip on the same row');
   assert(app.includes("<section class=\"card\">${backRow('settings')}<h2>ניהול הרשאות גישה</h2>")&&app.includes("<section class=\"card\">${backRow('settings')}<p class=\"muted\">מסך זה זמין"),'both admin screens');
   // and nothing in the app builds a labelled back button or the "פריטים" heading any more

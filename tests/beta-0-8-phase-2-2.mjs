@@ -18,7 +18,7 @@ test('P21-F1: a compact back arrow (44px, no border) and the type chip share one
   const detail=fn('detailView');
   // Beta 0.8 Phase 2.3 (P22-F7): the header is built by the shared backRow() helper (every page with a back action uses it).
   const back=fn('backRow');
-  assert(detail.includes("${backRow('center',item.type,")&&back.includes('<div class="detail-top"><button class="icon-btn back-btn"')&&back.includes('aria-label="חזרה"')&&back.includes('class="ti icon-directional"'),'icon back button, mirrored under RTL');
+  assert(detail.includes("${backRow('center',item.type,")&&back.includes('<div class="detail-top${title?\' with-title\':\'\'}"><button class="icon-btn back-btn"')&&back.includes('aria-label="חזרה"')&&back.includes('class="ti icon-directional"'),'icon back button, mirrored under RTL');
   assert(detail.indexOf('class="detail-top"')<detail.indexOf('<header class="detail-head">'),'the row sits above the title');
   assert(!detail.includes('>חזרה</button>'),'no large labelled back button');
   assert.match(css,/\.icon-btn\{[^}]*width:44px;height:44px;padding:0;border:0;background:transparent/);

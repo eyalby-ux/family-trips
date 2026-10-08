@@ -121,8 +121,8 @@ function test_0_7_7_shoppingView_renders_a_places_section_using_the_standard_ite
   const start=app.indexOf('function shoppingView');
   const body=app.slice(start,app.indexOf('\n}',start)+2);
   assert(body.includes("item.type==='shoppingPlace'"));
-  assert(body.includes('places.map(itemRow)'));
-  assert(body.includes('data-action="shopping-place-add"'));
+  assert(body.includes('places.map(shoppingPlaceRow)'));
+  assert(body.includes("shoppingHead('מקומות קניות','shopping-place-add','מקום חדש')")); // Phase 3: the header row is the shared shoppingHead()
 }
 
 function test_0_7_7_shopping_place_add_action_reuses_the_existing_manual_create_pipeline(){

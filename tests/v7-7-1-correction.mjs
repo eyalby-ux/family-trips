@@ -110,7 +110,7 @@ function test_0_7_7_1_purchased_items_move_to_a_collapsed_by_default_section(){
   // Mirrors packingView's own active/packed split and packedCollapsed's own defaulting exactly.
   const start=app.indexOf('function shoppingView');
   const body=app.slice(start,app.indexOf('\n}',start)+2);
-  assert(body.includes("const active=state.shopping.filter(item=>!item.purchased),purchased=state.shopping.filter(item=>item.purchased);"));
+  assert(body.includes("const active=matching.filter(item=>!item.purchased),purchased=matching.filter(item=>item.purchased);"));
   assert(body.includes('state.shoppingPurchasedCollapsed'));
   assert(body.includes('<details'));
   assert(operationalData.includes('state.shoppingPurchasedCollapsed=state.shoppingPurchasedCollapsed!==false;'));
