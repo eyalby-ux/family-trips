@@ -165,8 +165,9 @@ test('V6-F14: Hotel notes carry at most a handful of items and point at the full
 test('V6-F16: one unified "Add document" action with a single file picker for images or PDFs',()=>{
   const modal=app.slice(app.indexOf('function attachmentModal('),app.indexOf('function qrPanel('));
   // Already true since V6-F38 (fix pass 4) -- pinned here because the scope lists it for Phase 2.
-  assert.equal((modal.match(/id="source-file"/g)||[]).length,1,'a single file picker');
-  assert(modal.includes('accept="application/pdf,.pdf,image/png,image/jpeg,image/webp,image/tiff,.tif,.tiff"'),'it accepts either an image or a PDF');
+  // Beta 0.8 Phase 2.3 (P22-F10): the picker is the shared fileDrop() -- one input, rendered once.
+  assert(modal.includes('${fileDrop()}')&&(app.match(/<input id="source-file" type="file"/g)||[]).length===1,'a single file picker');
+  assert(app.includes("const FILE_ACCEPT='application/pdf,.pdf,image/png,image/jpeg,image/webp,image/tiff,.tif,.tiff';")&&app.includes('accept="${FILE_ACCEPT}"'),'it accepts either an image or a PDF');
   assert(!/>s*(תמונה|PDF)s*</.test(modal),'no separate Photo / PDF first-level choice');
 });
 test('Flight route label: the single departure airport code; the map search is unchanged',()=>{
@@ -291,7 +292,7 @@ test('G1 Trip Center / Packing: Tabler icons on tiles, spacing and card tokens',
 });
 test('G1 item detail: header, fact list, bordered contact actions, ticket section, page actions',()=>{
   const detail=app.slice(app.indexOf('function detailView('),app.indexOf('// V6-F37 (fix pass 4)'));
-  for(const part of ['<header class="detail-head">','<dl class="detail-facts">','<div class="detail-top">','ticketsAndDocumentsSection(item,sources)','<div class="form-actions detail-actions">'])assert(detail.includes(part),part);
+  for(const part of ['<header class="detail-head">','<dl class="detail-facts">',"${backRow('center',item.type,",'ticketsAndDocumentsSection(item,sources)','<div class="form-actions detail-actions">'])assert(detail.includes(part),part);
   assert(detail.includes("detailFact('מספר הזמנה',item.confirmationNumber?`<bdi>${esc(item.confirmationNumber)}</bdi>`:'')"),'booking numbers are isolated');
   // Beta 0.8 Phase 2.2 (P21-F2/F3): map / website / phone / e-mail are inline links on their fact rows, not separate buttons.
   for(const icon of ["'pin'","'world'","'phone'","'mail'"])assert(detail.includes(icon),icon);

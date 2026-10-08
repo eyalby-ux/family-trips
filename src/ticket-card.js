@@ -42,3 +42,20 @@ export function ticketHolderLabel(people){
   if(list.length===2)return list.map(first).join(', ');
   return `${first(list[0])} +${list.length-1}`;
 }
+
+// Beta 0.8 Phase 2.3 (P22-F4): the activity details Smart Import extracted -- meeting point, duration, price, age limit, what is / is
+// not included, ticket quantity -- as the rows of the collapsed "פרטים נוספים" section. Only rows that have a value are returned
+// (none -> []). "לא כלול" rides along as the muted second line of the "כלול" row, or becomes the row itself when nothing is included.
+export function additionalDetails(details){
+  const d=details||{};
+  const text=value=>String(value??'').trim();
+  const price=text(d.amount)?`${text(d.amount)}${text(d.currency)?` ${text(d.currency)}`:''}`:'';
+  return [
+    text(d.meetingPoint)?{key:'meetingPoint',label:'נקודת מפגש',value:text(d.meetingPoint),map:true}:null,
+    text(d.duration)?{key:'duration',label:'משך',value:text(d.duration)}:null,
+    price?{key:'price',label:'מחיר',value:price}:null,
+    text(d.ageRestrictions)?{key:'age',label:'הגבלת גיל',value:text(d.ageRestrictions)}:null,
+    text(d.included)||text(d.notIncluded)?{key:'included',label:text(d.included)?'כלול':'לא כלול',value:text(d.included)||text(d.notIncluded),notIncluded:text(d.included)?text(d.notIncluded):''}:null,
+    text(d.ticketQuantity)?{key:'quantity',label:'כמות כרטיסים',value:text(d.ticketQuantity)}:null,
+  ].filter(Boolean);
+}

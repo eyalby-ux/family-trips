@@ -345,7 +345,8 @@ function test_V6_F78_client_validation_accepts_tif(){
 function test_V6_F78_file_inputs_accept_tif_for_both_entry_points(){
   const app=fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8');
   const acceptAttr='accept="application/pdf,.pdf,image/png,image/jpeg,image/webp,image/tiff,.tif,.tiff"';
-  const count=app.split(acceptAttr).length-1;
+  // Beta 0.8 Phase 2.3 (P22-F10): both entry points render the same fileDrop(); its accept list is the single FILE_ACCEPT constant (TIFF included).
+  const count=(app.includes("const FILE_ACCEPT='application/pdf,.pdf,image/png,image/jpeg,image/webp,image/tiff,.tif,.tiff';")?1:0)+(app.slice(app.indexOf('function smartImportPanel('),app.indexOf('function smartImportPanel(')+1500).includes('fileDrop()')?0.5:0)+(app.slice(app.indexOf('function attachmentModal('),app.indexOf('function attachmentModal(')+1400).includes('${fileDrop()}')?0.5:0);
   assert.equal(count,2,'both file-input entry points -- global Add\'s smartImportPanel and the existing-item attachmentModal -- must accept TIFF, confirmed broken at both entry points during the 0.6.7 acceptance session');
   console.log('PASS: V6-F78 both confirmed-broken entry points (global Add and existing-item attach-and-extract) accept .tif/.tiff files');
 }

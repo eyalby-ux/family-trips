@@ -16,7 +16,9 @@ const people=[{id:'a',name:'אייל בן יצחק'},{id:'p',name:'פאולה כ
 // ---- P21-F1..F4: the item page -------------------------------------------------------------------
 test('P21-F1: a compact back arrow (44px, no border) and the type chip share one row above the title',()=>{
   const detail=fn('detailView');
-  assert(detail.includes('<div class="detail-top"><button class="icon-btn back-btn" data-route="center" data-cat="${item.type}" aria-label="חזרה">')&&detail.includes('class="ti icon-directional"'),'icon back button, mirrored under RTL');
+  // Beta 0.8 Phase 2.3 (P22-F7): the header is built by the shared backRow() helper (every page with a back action uses it).
+  const back=fn('backRow');
+  assert(detail.includes("${backRow('center',item.type,")&&back.includes('<div class="detail-top"><button class="icon-btn back-btn"')&&back.includes('aria-label="חזרה"')&&back.includes('class="ti icon-directional"'),'icon back button, mirrored under RTL');
   assert(detail.indexOf('class="detail-top"')<detail.indexOf('<header class="detail-head">'),'the row sits above the title');
   assert(!detail.includes('>חזרה</button>'),'no large labelled back button');
   assert.match(css,/\.icon-btn\{[^}]*width:44px;height:44px;padding:0;border:0;background:transparent/);
@@ -24,7 +26,8 @@ test('P21-F1: a compact back arrow (44px, no border) and the type chip share one
 test('P21-F2/F3: map, website, phone and e-mail are inline links on every item type -- no separate buttons',()=>{
   const detail=fn('detailView');
   assert(detail.includes("link(navHref,'pin',esc(locationLabel(item)),'fact-underline')"),'the location name itself is the map link');
-  assert(detail.includes("const siteLink=item.website?link(item.website,'world','אתר'):'';")&&detail.includes('<dd class="fact-split"><span>${esc(item.provider)}</span>${siteLink}</dd>'),'"אתר" ends the provider row');
+  // Beta 0.8 Phase 2.3 (P22-F3): the website link is a globe icon only (aria-label "אתר"), 44px, at the end of the provider row.
+  assert(detail.includes('const siteLink=item.website?`<a class="icon-link" href="${esc(item.website)}" target="_blank" rel="noopener" aria-label="אתר">${tabler(\'world\')}</a>`:\'\';')&&detail.includes('<dd class="fact-split"><span>${esc(item.provider)}</span>${siteLink}</dd>'),'a globe ends the provider row');
   assert(detail.includes("const siteRow=!item.provider&&item.website?detailFact('אתר',siteLink):'';"),'with no provider it gets its own row');
   assert(detail.includes("detailFact('טלפון',link(`tel:${item.phone}`,'phone','התקשרות'))"),'"התקשרות" on its own row');
   assert(detail.includes("link(`mailto:${item.email}`,'mail','אימייל')"));
@@ -52,12 +55,13 @@ test('P21-F11: the "⋯" menu is one body-level popover that nothing can clip',(
   assert(!css.includes('.t-more'),'the old in-slide <details> menu is gone');
 });
 test('P21-F11: the next-slide peek is at most 24px at phone widths, and slide width and stride cannot drift apart',()=>{
-  assert(css.includes('transform:translateX(calc(var(--before,0) * (min(290px,100cqw - 44px) + 12px)))')&&css.includes('flex:0 0 min(290px,calc(100cqw - 44px))'));
-  assert(app.includes("const TICKET_STRIDE='(min(290px,100cqw - 44px) + 12px)';"));
+  // Beta 0.8 Phase 2.3 (P22-F2): no peek at all -- a slide is the full viewport width, the stride is one viewport + the gap.
+  assert(css.includes('transform:translateX(calc(var(--before,0) * (100cqw + 12px)))')&&css.includes('.t-track .ticket{flex:0 0 100cqw;'));
+  assert(app.includes("const TICKET_STRIDE='(100cqw + 12px)';"));
   // geometry at the widths the carousel really gets: viewport = phone - 2x20 page margin - 2x(card + nested card padding and borders)
   for(const phone of [320,360,375,390,412]){
-    const viewport=phone-40-34-34;const slide=Math.min(290,viewport-44);const peek=viewport-12-slide-12;
-    assert(peek>=0&&peek<=24,`${phone}px phone: peek ${peek}px`);
+    const viewport=phone-40-34-34;const slide=viewport;const peek=viewport-slide;
+    assert(peek===0,`${phone}px phone: the next slide must not show (peek ${peek}px)`);
   }
 });
 test('P21-F11: the slide fits -- no wrapped button, the holder and the coverage summary are one line each',()=>{
@@ -101,7 +105,7 @@ test('P21-F6: the chip shares the name\'s line (Packing and task rows); the name
 // ---- P21-F12 / F13 -------------------------------------------------------------------------------
 test('P21-F12: Packing -- one header row with a small outline "+ קטגוריה", no explanation, a compact carousel',()=>{
   const view=line('function packingView(');
-  assert(view.includes('<div class="page-head"><h2>רשימות אריזה</h2><button class="btn ghost small-btn" data-action="add-list">${tabler(\'plus\')} קטגוריה</button></div>'));
+  assert(view.includes('<div class="page-head"><h2>אריזה</h2><button class="btn ghost small-btn" data-action="add-list">${tabler(\'plus\')} קטגוריה</button></div>'),'Beta 0.8 Phase 2.3 (P22-F1): the title is "אריזה" so it never truncates beside the button');
   assert(!view.includes('פריטים שסומנו עוברים לאזור')&&!view.includes('קטגוריה חדשה'),'the three-line explanation and the big filled button are gone');
   assert.match(css,/\.page-head\{display:flex;align-items:center;justify-content:space-between/);
   assert.match(css,/\.packing-card \.p-carousel-avatar\{width:44px;height:44px/,'smaller avatars');

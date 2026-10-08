@@ -172,11 +172,12 @@ test('P2-F4: carousel mechanics -- one swipe = one ticket, loops from 3, neighbo
   assert(app.includes('<bdi class="muted" dir="ltr" aria-live="polite">${index+1} / ${count}</bdi>'),'1 / N counter');
   assert(app.includes("const way=selectedSlide?arrowKeyTarget(event.key,centerX(selectedSlide),near):null;"),'arrow keys follow screen position (P12-F6)');
   assert(app.includes("tcar=event.target.closest('[data-tcarousel]')")&&app.includes('selectTicket(tcar,way)'),'swipe');
-  assert.match(css,/\.t-track \.ticket\{flex:0 0 min\(290px,calc\(100cqw - 44px\)\);opacity:\.55/,'290px slides, the neighbour faded ~55% and peeking');
-  assert.match(css,/\.t-track\{display:flex;gap:12px;padding:0 12px;transform:translateX\(calc\(var\(--before,0\) \* \(min\(290px,100cqw - 44px\) \+ 12px\)\)\)\}/,'12px gap, selected aligned to the start edge');
+  // Beta 0.8 Phase 2.3 (P22-F2): no peek -- every slide is a full-width card (the neighbour is only seen sliding in).
+  assert.match(css,/\.t-track \.ticket\{flex:0 0 100cqw;opacity:\.55/,'full-width slides, the neighbour faded while it slides in');
+  assert.match(css,/\.t-track\{display:flex;gap:12px;padding:0;transform:translateX\(calc\(var\(--before,0\) \* \(100cqw \+ 12px\)\)\)\}/,'12px gap, one full viewport per step');
   assert.match(css,/\.t-track \.ticket\.selected\{opacity:1;border-color:var\(--ink\)\}/,'the selected slide has an ink border');
   assert.match(css,/\.t-viewport\{[^}]*touch-action:pan-y[^}]*container-type:inline-size/,'slide width and stride are measured against the same container (cqw), so they cannot drift apart');
-  assert(app.includes("const TICKET_STRIDE='(min(290px,100cqw - 44px) + 12px)';"));
+  assert(app.includes("const TICKET_STRIDE='(100cqw + 12px)';"));
 });
 test('P2-F4: slide content follows the mockup -- holder, status chip, seat detail, file, "נוצל" / "אישור ככרטיס", פתיחה, ⋯',()=>{
   const slide=app.slice(app.indexOf('function ticketSlideHtml('),app.indexOf('function ticketCarousel('));
@@ -204,14 +205,14 @@ test('P2-F4: coverage summary "כרטיסים: N מתוך M" + who still has non
 });
 test('P2-F4: page order -- facts and contact actions, the one card, then notes, then עריכה / מחיקה',()=>{
   const detail=app.slice(app.indexOf('function detailView('),app.indexOf('// V6-F37 (fix pass 4)'));
-  const order=['<div class="detail-top">','<dl class="detail-facts">','${ticketsAndDocumentsSection(item,sources)}','<div class="detail-notes">','<div class="form-actions detail-actions">'].map(marker=>detail.indexOf(marker));
+  const order=['${backRow(','<dl class="detail-facts">','${ticketsAndDocumentsSection(item,sources)}','<div class="detail-notes">','<div class="form-actions detail-actions">'].map(marker=>detail.indexOf(marker));
   assert(order.every(index=>index>-1),'all parts present');
   assert.deepEqual([...order].sort((a,b)=>a-b),order,'in the approved order');
   assert.equal((detail.match(/ticketsAndDocumentsSection\(/g)||[]).length,1,'exactly one card');
   assert(!app.includes('function ticketHoldersBlock(')&&!app.includes('function ticketCoverageBlock('),'the separate coverage / confirmation / holders / linked-documents pieces are gone');
   assert(app.includes('holdersDetails(flightPassengersTable(details.passengers),holders)'),'the extracted passenger / holder detail is kept, folded away');
   const section=app.slice(app.indexOf('function ticketsAndDocumentsSection('),app.indexOf('// Beta 0.8 Phase 2 (G1) / Phase 2.1 (P2-F4): the item detail page'));
-  assert(section.includes('${eligible?ticketSummaryBlock(item,sources):\'\'}${tickets.length?ticketCarousel(item,tickets):\'\'}${hint}${list}${canAttach?')&&section.includes('<h3>${heading}</h3>'),'summary -> tickets -> other documents -> add');
+  assert(section.includes('${eligible?ticketSummaryBlock(item,sources):\'\'}${tickets.length?ticketCarousel(item,tickets):\'\'}${hint}${list}${additionalDetailsBlock(item)}${canAttach?')&&section.includes('<h3>${heading}</h3>'),'summary -> tickets -> other documents -> add');
   assert(section.includes("eligible?'כרטיסים ומסמכים':'מסמכים'"));
 });
 

@@ -451,7 +451,8 @@ function test_ux_document_option_merges_pdf_and_photo(){
 
   // V6-F78 (0.6.7.1) added TIFF to this same accept attribute -- the underlying guarantee this
   // test checks (one merged Document input, PDF and image types together) is unchanged.
-  const documentInputMatch=app.match(/<input id="source-file" type="file" accept="application\/pdf,\.pdf,image\/png,image\/jpeg,image\/webp,image\/tiff,\.tif,\.tiff">/);
+  // Beta 0.8 Phase 2.3 (P22-F10): the one input is rendered by the shared fileDrop() (a styled dashed box), its accept list in FILE_ACCEPT.
+  const documentInputMatch=app.includes('<input id="source-file" type="file" accept="${FILE_ACCEPT}">')&&app.includes("const FILE_ACCEPT='application/pdf,.pdf,image/png,image/jpeg,image/webp,image/tiff,.tif,.tiff';");
   assert(documentInputMatch,'the Document option must accept both PDF and image mime types in one input');
   assert(!/capture="environment"/.test(documentInputMatch[0]),'the Document input must not force a capture attribute -- letting the OS present its native camera/gallery/file choice is what "choose camera, gallery, or file as before" means here');
 
@@ -867,7 +868,8 @@ function test_V6_F38_attachment_modal_merges_pdf_and_photo(){
   assert.doesNotMatch(attachmentModalSrc,/📄 PDF/,'no separate PDF tab label may remain in attachmentModal');
   assert.doesNotMatch(attachmentModalSrc,/📷 תמונה/,'no separate תמונה (Picture) tab label may remain in attachmentModal');
   // V6-F78 (0.6.7.1) added TIFF to this same accept attribute -- unchanged guarantee, updated match.
-  assert.match(attachmentModalSrc,/<input id="source-file" type="file" accept="application\/pdf,\.pdf,image\/png,image\/jpeg,image\/webp,image\/tiff,\.tif,\.tiff">/,'attachmentModal must use the same single broad-accept Document input as the Add screen');
+  // Beta 0.8 Phase 2.3 (P22-F10): the same shared fileDrop() (one broad-accept input) renders it.
+  assert(attachmentModalSrc.includes('${fileDrop()}'),'attachmentModal must use the same single broad-accept Document input as the Add screen');
   assert.doesNotMatch(attachmentModalSrc,/capture="environment"/,'attachmentModal must not force a capture attribute -- letting the OS present its native camera/gallery/file choice');
   assert.match(app,/state\.modal=\{type:'attachment',itemId:button\.dataset\.id,source:'document'\}/,'opening the attachment modal must default its source kind to \'document\', matching the merged Add-screen option');
   console.log('PASS: V6-F38 the per-item attachment modal merges PDF/Picture into one Document option, matching the global Add flow');
