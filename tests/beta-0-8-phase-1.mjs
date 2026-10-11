@@ -207,7 +207,7 @@ function test_beta_0_8_day_item_time_and_detail_text_is_bidi_wrapped(){
   console.log('PASS: the day-item card wraps its own time and detail text in <bdi>, per §3\'s bidi rule');
 }
 function test_beta_0_8_heebo_loads_with_the_spec_s_own_named_fallback(){
-  assert.match(html,/family=Heebo:wght@400;600;700&display=swap/);
+  assert.match(html,/family=Heebo:wght@400;600;700&family=Noto\+Sans\+Thai:wght@400;600;700&display=swap/); // Phase 3.1 (P3-F6): Noto Sans Thai follows Heebo
   console.log('PASS: index.html loads Heebo (weights 400/600/700) via Google Fonts, with the CSS\'s own Arial fallback covering the offline/font-unavailable case');
 }
 test_beta_0_8_directional_icons_mirror_under_rtl_non_directional_ones_dont();

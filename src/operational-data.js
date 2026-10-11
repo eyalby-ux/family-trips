@@ -222,6 +222,25 @@ export function taskDueRank(task,when=today()){
 // Beta 0.8 Phase 3 (P22-F9): the two combinable Shopping filters. owner: 'all' | 'shared' | a participant's name
 // (the owner is stored as the name -- see shoppingOwnerField); place: 'all' | 'none' (no place) | a place id.
 export const isSharedShoppingItem=item=>!item?.owner||item.owner==='shared';
+// Beta 0.8 Phase 3.1 (P3-F3): the owner chip is always the participant's FIRST name (as Packing shows them); an owner that
+// matches no participant (a legacy free-text name) stays exactly as saved.
+export function shoppingOwnerLabel(owner,participants){
+  const name=String(owner||'').trim();
+  if(!name||name==='shared')return '';
+  return (participants||[]).some(participant=>participant.name===name)?name.split(/\s+/)[0]:name;
+}
+// Beta 0.8 Phase 3.1 (P3-F4): the optional link on a task. Empty is fine; a bare "example.com/x" gets https://; only http(s)
+// with a real host is accepted. Returns {ok,value} -- value is the address to store ('' when empty).
+export function normalizeTaskLink(raw){
+  const text=String(raw||'').trim();
+  if(!text)return {ok:true,value:''};
+  const withScheme=/^[a-z][a-z0-9+.-]*:/i.test(text)?text:`https://${text}`;
+  try{
+    const url=new URL(withScheme);
+    if(!['http:','https:'].includes(url.protocol)||!/^[^.]+(\.[^.]+)+$|^localhost$/.test(url.hostname))return {ok:false,value:''};
+    return {ok:true,value:url.href};
+  }catch{return {ok:false,value:''}}
+}
 export function filterShoppingItems(items,filters={}){
   const owner=filters?.owner||'all',place=filters?.place||'all';
   return (Array.isArray(items)?items:[]).filter(item=>(owner==='all'||(owner==='shared'?isSharedShoppingItem(item):item.owner===owner))&&(place==='all'||(place==='none'?!item.placeId:item.placeId===place)));

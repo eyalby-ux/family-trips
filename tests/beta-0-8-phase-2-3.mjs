@@ -79,7 +79,7 @@ test('P22-F7: every page with a back action uses the compact header -- no "חז�
   // every page the audit found with a back action
   assert(fn('detailView').includes("${backRow('center',item.type,"),'item page, every type');
   // Beta 0.8 Phase 3 (P23-F1): the category page's back arrow, type icon and title share the one backRow() line.
-  assert(app.includes("<section class=\"card\">${backRow('center','','',`${typeIcon(state.category)} ${ITEM_TYPES[state.category]?.label||''}`)}"),'category pages (hotel, flight, transport, activity, ...)');
+  assert(app.includes("<section class=\"card\">${backRow('center','',`<button class=\"btn ghost small-btn\" data-action=\"create\">${tabler('plus')} ${ITEM_TYPES[state.category]?.label||''}</button>`,`${typeIcon(state.category)} ${ITEM_TYPE_PLURALS[state.category]||ITEM_TYPES[state.category]?.label||''}`)}"),'category pages (Phase 3.1: the plural title and the "+ type" button share the back row)');
   assert(app.includes("${backRow('center','document',`<span class=\"badge\">"),'the proposal review screen, its chip on the same row');
   assert(app.includes("<section class=\"card\">${backRow('settings')}<h2>ניהול הרשאות גישה</h2>")&&app.includes("<section class=\"card\">${backRow('settings')}<p class=\"muted\">מסך זה זמין"),'both admin screens');
   // and nothing in the app builds a labelled back button or the "פריטים" heading any more

@@ -23,7 +23,7 @@ assert.deepEqual(uniqueRecordsById([undefined,flight,null,insurance,flight],5),[
 assert.deepEqual(uniqueRecordsById([undefined,insurance],5),[insurance]);
 assert(app.includes('uniqueRecordsById([op.currentHotel,op.nextTransport,...op.critical].filter'));
 
-assert(app.includes('function timelineCalendar(bounds)'));
+assert(app.includes('function timelineCalendar(items,stays)')); // Beta 0.8 Phase 3.1 (P3-F15): the calendar is built from the items and the stays
 assert(app.includes("if(view==='timeline'&&state.view!=='timeline')"));
 assert(app.includes("state.timelineMode='day'"));
 assert(app.includes("state.timelineMode!=='week'"));

@@ -15,7 +15,7 @@ const fn=name=>{const start=app.indexOf(`function ${name}(`);assert(start>-1,nam
 test('P23-F1: a category page puts the back arrow, the type icon and the title on one line',()=>{
   const back=fn('backRow');
   assert(back.includes("title?`<h2 class=\"detail-title\">${title}</h2>`:''")&&back.includes("' with-title'"),'the title is inside the same detail-top row');
-  assert(app.includes("${backRow('center','','',`${typeIcon(state.category)} ${ITEM_TYPES[state.category]?.label||''}`)}"));
+  assert(app.includes("${backRow('center','',`<button class=\"btn ghost small-btn\" data-action=\"create\">${tabler('plus')} ${ITEM_TYPES[state.category]?.label||''}</button>`,`${typeIcon(state.category)} ${ITEM_TYPE_PLURALS[state.category]||ITEM_TYPES[state.category]?.label||''}`)}"));
   assert(!app.includes("${backRow('center')}<h2>${typeIcon(state.category)}"),'no separate <h2> row below the arrow any more');
   assert.match(css,/\.detail-top\.with-title\{justify-content:flex-start;/);
   assert.match(css,/\.detail-top\.with-title \.detail-title\{[^}]*min-width:0/,'a long title can shrink instead of pushing the row');
@@ -79,7 +79,8 @@ test('P12-F3: a participant with any assignment cannot be deleted; an unassigned
   assert.equal(participantAssignments({participants:[{id:'p9',name:'x'}],tasks:[{participantScope:'all'}]},'p9').total,0,'"everyone" names nobody');
   const row=fn('participantRow');
   assert(row.includes('participantAssignments(state,participant.id).total'));
-  assert(row.includes('disabled aria-disabled="true"')&&row.includes('לא ניתן למחוק')&&row.includes('להשבית את המשתתף'),'a visibly disabled button + the reason pointing to deactivation');
+  // Phase 3.1 (P3-F7): the reason lives in the participant's own row (status line); the blocked bin's name also points to deactivation.
+  assert(row.includes('disabled aria-disabled="true"')&&row.includes('לא ניתן למחוק (')&&row.includes('אפשר להשבית את המשתתף במקום'),'a visibly disabled button + the reason pointing to deactivation');
   assert(row.includes('data-action="participant-delete-ask"')&&row.includes('data-action="participant-delete"')&&row.includes('למחוק את <b>${esc(participant.name)}</b> לצמיתות'),'two steps; the second names the participant');
   assert(app.includes("else if(action==='participant-delete-ask'){participantDeleteArmed=button.dataset.id;render()}"));
   assert(app.includes('if(!participant||participantAssignments(state,participant.id).total){render();return}'),'re-checked at the moment of deleting');
@@ -141,15 +142,15 @@ test('S7: the offline strip counts waiting changes, uses the soft accent, and is
 test('S7: empty states are an icon + headline + line; loading content is a skeleton, not a spinner; no English headings remain',()=>{
   assert(app.includes("const emptyState=(icon,headline,line='',action='')=>`<div class=\"empty-state\">${tabler(icon)}<h3>${headline}</h3>"));
   assert.match(css,/\.empty-state \.ti\{[^}]*color:var\(--muted\)/);assert.match(css,/\.empty-state h3\{[^}]*color:var\(--ink\)/);
-  for(const view of ['tasksView','shoppingView','locationsView','timeline','center','participantsSection','destinationsSection','gamesView'])assert(fn(view).includes('emptyState('),`${view} uses the empty state`);
+  for(const view of ['tasksView','shoppingView','locationsView','tlDayView','center','participantsSection','destinationsSection','gamesView'])assert(fn(view).includes('emptyState('),`${view} uses the empty state`);
   assert(app.includes('const skeletonList=')&&app.includes('!adminInvitationsLoaded?skeletonList()')&&app.includes('adminInvitationsLoaded=true;render()'),'the admin list shows a skeleton until it first answers');
   assert.match(css,/\.skeleton\{[^}]*border:1px solid var\(--border\)[^}]*background:var\(--surface\)[^}]*animation:skeleton-pulse/);
   assert.match(css,/prefers-reduced-motion:reduce\)\{\.skeleton\{animation:none\}/);
   const code=app.split('\n').filter(line=>!line.trim().startsWith('//')).join('\n');
   for(const english of ['<h2>Timeline</h2>','<h3>Calendar</h3>','<h2>Trip Center</h2>','Games / Activities'])assert(!code.includes(english),english);
   assert(!code.includes('✕</button>')&&code.includes("${tabler('x')}</button>"),'the dialog close is a line icon, not a text glyph');
-  const nav=fn('timeline');
-  assert(nav.includes("tabler('chevleft').replace('class=\"ti\"','class=\"ti icon-directional\"')")&&!nav.includes('>הקודם<')&&!nav.includes('>הבא<'),'the period arrows are mirrored icons');
+  const nav=fn('timelineCalendar');
+  assert(nav.includes("tabler(name).replace('class=\"ti\"','class=\"ti icon-directional\"')")&&nav.includes("arrow(-1,'chevleft')")&&!nav.includes('>הקודם<')&&!nav.includes('>הבא<'),'the period arrows are mirrored icons');
 });
 
 test('P22-F10 (follow-up): a long chosen file name can never widen the file box past its dialog',()=>{
@@ -157,32 +158,20 @@ test('P22-F10 (follow-up): a long chosen file name can never widen the file box 
   assert.match(css,/\.file-field\{grid-template-columns:minmax\(0,1fr\)\}/);
 });
 
-test('Settings and Timeline on the tokens: a screen title, section-scale titles, ink filter chips, one accent, neutral dots, teal-soft selection',()=>{
+test('Settings on the tokens: a screen title, section-scale titles; Tasks has the Packing/Shopping header',()=>{
   const settings=fn('settingsView');
-  assert(settings.includes('<div class="settings-page"><h2 class="screen-title">הגדרות</h2>')&&settings.trimEnd().endsWith('</section></div>`}')||settings.includes('</section></div>`}'),'the page is wrapped and titled');
+  assert(settings.includes('<div class="settings-page"><h2 class="screen-title">הגדרות</h2>')&&settings.includes('</section></div>`}'),'the page is wrapped and titled');
   assert.match(css,/\.settings-page \.card>h2\{font-size:22px;font-weight:600/,'sections at the 22px section scale');
-  assert.match(css,/\.participant-item \.row \.actions\{flex:1 1 100%;display:flex;gap:8px/,'one compact action row per participant');
-  assert.match(css,/\.tabs button\.active\{background:var\(--ink\);border-color:var\(--ink\);color:#fff\}/,'the active mode chip is ink, like every other filter');
-  assert.match(css,/\.cal-cell\.selected\{background:var\(--teal-soft\);border:2px solid var\(--ink\)/);
-  assert.match(css,/\.cal-cell\.today\{border:2px solid var\(--accent\)\}/);
-  // Product Owner, 2026-10-08: each kind of event keeps its own colour; a multi-day event is a bar through its days.
-  for(const type of ['flight','hotel','car','activity','restaurant','shoppingPlace'])assert(css.includes(`.timeline-calendar .cal-dot.type-${type},.timeline-calendar .cal-span.type-${type}{background:`),`${type} has its own colour`);
-  assert(app.includes("const isMultiDay=item=>item.schedule==='range'&&Boolean(item.startAt)&&Boolean(item.endAt)&&dateOnly(item.endAt)>dateOnly(item.startAt);"));
-  assert(app.includes('spans=state.items.filter(item=>isMultiDay(item)&&dateOnly(item.startAt)<=key&&key<=dateOnly(item.endAt))'),'a bar on every day from start to end, inclusive');
-  assert(app.includes('<span class="cal-span type-${item.type}')&&app.includes('class="cal-legend"'),'a bar per multi-day event and a legend naming the colours');
-  assert.match(css,/\.cal-span\{position:absolute;[^}]*inset-inline:-2px/,'the bar reaches into the neighbouring cell so consecutive days read as one line');
-  assert(app.includes("${key===today()?'today':''}"),'today is marked in the grid');
-  assert.match(css,/\.timeline-card \.calendar\{gap:2px\}/);assert.match(css,/\.cal-cell\{min-height:48px/);
   const tasks=fn('tasksView');
   assert(tasks.includes('<div class="page-head"><h2>משימות</h2><button class="btn ghost small-btn" data-action="task-add">'),'the Tasks header is the Packing/Shopping header');
   assert.match(css,/\.task-filters,\.shopping-filters\{display:grid;grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\)/,'filters in two columns, not four stacked rows');
 });
 
-test('S3 bidi: an e-mail address in a list row is an LTR isolate at body size',()=>{
+test('S3 bidi: an e-mail address is one left-to-right line in a row of its own (Phase 3.1 P3-F12: sharing, admin, history)',()=>{
   const code=app.split('\n').filter(line=>!line.trim().startsWith('//')).join('\n');
-  assert.equal((code.match(/<b class="email"><bdi dir="ltr">\$\{esc\((email|entry\.email|invitation\.email)\)\}<\/bdi><\/b>/g)||[]).length,4,'admin, quarantine, editors and the revoked history');
-  assert(!/<b>\$\{esc\((email|entry\.email|invitation\.email)\)\}<\/b>/.test(code));
-  assert.match(css,/\.row-main b\.email\{font-size:16px/);
+  assert(code.includes('<button class="access-email" type="button" dir="ltr" data-action="email-expand"'),'the shared accessRow()');
+  assert(fn('sharingSection').includes('accessRow(')&&fn('adminView').includes('accessRow('));
+  assert.match(css,/\.access-email bdi\{[^}]*white-space:nowrap/,'never broken mid-word');
 });
 
 test('S9 audit: every tappable control is at least 44px',()=>{

@@ -280,7 +280,7 @@ test('G1 sign-in: matches the tokens; "התחברות עם Google" is not terrac
   assert(!/\.auth-page\{[^}]*linear-gradient/.test(signIn));
 });
 test('G1 Trip Center / Packing: Tabler icons on tiles, spacing and card tokens',()=>{
-  assert(app.includes('<span class="ico">${typeIcon(key)}</span><b>${type.label}</b>'));
+  assert(app.includes('<span class="ico">${typeIcon(key)}</span><b>${ITEM_TYPE_PLURALS[key]||type.label}</b>')); // Phase 3.1 (P3-F16): plural tile names
   assert(app.includes("[view,icon,label,count])=>`<button class=\"tile\" data-route=\"${view}\"><span class=\"ico\">${icon}</span>")&&app.includes("tabler('dice')")&&app.includes("tabler('bag')")&&app.includes("tabler('checklist')")&&app.includes("tabler('cart')"));
   assert.match(css,/\.tile\{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-height:96px;padding:16px;border:1px solid var\(--border\);border-radius:16px;background:var\(--surface\)/);
   assert.match(css,/\.row\{min-height:64px;padding:12px 16px;border:1px solid var\(--border\);border-radius:16px;background:var\(--surface\)/);

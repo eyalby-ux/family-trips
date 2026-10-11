@@ -12,9 +12,11 @@
   <!-- Beta 0.8 Phase 1 (design spec V7 S2): Heebo per spec, with the spec's own named fallback
        (Arial, sans-serif) already carrying the font-unavailable/offline case -- no extra offline
        caching strategy needed for the font itself. -->
+  <!-- Beta 0.8 Phase 3.1 (P3-F6): Noto Sans Thai is the fallback right after Heebo -- Heebo has no Thai glyphs, so Thai names from documents
+       showed empty boxes for tone/vowel marks. Google Fonts serves it split by unicode-range, so only Thai text downloads it. -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700&family=Noto+Sans+Thai:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/assets/icons/favicon.png">
   <link rel="apple-touch-icon" href="/assets/icons/icon-192.png">

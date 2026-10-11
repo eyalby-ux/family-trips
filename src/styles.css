@@ -33,8 +33,8 @@
   --r:16px;--shadow:0 2px 10px rgba(28,35,36,.04);
   --danger:#B42318;--warn:#9A5B08;
 }
-body{font-family:Heebo,Arial,sans-serif}
-h1,h2,h3{font-family:Heebo,Arial,sans-serif}
+body{font-family:Heebo,"Noto Sans Thai",Arial,sans-serif}
+h1,h2,h3{font-family:Heebo,"Noto Sans Thai",Arial,sans-serif}
 .card h2,main>h2,.top h1{font-size:34px;font-weight:700;line-height:1.3}
 .card h3,.section-head h3{font-size:22px;font-weight:600;line-height:1.3}
 .row b,.row-main b{font-size:20px;font-weight:600;line-height:1.35}
@@ -60,7 +60,7 @@ main{padding:20px}
    to the account bar (see foundation.css's own Beta 0.8 addition) rather than invented a new
    pattern, per S10's "quieter, more compact" guidance when the spec itself is silent. */
 .nav{grid-template-columns:repeat(5,1fr);align-items:center;background:var(--surface);border-top:1px solid var(--border);backdrop-filter:none}
-.nav button{min-height:44px;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:2px;font-family:Heebo,Arial,sans-serif}
+.nav button{min-height:44px;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:2px;font-family:Heebo,"Noto Sans Thai",Arial,sans-serif}
 .nav button.active{background:transparent;color:var(--ink);font-weight:700}
 .nav button svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
 .nav button.nav-plus{background:transparent;color:#fff}
@@ -208,49 +208,45 @@ bdi,.bidi{unicode-bidi:isolate}
 .participant-item>.row{margin:0}
 .icon-only{flex:0 0 44px;width:44px;min-width:44px;padding:0}
 .icon-only:disabled{opacity:.45;cursor:not-allowed}
-.participant-note{margin:0;padding:0 4px}
+
 .confirm-inline{padding:12px 14px;border:1px solid var(--accent);border-radius:16px;background:var(--accent-soft);color:var(--ink)}
 .confirm-inline p{margin:0 0 8px}
 /* Beta 0.8 Phase 3: Settings -- a screen title, section titles at the section scale, compact participant / destination rows. */
 .settings-page .screen-title{margin:4px 0 12px}
 .settings-page .card>h2{font-size:22px;font-weight:600;line-height:1.3;margin:0 0 6px}
-.participant-item .row{flex-wrap:wrap;gap:8px;min-height:0;padding:12px 14px}
-.participant-item .row .row-main{flex:1 1 100%}
-.participant-item .row .actions{flex:1 1 100%;display:flex;gap:8px;margin:0}
-.participant-item .row .actions .btn{flex:1 1 0;min-width:0}
-.participant-item .row .actions .icon-only{flex:0 0 44px}
-.destination-row{flex-wrap:wrap;gap:8px;min-height:0;padding:12px 14px}
-.destination-row .actions{display:flex;gap:8px;margin:0}
-/* Beta 0.8 Phase 3: Timeline / calendar on the tokens -- ink filter chips, one accent, neutral dots, teal-soft selection. */
-.tabs{flex-wrap:wrap;overflow:visible;gap:8px;padding-bottom:0}
-.tabs button{min-height:44px;padding:0 14px;border:1px solid var(--border);background:var(--surface);color:var(--ink);font-size:15px;font-weight:600}
-.tabs button.active{background:var(--ink);border-color:var(--ink);color:#fff}
-.timeline-calendar{border:1px solid var(--border);border-radius:16px;background:var(--surface)}
-#calendar-month{min-height:44px;padding:0 10px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--ink);font-size:15px}
-.cal-weekday{color:var(--muted);font-size:13px;font-weight:600}
-.cal-cell{border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--ink);font-weight:600}
-.cal-cell.in-trip{background:var(--bg)}
-.cal-cell.active-period{border-color:var(--border);background:var(--teal-soft)}
-.cal-cell.today{border:2px solid var(--accent)}
-.cal-cell.selected{background:var(--teal-soft);border:2px solid var(--ink);box-shadow:none}
-/* Each kind of event keeps its own colour on the calendar (Product Owner, 2026-10-08) -- the legend under the grid names them,
-   so colour is never the only carrier. A multi-day event (hotel, rental, ferry) is a bar through every day it covers. */
-.timeline-calendar .cal-dot.type-flight,.timeline-calendar .cal-span.type-flight{background:#2867b2}
-.timeline-calendar .cal-dot.type-hotel,.timeline-calendar .cal-span.type-hotel{background:#7b4fa3}
-.timeline-calendar .cal-dot.type-car,.timeline-calendar .cal-span.type-car{background:#d07a19}
-.timeline-calendar .cal-dot.type-activity,.timeline-calendar .cal-span.type-activity{background:#2f8f63}
-.timeline-calendar .cal-dot.type-restaurant,.timeline-calendar .cal-span.type-restaurant{background:#a8324f}
-.timeline-calendar .cal-dot.type-shoppingPlace,.timeline-calendar .cal-span.type-shoppingPlace{background:#1a7f8e}
-.cal-cell{position:relative}
-.cal-span{position:absolute;bottom:calc(3px + var(--row,0) * 6px);height:4px;inset-inline:-2px;border-radius:0;background:var(--ink)}
-.cal-span.is-start{inset-inline-start:6px;border-start-start-radius:2px;border-end-start-radius:2px}
-.cal-span.is-end{inset-inline-end:6px;border-start-end-radius:2px;border-end-end-radius:2px}
-.cal-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;font-size:13px;color:var(--muted)}
-.cal-legend span{display:inline-flex;align-items:center;gap:6px}
-.cal-legend .cal-dot{margin:0}
-.cal-cell{min-height:56px}
+/* Beta 0.8 Phase 3.1 (P3-F7..F12): Settings rows. */
+.participant-row{display:flex;align-items:center;gap:6px;min-height:64px;padding:6px 12px 6px 6px;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
+.participant-row.inactive{background:var(--bg)}
+.participant-row.inactive .participant-main{color:var(--muted)}
+.participant-main{flex:1 1 auto;min-width:0;min-height:44px;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:0;padding:0;border:0;background:transparent;color:var(--ink);font:inherit;text-align:right;cursor:pointer}
+.participant-main b{max-width:100%;font-size:16px;font-weight:600;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.participant-status{max-width:100%;font-size:13px;line-height:1.35;color:var(--muted)}
+.participant-row .small-btn{padding:0 12px;font-size:14px}
+.participant-row .small-btn.activate{border-color:var(--ink)}
+.bin-btn{flex:0 0 44px;width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;padding:0;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--ink)}
+.bin-btn .ti{width:18px;height:18px}
+.bin-btn.blocked{border:0;background:#F2EEE9;cursor:default}
+.bin-btn.blocked .ti{stroke:#B9B1AA}
+.destination-row{display:flex;align-items:center;gap:4px;min-height:52px;padding:0 12px 0 4px;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
+.destination-name{flex:1 1 auto;min-width:0;font-size:16px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.icon-btn-plain{flex:0 0 44px;width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;padding:0;border:0;border-radius:10px;background:transparent;color:var(--ink)}
+.icon-btn-plain .ti{width:18px;height:18px}
+.icon-btn-plain:disabled{opacity:.35;cursor:default}
+.inline-add{display:flex;align-items:center;gap:8px;margin-top:8px}
+.inline-add input{flex:1 1 auto;min-width:0;min-height:44px;padding:0 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--ink);font-size:16px}
+.inline-add .small-btn{flex:0 0 auto}
+.invite-form{margin-top:12px}
+.invite-form .field-label{display:block;margin-bottom:4px}
+.access-row{display:flex;align-items:center;gap:8px;min-height:56px;padding:6px 6px 6px 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
+.access-email{flex:1 1 auto;min-width:0;min-height:44px;display:flex;flex-direction:column;justify-content:center;align-items:flex-end;padding:0;border:0;background:transparent;color:var(--ink);font:inherit;font-size:16px;font-weight:400;text-align:right;cursor:pointer}
+.access-email bdi{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.access-email.expanded bdi{white-space:normal;overflow-wrap:anywhere}
+.access-email small{font-size:13px;font-weight:400;color:var(--muted)}
+.access-remove{white-space:nowrap;flex:0 0 auto}
+.row-main b.email{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* P3-F10: the Today card's time column starts at the same right edge as the action row, so "ניווט" sits flush under the time. */
+.day-item-time{align-items:flex-start;padding:12px 2px 12px 4px;padding-inline-start:12px}
 .day-head{color:var(--ink);font-weight:700}
-.period-nav b{font-size:15px;font-weight:600}
 .task-filters,.shopping-filters{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
 .task-filters .field{margin-bottom:0}
 .filters-reset{grid-column:1 / -1}
@@ -259,10 +255,41 @@ bdi,.bidi{unicode-bidi:isolate}
 .close .ti{width:20px;height:20px}
 .import-status .import-actions .btn,.pack-actions .btn,.doc .btn{min-height:44px}
 .task-compact-main{align-self:stretch;justify-content:center;min-height:44px}
-.timeline-card{padding:12px}
-.timeline-card .timeline-calendar{padding:0;border:0;background:transparent}
-.timeline-card .calendar{gap:2px}
-.cal-cell{min-height:48px;padding:4px}
+/* Beta 0.8 Phase 3.1: icons that sit on a dark or muted ground (the default .ti stroke is --ink) */
+.btn.primary .ti{stroke:#fff}   /* P3-F14: the check on "אישור" was ink on ink, so it was never seen */
+.empty-state .ti{stroke:var(--muted)}
+.overdue-flag .ti{stroke:var(--accent)}
+.game-star.on .ti{fill:var(--ink)} /* P3-F1: a favourite is a FILLED ink star */
+.task-link{flex:0 0 44px;width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;border-radius:12px;color:var(--ink)}
+.task-note-icon{display:inline-flex;align-items:center}
+.task-note-icon .ti{width:16px;height:16px;stroke:var(--muted)}
+.tasks-done{margin-top:12px}
+.tasks-done summary{min-height:44px;display:flex;align-items:center;font-weight:600;color:var(--muted);cursor:pointer}
+.tasks-done .list{margin-top:4px}
+.task-link-open{margin-top:4px}
+/* P3-F14: in a "⋯" menu the permanent delete stands apart -- a divider, terracotta text and a bin. #A4442A is the
+   mockup's terracotta (5.9:1 on white), darker than --accent because --accent is 3.9:1 and cannot carry text. */
+.t-menu-sep{height:1px;margin:4px 6px;background:var(--border)}
+.t-menu-item.danger{display:flex;align-items:center;gap:8px;color:#A4442A;font-weight:600}
+.t-menu-item.danger .ti{stroke:#A4442A}
+/* Beta 0.8 Phase 3.1 (P3-F13): the document list. */
+.doc-summary{margin:0 0 8px}
+.doc-filters{display:flex;gap:6px;overflow-x:auto;margin:0 -16px 12px;padding:0 16px 2px;scrollbar-width:none}
+.doc-filters::-webkit-scrollbar{display:none}
+.doc-filters .filter-chip{flex:0 0 auto;white-space:nowrap;font-size:14px;padding:0 14px}
+.doc-row{display:flex;align-items:center;gap:6px;min-height:60px;padding:6px 10px 6px 4px;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
+.doc-row .doc-icon{flex:0 0 auto;display:inline-flex}
+.doc-row .doc-icon .ti{width:20px;height:20px}
+.doc-main{flex:1 1 auto;min-width:0;min-height:44px;display:flex;flex-direction:column;justify-content:center;gap:2px;padding:0;border:0;background:transparent;color:var(--ink);font:inherit;text-align:right;text-decoration:none;cursor:pointer}
+div.doc-main{cursor:default}
+.doc-name{display:block;max-width:100%;font-size:15px;font-weight:600;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.doc-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.doc-chip{font-size:12px;font-weight:600;padding:1px 8px;border-radius:999px;color:var(--ink)}
+.doc-chip.ok{background:var(--teal-soft)}
+.doc-chip.pending{background:var(--accent-soft)}
+.doc-note{font-size:13px;color:var(--muted)}
+.doc-row .btn.more{flex:0 0 44px;width:44px;min-height:44px;padding:0;border:0;background:transparent}
+a.t-menu-item{display:flex;align-items:center;text-decoration:none}
 .shop-head{margin:16px 0 8px}
 .shop-head h3{margin:0}
 .place-row{min-height:56px;padding:8px 14px}
@@ -602,3 +629,66 @@ bdi,.bidi{unicode-bidi:isolate}
 .file-replace{flex:0 0 auto;font-weight:600;text-decoration:underline;text-underline-offset:3px}
 /* Beta 0.8 Phase 3: an e-mail address in a list row is an LTR run at body size (it used to break mid-word at 20px). */
 .row-main b.email{font-size:16px;font-weight:600;overflow-wrap:anywhere}
+/* Beta 0.8 Phase 3.1 (P3-F15): ציר הזמן -- mode control, month calendar with stay bands, day agenda, ribbon. */
+.timeline-card{padding:12px}
+.timeline-card>h2{margin:0 0 8px}
+.tl-modes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;padding:4px;margin-bottom:10px;border-radius:14px;background:#F2EEE9}
+.tl-modes:has(button:nth-child(2):last-child){grid-template-columns:repeat(2,minmax(0,1fr))}
+.tl-modes button{min-height:44px;border:0;border-radius:10px;background:transparent;color:var(--ink);font-size:15px;font-weight:600}
+.tl-modes button[aria-pressed="true"]{background:var(--ink);color:#fff}
+.timeline-calendar{margin:0 0 12px;padding:4px 6px 8px;border:1px solid var(--border);border-radius:16px;background:var(--surface)}
+.tl-cal-head{display:flex;align-items:center;justify-content:space-between}
+.tl-arrow{width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;padding:0;border:0;background:transparent;color:var(--ink)}
+.tl-cal-title{display:flex;flex-direction:column;align-items:center;text-align:center}
+.tl-cal-title b{font-size:15px}
+.tl-sub{font-size:12px;color:var(--muted)}
+.tl-weekdays,.tl-week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
+.tl-weekdays{text-align:center;font-size:12px;color:var(--muted)}
+.tl-week{font-variant-numeric:tabular-nums}
+.tl-week.shaded{background:var(--teal-soft);border-radius:10px}
+.tl-cell{min-height:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0;border:0;background:transparent;color:var(--ink);font-size:14px}
+.tl-cell.blank{pointer-events:none}
+.tl-num{width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:50%;font-weight:600;line-height:1}
+.tl-dots{display:flex;gap:2px;height:5px;margin-top:-3px}
+.tl-dot{width:5px;height:5px;border-radius:50%;display:inline-block}
+.tl-cell.chosen .tl-num{background:var(--ink);color:#fff;font-weight:700}
+.tl-cell.today .tl-num{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--accent)}
+.tl-band{height:5px;margin:0 0 4px}
+.tl-band.round-start{margin-inline-start:4px;border-start-start-radius:3px;border-end-start-radius:3px}
+.tl-band.round-end{margin-inline-end:4px;border-start-end-radius:3px;border-end-end-radius:3px}
+.tl-legend{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 12px;padding-top:6px;font-size:12px;color:var(--muted)}
+.tl-legend span{display:inline-flex;align-items:center;gap:4px}
+.tl-key-band{width:14px;height:5px;border-radius:3px;display:inline-block}
+.tl-key-dot{width:6px;height:6px;border-radius:50%;display:inline-block}
+.timeline-list{border-top:0;margin-top:0;padding-top:0}
+.tl-day-head{display:flex;align-items:center;justify-content:space-between;margin:4px 0 8px}
+.tl-day-head b{font-size:17px}
+.tl-night{display:flex;align-items:center;gap:8px;min-height:40px;padding:0 12px;margin-bottom:12px;border-radius:12px;background:var(--teal-soft);font-size:14px}
+.tl-night .ti{width:18px;height:18px;flex:0 0 auto}
+.tl-agenda{display:grid;grid-template-columns:50px 14px minmax(0,1fr);column-gap:8px}
+.ag-time{padding-top:12px;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;text-align:left}
+.ag-time.next,.rb-row .rb-time.next{color:#A4442A}
+.ag-line{display:flex;flex-direction:column;align-items:center}
+.ag-dot{width:10px;height:10px;margin-top:16px;border-radius:50%;flex:0 0 auto}
+.ag-conn{flex:1;width:2px;background:var(--border)}
+.ag-card{display:flex;flex-direction:column;gap:2px;margin-bottom:8px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--ink);text-align:right}
+.ag-card b{font-size:16px;font-weight:600}
+.ag-card.next{border:1.5px solid var(--ink)}
+.ag-sub{font-size:13px;color:var(--muted)}
+.tl-ribbon{display:flex;flex-direction:column}
+.rb-row{display:grid;grid-template-columns:56px 22px minmax(0,1fr);column-gap:8px;min-height:48px;border-bottom:1px solid #F0EBE5}
+.rb-row.today{background:var(--teal-soft);margin:0 -8px;padding:0 8px;border-radius:8px}
+.rb-date{display:flex;flex-direction:column;justify-content:center}
+.rb-date b{font-size:15px;font-variant-numeric:tabular-nums;text-align:right}
+.rb-date span{font-size:12px;color:var(--muted)}
+.rb-bars{display:flex;justify-content:center;gap:2px;align-items:stretch}
+.rb-bar{width:10px;display:block}
+.rb-bar.start{margin-top:14px;border-radius:5px 5px 0 0}
+.rb-bar.end{margin-bottom:14px;border-radius:0 0 5px 5px}
+.rb-dot{width:8px;height:8px;margin-top:20px;border-radius:50%;display:block}
+.rb-content{display:flex;flex-direction:column;justify-content:center;min-width:0}
+.rb-entry{min-height:44px;display:flex;align-items:center;gap:6px;padding:0;border:0;background:transparent;color:var(--ink);font-size:14px;text-align:right}
+.rb-time{width:40px;flex:0 0 40px;font-variant-numeric:tabular-nums;text-align:left}
+.rb-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rb-empty{display:flex;align-items:center;font-size:14px;color:var(--muted);min-height:44px}
+.rb-collapsed{padding:10px 0;border-bottom:1px solid #F0EBE5;font-size:14px;color:var(--muted)}

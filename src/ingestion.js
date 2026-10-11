@@ -27,6 +27,9 @@ export const TRANSPORT_MODES={transfer:'הסעה',rail:'רכבת',ferry:'מעב�
 export const ITEM_TYPES = {
   flight:{label:'טיסה',icon:'✈️',schedule:'single'},hotel:{label:'מלון',icon:'🏨',schedule:'range'},car:{label:'תחבורה',icon:'🚐',schedule:'range'},activity:{label:'אטרקציה',icon:'🎟️',schedule:'single'},restaurant:{label:'מסעדה',icon:'🍽️',schedule:'single'},insurance:{label:'ביטוח',icon:'🛡️',schedule:'entire'},link:{label:'קישור',icon:'🔗',schedule:'none'},document:{label:'מסמך',icon:'📄',schedule:'none'},contact:{label:'איש קשר',icon:'☎️',schedule:'none'},participant:{label:'משתתף',icon:'👨‍👩‍👧‍👦',schedule:'none'},shoppingPlace:{label:'מקום קניות',icon:'🏬',schedule:'none'},
 };
+// Beta 0.8 Phase 3.1 (P3-F16): Trip Center tiles and category-page titles are plural; the type chip on a single item stays
+// singular (ITEM_TYPES[type].label).
+export const ITEM_TYPE_PLURALS={flight:'טיסות',hotel:'מלונות',car:'תחבורה',activity:'אטרקציות',restaurant:'מסעדות',insurance:'ביטוחים',contact:'אנשי קשר',document:'מסמכים'};
 export const TYPE_FIELDS={
   flight:['provider','confirmationNumber','location','startAt','endAt','participants','notes'],hotel:['provider','confirmationNumber','location','website','phone','startAt','endAt','participants','notes'],car:['transportMode','provider','confirmationNumber','location','website','email','phone','startAt','endAt','participants','notes'],activity:['provider','confirmationNumber','location','website','startAt','participants','notes'],restaurant:['provider','confirmationNumber','location','website','phone','startAt','participants','notes'],insurance:['provider','confirmationNumber','website','phone','startAt','endAt','participants','notes'],link:['website','notes'],contact:['provider','phone','website','location','notes'],participant:['phone','notes'],shoppingPlace:['location','website','phone','startAt','notes'],
 };

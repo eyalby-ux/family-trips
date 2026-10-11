@@ -390,7 +390,7 @@ function test_0_7_2_trip_switcher_and_editor_grant_are_reachable_from_settings()
   assert(app.includes('function sharingSection()'));
   assert(app.includes("${sharingSection()}${tripsSection()}"));
   assert(app.includes("data-action=\"switch-trip\""));
-  assert(app.includes("id='add-editor-form'")||app.includes('id="add-editor-form"'));
+  assert(app.includes("id='add-editor-form'")||app.includes('id="add-editor-form"')||app.includes("inviteForm('add-editor-form'")); // Phase 3.1 (P3-F12): the form comes from the shared inviteForm()
 }
 function test_0_7_2_sharing_section_is_owner_only(){
   const sharingBody=app.slice(app.indexOf('function sharingSection()'),app.indexOf('function sharingSection()')+300);
