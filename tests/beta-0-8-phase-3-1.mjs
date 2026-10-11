@@ -5,6 +5,7 @@ import {normalizeTaskLink,shoppingOwnerLabel} from '../src/operational-data.js';
 import {DOC_FILTERS,documentCounts,documentFlags,documentMatchesFilter,documentSummary} from '../src/documents.js';
 import {KIND_COLOURS,STAY_HUES,addDays,dayEntries,daysBetween,isStay,monthWeeks,nightStay,ribbonRange,ribbonRows,shiftTimeline,stayHue,stayList,timeText,weekBands} from '../src/timeline-view.js';
 import {ITEM_TYPES,ITEM_TYPE_PLURALS} from '../src/ingestion.js';
+import {normalizeThaiPua} from '../src/text-normalize.js';
 
 const read=path=>fs.readFileSync(new URL(path,import.meta.url),'utf8');
 const app=read('../src/v5-app.js'),css=read('../src/styles.css'),html=read('../index.html');
@@ -56,6 +57,17 @@ test('P3-F6: Noto Sans Thai follows Heebo in the font links and in every font st
     assert(!/Heebo,Arial,sans-serif/.test(text),`${file}: a Heebo stack without the Thai fallback`);
   }
   assert(css.includes('font-family:Heebo,"Noto Sans Thai",Arial,sans-serif'));
+});
+
+test('P3-F6 (root cause): legacy Thai Private Use glyphs from PDFs map back to the standard marks, in extraction and in everything rendered',()=>{
+  const broken='พันวารยีรี'.replace('','')+'สอรต';
+  assert.equal(normalizeThaiPua('รีสอรต'),'รีสอร์ต','F70E is the thanthakhat -> รีสอร์ต');
+  assert.equal(normalizeThaiPua('กา'),'ก้า');assert.equal(normalizeThaiPua(''),'ิ');assert.equal(normalizeThaiPua(''),'ฺ');
+  assert.equal(normalizeThaiPua('Hyatt Regency שלום 123'),'Hyatt Regency שלום 123','everything else is untouched');
+  assert.equal(normalizeThaiPua(undefined),'');assert.equal(normalizeThaiPua(5),'5');
+  assert(!/[-]/.test(normalizeThaiPua(broken)));
+  assert(app.includes("function esc(value=''){return normalizeThaiPua(value).replace("),'every rendered string');
+  assert(read('../src/content-extraction.js').includes('normalizeThaiPua(item.str || \'\')'),'text pulled out of a PDF');
 });
 
 test('P3-F7 / F9 / F11: one compact participant row -- name opens the editor, status line carries the reason, small toggle + bin; the add button is in the header',()=>{

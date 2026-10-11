@@ -6,6 +6,7 @@ import {COUNTER_ABOVE,arrowKeyTarget,carouselSlots,participantLayout,positionInd
 import {normalizeProposalLifecycle,rejectProposal} from './proposal-lifecycle.js';
 import {GAME_FILTERS,filterGames,gamePrimaryAction} from './games.js';
 import {syncStripText} from './ui-states.js';
+import {normalizeThaiPua} from './text-normalize.js';
 import {KIND_COLOURS,dayEntries,dayOf,daysBetween,isStay,monthWeeks,nightStay,ribbonRange,ribbonRows,shiftTimeline,stayHue,stayList,weekBands} from './timeline-view.js';
 import {DOC_FILTERS,documentCounts,documentFlags,documentMatchesFilter,documentSummary} from './documents.js';
 import {TICKET_ITEM_TYPES,coverageSummary,additionalDetails,partitionItemDocuments,ticketHolderDetail,ticketHolderLabel} from './ticket-card.js';
@@ -277,7 +278,7 @@ async function startNewTripFlow(){
   render();
 }
 function uid(prefix='id'){return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`}
-function esc(value=''){return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+function esc(value=''){return normalizeThaiPua(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
 function warningText(value){return typeof value==='string'?value:value?.message||value?.code||JSON.stringify(value)}
 function dateOnly(value){return value?String(value).slice(0,10):''}
 // V6-F25: the compact with-time format omitted year entirely, which reads as ambiguous/wrong for

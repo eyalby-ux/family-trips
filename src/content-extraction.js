@@ -1,3 +1,4 @@
+import { normalizeThaiPua } from './text-normalize.js';
 const PDFJS_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.mjs';
 const PDFJS_WORKER_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.mjs';
 const TESSERACT_URL = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/+esm';
@@ -30,7 +31,7 @@ async function extractPdfText(file, onProgress) {
       onProgress(`קורא עמוד ${pageNumber} מתוך ${document.numPages}`);
       const page = await document.getPage(pageNumber);
       const content = await page.getTextContent();
-      pages.push(content.items.map((item) => item.str || '').join(' '));
+      pages.push(content.items.map((item) => normalizeThaiPua(item.str || '')).join(' '));
     }
 
     const text = pages.join('\n').replace(/\s+/g, ' ').trim();

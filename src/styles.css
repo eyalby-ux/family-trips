@@ -696,3 +696,6 @@ a.t-menu-item{display:flex;align-items:center;text-decoration:none}
 .badge.blue{color:var(--ink)}
 .detail-top .back-btn{flex:0 0 auto;min-width:44px}
 .field-error{margin:-6px 0 12px;font-size:14px;font-weight:600;color:#A4442A}
+/* Beta 0.8 Phase 3.1: a task row's meta line may wrap (a link button and a note icon share the row) instead of cutting the date. */
+.task-meta{flex-wrap:wrap}
+.task-meta .task-meta-text{white-space:normal;overflow:visible}
