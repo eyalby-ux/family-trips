@@ -692,3 +692,7 @@ a.t-menu-item{display:flex;align-items:center;text-decoration:none}
 .rb-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rb-empty{display:flex;align-items:center;font-size:14px;color:var(--muted);min-height:44px}
 .rb-collapsed{padding:10px 0;border-bottom:1px solid #F0EBE5;font-size:14px;color:var(--muted)}
+/* Beta 0.8 Phase 3.1 (S9 audit): the "מנהל" chip text is ink (the blue was 3.5:1 on --teal-soft); the back arrow never shrinks under a long title. */
+.badge.blue{color:var(--ink)}
+.detail-top .back-btn{flex:0 0 auto;min-width:44px}
+.field-error{margin:-6px 0 12px;font-size:14px;font-weight:600;color:#A4442A}

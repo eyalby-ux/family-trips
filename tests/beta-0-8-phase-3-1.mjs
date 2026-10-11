@@ -36,7 +36,7 @@ test('P3-F4: a task has notes and a validated link; the row shows the icons; the
   const form=app.slice(app.indexOf('function simpleFormModal'),app.indexOf("if(type==='shopping')"));
   assert(form.includes('<textarea name="notes"')&&form.includes('<input name="link" type="text" inputmode="url" dir="ltr"'));
   assert(form.includes('class="fact-link fact-underline task-link-open" href="${esc(task.link)}" target="_blank" rel="noopener"')&&form.includes('<bdi dir="ltr">${esc(task.link)}</bdi>'),'the link opens from the task screen, LTR');
-  assert(app.includes("const link=normalizeTaskLink(data.get('link'));")&&app.includes("if(!link.ok){notify('הקישור אינו תקין")&&app.includes("notes:String(data.get('notes')||'').trim(),link:link.value"),'validated before saving');
+  assert(app.includes("const link=normalizeTaskLink(data.get('link'));")&&app.includes("if(!link.ok){const error=form.querySelector('#task-link-error');if(error)error.hidden=false;")&&app.includes('id="task-link-error" role="alert" hidden')&&!app.includes("notify('הקישור אינו תקין")&&app.includes("notes:String(data.get('notes')||'').trim(),link:link.value"),'validated before saving');
   const row=fn('taskRow');
   assert(row.includes('class="task-link" href="${esc(task.link)}" target="_blank" rel="noopener"')&&row.includes("tabler('link')")&&row.includes("tabler('notes')")&&row.includes('task.notes?'));
 });
@@ -200,6 +200,11 @@ test('P3-F15 wiring: mode control, calendar on top, day agenda / ribbon below, a
   assert.match(css,/\.rb-row\{display:grid;grid-template-columns:56px 22px minmax\(0,1fr\)/);assert.match(css,/\.rb-time\{width:40px;flex:0 0 40px;font-variant-numeric:tabular-nums;text-align:left\}/);
   assert.match(css,/\.tl-modes button\[aria-pressed="true"\]\{background:var\(--ink\);color:#fff\}/);assert.match(css,/\.tl-cell\{min-height:44px/);
   assert(app.includes("state.timelineCursor=shiftTimeline(state.timelineCursor,state.timelineMode,Number(button.dataset.dir))"));
+});
+
+test('S9 audit (3.1): chip text is ink, the back arrow keeps 44px',()=>{
+  assert.match(css,/\.badge\.blue\{color:var\(--ink\)\}/);
+  assert.match(css,/\.detail-top \.back-btn\{flex:0 0 auto;min-width:44px\}/);
 });
 
 test('P3-F16: plural tile and category titles, singular chip, a small "+ type" in the header row, no bottom "הוספה"',()=>{
