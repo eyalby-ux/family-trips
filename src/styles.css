@@ -733,3 +733,5 @@ a.t-menu-item{display:flex;align-items:center;text-decoration:none}
 .doc-row.archived .doc-meta{flex-wrap:nowrap;min-width:0}
 /* P31-F5: the icon-only "+" on a narrow header is still a 44px target. */
 @container (max-width:300px){.detail-top .add-type{min-width:44px;padding:0}}
+/* Beta 0.8 Phase 3.2 (S9 audit): the "הסתיימו היום" rows on Today are 44px targets. */
+.done-row-main{min-height:44px}
