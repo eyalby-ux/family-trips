@@ -59,3 +59,7 @@ Date: 2026-10-12 · Tester: Product Owner (Eyal), real phone · Run by the QA ag
 ## GO/NO-GO decision
 - 2026-10-12 17:33 — **NO-GO** (Product Owner). Phase 3.1 is not promoted. Findings P31-F1, F2, F5, F6 to fix before Production; P31-F3 in the next round; P31-F4 in this round if the Development Agent judges it small, otherwise next round.
 - Still open: E1 (Today row) re-test after the fix.
+
+## Operational note (for Claude Code)
+- A stale, empty `.git/HEAD.lock` (created 2026-10-12 17:40) is left in the repository. It blocks later git commands with "File exists". The PO approved removing it: Claude Code may delete `.git/HEAD.lock` once confirmed that no git process is running. Do not delete other `.git` files.
+- The commit `9059bbd` (Phase 3.1 PO session results) was made on `version/V7` before the lock was seen; its content is final.
