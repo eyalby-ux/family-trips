@@ -707,8 +707,11 @@ a.t-menu-item{display:flex;align-items:center;text-decoration:none}
 .detail-top .add-type{flex:0 0 auto;padding:0 10px}
 @container (max-width:300px){.detail-top .add-type .btn-label{display:none}.detail-top .add-type{padding:0 12px}}
 /* Beta 0.8 Phase 3.2 (P31-F6): the completed-tasks section is a real disclosure button with an arrow, open by default. */
-.tasks-done-head{width:100%;min-height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 4px;border:0;background:transparent;color:var(--ink);font-size:16px;font-weight:600}
-.tasks-done-head .ti{width:20px;height:20px}
+.tasks-done-head{width:100%;min-height:44px;display:flex;align-items:center;justify-content:flex-start;gap:10px;padding:0 4px;border:0;background:transparent;color:var(--ink);font-size:16px;font-weight:600}
+/* the same triangle the document archive's native disclosure draws: ◂ closed (pointing to the start side, left in RTL), ▾ open */
+.disc{flex:0 0 auto;display:inline-block;width:0;height:0;border-style:solid}
+.disc.open{border-width:8px 5px 0 5px;border-color:var(--ink) transparent transparent transparent}
+.disc.closed{border-width:5px 8px 5px 0;border-color:transparent var(--ink) transparent transparent}
 /* Beta 0.8 Phase 3.2 (P31-F1): Settings home list. */
 .sgroup-label{margin:14px 4px 6px;font-size:13px;font-weight:600;color:var(--muted)}
 .sgroup{border:1px solid var(--border);border-radius:14px;background:var(--surface);overflow:hidden}
@@ -724,7 +727,7 @@ a.t-menu-item{display:flex;align-items:center;text-decoration:none}
 .settings-sub:not(.settings-trip) .section-head{justify-content:flex-start}
 /* Beta 0.8 Phase 3.2 (P31-F3, F4): failed rows and the archive on the document-row pattern. */
 .doc-row .doc-main{flex:1 1 0}
-.doc-retry{min-width:84px;justify-content:center}
+.doc-row .import-status .import-pill{max-width:100%}
 .doc-row .doc-status{display:block}
 .doc-row .import-status{margin:0}
 .doc-chip.rejected{background:var(--bg);border:1px solid var(--border);color:var(--muted)}

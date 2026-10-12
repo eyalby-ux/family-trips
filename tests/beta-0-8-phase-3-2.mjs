@@ -50,9 +50,10 @@ test('P31-F2: the Today action row -- equal label-only buttons below a hairline:
 test('P31-F3: a Failed document row keeps its pill visible; "נסה שוב" / "מחק" are compact outline buttons under the name',()=>{
   const row=fn('documentRow');
   assert(row.includes('importStatusPill(stateName)')&&!row.includes('{actions:failedActions}'),'the pill carries no buttons');
-  assert(row.includes('class="btn ghost small-btn doc-retry" type="button" data-action="analyze-source"')&&row.includes('${chip}${failActions}${notes}'),'one compact outline retry beside the pill');
+  // PO 2026-10-12: the retry is in the "⋯" menu, and the pill sits where the retry button was -- nothing beside it, nothing covering the name.
+  assert(row.includes("const retry=stateName==='failed'&&canRetry?menuButton('analyze-source',source,'נסה שוב'):'';")&&row.includes('const menu=[retry,open,')&&row.includes('<span class="doc-meta">${chip}${notes}</span>')&&!row.includes('doc-retry'),'"נסה שוב" is the first entry of the Failed row\'s menu');
   assert(row.includes("canDeleteSource(source,'')?menuButton('source-delete',source,'מחק'):''"),'a Failed document\'s delete is in its "⋯" menu');
-  assert.match(css,/\.doc-row \.doc-main\{flex:1 1 0\}/,'a long name can never push the content onto a second line');assert.match(css,/\.doc-retry\{min-width:84px/);
+  assert.match(css,/\.doc-row \.doc-main\{flex:1 1 0\}/,'a long name can never push the content onto a second line');
   assert.match(css,/\.small-btn\{min-height:44px;[^}]*white-space:nowrap/,'44px, no wrap');
 });
 
@@ -74,7 +75,8 @@ test('P31-F5: the category header never covers its title -- 26px title, label hi
 test('P31-F6: "הושלמו (N)" is a disclosure button with an arrow, open by default, remembered while you stay',()=>{
   const view=fn('tasksView');
   assert(view.includes('class="tasks-done-head" type="button" data-action="tasks-done-toggle" aria-expanded="${!state.tasksDoneCollapsed}"'));
-  assert(view.includes("${state.tasksDoneCollapsed?tabler('chevron').replace('class=\"ti\"','class=\"ti icon-directional\"'):tabler('chevdown')}"),'an arrow either way');
+  assert(view.includes('<i class="disc ${state.tasksDoneCollapsed?\'closed\':\'open\'}" aria-hidden="true"></i>')&&view.includes('<span>הושלמו (${doneTasks.length})</span>'),'the same triangle as the document archive\'s disclosure, at the start of the row');
+  assert.match(css,/\.disc\.open\{border-width:8px 5px 0 5px/);assert.match(css,/\.disc\.closed\{border-width:5px 8px 5px 0/);
   assert(view.includes("${state.tasksDoneCollapsed?'':`<div class=\"list\">${doneTasks.map(taskRow).join('')}</div>`}"),'the done tasks show unless it was collapsed');
   assert(!view.includes('<details'),'not a native <details> (it rendered closed on the phone)');
   assert(app.includes("else if(action==='tasks-done-toggle'){state.tasksDoneCollapsed=!state.tasksDoneCollapsed;render()}"));
