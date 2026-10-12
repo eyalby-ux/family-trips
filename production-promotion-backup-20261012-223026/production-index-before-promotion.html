@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#2f8f63">
+  <meta name="description" content="Family Trips Alpha 0.7.9.2">
+  <!-- V6-F40: the same package.json version + git SHA already embedded in the service worker's
+       cache name, so QA can confirm exactly which build is live (via Settings) without checking
+       the network tab -- the Alpha version alone doesn't change between fix passes. -->
+  <meta name="build-version" content="0.7.9.2-36090d32">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/assets/icons/favicon.png">
+  <link rel="apple-touch-icon" href="/assets/icons/icon-192.png">
+  <!-- The version placeholder below is resolved at build time from package.json's version by
+       scripts/inject-build-version.mjs (V6-F24), so the tab title and description can never
+       drift from the shipped version again. Do not hand-edit the resolved value in dist/. -->
+  <title>Family Trips · Alpha 0.7.9.2</title>
+  <script type="module" crossorigin src="/assets/index-tb_v8SSy.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-C3Z_-pR4.css">
+</head>
+<body>
+  <div id="account-bar" hidden></div>
+  <div id="auth-root"></div>
+  <div id="app"></div>
+  <noscript>יש להפעיל JavaScript.</noscript>
+</body>
+</html>
