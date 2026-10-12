@@ -57,6 +57,12 @@ test('P31-F3: a Failed document row keeps its pill visible; "נסה שוב" / "�
   assert.match(css,/\.small-btn\{min-height:44px;[^}]*white-space:nowrap/,'44px, no wrap');
 });
 
+test('P31-F3 (PO, 2026-10-12): in a document row nothing shrinks, so the name can never be squeezed behind the pill (larger phone text sizes)',()=>{
+  assert.match(css,/\.doc-main>\*\{flex:0 0 auto\}/,'the name and the meta line keep their height; the row grows instead');
+  assert.match(css,/\.doc-name\{line-height:1\.4\}/);
+  assert.match(css,/\.doc-row\{align-items:center\}/);
+});
+
 test('P31-F4: an archived proposal is a compact row -- the title on one LTR line, "נדחה" and the source name inside the card',()=>{
   const row=fn('archivedSuggestionRow');
   assert(row.includes('<div class="doc-row archived">')&&row.includes('<bdi class="doc-name" dir="ltr">${esc(suggestion.proposed.title)}</bdi>')&&row.includes('<span class="doc-chip rejected">נדחה</span>'));

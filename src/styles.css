@@ -738,3 +738,9 @@ a.t-menu-item{display:flex;align-items:center;text-decoration:none}
 @container (max-width:300px){.detail-top .add-type{min-width:44px;padding:0}}
 /* Beta 0.8 Phase 3.2 (S9 audit): the "הסתיימו היום" rows on Today are 44px targets. */
 .done-row-main{min-height:44px}
+/* Beta 0.8 Phase 3.2 (PO, 2026-10-12): in a document row nothing may shrink -- the name used to be squeezed to a sliver (and clipped) behind the status pill
+   when the pill was taller than the room, e.g. with the phone's larger text size. The row grows instead. */
+.doc-main>*{flex:0 0 auto}
+.doc-name{line-height:1.4}
+.doc-row{align-items:center}
+.doc-main{justify-content:center}
