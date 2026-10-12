@@ -15,7 +15,7 @@ const fn=name=>{const start=app.indexOf(`function ${name}(`);assert(start>-1,nam
 test('P23-F1: a category page puts the back arrow, the type icon and the title on one line',()=>{
   const back=fn('backRow');
   assert(back.includes("title?`<h2 class=\"detail-title\">${title}</h2>`:''")&&back.includes("' with-title'"),'the title is inside the same detail-top row');
-  assert(app.includes("${backRow('center','',`<button class=\"btn ghost small-btn\" data-action=\"create\">${tabler('plus')} ${ITEM_TYPES[state.category]?.label||''}</button>`,`${typeIcon(state.category)} ${ITEM_TYPE_PLURALS[state.category]||ITEM_TYPES[state.category]?.label||''}`)}"));
+  assert(app.includes("${backRow('center','',`<button class=\"btn ghost small-btn add-type\" data-action=\"create\" aria-label=\"הוספת ${esc(ITEM_TYPES[state.category]?.label||'')}\">${tabler('plus')}<span class=\"btn-label\">${ITEM_TYPES[state.category]?.label||''}</span></button>`,`${typeIcon(state.category)} ${ITEM_TYPE_PLURALS[state.category]||ITEM_TYPES[state.category]?.label||''}`)}"));
   assert(!app.includes("${backRow('center')}<h2>${typeIcon(state.category)}"),'no separate <h2> row below the arrow any more');
   assert.match(css,/\.detail-top\.with-title\{justify-content:flex-start;/);
   assert.match(css,/\.detail-top\.with-title \.detail-title\{[^}]*min-width:0/,'a long title can shrink instead of pushing the row');
@@ -159,8 +159,8 @@ test('P22-F10 (follow-up): a long chosen file name can never widen the file box 
 });
 
 test('Settings on the tokens: a screen title, section-scale titles; Tasks has the Packing/Shopping header',()=>{
-  const settings=fn('settingsView');
-  assert(settings.includes('<div class="settings-page"><h2 class="screen-title">הגדרות</h2>')&&settings.includes('</section></div>`}'),'the page is wrapped and titled');
+  const settings=fn('settingsHome'); // Phase 3.2 (P31-F1): the home list
+  assert(settings.includes('<div class="settings-page"><h2 class="screen-title">הגדרות</h2>')&&settings.includes('</div>`;'),'the page is titled');
   assert.match(css,/\.settings-page \.card>h2\{font-size:22px;font-weight:600/,'sections at the 22px section scale');
   const tasks=fn('tasksView');
   assert(tasks.includes('<div class="page-head"><h2>משימות</h2><button class="btn ghost small-btn" data-action="task-add">'),'the Tasks header is the Packing/Shopping header');

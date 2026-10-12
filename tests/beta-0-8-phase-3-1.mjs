@@ -45,7 +45,8 @@ test('P3-F4: a task has notes and a validated link; the row shows the icons; the
 test('P3-F5: done tasks move to "הושלמו (N)" at the bottom; the status filter still works',()=>{
   const view=fn('tasksView');
   assert(view.includes('const openTasks=filtered.filter(task=>!task.done),doneTasks=filtered.filter(task=>task.done);'));
-  assert(view.includes('<details class="tasks-done" ${state.tasksDoneCollapsed?\'\':\'open\'}><summary>הושלמו (${doneTasks.length})</summary>'));
+  // Phase 3.2 (P31-F6): a real disclosure button with an arrow, open by default (see beta-0-8-phase-3-2.mjs)
+  assert(view.includes('<div class="tasks-done"><button class="tasks-done-head" type="button" data-action="tasks-done-toggle"')&&view.includes('הושלמו (${doneTasks.length})'));
   assert(view.indexOf('openTasks.map(taskRow)')<view.indexOf('doneTasks.map(taskRow)'),'open first, done last');
   assert(view.includes("const statusOptions=[['all','כל המשימות'],['open','משימות פתוחות בלבד']];"),'the status filter is unchanged');
 });
@@ -96,8 +97,9 @@ test('P3-F8: a destination is one row (name + up, down, bin); the add row is the
 });
 
 test('P3-F10: the Today card\'s time column and action row start at the same right edge',()=>{
-  assert.match(css,/\.day-item-time\{align-items:flex-start;padding:12px 2px 12px 4px;padding-inline-start:12px\}/);
-  assert.match(css,/\.day-item-actions \{?[^}]*padding:0 12px 12px|\.day-item-actions\{[^}]*padding:0 12px 12px/,'the action row keeps the 12px content edge');
+  // Phase 3.2 (P31-F2) supersedes the 3.1 alignment: the action row is its own full-width row under a hairline (see beta-0-8-phase-3-2.mjs).
+  assert.match(css,/\.day-item-time\{flex:0 0 96px;width:96px;align-items:center/);
+  assert.match(css,/\.day-item-actions\{display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px;border-top:1px solid var\(--border\)\}/,'a hairline above a full-width row');
 });
 
 test('P3-F12: every e-mail is one LTR line in a row of its own with a short "הסרה"; invite = field + "הזמנה"',()=>{
@@ -130,10 +132,10 @@ test('P3-F13: the document list -- filters with counts, ~60px rows, a "⋯" menu
   const row=fn('documentRow');
   assert(row.includes('<bdi class="doc-name" dir="ltr">')&&row.includes('class="doc-main"')&&row.includes('moreMenu([menu])'));
   assert(row.includes("canDeleteSource(source,stateName)?menuButton('source-delete',source,'מחק'):''")&&row.includes("menuButton('source-edit-participants',source,'שיוך למשתתף')"),'no "מחק" for a confirmed ticket');
-  assert(row.includes("importStatusPill(stateName,{actions:failedActions})"),'a Failed source keeps retry / delete in its pill');
+  assert(row.includes('importStatusPill(stateName)')&&row.includes('class="doc-fail-actions"'),'a Failed source keeps retry / delete, compact and under the name (Phase 3.2 P31-F3)');
   const page=fn('documentsCategory');
   assert(page.includes('data-action="doc-filter"')&&page.includes('aria-pressed="${filter===key}"')&&page.includes('data-filter="all">הצגת הכול'),'single-select chips with counts and an empty state');
-  assert(page.includes('${ITEM_TYPE_PLURALS.document}')&&page.includes("${tabler('plus')} ${ITEM_TYPES.document.label}"),'one-line header with "+ מסמך"');
+  assert(page.includes('${ITEM_TYPE_PLURALS.document}')&&page.includes("${tabler('plus')}<span class=\"btn-label\">${ITEM_TYPES.document.label}</span>"),'one-line header with "+ מסמך"');
   assert(app.includes("if(state.category==='document')return documentsCategory();")&&app.includes("else if(action==='doc-filter'){state.docFilter=button.dataset.filter||'all';render()}"));
   assert.match(css,/\.doc-row\{[^}]*min-height:60px/);assert.match(css,/\.doc-filters\{display:flex;gap:6px;overflow-x:auto/);
 });
@@ -224,7 +226,7 @@ test('P3-F16: plural tile and category titles, singular chip, a small "+ type" i
   assert.equal(ITEM_TYPES.hotel.label,'מלון','the type chip on a single item stays singular');
   assert(app.includes('<b>${ITEM_TYPE_PLURALS[key]||type.label}</b>'),'plural tiles');
   const center=fn('center');
-  assert(center.includes("${tabler('plus')} ${ITEM_TYPES[state.category]?.label||''}</button>")&&center.includes('ITEM_TYPE_PLURALS[state.category]'),'plural title, "+ <singular type>" beside it');
+  assert(center.includes("${tabler('plus')}<span class=\"btn-label\">${ITEM_TYPES[state.category]?.label||''}</span></button>")&&center.includes('ITEM_TYPE_PLURALS[state.category]'),'plural title, "+ <singular type>" beside it');
   assert(!center.includes('<div class="actions"><button class="btn" data-action="create">הוספה</button></div>'),'no bottom "הוספה"');
   assert(fn('detailView').includes('detailBadgeLabel'),'the item page chip is the singular label');
 });

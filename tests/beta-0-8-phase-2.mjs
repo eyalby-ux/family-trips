@@ -24,7 +24,7 @@ test('S7: exactly the seven states, with the spec\'s own labels',()=>{
 test('S7: one component -- v5-app.js never builds pill markup of its own, and all three locations call it',()=>{
   assert(!app.includes('import-pill'),'pill markup must live only in import-status.js');
   const row=app.slice(app.indexOf('function suggestionRow('),app.indexOf('function confidenceLabel('));
-  assert(row.includes('importStatusPill(stateName)')&&row.includes("importStatusPill('rejected')"),'Intake Inbox rows');
+  assert(row.includes('importStatusPill(stateName)')&&row.includes('doc-chip rejected'),'Intake Inbox rows (Phase 3.2: the archived row is the compact document row with a muted "נדחה" chip)');
   const source=app.slice(app.indexOf('function sourceRow('),app.indexOf('function ticketCoverage('));
   assert(source.includes('importStatusPill(stateName,{actions:failedActions})'),"an item's Documents area");
   const review=app.slice(app.indexOf('function suggestionView('),app.indexOf('const BAGGAGE_LABELS'));

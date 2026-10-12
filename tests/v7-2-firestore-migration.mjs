@@ -388,7 +388,7 @@ function test_0_7_2_migration_verifies_before_declaring_success(){
 function test_0_7_2_trip_switcher_and_editor_grant_are_reachable_from_settings(){
   assert(app.includes('function tripsSection()'));
   assert(app.includes('function sharingSection()'));
-  assert(app.includes("${sharingSection()}${tripsSection()}"));
+  assert(app.includes('sharing:()=>sharingSection()')&&app.includes('trips:tripsSection')); // Phase 3.2 (P31-F1): each Settings page is built by settingsPage()
   assert(app.includes("data-action=\"switch-trip\""));
   assert(app.includes("id='add-editor-form'")||app.includes('id="add-editor-form"')||app.includes("inviteForm('add-editor-form'")); // Phase 3.1 (P3-F12): the form comes from the shared inviteForm()
 }

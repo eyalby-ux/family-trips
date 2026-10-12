@@ -54,7 +54,7 @@ function test_0_7_4_destinationsSection_supports_add_move_and_remove_in_order(){
   assert(app.includes("if(index<list.length-1){[list[index],list[index+1]]=[list[index+1],list[index]];"));
 }
 function test_0_7_4_destinationsSection_is_wired_into_settingsView(){
-  assert(app.includes('${destinationsSection()}${participantsSection()}${sharingSection()}${tripsSection()}'));
+  assert(app.includes('trip:()=>tripDetailsSection()+destinationsSection()')); // Phase 3.2 (P31-F1): the trip page of the Settings home list
 }
 
 // --- First-class Transport items --------------------------------------------------------------
@@ -120,7 +120,7 @@ function test_0_7_4_participantsSection_is_wired_into_settingsView_the_sole_entr
   assert(body.includes("data-action=\"participant-edit\""));
   assert(body.includes("data-action=\"participant-toggle-active\""));
   assert(body.includes("data-action=\"participant-add\""));
-  assert(app.includes('${destinationsSection()}${participantsSection()}${sharingSection()}'));
+  assert(app.includes('participants:participantsSection')&&app.includes('sharing:()=>sharingSection()')); // Phase 3.2: each section is a Settings page
   // Confirmed NOT referenced from center()'s own visibleTypes tile grid -- no standalone Trip
   // Center participant UI is (re)introduced, per the frozen V24 decision.
   const centerStart=app.indexOf('function center(){');
@@ -250,7 +250,7 @@ function test_0_7_4_packRow_shows_assigned_participant_names_and_an_edit_control
 }
 function test_0_7_4_packingParticipantView_is_preserved_as_an_ephemeral_field_across_remote_updates(){
   assert(app.includes('packingParticipantView:\'shared\''));// EMPTY's own default
-  assert(app.includes('calendarDate,toast,packingParticipantView}=state;'));
+  assert(app.includes('calendarDate,toast,packingParticipantView,settingsPage,')&&app.includes('}=state;')); // Phase 3.2 adds the other never-synced fields
 }
 
 const tests=[

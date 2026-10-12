@@ -245,7 +245,9 @@ bdi,.bidi{unicode-bidi:isolate}
 .access-remove{white-space:nowrap;flex:0 0 auto}
 .row-main b.email{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* P3-F10: the Today card's time column starts at the same right edge as the action row, so "ניווט" sits flush under the time. */
-.day-item-time{align-items:flex-start;padding:12px 2px 12px 4px;padding-inline-start:12px}
+.day-item-time{flex:0 0 96px;width:96px;align-items:center;padding:12px 4px}
+.day-item-actions{display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px;border-top:1px solid var(--border)}
+.day-item-actions .btn{flex:1 1 calc(33.333% - 8px);min-width:0;min-height:44px;justify-content:center;padding:0 6px;border-radius:12px;font-size:15px;font-weight:600;white-space:nowrap}
 .day-head{color:var(--ink);font-weight:700}
 .task-filters,.shopping-filters{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
 .task-filters .field{margin-bottom:0}
@@ -550,7 +552,7 @@ a.t-menu-item{display:flex;align-items:center;text-decoration:none}
 .icon-btn{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;padding:0;border:0;background:transparent;color:var(--ink);cursor:pointer}
 .icon-btn .ti{width:24px;height:24px;stroke:var(--ink)}
 .back-btn{margin-inline-start:-10px}
-.detail-top.with-title{justify-content:flex-start;gap:4px;margin:-6px 0 8px}
+.detail-top.with-title{justify-content:flex-start;gap:4px;margin:-6px 0 8px;container-type:inline-size}
 .detail-top.with-title .detail-title{display:flex;align-items:center;gap:8px;flex:1 1 auto;min-width:0;margin:0}
 .detail-head h2{margin-top:0}
 /* P21-F2 / F3: inline links on the fact rows */
@@ -699,3 +701,34 @@ a.t-menu-item{display:flex;align-items:center;text-decoration:none}
 /* Beta 0.8 Phase 3.1: a task row's meta line may wrap (a link button and a note icon share the row) instead of cutting the date. */
 .task-meta{flex-wrap:wrap}
 .task-meta .task-meta-text{white-space:normal;overflow:visible}
+/* Beta 0.8 Phase 3.2 (P31-F5): the header title is never covered by the "+ <type>" button -- a 26px title that cannot be pushed under it, and below
+   300px of header width (a 360px phone) the button shows just the "+" (its accessible name stays "הוספת <type>"). */
+.detail-top.with-title .detail-title{font-size:26px;line-height:1.25;white-space:nowrap;overflow:hidden}
+.detail-top .add-type{flex:0 0 auto;padding:0 10px}
+@container (max-width:300px){.detail-top .add-type .btn-label{display:none}.detail-top .add-type{padding:0 12px}}
+/* Beta 0.8 Phase 3.2 (P31-F6): the completed-tasks section is a real disclosure button with an arrow, open by default. */
+.tasks-done-head{width:100%;min-height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 4px;border:0;background:transparent;color:var(--ink);font-size:16px;font-weight:600}
+.tasks-done-head .ti{width:20px;height:20px}
+/* Beta 0.8 Phase 3.2 (P31-F1): Settings home list. */
+.sgroup-label{margin:14px 4px 6px;font-size:13px;font-weight:600;color:var(--muted)}
+.sgroup{border:1px solid var(--border);border-radius:14px;background:var(--surface);overflow:hidden}
+.srow{width:100%;min-height:56px;display:flex;align-items:center;gap:10px;padding:0 14px;border:0;border-bottom:1px solid var(--border);background:transparent;color:var(--ink);font:inherit;text-align:right;cursor:pointer}
+.sgroup .srow:last-child{border-bottom:0}
+.srow-text{flex:1 1 auto;min-width:0;display:flex;flex-direction:column}
+.srow-text b{font-size:15px;font-weight:600}
+.srow-sub{font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.srow .ti{flex:0 0 auto;width:20px;height:20px}
+.srow.danger,.srow.danger .srow-text b{color:#A4442A}
+.srow.danger .ti{stroke:#A4442A}
+.settings-sub:not(.settings-trip) .card>h2:first-child,.settings-sub:not(.settings-trip) .section-head>h2{display:none}
+.settings-sub:not(.settings-trip) .section-head{justify-content:flex-start}
+/* Beta 0.8 Phase 3.2 (P31-F3, F4): failed rows and the archive on the document-row pattern. */
+.doc-row{flex-wrap:wrap}
+.doc-fail-actions{flex:1 1 100%;display:flex;gap:8px;padding:0 0 4px 4px}
+.doc-fail-actions .small-btn{min-width:84px;justify-content:center}
+.doc-row .doc-status{display:block}
+.doc-row .import-status{margin:0}
+.doc-chip.rejected{background:var(--bg);border:1px solid var(--border);color:var(--muted)}
+.doc-row.archived{background:var(--bg);padding-inline-end:12px}
+.doc-row.archived .doc-note{min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.doc-row.archived .doc-meta{flex-wrap:nowrap;min-width:0}
