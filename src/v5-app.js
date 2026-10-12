@@ -634,18 +634,18 @@ function timeline(){
 function documentRow({source,stateName,flags}){
   const available=source.kind==='link'||source.storedOffline;
   const canRetry=source.kind!=='link'&&source.storedOffline&&(['saved_only','failed'].includes(source.processingState)||stateName==='failed');
-  // P31-F3: a Failed row keeps its status pill visible and puts "נסה שוב" / "מחק" in a compact outline strip UNDER the name (they used to sit inside the pill,
-  // as large dark blocks that wrapped and covered it).
-  const failActions=stateName==='failed'?`<div class="doc-fail-actions">${canRetry?`<button class="btn ghost small-btn" type="button" data-action="analyze-source" data-id="${source.id}">נסה שוב</button>`:''}<button class="btn ghost small-btn" type="button" data-action="source-delete" data-id="${source.id}">מחק</button></div>`:'';
+  // P31-F3: a Failed row keeps its status pill visible with ONE compact outline "נסה שוב" beside it (they used to sit inside the pill, as large dark
+  // blocks that wrapped and covered it); "מחק" lives in the row's "⋯" menu like every other document's (single confirmation, as before).
+  const failActions=stateName==='failed'&&canRetry?`<button class="btn ghost small-btn doc-retry" type="button" data-action="analyze-source" data-id="${source.id}">נסה שוב</button>`:'';
   const names=(source.participantIds||[]).map(participantName).filter(Boolean);
   const chip=['failed','processing','queued'].includes(stateName)?`<span class="doc-status">${importStatusPill(stateName)}</span>`:source.ticketConfirmed?'<span class="doc-chip ok">כרטיס מאושר</span>':flags.pending?'<span class="doc-chip pending">ממתין לאישור</span>':flags.attached?'<span class="doc-chip ok">מצורף</span>':'';
   const notes=[flags.attached&&flags.pending?'חילוץ ממתין לאישור':'',names.length?esc(names.join(', ')):'',source.kind==='link'&&!chip&&!names.length?'קישור':'',available?'':'הקובץ אינו זמין אופליין'].filter(Boolean).map(text=>`<span class="doc-note">${text}</span>`).join('');
   const label=`<bdi class="doc-name" dir="ltr">${esc(source.name||source.url)}</bdi>`;
-  const body=`${label}<span class="doc-meta">${chip}${notes}</span>`;
+  const body=`${label}<span class="doc-meta">${chip}${failActions}${notes}</span>`;
   const main=source.kind==='link'?`<a class="doc-main" href="${esc(source.url)}" target="_blank" rel="noopener">${body}</a>`:available?`<button class="doc-main" type="button" data-action="open-source" data-id="${source.id}">${body}</button>`:`<div class="doc-main">${body}</div>`;
   const open=source.kind==='link'?`<a class="t-menu-item" href="${esc(source.url)}" target="_blank" rel="noopener">פתיחה</a>`:available?menuButton('open-source',source,'פתיחה'):'';
-  const menu=[open,state.participants.length?menuButton('source-edit-participants',source,'שיוך למשתתף'):'',canDeleteSource(source,stateName)?menuButton('source-delete',source,'מחק'):''].join('');
-  return `<div class="doc-row${failActions?' failed':''}"><span class="doc-icon">${typeIcon(source.kind==='link'?'link':'document')}</span>${main}${moreMenu([menu])}${failActions}</div>`;
+  const menu=[open,state.participants.length?menuButton('source-edit-participants',source,'שיוך למשתתף'):'',canDeleteSource(source,'')?menuButton('source-delete',source,'מחק'):''].join('');
+  return `<div class="doc-row"><span class="doc-icon">${typeIcon(source.kind==='link'?'link':'document')}</span>${main}${moreMenu([menu])}</div>`;
 }
 function documentsCategory(){
   const items=sortItemsByStartAt(state.items.filter(item=>item.type==='document'));

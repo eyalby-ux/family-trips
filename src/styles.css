@@ -723,12 +723,13 @@ a.t-menu-item{display:flex;align-items:center;text-decoration:none}
 .settings-sub:not(.settings-trip) .card>h2:first-child,.settings-sub:not(.settings-trip) .section-head>h2{display:none}
 .settings-sub:not(.settings-trip) .section-head{justify-content:flex-start}
 /* Beta 0.8 Phase 3.2 (P31-F3, F4): failed rows and the archive on the document-row pattern. */
-.doc-row{flex-wrap:wrap}
-.doc-fail-actions{flex:1 1 100%;display:flex;gap:8px;padding:0 0 4px 4px}
-.doc-fail-actions .small-btn{min-width:84px;justify-content:center}
+.doc-row .doc-main{flex:1 1 0}
+.doc-retry{min-width:84px;justify-content:center}
 .doc-row .doc-status{display:block}
 .doc-row .import-status{margin:0}
 .doc-chip.rejected{background:var(--bg);border:1px solid var(--border);color:var(--muted)}
 .doc-row.archived{background:var(--bg);padding-inline-end:12px}
 .doc-row.archived .doc-note{min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .doc-row.archived .doc-meta{flex-wrap:nowrap;min-width:0}
+/* P31-F5: the icon-only "+" on a narrow header is still a 44px target. */
+@container (max-width:300px){.detail-top .add-type{min-width:44px;padding:0}}

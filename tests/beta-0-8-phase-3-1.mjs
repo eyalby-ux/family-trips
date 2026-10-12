@@ -131,8 +131,8 @@ test('P3-F13: the document list -- filters with counts, ~60px rows, a "⋯" menu
   assert.equal(documentSummary({all:14,pending:3}),'14 מסמכים · 3 ממתינים לאישור');assert.equal(documentSummary({all:1,pending:1}),'מסמך אחד · אחד ממתין לאישור');assert.equal(documentSummary({all:5,pending:0}),'5 מסמכים');
   const row=fn('documentRow');
   assert(row.includes('<bdi class="doc-name" dir="ltr">')&&row.includes('class="doc-main"')&&row.includes('moreMenu([menu])'));
-  assert(row.includes("canDeleteSource(source,stateName)?menuButton('source-delete',source,'מחק'):''")&&row.includes("menuButton('source-edit-participants',source,'שיוך למשתתף')"),'no "מחק" for a confirmed ticket');
-  assert(row.includes('importStatusPill(stateName)')&&row.includes('class="doc-fail-actions"'),'a Failed source keeps retry / delete, compact and under the name (Phase 3.2 P31-F3)');
+  assert(row.includes("canDeleteSource(source,'')?menuButton('source-delete',source,'מחק'):''")&&row.includes("menuButton('source-edit-participants',source,'שיוך למשתתף')"),'no "מחק" for a confirmed ticket');
+  assert(row.includes('importStatusPill(stateName)')&&row.includes('doc-retry'),'a Failed source keeps a compact retry beside its pill (Phase 3.2 P31-F3)');
   const page=fn('documentsCategory');
   assert(page.includes('data-action="doc-filter"')&&page.includes('aria-pressed="${filter===key}"')&&page.includes('data-filter="all">הצגת הכול'),'single-select chips with counts and an empty state');
   assert(page.includes('${ITEM_TYPE_PLURALS.document}')&&page.includes("${tabler('plus')}<span class=\"btn-label\">${ITEM_TYPES.document.label}</span>"),'one-line header with "+ מסמך"');

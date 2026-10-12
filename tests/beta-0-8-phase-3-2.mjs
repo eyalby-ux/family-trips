@@ -50,8 +50,9 @@ test('P31-F2: the Today action row -- equal label-only buttons below a hairline:
 test('P31-F3: a Failed document row keeps its pill visible; "נסה שוב" / "מחק" are compact outline buttons under the name',()=>{
   const row=fn('documentRow');
   assert(row.includes('importStatusPill(stateName)')&&!row.includes('{actions:failedActions}'),'the pill carries no buttons');
-  assert(row.includes('class="doc-fail-actions"')&&row.includes('class="btn ghost small-btn" type="button" data-action="analyze-source"')&&row.includes('class="btn ghost small-btn" type="button" data-action="source-delete"'));
-  assert.match(css,/\.doc-row\{flex-wrap:wrap\}/);assert.match(css,/\.doc-fail-actions\{flex:1 1 100%;display:flex;gap:8px/);
+  assert(row.includes('class="btn ghost small-btn doc-retry" type="button" data-action="analyze-source"')&&row.includes('${chip}${failActions}${notes}'),'one compact outline retry beside the pill');
+  assert(row.includes("canDeleteSource(source,'')?menuButton('source-delete',source,'מחק'):''"),'a Failed document\'s delete is in its "⋯" menu');
+  assert.match(css,/\.doc-row \.doc-main\{flex:1 1 0\}/,'a long name can never push the content onto a second line');assert.match(css,/\.doc-retry\{min-width:84px/);
   assert.match(css,/\.small-btn\{min-height:44px;[^}]*white-space:nowrap/,'44px, no wrap');
 });
 
