@@ -1,7 +1,7 @@
 # Family Trips Beta 0.8 Phase 3.2 (Phase 3.1 correction package) — Executable Acceptance Test Session
 
 **Document revision:** `V1`
-**Candidate:** `0.8.0-phase3.2` (build `0.8.0-phase3.2-9de6c7f8`) on `https://qa--familytripz.netlify.app` (qa only — **not** promoted to Production). Correction package for the Phase 3.1 NO-GO (`docs/versions/V7/0.8.0-phase3.1/PO_SESSION_RESULTS_V1.md`, handoff `HANDOFF_PHASE_3_2_FOR_CLAUDE_CODE_V1.md`). Covers `P31-F1` … `P31-F6`. **Phase 3.2's own GO is the GO for the single combined Production promotion of Beta 0.8 (decision `V147`).**
+**Candidate:** `0.8.0-phase3.2` (build `0.8.0-phase3.2-9e609fba`) on `https://qa--familytripz.netlify.app` (qa only — **not** promoted to Production). Correction package for the Phase 3.1 NO-GO (`docs/versions/V7/0.8.0-phase3.1/PO_SESSION_RESULTS_V1.md`, handoff `HANDOFF_PHASE_3_2_FOR_CLAUDE_CODE_V1.md`). Covers `P31-F1` … `P31-F6`. **Phase 3.2's own GO is the GO for the single combined Production promotion of Beta 0.8 (decision `V147`).**
 **Session number:** `V1`. No Product Owner test has been run yet. The Development Agent ran every check it could on the live `qa` build (marked "Development Agent verification"); that is supporting evidence, not sign-off.
 **Instructions:** a **real phone** re-test at 360 and 390px. Designs: `docs/design/mockups/P31-F1_settings_option_C_home.dc.html` (Settings home list) and `P31-F2_today_nav_option_A_full_width.dc.html` (Today row). Settings → אודות shows the exact `0.8.0-phase3.2-<hash>`.
 
@@ -11,7 +11,7 @@
 - **Decisions the Development Agent made** (change any you read differently):
   1. **`P31-F1` — "מחיקה" stays under "כללי"**, as on the board (the one open question in the handoff). Each row opens its page; the page has the 44px back arrow and the page title on one row; the section titles inside a page are hidden (the title is the back row's) except on "פרטי הטיול ויעדים", which has two sections. "שיתוף הטיול" is shown only to the trip's owner; "ניהול מערכת" only to managers (it opens the existing admin screen, whose back arrow returns to this list). Leaving Settings and coming back always opens the home list.
   2. **`P31-F2` — the time column is 96px** (the design's value; Phase 1's spec said 76px). The buttons are **label-only** like the board. "כרטיסים" (shown when the item has a confirmed ticket) joins the same row; with a fourth button it wraps onto its own full-width line. "התקשרות" needs a phone number with digits and dials it.
-  3. **`P31-F3` — a Failed document row** shows its red "נכשל" pill with **one** compact outline "נסה שוב" beside it; **"מחק" moved to the row's "⋯" menu** (divider + terracotta, single confirmation, as every other document). The row is 60px.
+  3. **`P31-F3` — a Failed document row** shows just its red "נכשל" pill under the file name (nothing beside it, nothing covering the name); **"נסה שוב" and "מחק" are both in the row's "⋯" menu** — "נסה שוב" first, then פתיחה / שיוך, a divider, and the terracotta "מחק" (single confirmation). The row is 60px. (Changed after your first look at Phase 3.2 on the phone, 2026-10-12: the inline retry button had pushed the name out of the row.)
   4. **`P31-F5` — the header never covers the title:** the title is 26px (as on the Documents board) and cannot be pushed under the button; on a header narrower than 300px (a **360px phone**) the "+ אטרקציה" button shrinks to a 44px **"+"** whose accessible name is "הוספת אטרקציה"; at 390px the label shows.
   5. **`P31-F4`:** the archive row is the document row — title on one LTR line (ellipsis), a muted "נדחה" chip and the source file name inside the card, ~60px.
 
@@ -31,8 +31,8 @@ Open Settings (the gear).
 ## Test C — Documents: Failed rows and the archive (`P31-F3`, `P31-F4`)
 
 Trip Center → מסמכים.
-**Expect:** a Failed row: the file name on one line, the red **"נכשל"** pill **fully visible**, and a small outline **"נסה שוב"** beside it — no big dark blocks, nothing wrapping, the row about 60px; its "⋯" has פתיחה / שיוך / divider / **מחק**. Expanding **"ארכיון הצעות שנדחו (11)"**: ~60px rows, the title on **one line** (ellipsis if long), a muted **"נדחה"** chip and the source file name **inside** the card.
-**Development Agent verification (qa, 360px):** ☑ on the final build at 360px: both Failed rows 60px, the pill 81×28px fully visible, "נסה שוב" 84×44px on the same line and inside the row, the "⋯" menu = פתיחה, שיוך למשתתף, divider, מחק (terracotta); the 11 archive rows all 60px with the "נדחה" chip inside the card; no overflow. (A long name used to push the content onto a second line — fixed by letting the text column shrink.) **Not exercised:** "נסה שוב" actually re-running an analysis. **Result:** *(to be filled in by the Product Owner)*
+**Expect:** a Failed row: the file name on one line, and under it the red **"נכשל"** pill **fully visible** — no buttons beside it, the name not covered, the row about 60px; its **"⋯" menu = נסה שוב / פתיחה / שיוך למשתתף / divider / מחק**. Expanding **"ארכיון הצעות שנדחו (11)"**: ~60px rows, the title on **one line** (ellipsis if long), a muted **"נדחה" chip** and the source file name **inside** the card.
+**Development Agent verification (qa, 360px, final build):** ☑ both Failed rows 60px with the file name inside the row, the pill below the name and inside the row, no button beside it; the "⋯" menu = נסה שוב, פתיחה, שיוך למשתתף, divider, מחק (terracotta); the 11 archive rows were 60px with the "נדחה" chip inside the card (measured on the previous build; that code is unchanged). **Not exercised:** "נסה שוב" actually re-running an analysis. **Result:** *(to be filled in by the Product Owner)*
 
 ## Test D — Category header (`P31-F5`)
 
@@ -43,8 +43,8 @@ Trip Center → אטרקציות (and מלונות, טיסות, תחבורה, מ
 ## Test E — Completed tasks (`P31-F6`)
 
 Trip Center → הכנות.
-**Expect:** at the bottom **"הושלמו (5)" with an arrow** (pointing down), **open by default** so the done tasks are visible; tapping it collapses them (the arrow turns to the side) and again expands them. It stays as you left it while you move around the app.
-**Development Agent verification (qa, 390px):** ☑ opens with `aria-expanded="true"`, the five done tasks visible and the arrow drawn; tap → collapsed (0 rows); tap → 5 rows again. **Result:** *(to be filled in by the Product Owner)*
+**Expect:** at the bottom **"הושלמו (5)" with the same small triangle the document archive uses**, at the start of the row (▾ when open, ◂ when closed), **open by default** so the done tasks are visible; tapping it collapses them and again expands them. It stays as you left it while you move around the app.
+**Development Agent verification (qa, 360px, final build):** ☑ opens with `aria-expanded="true"`, the triangle (ink, 4px from the row's start edge, the text to its left) in its "open" shape and the five done tasks visible; tap → "closed" shape and 0 rows; tap → open and 5 rows again. **Result:** *(to be filled in by the Product Owner)*
 
 ## Test F — Regression
 
