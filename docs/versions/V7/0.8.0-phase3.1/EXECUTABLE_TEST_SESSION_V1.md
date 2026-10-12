@@ -92,8 +92,8 @@ Not changed on purpose: `P3-F2` (interactive games, backlog).
 
 ## Product Owner session
 
-*(empty — to be filled in during the real-phone test)*
+Real-phone session run 2026-10-12 by the QA agent with the Product Owner. Full results, findings and screenshots: `PO_SESSION_RESULTS_V1.md` and `screenshots/`. Summary: Tests A, B, C, D, F, G, H and the §9 pass on the screens checked passed; the Development Agent decisions 1–5 approved. Findings: P31-F1 (Settings tabs, option C), P31-F2 (Today navigation row), P31-F5 (אטרקציות header cut), P31-F6 (completed tasks section closed by default) fix before Production; P31-F3 (failed document rows) next round; P31-F4 (archive rows) this round if small, otherwise next round. Test E (Today row) to re-test after the fix.
 
 ## GO/NO-GO decision
 
-*(pending — Product Owner. A GO here is the GO for the single combined Production promotion of Beta 0.8, decision `V147`.)*
+**NO-GO** (Product Owner, 2026-10-12, 17:33). Phase 3.1 is not promoted to Production. Phase 3.2 correction required for P31-F1, F2, F5, F6 (before Production), F3 (next round) and F4 (if small). A later GO for the single combined Production promotion of Beta 0.8 (decision `V147`) follows the Phase 3.2 re-test.
