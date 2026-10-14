@@ -100,7 +100,8 @@ test('P12-F7: any source that is not confirmed ticket coverage and not already F
   const row=fn('sourceRow');
   assert(row.includes("canDeleteSource(source,stateName)?`<button class=\"btn danger\" data-action=\"source-delete\" data-id=\"${source.id}\">מחק</button>`:''"));
   assert(app.includes("canDeleteSource(source,'')?menuButton('source-delete',source,'מחק'):''"),'the ticket slide menu');
-  assert(app.includes("canDeleteSource(source,stateName)?menuButton('source-delete',source,'מחק'):''"),'the other-document row menu');
+  // 0.8.2: a Failed row's "מחק" moved from the pill into the menu, so the item page's menu offers delete whenever the source is not a confirmed ticket (see beta-0-8-2.mjs).
+  assert(app.includes("canDeleteSource(source,'')?menuButton('source-delete',source,'מחק'):''"),'the other-document row menu');
   const handler=app.slice(app.indexOf("else if(action==='source-delete')"),app.indexOf('notify(\'המקור נמחק\')'));
   assert(handler.includes('confirm(')&&handler.includes('suggestionsAfterSourceDelete(state.suggestions,source.id)'),'the same single confirmation as the Failed delete');
 });

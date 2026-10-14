@@ -1108,14 +1108,14 @@ function additionalDetailsBlock(item){
   return `<div class="extra ${open?'open':''}"><button class="extra-head" type="button" data-action="extra-toggle" data-id="${item.id}" aria-expanded="${open}">${tabler('info')}<span class="extra-title">פרטים נוספים</span><span class="muted extra-count">${count}</span>${tabler(open?'chevup':'chevdown')}</button>${body}</div>`;
 }
 // A document that is not a ticket for a participant: compact row -- icon, name, open, "⋯" -- with the Smart Import
-// status pill (queued / processing / failed + retry/delete / attached) underneath when there is one.
+// status pill (queued / processing / failed / attached) underneath when there is one. Like the Documents list, a Failed row's
+// "נסה שוב" and "מחק" live in the "⋯" menu (0.8.2), never beside the pill.
 function otherDocRow(source,itemId){
   const stateName=sourceImportState(source,{flashAttached:attachedFlash.has(source.id)});
   const canRetry=source.kind!=='link'&&source.storedOffline&&(['saved_only','failed'].includes(source.processingState)||stateName==='failed');
-  const failedActions=`${canRetry?`<button class="btn" type="button" data-action="analyze-source" data-id="${source.id}">נסה שוב</button>`:''}<button class="btn" type="button" data-action="source-delete" data-id="${source.id}">מחק</button>`;
-  const pill=stateName?`<span class="doc-status"${stateName==='attached'?` data-flash-source="${source.id}"`:''}>${importStatusPill(stateName,{actions:failedActions})}</span>`:'';
+  const pill=stateName?`<span class="doc-status"${stateName==='attached'?` data-flash-source="${source.id}"`:''}>${importStatusPill(stateName)}</span>`:'';
   const names=(source.participantIds||[]).map(participantName).filter(Boolean);
-  const menu=[state.participants.length?menuButton('source-edit-participants',source,'שיוך למשתתף'):'',canRetry&&stateName!=='failed'?menuButton('analyze-source',source,'ניתוח חכם'):'',menuButton('source-unlink',source,'הסרה',itemId),canDeleteSource(source,stateName)?menuButton('source-delete',source,'מחק'):''].join('');
+  const menu=[canRetry&&stateName==='failed'?menuButton('analyze-source',source,'נסה שוב'):'',state.participants.length?menuButton('source-edit-participants',source,'שיוך למשתתף'):'',canRetry&&stateName!=='failed'?menuButton('analyze-source',source,'ניתוח חכם'):'',menuButton('source-unlink',source,'הסרה',itemId),canDeleteSource(source,'')?menuButton('source-delete',source,'מחק'):''].join('');
   const unavailable=source.kind==='link'||source.storedOffline?'':'<span class="muted small">הקובץ אינו זמין אופליין</span>';
   return `<div class="doc"><span class="doc-icon">${typeIcon(source.kind==='link'?'link':'document')}</span><span class="doc-name"><bdi>${esc(source.name||source.url)}</bdi>${names.length?`<small class="muted">${esc(names.join(', '))}</small>`:''}${unavailable}</span>${sourceOpenControl(source)}${moreMenu([menu])}${pill}</div>`;
 }
