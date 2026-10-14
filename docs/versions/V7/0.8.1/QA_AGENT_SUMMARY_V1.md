@@ -7,7 +7,9 @@
 
 As after the Phase 3.2 re-test. Useful for these tests: **`QA22-a.png`** (a confirmed ticket for Eyal, linked to "QA22 כרטיסים — קרוסלה"), **`QA31-ticket-unconfirmed.png`** (confirmed for Paula, linked to the same item), **`IMG-20260923-WA0089.jpg`** and many other documents linked to nothing. The items **"היום בערב"** and **"מלון בערב"** (12 Oct) are the Product Owner's own test items from the Phase 3.2 session — leave or delete as the Product Owner says.
 
-**For Test F you need an item today, later than now:** + → ידני → **מלון** → title, location, website, **phone**, start later today, end tomorrow. Make a second one **without** a phone. Delete them afterwards.
+**For Test F the trip already has two prepared hotels** — **"QA 0.8.1 מלון עם טלפון"** (three buttons) and **"QA 0.8.1 מלון בלי טלפון"** (two) — starting today 23:58 and ending tomorrow 11:00, so they show on "היום" (if you test after midnight they are still in progress and show). Delete them afterwards.
+
+**Already verified by the Development Agent (functional PASS, see the session document):** checks 1–5, 7 and the automated gate in 8. **Left for the phone (visual/touch):** the look of all of the above at 360 and 390px; check 6 live (second account).
 
 ## What to check (expected results)
 
@@ -31,4 +33,4 @@ As after the Phase 3.2 re-test. Useful for these tests: **`QA22-a.png`** (a conf
 
 ## Cleaning up afterwards
 
-Delete the items you created for Test F. Do not delete `QA22-a.png`, `QA22-b.png`, `QA22-single.png`, `QA12-f3.pdf` or `QA31-ticket-unconfirmed.png` unless the re-tests are finished (confirmed tickets: "ביטול אישור" first on the item page, or use the new "מחק" with its stronger warning).
+Delete the two prepared "QA 0.8.1 …" hotels (or the ones you created) when Test F is done. Do not delete `QA22-a.png`, `QA22-b.png`, `QA22-single.png`, `QA12-f3.pdf` or `QA31-ticket-unconfirmed.png` unless the re-tests are finished (confirmed tickets: "ביטול אישור" first on the item page, or use the new "מחק" with its stronger warning).
