@@ -10,8 +10,11 @@
 - **Confirmed via:** fresh fetch of `https://familytripz.netlify.app/` immediately before the promotion — `build-version` read `0.8.0-phase3.2-24f0575f`; the deploy list shows this deploy as the current production deploy.
 - **Snapshot saved in this directory:** `production-index-before-promotion.html`.
 
-## New Production state (filled in after the deploy)
+## New Production state
 
+- **Deploy ID:** `6acfaf9401c95aa749502d67` (context `production`, state `ready`)
+- **Deployed:** 2026-10-14T16:36:46Z — `netlify deploy --dir dist --prod --no-build`, run by the Development Agent at the Product Owner's explicit instruction ("I want you to promote it").
+- **Verified (fresh cache-bypassed fetches after the deploy):** `build-version` reads `0.8.1-0ceea747`; `index.html` and all 11 files of `dist/` return HTTP 200 and are byte-identical to the local `dist/`; the service worker carries `0.8.1-0ceea747`.
 - **Build identifier:** `0.8.1-0ceea747` — the exact, untouched `dist/` of the build accepted on `qa` (a fresh fetch of `qa` read `0.8.1-0ceea747` just before the promotion; no rebuild).
 - **Branch / commit:** `version/V7`, build commit `0ceea74`; documents committed after it.
 - **Rules note:** no `firestore.rules` / `storage.rules` change — client-side rendering and state logic only; same Firebase project, no schema migration. Document hard delete uses the existing delete paths.
