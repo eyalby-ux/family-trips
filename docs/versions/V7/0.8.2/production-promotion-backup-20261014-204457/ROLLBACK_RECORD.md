@@ -12,7 +12,10 @@
 
 ## New Production state
 
-*(filled in after the deploy — see the commit that follows this one)*
+- **Build identifier:** `0.8.2-0f740d93`
+- **Deploy ID:** `6acfbfc5ea9a906b0986c08a` (context `production`, state `ready`)
+- **Deployed:** 2026-10-14T17:45:53Z — `netlify deploy --dir dist --prod --no-build`, run by the Development Agent at the Product Owner's explicit instruction.
+- **Verified (fresh cache-bypassed fetches):** `build-version` reads `0.8.2-0f740d93`; all 11 files of `dist/` return HTTP 200 and are byte-identical to the local `dist/`; the service worker carries `0.8.2-0f740d93`.
 
 - **Artifact:** the exact, untouched `dist/` of the build accepted on `qa` (`qa` and `dist/` both read `0.8.2-0f740d93`; no rebuild). Build commit `0f740d9` on `version/V7`.
 - **Rules note:** no `firestore.rules` / `storage.rules` change; client-side rendering only.

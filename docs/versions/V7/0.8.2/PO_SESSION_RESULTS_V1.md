@@ -8,4 +8,4 @@
 | Development Agent, live on `qa` at 390px | ☑ no buttons beside the pill; menu entries as above; the temporary link used for the check was removed |
 
 - **Findings:** none new.
-- **Decision:** the PO confirmed the fix is ready. **Production promotion of `0.8.2` is not done** — it awaits the PO's explicit instruction (Production runs `0.8.1-0ceea747`).
+- **Decision:** the PO confirmed the fix is ready and instructed the promotion. **`0.8.2` is in Production** since 2026-10-14 17:45 UTC (deploy `6acfbfc5ea9a906b0986c08a`); rollback record in `production-promotion-backup-20261014-204457/`.

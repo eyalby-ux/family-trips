@@ -2,7 +2,7 @@
 
 ## Where things stand
 - **`0.8.1` (`0.8.1-0ceea747`) is in Production** since 2026-10-14 16:36 UTC (deploy `6acfaf9401c95aa749502d67`). PO acceptance: **GO** at 19:05, tests A–G recorded PASS (`docs/versions/V7/0.8.1/PO_SESSION_RESULTS_V1.md`). Rollback record: `docs/versions/V7/0.8.1/production-promotion-backup-20261014-193429/` (restore deploy `6acd3625c1bf3a8da6b3cd18` = `0.8.0-phase3.2-24f0575f`).
-- **`0.8.2` (`0.8.2-0f740d93`) is on `qa` only**, not in Production. The PO has confirmed its single fix is ready; promotion awaits the PO's instruction.
+- **`0.8.2` (`0.8.2-0f740d93`) is in Production** since 2026-10-14 17:45 UTC (deploy `6acfbfc5ea9a906b0986c08a`), promoted on the PO's instruction after accepting the fix on `qa`. Rollback: restore deploy `6acfaf9401c95aa749502d67` (`0.8.1-0ceea747`), see `production-promotion-backup-20261014-204457/ROLLBACK_RECORD.md`.
 
 ## What 0.8.1 delivered (all PASS)
 P32-F1 (Tasks "משתתף" filter has its own full row), P32-F2 (Documents chip row keeps its scroll; root cause: `render()` rebuilt the scroller at its start — the selection was never lost), documents-list linkage line and "קישור לפריט" picker, hard delete with three confirmation wordings (unlinked / linked / confirmed ticket) offered on every document row, V7-F14 (removed-account message, 9 s), BL-ICONS-1 (icon + label; a row of ≥3 that doesn't fit goes icon-only as a whole).
@@ -20,6 +20,6 @@ On an **item page**, a **Failed** document (under "מסמכים מצורפים")
 - Carried, not blocking: the rest of the Phase 3.2 regression list was not re-run on `0.8.1`; widths weren't recorded for 0.8.1 tests A, B, E, F; V7-F14 was never exercised live (needs a removed second account).
 
 ## For the planning agent
-- Suggest recording `0.8.1` as promoted (2026-10-14) and `0.8.2` as qa-accepted, promotion pending the PO.
+- Suggest recording `0.8.1` and `0.8.2` as promoted (both 2026-10-14); `0.8.2` is current Production.
 - Suggested follow-up: a one-line check in future scopes that lists every surface a shared component appears on (here: Failed-document actions live on both the Documents list and the item page).
 - Still open from the backlog: V7-F14 live check, `P3-F2` interactive games.
