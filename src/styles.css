@@ -246,8 +246,11 @@ bdi,.bidi{unicode-bidi:isolate}
 .row-main b.email{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* P3-F10: the Today card's time column starts at the same right edge as the action row, so "ניווט" sits flush under the time. */
 .day-item-time{flex:0 0 96px;width:96px;align-items:center;padding:12px 4px}
-.day-item-actions{display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px;border-top:1px solid var(--border)}
-.day-item-actions .btn{flex:1 1 calc(33.333% - 8px);min-width:0;min-height:44px;justify-content:center;padding:0 6px;border-radius:12px;font-size:15px;font-weight:600;white-space:nowrap}
+.day-item-actions{display:flex;flex-wrap:nowrap;gap:8px;padding:10px 12px;border-top:1px solid var(--border)}
+.day-item-actions .btn{flex:1 1 0;min-width:0;min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 6px;border-radius:12px;font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden}
+.day-item-actions .act .ti{width:18px;height:18px;flex:0 0 auto}
+.day-item-actions.icons-only .act-label{display:none}
+.day-item-actions.icons-only .btn{padding:0}
 .day-head{color:var(--ink);font-weight:700}
 .task-filters,.shopping-filters{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
 .task-filters .field{margin-bottom:0}
@@ -744,3 +747,18 @@ a.t-menu-item{display:flex;align-items:center;text-decoration:none}
 .doc-name{line-height:1.4}
 .doc-row{align-items:center}
 .doc-main{justify-content:center}
+/* Beta 0.8.1 */
+/* P32-F1: the participant filter gets a full row (its value is the longest, and a participant's name can be longer still) and every select reserves room on
+   the chevron side so the text can never run under the arrow. */
+.task-filters .filter-wide{grid-column:1 / -1}
+.field select{padding-inline-end:34px;text-overflow:ellipsis}
+/* Documents list: which item(s) a document is linked to, and the item picker. */
+.doc-link{display:flex;align-items:flex-start;gap:4px;margin-top:2px;font-size:13px;line-height:1.4;color:var(--muted);overflow-wrap:anywhere}
+.doc-link .ti{width:14px;height:14px;margin-top:3px;stroke:var(--muted);flex:0 0 auto}
+.doc-link bdi{unicode-bidi:isolate}
+.pick-row{display:flex;align-items:center;gap:10px;min-height:48px;padding:6px 10px;margin-bottom:6px;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
+.pick-row.disabled{opacity:.55}
+.pick-row input{flex:0 0 auto;width:22px;height:22px;margin:0}
+.pick-text{display:flex;flex-direction:column;min-width:0}
+.pick-text b{font-size:15px;font-weight:600;overflow-wrap:anywhere}
+.doc-link-name{margin:0 0 8px}

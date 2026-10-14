@@ -37,12 +37,13 @@ test('P31-F1: Settings is a home list of rows in three labelled groups; every ro
 
 test('P31-F2: the Today action row -- equal label-only buttons below a hairline: ניווט · אתר · התקשרות (phone only), two without a phone',()=>{
   const actions=fn('dayItemActions');
-  const order=['>ניווט<','>אתר<','>התקשרות<','>כרטיסים<'].map(label=>actions.indexOf(label));
+  // 0.8.1 (BL-ICONS-1): the buttons now carry icon + label (see beta-0-8-phase-0-8-1.mjs); the order and the conditions are unchanged.
+  const order=["'compass','ניווט'","'world','אתר'","'phone','התקשרות'","'ticket','כרטיסים'"].map(label=>actions.indexOf(label));
   assert(order.every(index=>index>0)&&order.every((index,i)=>i===0||index>order[i-1]),'order');
   assert(actions.includes('item.phone&&String(item.phone).replace(/[^\\d+]/g,\'\')?')&&actions.includes('href="tel:'),'the third button needs a phone number and dials it');
-  assert(!/tabler\(/.test(actions),'label-only buttons');
-  assert.match(css,/\.day-item-actions\{display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px;border-top:1px solid var\(--border\)\}/,'a hairline above a full-width row');
-  assert.match(css,/\.day-item-actions \.btn\{flex:1 1 calc\(33\.333% - 8px\);min-width:0;min-height:44px;justify-content:center;[^}]*white-space:nowrap/,'equal, 44px, no wrap');
+  assert(actions.includes('actionButton(')&&!/>(ניווט|אתר|התקשרות|כרטיסים)</.test(actions),'built by the shared actionButton() (icon + label)');
+  assert.match(css,/\.day-item-actions\{display:flex;flex-wrap:nowrap;gap:8px;padding:10px 12px;border-top:1px solid var\(--border\)\}/,'a hairline above a full-width row');
+  assert.match(css,/\.day-item-actions \.btn\{flex:1 1 0;min-width:0;min-height:44px;[^}]*white-space:nowrap/,'equal, 44px, no wrap');
   assert.match(css,/\.day-item-time\{flex:0 0 96px;width:96px;align-items:center/,'the 96px time column; the action row is a separate row, so it cannot straddle the divider');
   assert(fn('dayItemCard').includes('<div class="day-item-actions">${actions}</div>')&&fn('dayItemCard').indexOf('</button>${actions?')>0,'the row sits after the header button, not inside it');
 });
@@ -52,7 +53,7 @@ test('P31-F3: a Failed document row keeps its pill visible; "נסה שוב" / "�
   assert(row.includes('importStatusPill(stateName)')&&!row.includes('{actions:failedActions}'),'the pill carries no buttons');
   // PO 2026-10-12: the retry is in the "⋯" menu, and the pill sits where the retry button was -- nothing beside it, nothing covering the name.
   assert(row.includes("const retry=stateName==='failed'&&canRetry?menuButton('analyze-source',source,'נסה שוב'):'';")&&row.includes('const menu=[retry,open,')&&row.includes('<span class="doc-meta">${chip}${notes}</span>')&&!row.includes('doc-retry'),'"נסה שוב" is the first entry of the Failed row\'s menu');
-  assert(row.includes("canDeleteSource(source,'')?menuButton('source-delete',source,'מחק'):''"),'a Failed document\'s delete is in its "⋯" menu');
+  assert(row.includes("menuButton('source-delete',source,'מחק')"),'a Failed document\'s delete is in its "⋯" menu');
   assert.match(css,/\.doc-row \.doc-main\{flex:1 1 0\}/,'a long name can never push the content onto a second line');
   assert.match(css,/\.small-btn\{min-height:44px;[^}]*white-space:nowrap/,'44px, no wrap');
 });

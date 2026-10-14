@@ -99,7 +99,7 @@ test('P3-F8: a destination is one row (name + up, down, bin); the add row is the
 test('P3-F10: the Today card\'s time column and action row start at the same right edge',()=>{
   // Phase 3.2 (P31-F2) supersedes the 3.1 alignment: the action row is its own full-width row under a hairline (see beta-0-8-phase-3-2.mjs).
   assert.match(css,/\.day-item-time\{flex:0 0 96px;width:96px;align-items:center/);
-  assert.match(css,/\.day-item-actions\{display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px;border-top:1px solid var\(--border\)\}/,'a hairline above a full-width row');
+  assert.match(css,/\.day-item-actions\{display:flex;flex-wrap:nowrap;gap:8px;padding:10px 12px;border-top:1px solid var\(--border\)\}/,'a hairline above a full-width row');
 });
 
 test('P3-F12: every e-mail is one LTR line in a row of its own with a short "הסרה"; invite = field + "הזמנה"',()=>{
@@ -131,7 +131,9 @@ test('P3-F13: the document list -- filters with counts, ~60px rows, a "⋯" menu
   assert.equal(documentSummary({all:14,pending:3}),'14 מסמכים · 3 ממתינים לאישור');assert.equal(documentSummary({all:1,pending:1}),'מסמך אחד · אחד ממתין לאישור');assert.equal(documentSummary({all:5,pending:0}),'5 מסמכים');
   const row=fn('documentRow');
   assert(row.includes('<bdi class="doc-name" dir="ltr">')&&row.includes('class="doc-main"')&&row.includes('moreMenu([menu])'));
-  assert(row.includes("canDeleteSource(source,'')?menuButton('source-delete',source,'מחק'):''")&&row.includes("menuButton('source-edit-participants',source,'שיוך למשתתף')"),'no "מחק" for a confirmed ticket');
+  // 0.8.1: the documents list's "מחק" is offered for EVERY document (a confirmed ticket included -- its confirmation says what is lost); the item page's
+  // ticket slide keeps its own rule (no delete on a confirmed ticket).
+  assert(row.includes("menuButton('source-delete',source,'מחק')")&&row.includes("menuButton('source-edit-participants'")&&row.includes("menuButton('source-link',source,'קישור לפריט')"),'the row menu: assign, link, delete');
   assert(row.includes('importStatusPill(stateName)')&&row.includes("menuButton('analyze-source',source,'נסה שוב')"),'a Failed source keeps its retry in the row menu (Phase 3.2 P31-F3)');
   const page=fn('documentsCategory');
   assert(page.includes('data-action="doc-filter"')&&page.includes('aria-pressed="${filter===key}"')&&page.includes('data-filter="all">הצגת הכול'),'single-select chips with counts and an empty state');

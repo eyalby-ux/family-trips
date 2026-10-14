@@ -5,10 +5,10 @@ import {availableTimelineModes,backfillTripDates,currentOperational,filterAndSor
 import {COUNTER_ABOVE,arrowKeyTarget,carouselSlots,participantLayout,positionIndicator} from './participant-carousel.js';
 import {normalizeProposalLifecycle,rejectProposal} from './proposal-lifecycle.js';
 import {GAME_FILTERS,filterGames,gamePrimaryAction} from './games.js';
-import {syncStripText} from './ui-states.js';
+import {syncStripText,cloudFailureMessage} from './ui-states.js';
 import {normalizeThaiPua} from './text-normalize.js';
 import {KIND_COLOURS,dayEntries,dayOf,daysBetween,isStay,monthWeeks,nightStay,ribbonRange,ribbonRows,shiftTimeline,stayHue,stayList,weekBands} from './timeline-view.js';
-import {DOC_FILTERS,documentCounts,documentFlags,documentMatchesFilter,documentSummary} from './documents.js';
+import {DOC_FILTERS,documentCounts,documentFlags,documentMatchesFilter,documentSummary,linkageLabels,linkedItemsOf,sourceDeleteMessage} from './documents.js';
 import {TICKET_ITEM_TYPES,coverageSummary,additionalDetails,partitionItemDocuments,ticketHolderDetail,ticketHolderLabel} from './ticket-card.js';
 import {importStatusPill,largePalm,isConfirmBlocked,sourceImportState,suggestionImportState,canDeleteSource,suggestionsAfterSourceDelete} from './import-status.js';
 import {analyzeActivitySource,analyzeCarSource,analyzeFlightSource,analyzeHotelSource,analyzeInsuranceSource,analyzeSource} from './smart-import-client.js';
@@ -163,7 +163,7 @@ function save(){
     }
   }).catch(error=>{
     console.error('Firestore sync failed',error);
-    notify('שמירת השינויים בענן נכשלה. השינויים נשארים במסך זה בלבד עד לחיבור מחדש.');
+    notify(cloudFailureMessage(error,'save'),error?.code==='permission-denied'?9000:2600);
   }).finally(()=>{pendingSyncCount--;render()});
 }
 
@@ -265,7 +265,7 @@ function openTrip(tripId){
     // exists (the initial empty shell, on a first-ever cold launch) with a visible, honest error
     // instead. Worse than working, never worse than a crash.
     bootResolved=true; // an error IS a real answer too -- must not leave the UI stuck loading
-    notify(`טעינת נתוני הטיול נכשלה (${error?.code||'שגיאה'}). ${navigator.onLine?'נסו שוב.':'אין חיבור לאינטרנט וייתכן שהנתונים לא נשמרו במטמון המקומי.'}`);
+    notify(cloudFailureMessage(error,'load',{online:navigator.onLine}),error?.code==='permission-denied'?9000:2600);
     render();
   });
 }
@@ -307,7 +307,7 @@ function fmt(value,withTime=true,precision=''){if(!value)return 'ללא תארי
 function ensureTrip(seed={}){if(!state.trip){const dates=sanitizeTripDates(seed);state.trip={id:uid('trip'),name:seed.name||'הטיול המשפחתי שלי',startDate:dates.startDate,endDate:dates.endDate,createdAt:new Date().toISOString(),ownerUid:currentUid(),editorEmails:[]}}if(!state.packing.length)state.packing=defaultPacking();normalizeOperationalState(state)}
 function defaultPacking(){return [{id:uid('pl'),name:'מסמכים וכסף',owner:'shared',items:['דרכונים','ביטוח נסיעות','כרטיסי אשראי'].map(name=>({id:uid('pi'),name,done:false,suggested:true,owner:'shared'}))}]}
 function route(view,options={}){extraOpenFor=null;participantDeleteArmed=null;state.settingsPage=view==='settings'?(options.page||''):'';if(options.category==='document'&&state.category!=='document')state.docFilter='all';stopCamera();if(view==='timeline'&&state.view!=='timeline'){state.timelineMode='all';state.timelineCursor=state.trip?.startDate||today();state.calendarDate=null}state.view=view;state.category=options.category||null;state.itemId=options.itemId||null;state.suggestionId=options.suggestionId||null;render();const anchorTarget=options.anchor?document.getElementById(options.anchor)||(options.anchor==='item-tickets'?document.getElementById('item-documents'):null):null;if(anchorTarget)anchorTarget.scrollIntoView();else scrollTo(0,0)}
-function notify(text){state.toast=text;render();setTimeout(()=>{if(state.toast===text){state.toast=null;render()}},2600)}
+function notify(text,ms=2600){state.toast=text;render();setTimeout(()=>{if(state.toast===text){state.toast=null;render()}},ms)}
 function status(){if(!state.trip)return 'Empty';if(state.trip.startDate&&state.trip.endDate){const now=today();if(now>=state.trip.startDate&&now<=state.trip.endDate)return 'Active';if(now>state.trip.endDate)return 'Completed';return 'Planned'}return 'Draft'}
 function conflict(item){return isItemOutsideTrip(item,state.trip)}
 // V6-F41: item.location for a Flight is a route string ("BKK → TLV"), which Google Maps resolves
@@ -452,16 +452,30 @@ function participantCheckboxes(selectedIds,{name='participantIds',attrs=''}={}){
 }
 // P12-F2: a participant's name for display, flagged when they have since been deactivated.
 const participantName=id=>{const participant=state.participants.find(candidate=>candidate.id===id);return participant?`${participant.name}${participant.active===false?' (לא פעיל)':''}`:''};
+const actionButton=(tag,attributes,icon,label)=>`<${tag} class="btn ghost act" ${attributes} aria-label="${label}" title="${label}">${tabler(icon)}<span class="act-label">${label}</span></${tag}>`;
+// BL-ICONS-1: a row of three or more actions whose icon + label overflow its buttons switches, as a whole, to icon-only. Measured, not guessed, so it holds
+// for any screen width and any text size the phone is set to; run after every render, on resize and once the fonts are in.
+function fitActionRows(){
+  for(const row of document.querySelectorAll('.day-item-actions')){
+    row.classList.remove('icons-only');
+    const buttons=[...row.children];
+    if(buttons.length>=3&&buttons.some(button=>button.scrollWidth>button.clientWidth+1))row.classList.add('icons-only');
+  }
+}
+let fitTimer=0;
+addEventListener('resize',()=>{clearTimeout(fitTimer);fitTimer=setTimeout(fitActionRows,120)});
+document.fonts?.ready?.then(fitActionRows);
 function dayItemActions(item){
   const place=item.details?.canonicalPlace;
   const navHref=place?place.googleMapsUri||mapsUrl(`${place.latitude},${place.longitude}`):item.location?mapsUrl(mapSearchLocation(item)):'';
   return [
-    // Beta 0.8 Phase 3.2 (P31-F2): a full-width row of EQUAL, label-only buttons below a hairline -- ניווט · אתר · התקשרות (the last only when the
-    // item has a phone number); "כרטיסים" joins when there is a confirmed ticket (a fourth button wraps to its own full-width line).
-    navHref?`<a class="btn ghost" href="${esc(navHref)}" target="_blank" rel="noopener">ניווט</a>`:'',
-    item.website?`<a class="btn ghost" href="${esc(item.website)}" target="_blank" rel="noopener">אתר</a>`:'',
-    item.phone&&String(item.phone).replace(/[^\d+]/g,'')?`<a class="btn ghost" href="tel:${esc(String(item.phone).replace(/[^\d+]/g,''))}">התקשרות</a>`:'',
-    hasConfirmedTicket(item)?`<button class="btn ghost" data-route="detail" data-id="${item.id}" data-anchor="item-tickets">כרטיסים</button>`:'',
+    // Beta 0.8 Phase 3.2 (P31-F2): a full-width row of EQUAL buttons below a hairline -- ניווט · אתר · התקשרות (the last only when the item has a phone
+    // number); "כרטיסים" joins when there is a confirmed ticket. 0.8.1 (BL-ICONS-1, spec V7.5): icon + label by default; when three or more share the row and
+    // icon + label do not all fit, fitActionRows() makes the WHOLE row icon-only (the label stays as the accessible name).
+    navHref?actionButton('a',`href="${esc(navHref)}" target="_blank" rel="noopener"`,'compass','ניווט'):'',
+    item.website?actionButton('a',`href="${esc(item.website)}" target="_blank" rel="noopener"`,'world','אתר'):'',
+    item.phone&&String(item.phone).replace(/[^\d+]/g,'')?actionButton('a',`href="tel:${esc(String(item.phone).replace(/[^\d+]/g,''))}"`,'phone','התקשרות'):'',
+    hasConfirmedTicket(item)?actionButton('button',`type="button" data-route="detail" data-id="${item.id}" data-anchor="item-tickets"`,'ticket','כרטיסים'):'',
   ].filter(Boolean).join('');
 }
 const timeOnly=value=>value?new Intl.DateTimeFormat('he-IL',{hour:'2-digit',minute:'2-digit'}).format(new Date(value)):'';
@@ -640,10 +654,15 @@ function documentRow({source,stateName,flags}){
   const chip=['failed','processing','queued'].includes(stateName)?`<span class="doc-status">${importStatusPill(stateName)}</span>`:source.ticketConfirmed?'<span class="doc-chip ok">כרטיס מאושר</span>':flags.pending?'<span class="doc-chip pending">ממתין לאישור</span>':flags.attached?'<span class="doc-chip ok">מצורף</span>':'';
   const notes=[flags.attached&&flags.pending?'חילוץ ממתין לאישור':'',names.length?esc(names.join(', ')):'',source.kind==='link'&&!chip&&!names.length?'קישור':'',available?'':'הקובץ אינו זמין אופליין'].filter(Boolean).map(text=>`<span class="doc-note">${text}</span>`).join('');
   const label=`<bdi class="doc-name" dir="ltr">${esc(source.name||source.url)}</bdi>`;
-  const body=`${label}<span class="doc-meta">${chip}${notes}</span>`;
+  // 0.8.1: which item(s) this document belongs to -- every linked item's name (its type too when another item shares the name), or an explicit "not linked".
+  const linked=linkageLabels(source,state.items,type=>ITEM_TYPES[type]?.label||type);
+  const linkLine=linked.length?`<span class="doc-link">${tabler('link')}<span>מקושר ל־${linked.map(name=>`<bdi>${esc(name)}</bdi>`).join('، ')}</span></span>`:'<span class="doc-link none">לא מקושר לפריט</span>';
+  const body=`${label}<span class="doc-meta">${chip}${notes}</span>${linkLine}`;
   const main=source.kind==='link'?`<a class="doc-main" href="${esc(source.url)}" target="_blank" rel="noopener">${body}</a>`:available?`<button class="doc-main" type="button" data-action="open-source" data-id="${source.id}">${body}</button>`:`<div class="doc-main">${body}</div>`;
   const open=source.kind==='link'?`<a class="t-menu-item" href="${esc(source.url)}" target="_blank" rel="noopener">פתיחה</a>`:available?menuButton('open-source',source,'פתיחה'):'';
-  const menu=[retry,open,state.participants.length?menuButton('source-edit-participants',source,'שיוך למשתתף'):'',canDeleteSource(source,'')?menuButton('source-delete',source,'מחק'):''].join('');
+  // 0.8.1: "קישור לפריט" re-links the document to an item; "מחק" is a true hard delete for EVERY document here, a confirmed ticket included (its
+  // confirmation names the covered people and every linked item -- see sourceDeleteMessage).
+  const menu=[retry,open,state.participants.length?menuButton('source-edit-participants',source,'שיוך למשתתף'):'',menuButton('source-link',source,'קישור לפריט'),menuButton('source-delete',source,'מחק')].join('');
   return `<div class="doc-row"><span class="doc-icon">${typeIcon(source.kind==='link'?'link':'document')}</span>${main}${moreMenu([menu])}</div>`;
 }
 function documentsCategory(){
@@ -826,7 +845,7 @@ function tasksView(){
   // <select>-based pattern, not a separate view-switcher like packing's own participant tabs --
   // only rendered when the Trip actually has participants, matching every other participant
   // picker's own gating throughout this codebase.
-  const participantFilter=state.participants.length?`<label class="field"><span>משתתף</span><select id="task-filter-participant"><option value="all" ${(filters.participant||'all')==='all'?'selected':''}>כל המשתתפים</option>${state.participants.map(participant=>`<option value="${participant.id}" ${filters.participant===participant.id?'selected':''}>${esc(participant.name)}</option>`).join('')}</select></label>`:'';
+  const participantFilter=state.participants.length?`<label class="field filter-wide"><span>משתתף</span><select id="task-filter-participant"><option value="all" ${(filters.participant||'all')==='all'?'selected':''}>כל המשתתפים</option>${state.participants.map(participant=>`<option value="${participant.id}" ${filters.participant===participant.id?'selected':''}>${esc(participant.name)}</option>`).join('')}</select></label>`:'';
   return `<section class="card"><div class="page-head"><h2>משימות</h2><button class="btn ghost small-btn" data-action="task-add">${tabler('plus')} משימה חדשה</button></div><div class="task-filters"><label class="field"><span>עדיפות</span><select id="task-filter-priority">${priorityOptions.map(([value,label])=>`<option value="${value}" ${filters.priority===value?'selected':''}>${label}</option>`).join('')}</select></label><label class="field"><span>תאריך יעד</span><select id="task-filter-due">${dueOptions.map(([value,label])=>`<option value="${value}" ${filters.due===value?'selected':''}>${label}</option>`).join('')}</select></label><label class="field"><span>סטטוס</span><select id="task-filter-status">${statusOptions.map(([value,label])=>`<option value="${value}" ${(filters.status||'all')===value?'selected':''}>${label}</option>`).join('')}</select></label>${participantFilter}${isFiltered?'<button class="btn ghost filters-reset" data-action="task-filter-clear">איפוס</button>':''}</div><div class="list">${filtered.length?`${openTasks.map(taskRow).join('')||'<p class="muted">אין משימות פתוחות.</p>'}${doneTasks.length?`<div class="tasks-done"><button class="tasks-done-head" type="button" data-action="tasks-done-toggle" aria-expanded="${!state.tasksDoneCollapsed}"><i class="disc ${state.tasksDoneCollapsed?'closed':'open'}" aria-hidden="true"></i><span>הושלמו (${doneTasks.length})</span></button>${state.tasksDoneCollapsed?'':`<div class="list">${doneTasks.map(taskRow).join('')}</div>`}</div>`:''}`:`${state.tasks.length?emptyState('checklist','אין משימות תואמות','נסו לשנות או לאפס את הסינון.'):emptyState('checklist','אין משימות','הוסיפו משימה כדי להתחיל.')}`}</div></section>`;
 }
 // 0.7.9 correction (V7-F10, Test 4): owner is no longer displayed -- Product Owner decision to
@@ -1645,7 +1664,17 @@ function sourceParticipantsModal(){
   const source=state.sources.find(candidate=>candidate.id===state.modal.sourceId);
   return `<div class="modal-bg"><section class="modal"><div class="modal-head"><h2>שיוך מסמך למשתתפים</h2><button class="close" data-action="close">${tabler('x')}</button></div><form id="source-participants-form" data-id="${source?.id||''}"><div class="field"><label>שיוך למשתתפים</label><div class="participant-picker">${participantCheckboxes(source?.participantIds)}</div></div><div class="form-actions"><button class="btn">שמירה</button></div></form></section></div>`;
 }
-function modal(){if(!state.modal)return '';if(state.modal.type==='intake')return intakeModal();if(state.modal.type==='attachment')return attachmentModal();if(state.modal.type==='edit-item')return editModal();if(state.modal.type==='duplicate')return duplicateModal();if(state.modal.type==='participant')return participantModal();if(state.modal.type==='packing-item')return packingItemModal();if(state.modal.type==='source-participants')return sourceParticipantsModal();if(['task','shopping','location'].includes(state.modal.type))return simpleFormModal();return ''}
+// 0.8.1: link an existing document to an item. There was no "attach an existing document" flow to reuse (the item page's "הוספת מסמך" takes a NEW file),
+// so this is a small picker: one radio list of the trip's items grouped by type; items already holding the document are shown disabled.
+function sourceLinkModal(){
+  const source=state.sources.find(candidate=>candidate.id===state.modal.sourceId);
+  if(!source)return '';
+  const items=sortItemsByStartAt(state.items.filter(item=>!['link','participant'].includes(item.type)));
+  const groups=Object.keys(ITEM_TYPES).map(type=>[type,items.filter(item=>item.type===type)]).filter(([,list])=>list.length);
+  const body=groups.length?groups.map(([type,list])=>`<fieldset class="form-group"><legend>${esc(ITEM_TYPE_PLURALS[type]||ITEM_TYPES[type].label)}</legend>${list.map((item,index)=>{const already=(item.sourceIds||[]).includes(source.id);return `<label class="pick-row${already?' disabled':''}"><input type="radio" name="itemId" value="${item.id}" ${already?'disabled':''} ${!already&&type===groups[0][0]&&index===0?'required':''}><span class="pick-text"><b>${esc(item.title)}</b><small class="muted">${already?'כבר מקושר':item.startAt?esc(fmt(item.startAt,false)):'ללא תאריך'}</small></span></label>`}).join('')}</fieldset>`).join(''):emptyState('document','אין פריטים לקשר אליהם','הוסיפו פריט בטיול ואז קשרו אליו את המסמך.');
+  return `<div class="modal-bg"><section class="modal"><div class="modal-head"><h2>קישור מסמך לפריט</h2><button class="close" data-action="close">${tabler('x')}</button></div><p class="muted small doc-link-name"><bdi dir="ltr">${esc(source.name||source.url||'מסמך')}</bdi></p><form id="source-link-form" data-id="${source.id}">${body}${groups.length?'<div class="form-actions"><button class="btn">קישור</button></div>':''}</form></section></div>`;
+}
+function modal(){if(!state.modal)return '';if(state.modal.type==='source-link')return sourceLinkModal();if(state.modal.type==='intake')return intakeModal();if(state.modal.type==='attachment')return attachmentModal();if(state.modal.type==='edit-item')return editModal();if(state.modal.type==='duplicate')return duplicateModal();if(state.modal.type==='participant')return participantModal();if(state.modal.type==='packing-item')return packingItemModal();if(state.modal.type==='source-participants')return sourceParticipantsModal();if(['task','shopping','location'].includes(state.modal.type))return simpleFormModal();return ''}
 // Beta 0.8 Phase 1 (design spec V7 S3): 5-item nav (Today, Timeline, central +, Trip Center,
 // Packing) replaces the old 4-item emoji nav + separate floating .fab -- the + is now one of the
 // nav's own 5 grid cells (styles.css's .nav-plus-circle), not a floating element, so it's built
@@ -1694,7 +1723,12 @@ function render(){
   // isAdmin is checked, and that has nothing to do with whether a Trip happens to exist yet), so an
   // admin with no Trip at all must still be able to reach it, exactly like the Trip switcher/
   // start-new-trip view already could with no Trip.
-  normalizeOperationalState(state);const views={today:todayView,timeline,center,detail:detailView,suggestion:suggestionView,games:gamesView,game:gameView,packing:packingView,tasks:tasksView,shopping:shoppingView,locations:locationsView,settings:settingsView,trips:tripsView,admin:adminView},body=(!bootResolved?loading:!state.trip&&!['trips','admin'].includes(state.view)?empty:(views[state.view]||todayView))();document.querySelector('#app').innerHTML=`<div class="shell">${syncBanner()}${header()}<main>${body}</main>${nav()}${modal()}${state.toast?`<div class="toast">${esc(state.toast)}</div>`:''}</div>`;
+  normalizeOperationalState(state);const views={today:todayView,timeline,center,detail:detailView,suggestion:suggestionView,games:gamesView,game:gameView,packing:packingView,tasks:tasksView,shopping:shoppingView,locations:locationsView,settings:settingsView,trips:tripsView,admin:adminView},body=(!bootResolved?loading:!state.trip&&!['trips','admin'].includes(state.view)?empty:(views[state.view]||todayView))();// P32-F2: the Documents filter-chip row is a horizontal scroller and render() rebuilds it, which resets it to the start (so the row "snapped back" to
+// "הכול" after every tap, even though the selection itself was kept) -- carry its scroll position across the rebuild.
+const keepChipScroll=document.querySelector('.doc-filters')?.scrollLeft;
+document.querySelector('#app').innerHTML=`<div class="shell">${syncBanner()}${header()}<main>${body}</main>${nav()}${modal()}${state.toast?`<div class="toast">${esc(state.toast)}</div>`:''}</div>`;
+  const chipRow=document.querySelector('.doc-filters');if(chipRow&&keepChipScroll!==undefined)chipRow.scrollLeft=keepChipScroll;
+  fitActionRows();
 }
 
 // 0.7.2: source bytes now go to Firebase Storage (trips/{tripId}/sources/{sourceId}/...), not the
@@ -2187,7 +2221,8 @@ addEventListener('click',async event=>{if(Date.now()<suppressClickUntil)return;i
   else if(action==='source-unconfirm-ticket'){const source=state.sources.find(candidate=>candidate.id===button.dataset.id);if(source){source.ticketConfirmed=false;source.ticketUsed=false;save();render();notify('אישור הכרטיס בוטל')}}
   // S7 Failed pill's "מחק": an explicit hard delete of the source (distinct from source-unlink's soft removal
   // from one item). The stored original goes with it -- an original is only ever removed explicitly.
-  else if(action==='source-delete'){const source=sourceById(button.dataset.id);if(!source||!confirm('למחוק את המקור? הקובץ ונתוני הניתוח שלו יימחקו מהטיול.'))return;if(source.storagePath)try{await deleteAttachment(source.storagePath)}catch(error){console.error('Deleting the stored original failed',error)}for(const item of state.items)if(item.sourceIds?.includes(source.id))item.sourceIds=item.sourceIds.filter(id=>id!==source.id);state.sources=state.sources.filter(candidate=>candidate.id!==source.id);state.suggestions=suggestionsAfterSourceDelete(state.suggestions,source.id);save();render();notify('המקור נמחק')}
+  else if(action==='source-link'){state.modal={type:'source-link',sourceId:button.dataset.id};render()}
+  else if(action==='source-delete'){const source=sourceById(button.dataset.id);if(!source||!confirm(sourceDeleteMessage(source,linkedItemsOf(source,state.items),state.participants)))return;if(source.storagePath)try{await deleteAttachment(source.storagePath)}catch(error){console.error('Deleting the stored original failed',error)}for(const item of state.items)if(item.sourceIds?.includes(source.id))item.sourceIds=item.sourceIds.filter(id=>id!==source.id);state.sources=state.sources.filter(candidate=>candidate.id!==source.id);state.suggestions=suggestionsAfterSourceDelete(state.suggestions,source.id);save();render();notify('המקור נמחק')}
   // 0.7.9.2 (document removal): a soft unlink, not a hard delete -- only item.sourceIds loses
   // this id; the source record itself stays in state.sources untouched, re-linkable later via the
   // existing Attach-source flow, matching the app's own never-silently-lose-data pattern
@@ -2262,6 +2297,15 @@ addEventListener('submit',async event=>{event.preventDefault();const form=event.
     const record={id,name:String(data.get('name')||'').trim(),relationship:String(data.get('relationship')||'').trim(),avatarInitials:String(data.get('avatarInitials')||'').trim(),phone:String(data.get('phone')||'').trim(),email:String(data.get('email')||'').trim(),notes:String(data.get('notes')||'').trim(),active:existing?data.get('active')==='on':true};
     if(existing)Object.assign(existing,record);else state.participants.push(record);
     save();state.modal=null;render();notify(existing?'המשתתף עודכן':'המשתתף נוסף');
+  }
+  else if(form.id==='source-link-form'){
+    const source=state.sources.find(candidate=>candidate.id===form.dataset.id),item=state.items.find(candidate=>candidate.id===String(data.get('itemId')||''));
+    if(source&&item){
+      item.sourceIds=[...new Set([...(item.sourceIds||[]),source.id])];
+      // as when people are assigned to a ticket document: linking it to a ticket-type item adds them to the item's own participants (add only).
+      if(TICKET_TYPES.includes(item.type)&&(source.participantIds||[]).length){const add=addParticipantsToRecord(item,source.participantIds);if(add)Object.assign(item,add)}
+      save();state.modal=null;render();notify(`המסמך קושר ל־${item.title}`);
+    }
   }
   else if(form.id==='source-participants-form'){
     const source=state.sources.find(candidate=>candidate.id===form.dataset.id);

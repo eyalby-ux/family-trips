@@ -20,3 +20,24 @@ export function documentSummary(counts){
   const base=counts.all===1?'מסמך אחד':`${counts.all} מסמכים`;
   return counts.pending?`${base} · ${counts.pending===1?'אחד ממתין':`${counts.pending} ממתינים`} לאישור`:base;
 }
+
+// Beta 0.8.1 -- which items hold a document, and what deleting it for good has to say.
+export const linkedItemsOf=(source,items)=>(items||[]).filter(item=>(item.sourceIds||[]).includes(source.id));
+// One label per linked item: its name, plus its type in brackets when ANOTHER item in the trip has the same name. [] = linked to nothing.
+export function linkageLabels(source,items,typeLabel=type=>type){
+  return linkedItemsOf(source,items).map(item=>{
+    const shared=(items||[]).some(other=>other.id!==item.id&&other.title===item.title);
+    return shared?`${item.title} (${typeLabel(item.type)})`:item.title;
+  });
+}
+// The confirmation before a hard delete of a document -- one wording for every place a document can be deleted from. It always names what is lost and
+// that it cannot be undone; every linked item is named; a confirmed ticket additionally names the people whose coverage goes with it.
+export function sourceDeleteMessage(source,linkedItems=[],participants=[]){
+  const lines=[`למחוק את ${source.name||source.url||'המסמך'} לצמיתות? המסמך והקובץ יימחקו ולא ניתן יהיה לשחזר אותם.`];
+  if(linkedItems.length)lines.push(`${linkedItems.length>1?'המסמך מקושר לפריטים':'המסמך מקושר לפריט'}: ${linkedItems.map(item=>item.title).join(', ')} — הקישור יוסר ${linkedItems.length>1?'מכולם':'ממנו'}.`);
+  if(source.ticketConfirmed){
+    const names=(source.participantIds||[]).map(id=>participants.find(person=>person.id===id)?.name).filter(Boolean);
+    lines.push(`המסמך מאושר ככיסוי כרטיס עבור ${names.join(', ')||'משתתף'} — מחיקתו תבטל גם את הכיסוי.`);
+  }
+  return lines.join('\n\n');
+}
