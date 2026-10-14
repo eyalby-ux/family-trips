@@ -20,7 +20,7 @@ Session document: `docs/versions/V7/0.8.1/EXECUTABLE_TEST_SESSION_V1.md` (Tests 
 | C — linkage indicator on every row, "קישור לפריט" picker, link and un-link (indicator / re-link) | PASS (PO: "pass", 2026-10-14 18:55) | PO did not confirm the extra link was removed afterwards. |
 
 ## Findings (P81-F#)
-None yet.
+- **P81-F1 (post-GO, found by the PO on the phone after the 0.8.1 Production promotion, 2026-10-14 ~13:48 phone time):** on an item page, a **Failed** document in "מסמכים מצורפים" still showed "נסה שוב" and "מחק" as buttons beside the pill, while the Documents list already had them in the "⋯" menu. **Fixed in ** (); the PO accepted the fix.
 
 ## GO/NO-GO decision
 - 2026-10-14 19:05 — **GO** (Product Owner), build `0.8.1-0ceea747`. Per the scope, Production promotion of 0.8.1 follows this acceptance session.
