@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#123F42">
+  <meta name="description" content="Family Trips Beta 0.8.0-phase3.2">
+  <!-- V6-F40: the same package.json version + git SHA already embedded in the service worker's
+       cache name, so QA can confirm exactly which build is live (via Settings) without checking
+       the network tab -- the Alpha version alone doesn't change between fix passes. -->
+  <meta name="build-version" content="0.8.0-phase3.2-24f0575f">
+  <!-- Beta 0.8 Phase 1 (design spec V7 S2): Heebo per spec, with the spec's own named fallback
+       (Arial, sans-serif) already carrying the font-unavailable/offline case -- no extra offline
+       caching strategy needed for the font itself. -->
+  <!-- Beta 0.8 Phase 3.1 (P3-F6): Noto Sans Thai is the fallback right after Heebo -- Heebo has no Thai glyphs, so Thai names from documents
+       showed empty boxes for tone/vowel marks. Google Fonts serves it split by unicode-range, so only Thai text downloads it. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700&family=Noto+Sans+Thai:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/assets/icons/favicon.png">
+  <link rel="apple-touch-icon" href="/assets/icons/icon-192.png">
+  <!-- The version placeholder below is resolved at build time from package.json's version by
+       scripts/inject-build-version.mjs (V6-F24), so the tab title and description can never
+       drift from the shipped version again. Do not hand-edit the resolved value in dist/. -->
+  <title>Family Trips · Beta 0.8.0-phase3.2</title>
+  <script type="module" crossorigin src="/assets/index-BQgXBPvq.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-D9CODpu4.css">
+</head>
+<body>
+  <div id="account-bar" hidden></div>
+  <div id="auth-root"></div>
+  <div id="app"></div>
+  <noscript>יש להפעיל JavaScript.</noscript>
+</body>
+</html>
