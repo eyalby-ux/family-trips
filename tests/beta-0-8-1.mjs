@@ -17,8 +17,8 @@ test('P32-F1: the Tasks participant filter gets its own full row and every selec
 
 test('P32-F2: the Documents chip row is a scroller that render() rebuilds -- its scroll position is carried across the rebuild',()=>{
   const render=fn('render');
-  assert(render.includes("const keepChipScroll=document.querySelector('.doc-filters')?.scrollLeft;"),'read before the DOM is replaced');
-  assert(render.includes("const chipRow=document.querySelector('.doc-filters');if(chipRow&&keepChipScroll!==undefined)chipRow.scrollLeft=keepChipScroll;"),'written back after');
+  assert(render.includes("const keepChipScroll=document.querySelector('.doc-filters,.game-filters')?.scrollLeft;"),'read before the DOM is replaced');
+  assert(render.includes("const chipRow=document.querySelector('.doc-filters,.game-filters');if(chipRow&&keepChipScroll!==undefined)chipRow.scrollLeft=keepChipScroll;"),'written back after');
   assert(render.indexOf('keepChipScroll')<render.indexOf("document.querySelector('#app').innerHTML=")&&render.indexOf('chipRow.scrollLeft=keepChipScroll')>render.indexOf("document.querySelector('#app').innerHTML="));
   assert(app.includes("else if(action==='doc-filter'){state.docFilter=button.dataset.filter||'all';render()}"),'the selection itself was always kept in state');
 });

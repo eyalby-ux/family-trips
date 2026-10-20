@@ -188,6 +188,13 @@ bdi,.bidi{unicode-bidi:isolate}
 @media (prefers-reduced-motion:reduce){.skeleton{animation:none}}
 /* Beta 0.8 Phase 3 (spec S6): the games catalog and the game page. */
 .chip-filters{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 12px}
+/* 0.9.1 (PO): the games filters are ONE line -- "מועדפים" is a star -- and scroll sideways only if a very large text size needs it. */
+.game-filters{flex-wrap:nowrap;gap:6px;overflow-x:auto;scrollbar-width:none}
+.game-filters::-webkit-scrollbar{display:none}
+.game-filters .filter-chip{flex:1 1 auto;white-space:nowrap;font-size:14px;padding:0 10px}
+.game-filters .icon-chip{flex:0 0 44px;width:44px;padding:0;display:inline-flex;align-items:center;justify-content:center}
+.game-filters .icon-chip .ti{width:20px;height:20px;stroke:currentColor}
+.game-filters .icon-chip.active .ti{fill:currentColor}
 .filter-chip{min-height:44px;padding:0 14px;border:1px solid var(--border);border-radius:999px;background:var(--surface);color:var(--ink);font-size:15px;font-weight:600}
 .filter-chip.active{background:var(--ink);border-color:var(--ink);color:#fff}
 .game-row{display:flex;align-items:center;gap:8px}

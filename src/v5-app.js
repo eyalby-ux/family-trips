@@ -745,10 +745,10 @@ function gameRow(game){
 }
 function gamesView(){
   const filter=state.gameFilter||'all',games=filterGames(state.games,filter);
-  const chips=GAME_FILTERS.map(([value,label])=>`<button class="filter-chip ${filter===value?'active':''}" data-action="game-filter" data-filter="${value}" aria-pressed="${filter===value}">${label}</button>`).join('');
+  const chips=GAME_FILTERS.map(([value,label])=>`<button class="filter-chip ${value==='favorites'?'icon-chip ':''}${filter===value?'active':''}" data-action="game-filter" data-filter="${value}" aria-pressed="${filter===value}"${value==='favorites'?` aria-label="${label}" title="${label}"`:''}>${value==='favorites'?tabler('star'):label}</button>`).join('');
   const emptyText=filter==='favorites'?['אין מועדפים עדיין','סמנו משחק בכוכב כדי שיופיע כאן.']:['אין משחקים תואמים','נסו מסנן אחר.'];
   const body=games.length?`<div class="list game-list">${games.map(gameRow).join('')}</div>`:emptyState('dice',emptyText[0],emptyText[1],'<button class="btn ghost" data-action="game-filter" data-filter="all">הצגת הכול</button>');
-  return `<section class="card"><div class="page-head"><h2>משחקים ופעילויות</h2></div><p class="muted small">ההוראות נשמרות מקומית וזמינות גם ללא אינטרנט.</p><div class="chip-filters" role="group" aria-label="סינון משחקים">${chips}</div>${body}</section>`;
+  return `<section class="card"><div class="page-head"><h2>משחקים ופעילויות</h2></div><p class="muted small">ההוראות נשמרות מקומית וזמינות גם ללא אינטרנט.</p><div class="chip-filters game-filters" role="group" aria-label="סינון משחקים">${chips}</div>${body}</section>`;
 }
 // A uniform page for every game: name, description, who it suits, duration, one primary action.
 function gameView(){
@@ -1774,9 +1774,9 @@ function render(){
   // start-new-trip view already could with no Trip.
   normalizeOperationalState(state);const views={today:todayView,timeline,center,detail:detailView,suggestion:suggestionView,games:gamesView,game:gameView,packing:packingView,tasks:tasksView,shopping:shoppingView,locations:locationsView,settings:settingsView,trips:tripsView,admin:adminView},body=(!bootResolved?loading:!state.trip&&!['trips','admin'].includes(state.view)?empty:(views[state.view]||todayView))();// P32-F2: the Documents filter-chip row is a horizontal scroller and render() rebuilds it, which resets it to the start (so the row "snapped back" to
 // "הכול" after every tap, even though the selection itself was kept) -- carry its scroll position across the rebuild.
-const keepChipScroll=document.querySelector('.doc-filters')?.scrollLeft;
+const keepChipScroll=document.querySelector('.doc-filters,.game-filters')?.scrollLeft;
 document.querySelector('#app').innerHTML=`<div class="shell">${syncBanner()}${header()}<main>${body}</main>${nav()}${modal()}${state.toast?`<div class="toast">${esc(state.toast)}</div>`:''}</div>`;
-  const chipRow=document.querySelector('.doc-filters');if(chipRow&&keepChipScroll!==undefined)chipRow.scrollLeft=keepChipScroll;
+  const chipRow=document.querySelector('.doc-filters,.game-filters');if(chipRow&&keepChipScroll!==undefined)chipRow.scrollLeft=keepChipScroll;
   fitActionRows();
 }
 

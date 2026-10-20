@@ -214,6 +214,16 @@ test('the building screen can no longer be pushed wider than the phone by a long
   assert(fn('triviaView').includes('first.title.length>24?'),'long names are shortened in the phrase');
 });
 
+test('games filters (PO screenshot): one line, "מועדפים" is a star icon with an accessible name, the row keeps its scroll if a huge text size needs one',()=>{
+  const view=fn('gamesView');
+  assert(view.includes("value==='favorites'?tabler('star'):label")&&view.includes('aria-label="${label}" title="${label}"'),'a star, still named "מועדפים" for screen readers');
+  assert(view.includes('class="chip-filters game-filters"'));
+  assert.match(css,/.game-filters{flex-wrap:nowrap;[^}]*overflow-x:auto/,'never wraps onto a second line');
+  assert.match(css,/.game-filters .icon-chip{flex:0 0 44px;width:44px;/,'the star chip is a 44px target');
+  assert.match(css,/.game-filters .filter-chip{flex:1 1 auto;white-space:nowrap;/);
+  assert(app.includes("document.querySelector('.doc-filters,.game-filters')?.scrollLeft"),'scroll carried across render() like the documents row');
+});
+
 let failed=0;
 for(const [name,body] of tests){
   try{await body();console.log(`PASS: ${name}`)}
