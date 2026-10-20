@@ -101,6 +101,7 @@ test('the build gate: "בנה טריוויה" is disabled with a hint until the 
   assert(view.includes('data-action="trivia-build" data-id="${game.id}"${gate.allowed?\'\':\' disabled\'}>בנה טריוויה</button>${hint}'),'a visible, disabled button plus the hint -- not a hidden one');
   assert(view.includes("largePalm({phrases,label:'בונים טריוויה…'"),'the app\'s own swaying-palm "in process" display, no new spinner');
   assert(!/spinner/i.test(view));
+  assert(view.includes('מוסיפים שאלה על <bdi>${esc(first.title)}</bdi>…'),'an item name of another script stays an isolate inside the Hebrew phrase');
   assert(app.includes("if(!game||triviaBuilding||!triviaBuildGate(state.trip).allowed)return;"),'the handler enforces the gate too');
 });
 
