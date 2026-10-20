@@ -12,7 +12,10 @@
 
 ## New Production state
 
-*(filled in after the deploy)*
+- **Build identifier:** `0.9.1-a44ba098`
+- **Deploy ID:** `6ad76b2dc180c57dc89bf7da` (context `production`, state `ready`)
+- **Deployed:** 2026-10-20T13:23:10Z — `netlify deploy --dir dist --prod --no-build`, run by the Development Agent at the Product Owner's explicit instruction.
+- **Verified (fresh cache-bypassed fetches):** `build-version` reads `0.9.1-a44ba098`; all 11 files of `dist/` return HTTP 200 and are byte-identical to the local `dist/`; the service worker carries `0.9.1-a44ba098`; the new function answers an unauthenticated POST to `/api/familytrips-game-content` with HTTP 401 (deployed and refusing without a Firebase token, not a 404 / SPA fallback). **Not done:** no AI build was run against Production (it would spend the PO's daily quota); the same code ran live on `qa`.
 
 - **Artifact:** the exact, untouched `dist/` of the build accepted on `qa` (`qa` and `dist/` both read `0.9.1-a44ba098`; no rebuild). Build commit `a44ba09` on `version/V7`.
 - **New backend piece:** the Netlify Function `game-content` (`/api/familytrips-game-content`) ships with this deploy — a sibling of `smart-import`, same auth, same daily quota pool (10/day), same audit log; it uses the site's existing OpenAI configuration. No `firestore.rules` / `storage.rules` change; no schema migration beyond additive game fields (backfilled on load) and the removal of the saved "מי אני?" game record.
