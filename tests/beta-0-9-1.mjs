@@ -220,7 +220,7 @@ test('games filters (PO screenshot): one line, "מועדפים" is a star icon w
   assert(view.includes('class="chip-filters game-filters"'));
   assert.match(css,/.game-filters{flex-wrap:nowrap;[^}]*overflow-x:auto/,'never wraps onto a second line');
   assert.match(css,/.game-filters .icon-chip{flex:0 0 44px;width:44px;/,'the star chip is a 44px target');
-  assert.match(css,/.game-filters .filter-chip{flex:1 1 auto;white-space:nowrap;/);
+  assert.match(css,/.game-filters .filter-chip{flex:1 1 auto;min-width:44px;white-space:nowrap;/);
   assert(app.includes("document.querySelector('.doc-filters,.game-filters')?.scrollLeft"),'scroll carried across render() like the documents row');
 });
 
