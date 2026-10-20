@@ -112,7 +112,7 @@ test('S6: the games catalog -- five filters, favourites first, a uniform game pa
   const titles=filter=>filterGames(games,filter).map(game=>game.id);
   assert.equal(titles('all').length,games.length);assert.equal(titles('all')[0],'game-airport-bingo','favourites first');
   assert.deepEqual(titles('favorites'),['game-airport-bingo']);
-  assert(titles('quick').every(id=>gameMinutes(games.find(game=>game.id===id).duration)<=10)&&titles('quick').includes('game-who-am-i'),'"10 דקות": a first number of 10 or less');
+  assert(titles('quick').every(id=>gameMinutes(games.find(game=>game.id===id).duration)<=10)&&titles('quick').includes('game-20-questions'),'"10 דקות": a first number of 10 or less');
   assert(!titles('quick').includes('game-photo-hunt'),'"במהלך היום" has no minutes');
   assert(titles('onTheGo').includes('game-road-story')&&!titles('onTheGo').includes('game-airport-bingo'));
   assert(titles('everyone').every(id=>games.find(game=>game.id===id).participants==='כל המשפחה'));

@@ -1,14 +1,16 @@
 const TRIVIA_INSTRUCTIONS='שאלות על מקומות, תרבות וחיי היומיום ביעד, שנבנות במיוחד בשביל הטיול — כולל המלונות והפעילויות שכבר הוספתם. מתאים לכל המשפחה, כולל הקטנים.';
+const TWENTY_QUESTIONS_INSTRUCTIONS='אדם אחד בוחר אדם, דמות, מקום או חפץ. האחרים שואלים שאלות כן/לא — עד 20 שאלות, או עד שמישהו מנחש.';
+const OLD_20Q_INSTRUCTIONS='בוחרים אדם, מקום או חפץ. האחרים שואלים עד 20 שאלות כן/לא.';
 const OLD_TRIVIA_TITLE='טריוויה תאילנד',OLD_TRIVIA_INSTRUCTIONS='כל משתתף שואל שאלה על תאילנד. נקודה על תשובה ונקודה נוספת על עובדה מעניינת.';
 // onTheGo: playable in the car / on the move with no setup (the "בנסיעה" filter, design spec S6).
 export const BUILTIN_GAMES=[
   {id:'game-road-story',onTheGo:true,title:'סיפור בהמשכים',instructions:'כל אחד מוסיף משפט אחד. אסור לבטל פרט שכבר נאמר.',items:'ללא ציוד',participants:'כל המשפחה',duration:'15–30 דקות'},
-  {id:'game-20-questions',onTheGo:true,title:'20 שאלות',instructions:'בוחרים אדם, מקום או חפץ. האחרים שואלים עד 20 שאלות כן/לא.',items:'ללא ציוד',participants:'3 ומעלה',duration:'10–20 דקות'},
+  // 0.9.1 (P91-P2, PO decision): "20 שאלות" and "מי אני?" were the same game -- one person chooses, the others ask yes/no questions. One game now: this one.
+  {id:'game-20-questions',onTheGo:true,title:'20 שאלות',instructions:TWENTY_QUESTIONS_INSTRUCTIONS,items:'ללא ציוד',participants:'3 ומעלה',duration:'10–20 דקות'},
   {id:'game-airport-bingo',title:'בינגו שדה תעופה',instructions:'חפשו מזוודה אדומה, מטוס, מדים, מסוע, לוח המראות ושער עלייה.',items:'פתק או טלפון',participants:'2 ומעלה',duration:'15 דקות'},
   // 0.9.1: an AI-built deck per trip. The id stays (saved state is keyed by it); the title is destination-neutral.
   {id:'game-thailand-trivia',onTheGo:true,interactive:true,title:'טריוויה על היעד',instructions:TRIVIA_INSTRUCTIONS,items:'ללא ציוד',participants:'כל המשפחה',duration:'20 דקות',deck:[],askedQuestions:[],triviaState:{order:[],position:0,scores:{}}},
   {id:'game-photo-hunt',onTheGo:true,title:'ציד תמונות',instructions:'בחרו חמש תמונות לצלם בדרך: שלט מצחיק, אוכל חדש, צבע מסוים, בעל חיים וחיוך משפחתי.',items:'מצלמה',participants:'כל המשפחה',duration:'במהלך היום'},
-  {id:'game-who-am-i',onTheGo:true,title:'מי אני?',instructions:'אדם אחד בוחר דמות. האחרים מגלים אותה בשאלות כן/לא.',items:'ללא ציוד',participants:'3 ומעלה',duration:'10 דקות'},
 ];
 
 // 0.7.2: Firestore subcollection sync logic, extracted here (dependency-free) rather than left
@@ -94,7 +96,11 @@ export function diffById(previous,next){
 // so a game that gained fields needs an explicit backfill or only brand-new trips would get them. Trivia: interactive, the
 // destination-neutral title and instructions (only where they are still the old defaults), and its deck / history / state.
 export function backfillBuiltinGames(games){
+  // "מי אני?" was merged into "20 שאלות": drop the old record (its Firestore document goes with the next sync) and keep a favourite star.
+  const merged=games.findIndex(game=>game.id==='game-who-am-i');
+  if(merged>=0){const twenty=games.find(game=>game.id==='game-20-questions');if(twenty&&games[merged].favorite)twenty.favorite=true;games.splice(merged,1)}
   for(const game of games){
+    if(game.id==='game-20-questions'&&(!game.instructions||game.instructions===OLD_20Q_INSTRUCTIONS))game.instructions=TWENTY_QUESTIONS_INSTRUCTIONS;
     if(game.id!=='game-thailand-trivia')continue;
     game.interactive=true;
     if(!game.title||game.title===OLD_TRIVIA_TITLE)game.title='טריוויה על היעד';

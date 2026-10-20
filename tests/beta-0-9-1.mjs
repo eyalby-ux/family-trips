@@ -240,6 +240,28 @@ test('P91-F1 (PO-approved design): "מועדפים" a star, "10 דקות" a cloc
   assert.match(css,/.game-filters .icon-chip.star.active .ti{fill:currentColor}/,'only the star fills when selected');
 });
 
+test('P91-P2 (PO decision): "20 שאלות" and "מי אני?" are ONE game -- the catalog has one row; a saved "מי אני?" is removed and its favourite star carries over',()=>{
+  assert(!BUILTIN_GAMES.some(game=>game.id==='game-who-am-i'),'no separate "מי אני?" any more');
+  const merged=BUILTIN_GAMES.find(game=>game.id==='game-20-questions');
+  assert.equal(merged.title,'20 שאלות');
+  assert(merged.instructions.includes('אדם, דמות, מקום או חפץ')&&merged.instructions.includes('עד 20 שאלות, או עד שמישהו מנחש'),'one rule text covering a person, a character, a place or a thing');
+  assert.equal(merged.onTheGo,true);
+  const before={games:[{id:'game-20-questions',title:'20 שאלות',instructions:'בוחרים אדם, מקום או חפץ. האחרים שואלים עד 20 שאלות כן/לא.',favorite:false},{id:'game-who-am-i',title:'מי אני?',favorite:true},{id:'game-road-story',title:'סיפור בהמשכים',favorite:false}],trip:{id:'t1'},items:[]};
+  normalizeOperationalState(before);
+  console.log('  merge before: 20 שאלות (no star) + מי אני? (star) -> after:',JSON.stringify(before.games.filter(game=>/20|who/.test(game.id)).map(game=>({id:game.id,favorite:game.favorite}))));
+  assert(!before.games.some(game=>game.id==='game-who-am-i'),'the old record is gone');
+  assert.equal(before.games.filter(game=>game.id==='game-20-questions').length,1);
+  const twenty=before.games.find(game=>game.id==='game-20-questions');
+  assert.equal(twenty.favorite,true,'the star carries over');assert.equal(twenty.instructions,merged.instructions,'the old default rules are replaced');
+  // a trip that never starred it, and one whose family wrote its own rules
+  const plain=normalizeOperationalState({games:[{id:'game-20-questions',instructions:'משלנו',favorite:false},{id:'game-who-am-i',favorite:false}],trip:{id:'t'},items:[]});
+  assert.equal(plain.games.find(game=>game.id==='game-20-questions').favorite,false);assert.equal(plain.games.find(game=>game.id==='game-20-questions').instructions,'משלנו');
+  // a brand-new trip, and running it again, never brings the old game back
+  const fresh=normalizeOperationalState({trip:{id:'t2'},items:[]});
+  assert(!fresh.games.some(game=>game.id==='game-who-am-i'));assert.equal(fresh.games.length,BUILTIN_GAMES.length);
+  normalizeOperationalState(fresh);assert(!fresh.games.some(game=>game.id==='game-who-am-i'));
+});
+
 let failed=0;
 for(const [name,body] of tests){
   try{await body();console.log(`PASS: ${name}`)}
