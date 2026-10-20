@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {HISTORY_CAP,MAX_CONTEXT_ITEMS,TRIVIA_COUNT,TRIVIA_FIELDS,triviaSchema,triviaSystemPrompt,buildTripContext,cleanHistory,dropRepeats,generateWithRepeatGuard,normalizeForMatch,triviaInstruction} from '../netlify/functions/_shared/game-content.mjs';
-import {TRIVIA_ID,capHistory,newTriviaDeck,readMoreUrl,newTriviaState,shuffleOrder,toggleCorrect,triviaBuildGate,triviaFinished,triviaNext,triviaQuestion,triviaTally} from '../src/games.js';
+import {GAME_FILTERS,TRIVIA_ID,capHistory,newTriviaDeck,readMoreUrl,newTriviaState,shuffleOrder,toggleCorrect,triviaBuildGate,triviaFinished,triviaNext,triviaQuestion,triviaTally} from '../src/games.js';
 import {BUILTIN_GAMES,backfillBuiltinGames,normalizeOperationalState} from '../src/operational-data.js';
 
 const read=path=>fs.readFileSync(new URL(path,import.meta.url),'utf8');
@@ -202,7 +202,8 @@ test('answer explanation: every generated question carries a short explanation; 
   assert.equal(readMoreUrl(' שוק צף '),'https://he.wikipedia.org/w/index.php?search='+encodeURIComponent('שוק צף'));
   const play=fn('triviaPlayView');
   assert(play.includes('<p class="a-why">${esc(question.explanation)}</p>')&&play.includes("question.explanation?"),'shown only when there is one (older decks have none)');
-  assert(play.includes('class="a-more" href="${esc(readMoreUrl(question.answer))}" target="_blank" rel="noopener"'));
+  assert(play.includes('class="a-more" href="${esc(readMoreUrl(question.answer))}" target="_blank" rel="noopener" aria-label="קרא עוד על ${esc(question.answer)}">קרא עוד</a>'),'P91-F2: the visible text is just "קרא עוד" (no repeated answer, no glued words); the full phrase is its accessible name');
+  assert(!play.includes('קראו עוד עַל')&&!/>קראו עוד/.test(play)&&!play.includes('<bdi>${esc(question.answer)}</bdi></a>'));
   assert(play.indexOf('a-why')>play.indexOf('a-text')&&play.indexOf('a-more')>play.indexOf('a-why'),'answer, then why, then read more -- all inside the revealed box');
   assert.match(css,/.answer-box .a-more{[^}]*min-height:44px/,'a 44px tap target');
   assert.deepEqual(capHistory([],[{...q('א','ב'),explanation:'למה'}]),[q('א','ב')],'the exclusion history never carries explanations');
@@ -216,12 +217,27 @@ test('the building screen can no longer be pushed wider than the phone by a long
 
 test('games filters (PO screenshot): one line, "מועדפים" is a star icon with an accessible name, the row keeps its scroll if a huge text size needs one',()=>{
   const view=fn('gamesView');
-  assert(view.includes("value==='favorites'?tabler('star'):label")&&view.includes('aria-label="${label}" title="${label}"'),'a star, still named "מועדפים" for screen readers');
+  assert(view.includes('${GAME_FILTER_ICONS[value]?GAME_FILTER_ICONS[value]():label}')&&view.includes('aria-label="${label}" title="${label}"'),'icons, each still named by its text for screen readers and as a tooltip');
   assert(view.includes('class="chip-filters game-filters"'));
   assert.match(css,/.game-filters{flex-wrap:nowrap;[^}]*overflow-x:auto/,'never wraps onto a second line');
   assert.match(css,/.game-filters .icon-chip{flex:0 0 44px;width:44px;/,'the star chip is a 44px target');
   assert.match(css,/.game-filters .filter-chip{flex:1 0 auto;min-width:44px;white-space:nowrap;/);
   assert(app.includes("document.querySelector('.doc-filters,.game-filters')?.scrollLeft"),'scroll carried across render() like the documents row');
+});
+
+test('P91-F1 (PO-approved design): "מועדפים" a star, "10 דקות" a clock with a bold 10, "בנסיעה" a side-view car, "לכולם" a group of three people; "הכול" stays a word; still one line',()=>{
+  const map=app.slice(app.indexOf('const GAME_FILTER_ICONS={'),app.indexOf('function gamesView(){'));
+  assert(map.includes("favorites:()=>tabler('star')"));
+  assert(map.includes('<circle cx="12" cy="12.5" r="9.5"></circle>')&&map.includes('font-weight="700"')&&map.includes('>10</text>'),'a clock with a bold 10 inside');
+  assert(map.includes('M2 15v-3.5a1 1 0 0 1 1-1h1.5L7.5 7.5h6.5l3 3H20a2 2 0 0 1 2 2V15a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z')&&(map.match(/<circle cx="[717]+" cy="16" r="2">/g)||[]).length===2,'a car seen from the side: body with a roof line and two wheels');
+  assert((map.match(/<circle /g)||[]).length>=1&&map.includes('<circle cx="12" cy="7" r="2.8">')&&map.includes('<circle cx="5.5" cy="9.5" r="2.2">')&&map.includes('<circle cx="18.5" cy="9.5" r="2.2">'),'three heads');
+  const view=fn('gamesView');
+  assert(!view.includes(">${label}</button>")||view.includes('GAME_FILTER_ICONS[value]?GAME_FILTER_ICONS[value]():label'),'only "הכול" is rendered as text');
+  assert.deepEqual(GAME_FILTERS.map(([value])=>value),['all','favorites','quick','onTheGo','everyone']);
+  for(const value of ['favorites','quick','onTheGo','everyone'])assert(map.includes(`${value}:()=>`),value);
+  assert.match(css,/.game-filters .icon-chip{flex:0 0 44px;width:44px;/,'every icon chip is a 44px target, so the five chips cannot outgrow the row');
+  assert.match(css,/.game-filters .icon-chip .ti.clock{width:28px;height:28px}/);
+  assert.match(css,/.game-filters .icon-chip.star.active .ti{fill:currentColor}/,'only the star fills when selected');
 });
 
 let failed=0;

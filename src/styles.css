@@ -193,8 +193,9 @@ bdi,.bidi{unicode-bidi:isolate}
 .game-filters::-webkit-scrollbar{display:none}
 .game-filters .filter-chip{flex:1 0 auto;min-width:44px;white-space:nowrap;font-size:14px;padding:0 6px}
 .game-filters .icon-chip{flex:0 0 44px;width:44px;padding:0;display:inline-flex;align-items:center;justify-content:center}
-.game-filters .icon-chip .ti{width:20px;height:20px;stroke:currentColor}
-.game-filters .icon-chip.active .ti{fill:currentColor}
+.game-filters .icon-chip .ti{width:24px;height:24px;stroke:currentColor}
+.game-filters .icon-chip .ti.clock{width:28px;height:28px}
+.game-filters .icon-chip.star.active .ti{fill:currentColor}
 .filter-chip{min-height:44px;padding:0 14px;border:1px solid var(--border);border-radius:999px;background:var(--surface);color:var(--ink);font-size:15px;font-weight:600}
 .filter-chip.active{background:var(--ink);border-color:var(--ink);color:#fff}
 .game-row{display:flex;align-items:center;gap:8px}

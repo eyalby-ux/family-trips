@@ -743,9 +743,17 @@ function gameRow(game){
   const meta=[game.participants,game.duration].filter(Boolean).map(esc).join(' · ');
   return `<div class="game-row"><button class="game-open" data-route="game" data-id="${game.id}"><span class="game-icon">${tabler('dice')}</span><span class="row-main"><b>${esc(game.title)}</b><small class="muted">${meta}</small></span>${tabler('chevron').replace('class="ti"','class="ti icon-directional row-chevron"')}</button><button class="game-star ${game.favorite?'on':''}" data-action="game-favorite" data-id="${game.id}" aria-pressed="${Boolean(game.favorite)}" aria-label="${game.favorite?'הסרה מהמועדפים':'הוספה למועדפים'}: ${esc(game.title)}">${tabler('star')}</button></div>`;
 }
+// 0.9.1 (P91-F1, PO-approved design): the catalog's filters are icons -- favourites a star, "10 דקות" a clock with a bold 10, "בנסיעה" a side-view car,
+// "לכולם" a group of three people. Each keeps its text as the accessible name and tooltip; "הכול" stays a word.
+const GAME_FILTER_ICONS={
+  favorites:()=>tabler('star'),
+  quick:()=>'<svg class="ti clock" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12.5" r="9.5"></circle><path d="M12 1.5v2M9.5 1.5h5"></path><text x="12" y="16" text-anchor="middle" font-size="9.5" font-weight="700" fill="currentColor" stroke="none" font-family="inherit">10</text></svg>',
+  onTheGo:()=>'<svg class="ti" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 15v-3.5a1 1 0 0 1 1-1h1.5L7.5 7.5h6.5l3 3H20a2 2 0 0 1 2 2V15a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z"></path><path d="M11 7.5v4h-4.5M13.5 7.5v4h4"></path><circle cx="7" cy="16" r="2"></circle><circle cx="17" cy="16" r="2"></circle></svg>',
+  everyone:()=>'<svg class="ti" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="7" r="2.8"></circle><path d="M6.5 20v-1.5a4.5 4.5 0 0 1 4.5-4.5h2a4.5 4.5 0 0 1 4.5 4.5V20"></path><circle cx="5.5" cy="9.5" r="2.2"></circle><path d="M1.5 18.5v-1a3 3 0 0 1 3-3h.5"></path><circle cx="18.5" cy="9.5" r="2.2"></circle><path d="M22.5 18.5v-1a3 3 0 0 0-3-3h-.5"></path></svg>',
+};
 function gamesView(){
   const filter=state.gameFilter||'all',games=filterGames(state.games,filter);
-  const chips=GAME_FILTERS.map(([value,label])=>`<button class="filter-chip ${value==='favorites'?'icon-chip ':''}${filter===value?'active':''}" data-action="game-filter" data-filter="${value}" aria-pressed="${filter===value}"${value==='favorites'?` aria-label="${label}" title="${label}"`:''}>${value==='favorites'?tabler('star'):label}</button>`).join('');
+  const chips=GAME_FILTERS.map(([value,label])=>`<button class="filter-chip ${GAME_FILTER_ICONS[value]?'icon-chip ':''}${value==='favorites'?'star ':''}${filter===value?'active':''}" data-action="game-filter" data-filter="${value}" aria-pressed="${filter===value}"${GAME_FILTER_ICONS[value]?` aria-label="${label}" title="${label}"`:''}>${GAME_FILTER_ICONS[value]?GAME_FILTER_ICONS[value]():label}</button>`).join('');
   const emptyText=filter==='favorites'?['אין מועדפים עדיין','סמנו משחק בכוכב כדי שיופיע כאן.']:['אין משחקים תואמים','נסו מסנן אחר.'];
   const body=games.length?`<div class="list game-list">${games.map(gameRow).join('')}</div>`:emptyState('dice',emptyText[0],emptyText[1],'<button class="btn ghost" data-action="game-filter" data-filter="all">הצגת הכול</button>');
   return `<section class="card"><div class="page-head"><h2>משחקים ופעילויות</h2></div><p class="muted small">ההוראות נשמרות מקומית וזמינות גם ללא אינטרנט.</p><div class="chip-filters game-filters" role="group" aria-label="סינון משחקים">${chips}</div>${body}</section>`;
@@ -786,7 +794,7 @@ function triviaPlayView(game){
   }
   const question=triviaQuestion(game);
   const chips=people.length?`<p class="trivia-prompt">מי ענה נכון?</p><div class="trivia-chips">${people.map(person=>`<button class="trivia-chip${triviaMarked.includes(person.id)?' on':''}" data-action="trivia-score" data-id="${game.id}" data-participant="${person.id}" aria-pressed="${triviaMarked.includes(person.id)}">${esc(person.name)} <span class="score">${ts.scores?.[person.id]||0}</span></button>`).join('')}</div>`:'';
-  const answer=triviaRevealed?`<div class="answer-box"><span class="q-label">תשובה</span><b class="a-text">${esc(question.answer)}</b>${question.explanation?`<p class="a-why">${esc(question.explanation)}</p>`:''}<a class="a-more" href="${esc(readMoreUrl(question.answer))}" target="_blank" rel="noopener">קראו עוד על <bdi>${esc(question.answer)}</bdi></a></div>`:'';
+  const answer=triviaRevealed?`<div class="answer-box"><span class="q-label">תשובה</span><b class="a-text">${esc(question.answer)}</b>${question.explanation?`<p class="a-why">${esc(question.explanation)}</p>`:''}<a class="a-more" href="${esc(readMoreUrl(question.answer))}" target="_blank" rel="noopener" aria-label="קרא עוד על ${esc(question.answer)}">קרא עוד</a></div>`:'';
   const action=triviaRevealed?`${chips}<button class="btn game-primary" data-action="trivia-next" data-id="${game.id}">${ts.position+1<total?'השאלה הבאה':'לסיכום'}</button>`:`<button class="btn game-primary" data-action="trivia-reveal" data-id="${game.id}">הצג תשובה</button>`;
   return `<section class="card">${triviaTop(game,'trivia-exit')}<div class="trivia-q"><span class="q-label">שאלה <bdi dir="ltr">${ts.position+1}/${total}</bdi></span><p class="q-text">${esc(question.question)}</p>${answer}</div>${action}</section>`;
 }
