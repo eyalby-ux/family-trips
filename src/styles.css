@@ -203,6 +203,28 @@ bdi,.bidi{unicode-bidi:isolate}
 .game-star.on .ti{stroke-width:2.4}
 .game-description{margin:8px 0 16px;font-size:16px;line-height:1.6}
 .game-primary{width:100%;min-height:52px;font-size:17px}
+/* Beta 0.9.1: Trivia (mockup MOCKUP_GAMES_TRIVIA_V1) -- question card, revealed answer, 44px scoring chips, end tally. */
+.game-secondary{width:100%;min-height:48px;margin-top:10px}
+.game-hint{margin:10px 0 0;text-align:center}
+.trivia-q{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;margin:8px 0 16px}
+.trivia-q .q-label,.answer-box .q-label{font-size:12.5px;color:var(--muted);font-weight:600}
+.trivia-q .q-text{margin:6px 0 0;font-size:19px;font-weight:700;line-height:1.5}
+.answer-box{margin-top:14px;background:var(--accent-soft);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:4px}
+.answer-box .a-text{font-size:17px}
+.trivia-prompt{margin:4px 0 8px;font-size:14.5px;font-weight:600}
+.trivia-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.trivia-chip{min-height:44px;padding:0 14px;border:1px solid var(--border);border-radius:999px;background:var(--surface);color:var(--ink);font-size:15px;font-weight:600}
+.trivia-chip.on{border-color:var(--ink);background:var(--teal-soft)}
+.trivia-chip .score{margin-inline-start:6px;font-size:13px;color:var(--muted);font-weight:400}
+.trivia-chip.on .score{color:var(--ink)}
+.trivia-end{text-align:center;margin:8px 0 16px}
+.trivia-end>b{font-size:17px}
+.trivia-end>p{margin:2px 0 12px}
+.tally{display:flex;flex-direction:column;gap:10px}
+.tally-row{display:flex;align-items:center;justify-content:space-between;background:var(--bg);border-radius:10px;padding:10px 14px}
+.tally-row.first{background:var(--accent-soft)}
+.tally-name{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600}
+.tally-score{font-size:16px;font-weight:700}
 /* Beta 0.8 Phase 3 (P12-F3): participants -- the delete action, its disabled reason and the in-row confirmation. */
 .participant-item{display:grid;gap:8px}
 .participant-item>.row{margin:0}

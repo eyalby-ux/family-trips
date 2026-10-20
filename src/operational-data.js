@@ -1,9 +1,12 @@
+const TRIVIA_INSTRUCTIONS='שאלות על מקומות, תרבות וחיי היומיום ביעד, שנבנות במיוחד בשביל הטיול — כולל המלונות והפעילויות שכבר הוספתם. מתאים לכל המשפחה, כולל הקטנים.';
+const OLD_TRIVIA_TITLE='טריוויה תאילנד',OLD_TRIVIA_INSTRUCTIONS='כל משתתף שואל שאלה על תאילנד. נקודה על תשובה ונקודה נוספת על עובדה מעניינת.';
 // onTheGo: playable in the car / on the move with no setup (the "בנסיעה" filter, design spec S6).
 export const BUILTIN_GAMES=[
   {id:'game-road-story',onTheGo:true,title:'סיפור בהמשכים',instructions:'כל אחד מוסיף משפט אחד. אסור לבטל פרט שכבר נאמר.',items:'ללא ציוד',participants:'כל המשפחה',duration:'15–30 דקות'},
   {id:'game-20-questions',onTheGo:true,title:'20 שאלות',instructions:'בוחרים אדם, מקום או חפץ. האחרים שואלים עד 20 שאלות כן/לא.',items:'ללא ציוד',participants:'3 ומעלה',duration:'10–20 דקות'},
   {id:'game-airport-bingo',title:'בינגו שדה תעופה',instructions:'חפשו מזוודה אדומה, מטוס, מדים, מסוע, לוח המראות ושער עלייה.',items:'פתק או טלפון',participants:'2 ומעלה',duration:'15 דקות'},
-  {id:'game-thailand-trivia',onTheGo:true,title:'טריוויה תאילנד',instructions:'כל משתתף שואל שאלה על תאילנד. נקודה על תשובה ונקודה נוספת על עובדה מעניינת.',items:'ללא ציוד',participants:'כל המשפחה',duration:'20 דקות'},
+  // 0.9.1: an AI-built deck per trip. The id stays (saved state is keyed by it); the title is destination-neutral.
+  {id:'game-thailand-trivia',onTheGo:true,interactive:true,title:'טריוויה על היעד',instructions:TRIVIA_INSTRUCTIONS,items:'ללא ציוד',participants:'כל המשפחה',duration:'20 דקות',deck:[],askedQuestions:[],triviaState:{order:[],position:0,scores:{}}},
   {id:'game-photo-hunt',onTheGo:true,title:'ציד תמונות',instructions:'בחרו חמש תמונות לצלם בדרך: שלט מצחיק, אוכל חדש, צבע מסוים, בעל חיים וחיוך משפחתי.',items:'מצלמה',participants:'כל המשפחה',duration:'במהלך היום'},
   {id:'game-who-am-i',onTheGo:true,title:'מי אני?',instructions:'אדם אחד בוחר דמות. האחרים מגלים אותה בשאלות כן/לא.',items:'ללא ציוד',participants:'3 ומעלה',duration:'10 דקות'},
 ];
@@ -87,9 +90,28 @@ export function diffById(previous,next){
   return {toCreate,toUpdate,toDelete};
 }
 
+// 0.9.1: a built-in game that already exists BY ID in a saved trip is not touched by the "push the missing ones" step below,
+// so a game that gained fields needs an explicit backfill or only brand-new trips would get them. Trivia: interactive, the
+// destination-neutral title and instructions (only where they are still the old defaults), and its deck / history / state.
+export function backfillBuiltinGames(games){
+  for(const game of games){
+    if(game.id!=='game-thailand-trivia')continue;
+    game.interactive=true;
+    if(!game.title||game.title===OLD_TRIVIA_TITLE)game.title='טריוויה על היעד';
+    if(!game.instructions||game.instructions===OLD_TRIVIA_INSTRUCTIONS)game.instructions=TRIVIA_INSTRUCTIONS;
+    if(!Array.isArray(game.deck))game.deck=[];
+    if(!Array.isArray(game.askedQuestions))game.askedQuestions=[];
+    const ts=game.triviaState;
+    if(!ts||typeof ts!=='object'||!Array.isArray(ts.order))game.triviaState={order:[],position:0,scores:{}};
+    else{ts.position=Number(ts.position)||0;ts.scores=ts.scores&&typeof ts.scores==='object'?ts.scores:{}}
+  }
+  return games;
+}
+const freshBuiltin=game=>structuredClone({...game,favorite:false});
 export function normalizeOperationalState(state){
-  state.games=Array.isArray(state.games)?state.games:BUILTIN_GAMES.map(game=>({...game,favorite:false}));
-  for(const game of BUILTIN_GAMES)if(!state.games.some(item=>item.id===game.id))state.games.push({...game,favorite:false});
+  state.games=Array.isArray(state.games)?state.games:BUILTIN_GAMES.map(freshBuiltin);
+  for(const game of BUILTIN_GAMES)if(!state.games.some(item=>item.id===game.id))state.games.push(freshBuiltin(game));
+  backfillBuiltinGames(state.games);
   state.tasks=Array.isArray(state.tasks)?state.tasks:[];
   // 0.7.1: priority is new -- every task created before this candidate has none stored at all.
   // Defaulting a missing priority to 'Normal' here (not at read-time in every render call site)

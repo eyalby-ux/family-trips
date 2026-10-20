@@ -85,7 +85,7 @@ test('P12-F3: a participant with any assignment cannot be deleted; an unassigned
   assert(app.includes("else if(action==='participant-delete-ask'){participantDeleteArmed=button.dataset.id;render()}"));
   assert(app.includes('if(!participant||participantAssignments(state,participant.id).total){render();return}'),'re-checked at the moment of deleting');
   assert(app.includes('notify(`המשתתף ${participant.name} נמחק`)'),'a transient success notification');
-  assert(app.includes('function route(view,options={}){extraOpenFor=null;participantDeleteArmed=null;'),'an open confirmation never survives navigation');
+  assert(app.includes('function route(view,options={}){triviaPlaying=null;extraOpenFor=null;participantDeleteArmed=null;'),'an open confirmation never survives navigation');
 });
 
 test('P12-F7: any source that is not confirmed ticket coverage and not already Failed can be deleted',()=>{

@@ -56,7 +56,7 @@ test('P22-F4: the collapsed "פרטים נוספים" row -- only values that ex
   assert(block.includes('aria-expanded="${open}"')&&block.includes('data-action="extra-toggle"')&&block.includes("tabler(open?'chevup':'chevdown')"));
   assert(block.includes('${tabler(\'pin\')}')&&block.includes('mapsUrl(row.value)'),'the meeting point links to the map');
   assert(block.includes('לא כלול: ${esc(row.notIncluded)}'));
-  assert(app.includes("function route(view,options={}){extraOpenFor=null;"),'closed every time a page opens');
+  assert(app.includes("function route(view,options={}){triviaPlaying=null;extraOpenFor=null;"),'closed every time a page opens'); // 0.9.1: route() also leaves a Trivia play screen
   assert(app.includes("else if(action==='extra-toggle'){extraOpenFor=extraOpenFor===button.dataset.id?null:button.dataset.id;render()}"));
   const section=fn('ticketsAndDocumentsSection');
   assert(section.indexOf('ticketCarousel(item,tickets)')<section.indexOf('additionalDetailsBlock(item)')&&section.indexOf('additionalDetailsBlock(item)')<section.indexOf('canAttach?'),'after the carousel, before "+ הוספת מסמך"');

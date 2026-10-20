@@ -4,7 +4,8 @@ import {MultipartQrCollector,decodeExternalText,importBatchToApp} from './extern
 import {availableTimelineModes,backfillTripDates,currentOperational,filterAndSortTasks,isDeletionEligible,isItemOutsideTrip,normalizeDateRange,normalizeOperationalState,packingDuplicate,periodBounds,QUARANTINE_DELETION_ELIGIBLE_DAYS,quickAccessTasks,sanitizeTripDates,shiftCursor,sortItemsByStartAt,TASK_DUE_SCOPES,TRANSPORT_TYPES,itemStartMs,planToday,shortDayLabel,shouldClearEndedOnEdit,today,addParticipantsToRecord,computeTicketCoverage,participantChipLabel,pickerParticipants,uniqueRecordsById,upNextItem,isTaskOverdue,filterShoppingItems,isSharedShoppingItem,participantAssignments,shoppingOwnerLabel,normalizeTaskLink} from './operational-data.js';
 import {COUNTER_ABOVE,arrowKeyTarget,carouselSlots,participantLayout,positionIndicator} from './participant-carousel.js';
 import {normalizeProposalLifecycle,rejectProposal} from './proposal-lifecycle.js';
-import {GAME_FILTERS,filterGames,gamePrimaryAction} from './games.js';
+import {GAME_FILTERS,TRIVIA_ID,capHistory,filterGames,gamePrimaryAction,newTriviaDeck,newTriviaState,toggleCorrect,triviaBuildGate,triviaFinished,triviaNext,triviaQuestion,triviaTally} from './games.js';
+import {generateTrivia} from './game-content-client.js';
 import {syncStripText,cloudFailureMessage} from './ui-states.js';
 import {normalizeThaiPua} from './text-normalize.js';
 import {KIND_COLOURS,dayEntries,dayOf,daysBetween,isStay,monthWeeks,nightStay,ribbonRange,ribbonRows,shiftTimeline,stayHue,stayList,weekBands} from './timeline-view.js';
@@ -306,7 +307,7 @@ function fmt(value,withTime=true,precision=''){if(!value)return 'ללא תארי
 // immediately instead of waiting for a round-trip that never happens for this call path.
 function ensureTrip(seed={}){if(!state.trip){const dates=sanitizeTripDates(seed);state.trip={id:uid('trip'),name:seed.name||'הטיול המשפחתי שלי',startDate:dates.startDate,endDate:dates.endDate,createdAt:new Date().toISOString(),ownerUid:currentUid(),editorEmails:[]}}if(!state.packing.length)state.packing=defaultPacking();normalizeOperationalState(state)}
 function defaultPacking(){return [{id:uid('pl'),name:'מסמכים וכסף',owner:'shared',items:['דרכונים','ביטוח נסיעות','כרטיסי אשראי'].map(name=>({id:uid('pi'),name,done:false,suggested:true,owner:'shared'}))}]}
-function route(view,options={}){extraOpenFor=null;participantDeleteArmed=null;state.settingsPage=view==='settings'?(options.page||''):'';if(options.category==='document'&&state.category!=='document')state.docFilter='all';stopCamera();if(view==='timeline'&&state.view!=='timeline'){state.timelineMode='all';state.timelineCursor=state.trip?.startDate||today();state.calendarDate=null}state.view=view;state.category=options.category||null;state.itemId=options.itemId||null;state.suggestionId=options.suggestionId||null;render();const anchorTarget=options.anchor?document.getElementById(options.anchor)||(options.anchor==='item-tickets'?document.getElementById('item-documents'):null):null;if(anchorTarget)anchorTarget.scrollIntoView();else scrollTo(0,0)}
+function route(view,options={}){triviaPlaying=null;extraOpenFor=null;participantDeleteArmed=null;state.settingsPage=view==='settings'?(options.page||''):'';if(options.category==='document'&&state.category!=='document')state.docFilter='all';stopCamera();if(view==='timeline'&&state.view!=='timeline'){state.timelineMode='all';state.timelineCursor=state.trip?.startDate||today();state.calendarDate=null}state.view=view;state.category=options.category||null;state.itemId=options.itemId||null;state.suggestionId=options.suggestionId||null;render();const anchorTarget=options.anchor?document.getElementById(options.anchor)||(options.anchor==='item-tickets'?document.getElementById('item-documents'):null):null;if(anchorTarget)anchorTarget.scrollIntoView();else scrollTo(0,0)}
 function notify(text,ms=2600){state.toast=text;render();setTimeout(()=>{if(state.toast===text){state.toast=null;render()}},ms)}
 function status(){if(!state.trip)return 'Empty';if(state.trip.startDate&&state.trip.endDate){const now=today();if(now>=state.trip.startDate&&now<=state.trip.endDate)return 'Active';if(now>state.trip.endDate)return 'Completed';return 'Planned'}return 'Draft'}
 function conflict(item){return isItemOutsideTrip(item,state.trip)}
@@ -753,8 +754,56 @@ function gamesView(){
 function gameView(){
   const game=state.games.find(candidate=>candidate.id===state.itemId);
   if(!game)return `<section class="card">${backRow('games')}${emptyState('dice','המשחק לא נמצא','ייתכן שהוסר.','')}</section>`;
+  if(game.id===TRIVIA_ID)return triviaView(game);
   const fact=(label,value)=>value?`<div class="fact"><dt>${label}</dt><dd>${esc(value)}</dd></div>`:'';
   return `<section class="card">${backRow('games','','',`${tabler('dice')} ${esc(game.title)}`)}<p class="game-description">${esc(game.instructions)}</p><dl class="detail-facts">${fact('מתאים ל',game.participants)}${fact('משך',game.duration)}${fact('ציוד',game.items)}</dl><button class="btn game-primary" data-action="game-start" data-id="${game.id}">${gamePrimaryAction(game)}</button></section>`;
+}
+// Beta 0.9.1: Trivia. The deck is built once per tap by the server (one of the day's Smart Import calls), stored on the game's own
+// record and playable offline afterwards. UI-only state (not saved): which game is being built / played, whether the answer is
+// shown, and who was marked correct on the current question.
+let triviaBuilding=null,triviaPlaying=null,triviaRevealed=false,triviaMarked=[];
+const triviaTop=(game,action)=>backRow('games','','',`${tabler('dice')} ${esc(game.title)}`,action);
+function triviaView(game){
+  if(triviaBuilding===game.id){
+    const first=state.items.find(item=>['hotel','activity'].includes(item.type)&&item.title);
+    const phrases=['אוספים שאלות על מקומות ותרבות ביעד…','מתאימים את השאלות לילדים…',first?`מוסיפים שאלה על ${esc(first.title)}…`:'מערבבים שאלות על חיי היומיום…'];
+    return `<section class="card">${triviaTop(game)}${largePalm({phrases,label:'בונים טריוויה…',note:'זה יכול לקחת כמה שניות. אין צורך לסגור את המסך.'})}</section>`;
+  }
+  if(triviaPlaying===game.id&&(game.deck||[]).length)return triviaPlayView(game);
+  const fact=(label,value)=>value?`<div class="fact"><dt>${label}</dt><dd>${esc(value)}</dd></div>`:'';
+  const gate=triviaBuildGate(state.trip),built=(game.deck||[]).length>0;
+  const facts=`<dl class="detail-facts">${fact('מתאים ל',game.participants)}${fact('משך',game.duration)}${fact('ציוד',game.items)}</dl>`;
+  const hint=gate.allowed?'':`<p class="muted small game-hint">${gate.hint}</p>`;
+  if(built)return `<section class="card">${triviaTop(game)}<p class="game-description">${esc(game.instructions)}</p>${facts}<p class="muted small">${game.deck.length} שאלות מוכנות · אפשר לשחק גם בלי חיבור לאינטרנט.</p><button class="btn game-primary" data-action="game-start" data-id="${game.id}">${gamePrimaryAction(game)}</button><button class="btn ghost game-secondary" data-action="trivia-build" data-id="${game.id}"${gate.allowed?'':' disabled'}>בנה טריוויה מחדש</button>${hint}</section>`;
+  return `<section class="card">${triviaTop(game)}${emptyState('dice','עדיין לא נבנתה טריוויה לטיול הזה',esc(game.instructions))}${facts}<button class="btn game-primary" data-action="trivia-build" data-id="${game.id}"${gate.allowed?'':' disabled'}>בנה טריוויה</button>${hint}</section>`;
+}
+function triviaPlayView(game){
+  const ts=game.triviaState,total=ts.order.length,people=state.participants.filter(person=>person.active!==false);
+  if(triviaFinished(game)){
+    const rows=triviaTally(ts.scores,state.participants).map(row=>`<div class="tally-row${row.medal==='🥇'?' first':''}"><span class="tally-name">${row.medal?`<span class="medal" aria-hidden="true">${row.medal}</span>`:''}${esc(row.name)}</span><span class="tally-score">${row.score}</span></div>`).join('');
+    const gate=triviaBuildGate(state.trip);
+    return `<section class="card">${triviaTop(game,'trivia-exit')}<div class="trivia-end"><b>סיימתם את הסיבוב!</b><p class="muted">${total} שאלות על היעד והטיול שלכם</p><div class="tally">${rows}</div></div><button class="btn game-primary" data-action="trivia-replay" data-id="${game.id}">שחקו שוב</button><button class="btn ghost game-secondary" data-action="trivia-build" data-id="${game.id}"${gate.allowed?'':' disabled'}>בנה טריוויה מחדש</button></section>`;
+  }
+  const question=triviaQuestion(game);
+  const chips=people.length?`<p class="trivia-prompt">מי ענה נכון?</p><div class="trivia-chips">${people.map(person=>`<button class="trivia-chip${triviaMarked.includes(person.id)?' on':''}" data-action="trivia-score" data-id="${game.id}" data-participant="${person.id}" aria-pressed="${triviaMarked.includes(person.id)}">${esc(person.name)} <span class="score">${ts.scores?.[person.id]||0}</span></button>`).join('')}</div>`:'';
+  const answer=triviaRevealed?`<div class="answer-box"><span class="q-label">תשובה</span><b class="a-text">${esc(question.answer)}</b></div>`:'';
+  const action=triviaRevealed?`${chips}<button class="btn game-primary" data-action="trivia-next" data-id="${game.id}">${ts.position+1<total?'השאלה הבאה':'לסיכום'}</button>`:`<button class="btn game-primary" data-action="trivia-reveal" data-id="${game.id}">הצג תשובה</button>`;
+  return `<section class="card">${triviaTop(game,'trivia-exit')}<div class="trivia-q"><span class="q-label">שאלה <bdi dir="ltr">${ts.position+1}/${total}</bdi></span><p class="q-text">${esc(question.question)}</p>${answer}</div>${action}</section>`;
+}
+async function buildTrivia(gameId){
+  const game=state.games.find(candidate=>candidate.id===gameId);
+  if(!game||triviaBuilding||!triviaBuildGate(state.trip).allowed)return;
+  if((game.deck||[]).length&&(game.triviaState?.position||0)>0&&!triviaFinished(game)&&!confirm('לבנות טריוויה חדשה? המשחק שבאמצע והניקוד שלו יימחקו.'))return;
+  triviaBuilding=gameId;render();
+  try{
+    const result=await generateTrivia({trip:state.trip,items:state.items,history:game.askedQuestions||[]});
+    const deck=newTriviaDeck(result.questions);
+    if(!deck.length)throw new Error('לא נמצאו שאלות חדשות ליעד הזה. נסו שוב מאוחר יותר.');
+    const live=state.games.find(candidate=>candidate.id===gameId);
+    live.deck=deck;live.askedQuestions=capHistory(live.askedQuestions,deck);live.triviaState=newTriviaState(deck);live.started=false;
+    triviaBuilding=null;triviaPlaying=null;save();render();
+    notify(result.shortBy>0?`נבנו ${deck.length} שאלות חדשות — חומר חדש ליעד הזה מתחיל להיגמר`:'הטריוויה מוכנה',result.shortBy>0?5000:2600);
+  }catch(error){triviaBuilding=null;render();notify(error.message||'בניית הטריוויה נכשלה.',6000)}
 }
 // 0.7.4: shared list + personal list per participant, with switching between them (MVP scope's
 // own wording). An item with no participantIds is shared; the "shared" view shows only those, and
@@ -1135,7 +1184,7 @@ function ticketsAndDocumentsSection(item,sources){
 // the same row where one applies, the title directly below. Every page with a back action builds it here: item pages of every
 // type, the category pages, the proposal review screen and the admin screens. There is no "חזרה" button and no "פריטים" label.
 // Beta 0.8 Phase 3 (P23-F1): an optional title puts the back arrow, the type icon and the title on ONE line.
-function backRow(routeName,category='',chip='',title=''){return `<div class="detail-top${title?' with-title':''}"><button class="icon-btn back-btn" data-route="${routeName}"${category?` data-cat="${category}"`:''} aria-label="חזרה">${tabler('arrow').replace('class="ti"','class="ti icon-directional"')}</button>${title?`<h2 class="detail-title">${title}</h2>`:''}${chip}</div>`}
+function backRow(routeName,category='',chip='',title='',action=''){return `<div class="detail-top${title?' with-title':''}"><button class="icon-btn back-btn" ${action?`data-action="${action}"`:`data-route="${routeName}"${category?` data-cat="${category}"`:''}`} aria-label="חזרה">${tabler('arrow').replace('class="ti"','class="ti icon-directional"')}</button>${title?`<h2 class="detail-title">${title}</h2>`:''}${chip}</div>`}
 const detailFact=(label,value)=>value?`<div class="fact"><dt>${label}</dt><dd>${value}</dd></div>`:'';
 function locationLabel(item){return item.type==='flight'?flightRouteDeparture(mapSearchLocation(item))||mapSearchLocation(item)||item.location:item.location}
 function detailView(){
@@ -2241,6 +2290,13 @@ addEventListener('click',async event=>{if(Date.now()<suppressClickUntil)return;i
   }
   else if(action==='game-favorite'){const game=state.games.find(x=>x.id===button.dataset.id);game.favorite=!game.favorite;save();render()}
   else if(action==='game-filter'){state.gameFilter=button.dataset.filter||'all';render()}
+  else if(action==='trivia-build')await buildTrivia(button.dataset.id);
+  else if(action==='trivia-reveal'){triviaRevealed=true;render()}
+  else if(action==='trivia-score'){const game=state.games.find(x=>x.id===button.dataset.id),result=toggleCorrect(game.triviaState,triviaMarked,button.dataset.participant);triviaMarked=result.marked;game.triviaState={...game.triviaState,scores:result.scores};save();render()}
+  else if(action==='trivia-next'){const game=state.games.find(x=>x.id===button.dataset.id);game.triviaState=triviaNext(game.triviaState);triviaRevealed=false;triviaMarked=[];save();render()}
+  else if(action==='trivia-replay'){const game=state.games.find(x=>x.id===button.dataset.id);game.triviaState=newTriviaState(game.deck);game.started=true;triviaRevealed=false;triviaMarked=[];save();render()}
+  else if(action==='trivia-exit'){triviaPlaying=null;render()}
+  else if(action==='game-start'&&button.dataset.id===TRIVIA_ID){const game=state.games.find(x=>x.id===TRIVIA_ID);if(game?.deck?.length){game.started=true;triviaPlaying=TRIVIA_ID;triviaRevealed=false;triviaMarked=[];save();render()}}
   else if(action==='game-start'){const game=state.games.find(x=>x.id===button.dataset.id);if(game?.interactive){game.started=true;save()}notify(game?.interactive?'המשחק התחיל':'הפעילות התחילה')}
   else if(action==='add-list'){const name=prompt('שם קטגוריית האריזה');if(name){state.packing.push({id:uid('pl'),name,owner:'shared',items:[]});save();render()}}
   else if(action==='pack-collapse'){state.packingCollapsed[button.dataset.list]=!state.packingCollapsed[button.dataset.list];save();render()}
