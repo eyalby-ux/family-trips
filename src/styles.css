@@ -211,6 +211,8 @@ bdi,.bidi{unicode-bidi:isolate}
 .trivia-q .q-text{margin:6px 0 0;font-size:19px;font-weight:700;line-height:1.5}
 .answer-box{margin-top:14px;background:var(--accent-soft);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:4px}
 .answer-box .a-text{font-size:17px}
+.answer-box .a-why{margin:6px 0 0;font-size:15px;line-height:1.55;color:var(--ink)}
+.answer-box .a-more{align-self:flex-start;display:inline-flex;align-items:center;min-height:44px;margin-top:2px;color:#A4442A;font-size:14.5px;font-weight:600;text-decoration:underline}
 .trivia-prompt{margin:4px 0 8px;font-size:14.5px;font-weight:600}
 .trivia-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
 .trivia-chip{min-height:44px;padding:0 14px;border:1px solid var(--border);border-radius:999px;background:var(--surface);color:var(--ink);font-size:15px;font-weight:600}
@@ -508,8 +510,8 @@ a.t-menu-item{display:flex;align-items:center;text-decoration:none}
 .palm-screen{display:grid;place-items:center;min-height:70dvh}
 .palm-large{width:112px;height:112px;stroke-width:.9;animation:palm-bob 2.2s ease-in-out infinite}
 @keyframes palm-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
-.palm-loader .import-phrases{min-width:11em;text-align:center;font-size:16px;height:24px;line-height:24px}
-.palm-loader .import-phrases span{inset-inline-start:0;inset-inline-end:0;text-align:center}
+.palm-loader .import-phrases{min-width:11em;align-self:stretch;overflow:hidden;text-align:center;font-size:16px;height:24px;line-height:24px}
+.palm-loader .import-phrases span{inset-inline-start:0;inset-inline-end:0;text-align:center;overflow:hidden;text-overflow:ellipsis}
 .import-phrase-static{color:var(--muted);font-size:16px;line-height:24px}
 .palm-loader .import-hairline{width:min(220px,70%);min-width:0}
 @media (prefers-reduced-motion: reduce){.palm-large{animation:none !important}}

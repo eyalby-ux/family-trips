@@ -4,7 +4,7 @@ import {MultipartQrCollector,decodeExternalText,importBatchToApp} from './extern
 import {availableTimelineModes,backfillTripDates,currentOperational,filterAndSortTasks,isDeletionEligible,isItemOutsideTrip,normalizeDateRange,normalizeOperationalState,packingDuplicate,periodBounds,QUARANTINE_DELETION_ELIGIBLE_DAYS,quickAccessTasks,sanitizeTripDates,shiftCursor,sortItemsByStartAt,TASK_DUE_SCOPES,TRANSPORT_TYPES,itemStartMs,planToday,shortDayLabel,shouldClearEndedOnEdit,today,addParticipantsToRecord,computeTicketCoverage,participantChipLabel,pickerParticipants,uniqueRecordsById,upNextItem,isTaskOverdue,filterShoppingItems,isSharedShoppingItem,participantAssignments,shoppingOwnerLabel,normalizeTaskLink} from './operational-data.js';
 import {COUNTER_ABOVE,arrowKeyTarget,carouselSlots,participantLayout,positionIndicator} from './participant-carousel.js';
 import {normalizeProposalLifecycle,rejectProposal} from './proposal-lifecycle.js';
-import {GAME_FILTERS,TRIVIA_ID,capHistory,filterGames,gamePrimaryAction,newTriviaDeck,newTriviaState,toggleCorrect,triviaBuildGate,triviaFinished,triviaNext,triviaQuestion,triviaTally} from './games.js';
+import {GAME_FILTERS,TRIVIA_ID,capHistory,filterGames,gamePrimaryAction,newTriviaDeck,newTriviaState,readMoreUrl,toggleCorrect,triviaBuildGate,triviaFinished,triviaNext,triviaQuestion,triviaTally} from './games.js';
 import {generateTrivia} from './game-content-client.js';
 import {syncStripText,cloudFailureMessage} from './ui-states.js';
 import {normalizeThaiPua} from './text-normalize.js';
@@ -766,7 +766,7 @@ const triviaTop=(game,action)=>backRow('games','','',`${tabler('dice')} ${esc(ga
 function triviaView(game){
   if(triviaBuilding===game.id){
     const first=state.items.find(item=>['hotel','activity'].includes(item.type)&&item.title);
-    const phrases=['אוספים שאלות על מקומות ותרבות ביעד…','מתאימים את השאלות לילדים…',first?`מוסיפים שאלה על <bdi>${esc(first.title)}</bdi>…`:'מערבבים שאלות על חיי היומיום…'];
+    const phrases=['אוספים שאלות על מקומות ותרבות ביעד…','מתאימים את השאלות לילדים…',first?`מוסיפים שאלה על <bdi>${esc(first.title.length>24?`${first.title.slice(0,23).trim()}…`:first.title)}</bdi>…`:'מערבבים שאלות על חיי היומיום…'];
     return `<section class="card">${triviaTop(game)}${largePalm({phrases,label:'בונים טריוויה…',note:'זה יכול לקחת כמה שניות. אין צורך לסגור את המסך.'})}</section>`;
   }
   if(triviaPlaying===game.id&&(game.deck||[]).length)return triviaPlayView(game);
@@ -786,7 +786,7 @@ function triviaPlayView(game){
   }
   const question=triviaQuestion(game);
   const chips=people.length?`<p class="trivia-prompt">מי ענה נכון?</p><div class="trivia-chips">${people.map(person=>`<button class="trivia-chip${triviaMarked.includes(person.id)?' on':''}" data-action="trivia-score" data-id="${game.id}" data-participant="${person.id}" aria-pressed="${triviaMarked.includes(person.id)}">${esc(person.name)} <span class="score">${ts.scores?.[person.id]||0}</span></button>`).join('')}</div>`:'';
-  const answer=triviaRevealed?`<div class="answer-box"><span class="q-label">תשובה</span><b class="a-text">${esc(question.answer)}</b></div>`:'';
+  const answer=triviaRevealed?`<div class="answer-box"><span class="q-label">תשובה</span><b class="a-text">${esc(question.answer)}</b>${question.explanation?`<p class="a-why">${esc(question.explanation)}</p>`:''}<a class="a-more" href="${esc(readMoreUrl(question.answer))}" target="_blank" rel="noopener">קראו עוד על <bdi>${esc(question.answer)}</bdi></a></div>`:'';
   const action=triviaRevealed?`${chips}<button class="btn game-primary" data-action="trivia-next" data-id="${game.id}">${ts.position+1<total?'השאלה הבאה':'לסיכום'}</button>`:`<button class="btn game-primary" data-action="trivia-reveal" data-id="${game.id}">הצג תשובה</button>`;
   return `<section class="card">${triviaTop(game,'trivia-exit')}<div class="trivia-q"><span class="q-label">שאלה <bdi dir="ltr">${ts.position+1}/${total}</bdi></span><p class="q-text">${esc(question.question)}</p>${answer}</div>${action}</section>`;
 }

@@ -53,12 +53,12 @@ export function cleanHistory(history,fields){
 
 export const TRIVIA_COUNT=10;
 export const TRIVIA_FIELDS=['question','answer'];
-export const triviaSchema={type:'object',additionalProperties:false,required:['questions'],properties:{questions:{type:'array',items:{type:'object',additionalProperties:false,required:['question','answer'],properties:{question:{type:'string'},answer:{type:'string'}}}}}};
+export const triviaSchema={type:'object',additionalProperties:false,required:['questions'],properties:{questions:{type:'array',items:{type:'object',additionalProperties:false,required:['question','answer','explanation'],properties:{question:{type:'string'},answer:{type:'string'},explanation:{type:'string'}}}}}};
 export const triviaSystemPrompt=`You write trivia questions for a family on a trip, in Hebrew.
 Tone: kid-friendly -- simple vocabulary, playful, nothing scary or mature, suitable for the youngest child on the trip.
 Content: places, culture and daily life in the trip's actual destination -- food, markets, transport, animals, festivals, customs, geography, things a traveller sees and does. NOT dates, rulers or statistics. Example of the right kind of question: "What is the market called where people sell food from boats on the water?".
 You may also ask about the specific hotels and activities listed (use their names and locations as given) -- decide yourself how to balance general destination questions and questions about the listed places; do not force one question per place.
-Every question has one short, clear, correct answer (a few words). Questions must be self-contained and must not reveal their answer.
+Every question has one short, clear, correct answer (a few words) and a short explanation of that answer: one or two simple, true sentences a child can enjoy reading after the answer is shown (what it is, why it is special). Questions must be self-contained and must not reveal their answer.
 Never repeat, even rephrased or with the same answer, any question in the exclusion list.`;
 
 export function triviaInstruction({destinations,items},{count,exclude,topUp}){

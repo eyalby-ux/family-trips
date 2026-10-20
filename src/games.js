@@ -37,7 +37,9 @@ export const HISTORY_CAP=60;
 export const capHistory=(history,added,cap=HISTORY_CAP)=>[...(Array.isArray(history)?history:[]),...(Array.isArray(added)?added:[])].map(({question,answer})=>({question,answer})).slice(-cap);
 // "בנה טריוויה" needs a destination; without one the button stays visible but disabled, with a hint.
 export const triviaBuildGate=trip=>(trip?.destinationCountries||[]).length>0?{allowed:true,hint:''}:{allowed:false,hint:'הוסיפו יעד לטיול כדי לבנות טריוויה'};
-export const newTriviaDeck=questions=>(questions||[]).map((entry,index)=>({id:`q${index+1}`,question:String(entry.question).trim(),answer:String(entry.answer).trim()})).filter(entry=>entry.question&&entry.answer);
+export const newTriviaDeck=questions=>(questions||[]).map((entry,index)=>({id:`q${index+1}`,question:String(entry.question).trim(),answer:String(entry.answer).trim(),explanation:String(entry.explanation??'').trim()})).filter(entry=>entry.question&&entry.answer);
+// "קראו עוד": a Hebrew Wikipedia search for the answer -- always a working page, never a link the model made up.
+export const readMoreUrl=answer=>`https://he.wikipedia.org/w/index.php?search=${encodeURIComponent(String(answer||'').trim())}`;
 export function shuffleOrder(length,random=Math.random){
   const order=Array.from({length},(_,index)=>index);
   for(let index=order.length-1;index>0;index-=1){const other=Math.floor(random()*(index+1));[order[index],order[other]]=[order[other],order[index]]}

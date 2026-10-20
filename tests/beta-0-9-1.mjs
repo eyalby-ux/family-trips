@@ -2,8 +2,8 @@
 // 0.9.3), the build gate, the play flow, and the existing-by-id migration backfill. The AI call is always mocked here.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {HISTORY_CAP,MAX_CONTEXT_ITEMS,TRIVIA_COUNT,TRIVIA_FIELDS,buildTripContext,cleanHistory,dropRepeats,generateWithRepeatGuard,normalizeForMatch,triviaInstruction} from '../netlify/functions/_shared/game-content.mjs';
-import {TRIVIA_ID,capHistory,newTriviaDeck,newTriviaState,shuffleOrder,toggleCorrect,triviaBuildGate,triviaFinished,triviaNext,triviaQuestion,triviaTally} from '../src/games.js';
+import {HISTORY_CAP,MAX_CONTEXT_ITEMS,TRIVIA_COUNT,TRIVIA_FIELDS,triviaSchema,triviaSystemPrompt,buildTripContext,cleanHistory,dropRepeats,generateWithRepeatGuard,normalizeForMatch,triviaInstruction} from '../netlify/functions/_shared/game-content.mjs';
+import {TRIVIA_ID,capHistory,newTriviaDeck,readMoreUrl,newTriviaState,shuffleOrder,toggleCorrect,triviaBuildGate,triviaFinished,triviaNext,triviaQuestion,triviaTally} from '../src/games.js';
 import {BUILTIN_GAMES,backfillBuiltinGames,normalizeOperationalState} from '../src/operational-data.js';
 
 const read=path=>fs.readFileSync(new URL(path,import.meta.url),'utf8');
@@ -101,7 +101,7 @@ test('the build gate: "בנה טריוויה" is disabled with a hint until the 
   assert(view.includes('data-action="trivia-build" data-id="${game.id}"${gate.allowed?\'\':\' disabled\'}>בנה טריוויה</button>${hint}'),'a visible, disabled button plus the hint -- not a hidden one');
   assert(view.includes("largePalm({phrases,label:'בונים טריוויה…'"),'the app\'s own swaying-palm "in process" display, no new spinner');
   assert(!/spinner/i.test(view));
-  assert(view.includes('מוסיפים שאלה על <bdi>${esc(first.title)}</bdi>…'),'an item name of another script stays an isolate inside the Hebrew phrase');
+  assert(view.includes('מוסיפים שאלה על <bdi>${esc(first.title.length>24?')&&view.includes('</bdi>…`'),'an item name of another script stays an isolate inside the Hebrew phrase');
   assert(app.includes("if(!game||triviaBuilding||!triviaBuildGate(state.trip).allowed)return;"),'the handler enforces the gate too');
 });
 
@@ -113,7 +113,7 @@ test('rebuild: a successful build REPLACES the deck, resets triviaState, appends
   assert(build.includes('catch(error){triviaBuilding=null;render();notify('));
   assert(build.includes('confirm(')&&build.includes('!triviaFinished(game)'),'a stray tap cannot wipe a game in progress');
   assert(build.includes('result.shortBy>0'),'a short deck is surfaced, not silent');
-  assert.deepEqual(newTriviaDeck([q(' א ',' ב '),q('','x'),q('ג','ד')]),[{id:'q1',question:'א',answer:'ב'},{id:'q3',question:'ג',answer:'ד'}]);
+  assert.deepEqual(newTriviaDeck([q(' א ',' ב '),q('','x'),{...q('ג','ד'),explanation:' כי כך '}]),[{id:'q1',question:'א',answer:'ב',explanation:''},{id:'q3',question:'ג',answer:'ד',explanation:'כי כך'}],'the explanation is kept on the deck (empty for a deck built before it existed)');
 });
 
 test('the play flow end to end: shuffled order with no repeats, reveal, tap who answered (toggle, many or none), advance, tally, replay without the AI',()=>{
@@ -194,6 +194,24 @@ test('migration: a brand-new trip gets the full record, and building on one trip
   assert.equal(BUILTIN_GAMES.find(candidate=>candidate.id===TRIVIA_ID).id,TRIVIA_ID);
   assert(pkg.scripts.test.includes('tests/beta-0-9-1.mjs'),'registered in the suite');
   assert.equal(pkg.version.startsWith('0.9.1'),true);
+});
+
+test('answer explanation: every generated question carries a short explanation; it shows under the revealed answer with a "קראו עוד" link that is a search, never a model-made URL; the history stays question + answer',()=>{
+  assert.deepEqual(triviaSchema.properties.questions.items.required,['question','answer','explanation']);
+  assert(triviaSystemPrompt.includes('short explanation')&&triviaSystemPrompt.includes('one or two simple, true sentences'));
+  assert.equal(readMoreUrl(' שוק צף '),'https://he.wikipedia.org/w/index.php?search='+encodeURIComponent('שוק צף'));
+  const play=fn('triviaPlayView');
+  assert(play.includes('<p class="a-why">${esc(question.explanation)}</p>')&&play.includes("question.explanation?"),'shown only when there is one (older decks have none)');
+  assert(play.includes('class="a-more" href="${esc(readMoreUrl(question.answer))}" target="_blank" rel="noopener"'));
+  assert(play.indexOf('a-why')>play.indexOf('a-text')&&play.indexOf('a-more')>play.indexOf('a-why'),'answer, then why, then read more -- all inside the revealed box');
+  assert.match(css,/.answer-box .a-more{[^}]*min-height:44px/,'a 44px tap target');
+  assert.deepEqual(capHistory([],[{...q('א','ב'),explanation:'למה'}]),[q('א','ב')],'the exclusion history never carries explanations');
+});
+
+test('the building screen can no longer be pushed wider than the phone by a long item name (PO screenshot): the phrase is clipped and the name shortened',()=>{
+  assert.match(css,/.palm-loader .import-phrases{[^}]*align-self:stretch;overflow:hidden/);
+  assert.match(css,/.palm-loader .import-phrases span{[^}]*overflow:hidden;text-overflow:ellipsis/);
+  assert(fn('triviaView').includes('first.title.length>24?'),'long names are shortened in the phrase');
 });
 
 let failed=0;
