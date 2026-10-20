@@ -12,7 +12,7 @@
 ## Round 2 — after the PO session (NO-GO on `0.9.1-9c7691fb`, `PO_SESSION_RESULTS_V1.md`)
 - **P91-F1 built, from the approved design (artifact "Filter row icons — 0.9.1 catalog"):** "10 דקות" = clock with a bold 10, "בנסיעה" = side-view car, "לכולם" = group of three people, "מועדפים" = star; the text labels are replaced by the icons (each keeps its text as `aria-label` + tooltip), "הכול" stays a word. The icon chips are 44px, so the five chips need ~245px of a ~286px row at 360px (one line, with room for larger text).
 - **P91-F2 built:** the link now reads only **"קרא עוד"** (no repeated answer, no glued words); its accessible name stays "קרא עוד על <answer>" (label-in-name).
-- **Tests:** `tests/beta-0-9-1.mjs` 16 tests (SVG shapes, aria names, 44px, link text); full gate green. Live verification of this round: see the final report (needs a signed-in pane).
+- **Tests:** `tests/beta-0-9-1.mjs` 16 tests (SVG shapes, aria names, 44px, link text); full gate green. Live verification (qa, 360px, build `77b57524`): the filter row is ONE line, no scroll, no page overflow; "הכול" is text and the four others are 44×44 icon chips with their text as `aria-label`; all five filters work (counts: all 6, favourites 1, 10 דקות 2, בנסיעה 5, לכולם 3); the link reads "קרא עוד" (44px high, accessible name "קרא עוד על גואנקו", href a Hebrew Wikipedia search for the answer). Not re-measured at 390px or at larger text sizes in this round.
 - **Not built (planning items, per the PO summary):** P91-F3 winner animation, P91-P1 Bingo categories / removing "ציד תמונות", P91-P2 merging "20 שאלות" and "מי אני".
 
 ## Section 2 choice: a sibling function, and why
