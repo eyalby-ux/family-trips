@@ -1,8 +1,12 @@
 # Beta 0.9.1 — Trivia: implementation report (for independent verification)
 
-**Build:** `0.9.1-fb27ca9d` on `qa` (`https://qa--familytripz.netlify.app`) — **not promoted**. Branch `version/V7`.
-**Commits:** `03a16fb` Beta 0.9.1: Trivia (function, shared mechanism, UI, backfill, 12 tests) · `fb27ca9` isolate the item name inside the building phrase (`<bdi>`).
-**Gate:** `npm run check` green (syntax, whole suite, production build); new `tests/beta-0-9-1.mjs` (12 tests).
+**Build:** `0.9.1-16b31677` on `qa` (`https://qa--familytripz.netlify.app`) — **not promoted**. Branch `version/V7`.
+**Commits:** `ef76ed8` explanation + read-more + building-screen overflow fix (PO feedback, see "Added after PO feedback") · `16b3167` no doubled ellipsis · `03a16fb` Beta 0.9.1: Trivia (function, shared mechanism, UI, backfill, 12 tests) · `fb27ca9` isolate the item name inside the building phrase (`<bdi>`).
+**Gate:** `npm run check` green (syntax, whole suite, production build); new `tests/beta-0-9-1.mjs` (14 tests).
+
+## Added after PO feedback (2026-10-20, phone screenshot + request)
+1. **Overflow bug on the building screen:** a long hotel name in the rotating phrase (`white-space:nowrap`, absolutely positioned) pushed the page wider than the phone and shifted the header. Fixed: the phrase box stretches to the card and clips with an ellipsis (`.palm-loader .import-phrases`), and the item name is shortened to 24 characters. Verified live at 360px: page width = viewport width while building, with the same long Thai hotel name.
+2. **A short explanation under each answer, plus a link:** each generated question now carries `explanation` (the schema makes it required; prompt: one or two simple, true sentences a child can enjoy). It shows under the revealed answer with a **"קראו עוד על <answer>"** link (44px) to a **Hebrew Wikipedia search for the answer** — deliberately a search, not a URL the model writes (a model-made link can be dead or wrong). Decks built before this change have no explanation: only the link shows. The exclusion history still stores `{question,answer}` only. Live: 10/10 questions had an explanation; links are well-formed.
 
 ## Section 2 choice: a sibling function, and why
 `netlify/functions/game-content.mjs` (path `/api/familytrips-game-content`), **not** another entry in `smart-import.mjs`'s `OPERATIONS`. That map is built around reading a document (`prepareSource`, place validation, classification); none of it applies to writing questions, and a sibling keeps the PDF/TIFF/undici dependencies out of the game function. It reuses the same `_shared/` modules — `authorize`, `registerOrVerifyTrip`, `consumeDailyQuota` (the **same** 10/day pool; exactly one consume per build, the bounded top-up inside a build is not a second tap), `writeAudit` — and the same structured-output call shape. `smart-import.mjs` is untouched.
