@@ -766,7 +766,7 @@ const triviaTop=(game,action)=>backRow('games','','',`${tabler('dice')} ${esc(ga
 function triviaView(game){
   if(triviaBuilding===game.id){
     const first=state.items.find(item=>['hotel','activity'].includes(item.type)&&item.title);
-    const phrases=['אוספים שאלות על מקומות ותרבות ביעד…','מתאימים את השאלות לילדים…',first?`מוסיפים שאלה על <bdi>${esc(first.title.length>24?`${first.title.slice(0,23).trim()}…`:first.title)}</bdi>…`:'מערבבים שאלות על חיי היומיום…'];
+    const phrases=['אוספים שאלות על מקומות ותרבות ביעד…','מתאימים את השאלות לילדים…',first?`מוסיפים שאלה על <bdi>${esc(first.title.length>24?first.title.slice(0,24).trim():first.title)}</bdi>…`:'מערבבים שאלות על חיי היומיום…'];
     return `<section class="card">${triviaTop(game)}${largePalm({phrases,label:'בונים טריוויה…',note:'זה יכול לקחת כמה שניות. אין צורך לסגור את המסך.'})}</section>`;
   }
   if(triviaPlaying===game.id&&(game.deck||[]).length)return triviaPlayView(game);
