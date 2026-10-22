@@ -10,7 +10,10 @@
 - **Snapshot saved in this directory:** `production-index-before-promotion.html`.
 
 ## New Production state
-*(filled in after the deploy)*
+- **Build identifier:** `0.9.2-87f38cd2`
+- **Deploy ID:** `6ada7e0e164d9d6e79ebde45` (context `production`, state `ready`)
+- **Deployed:** 2026-10-22T21:20:25Z — `netlify deploy --dir dist --prod --no-build`, run by the Development Agent at the Product Owner's explicit instruction.
+- **Verified (fresh cache-bypassed fetches):** `build-version` reads `0.9.2-87f38cd2`; all 11 files of `dist/` return HTTP 200 and are byte-identical to the local `dist/`; the service worker carries `0.9.2-87f38cd2`; both functions (`/api/familytrips-game-content`, `/api/familytrips-smart-import`) answer an unauthenticated POST with HTTP 401 (deployed and refusing without a Firebase token). **Not done:** no Bingo photo was taken on Production (it would write to real trips' Storage); the same code ran live on `qa`.
 - **Artifact:** the exact, untouched `dist/` of the build accepted on `qa` (`qa` and `dist/` both read `0.9.2-87f38cd2`; no source change since commit `87f38cd`; no rebuild). Build commit `87f38cd` on `version/V7`.
 - **Backend:** no `firestore.rules` / `storage.rules` change and no function change (the `game-content` function from `0.9.1` is unchanged). Bingo photos use the existing Storage layout `trips/{tripId}/sources/bingo_{place}_{participant}/…`, which the current rules already allow.
 - **Known, carried:** the Nature / ZOO item lists were not reviewed in a PO session; the Trivia end-of-round animation repeating twice moved to `0.9.3`; reduce-motion and failed-upload checks were skipped by the PO.
