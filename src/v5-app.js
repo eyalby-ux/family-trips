@@ -875,14 +875,71 @@ function bingoCellTap(spotId){
   // a found cell opens its photo full size; an unfound one goes straight to the camera (it works offline: the photo is kept on the device)
   if(ensureBoard(game,game.activeTheme,pid).found[spotId]){openBingoViewer(spotId);return}
   bingoPending={theme:game.activeTheme,pid,spotId};
-  const input=document.querySelector('#bingo-file');input.value='';input.click();
+  startBingoCapture();
 }
-async function bingoPhotoChosen(input){
-  const file=input.files?.[0],pending=bingoPending;bingoPending=null;input.value='';
+// The camera: the phone's own file-picker camera ("capture") opened the SELFIE camera on some phones, so Bingo opens its own viewfinder on the REAR camera
+// (getUserMedia, the same call the QR scanner uses) with a button to flip it. It lives on <body>, outside #app, so a re-render never kills the stream.
+// Without camera access (denied, unsupported) it falls back to the device's file-picker camera.
+let bingoCameraStream=null,bingoCameraOpen=false,bingoPopIgnore=false;
+function bingoCameraHost(){let host=document.querySelector('#bingo-camera-host');if(!host){host=document.createElement('div');host.id='bingo-camera-host';document.body.append(host)}return host}
+function stopBingoCameraStream(){if(bingoCameraStream)bingoCameraStream.getTracks().forEach(track=>track.stop());bingoCameraStream=null}
+function closeBingoCamera(){
+  const was=bingoCameraOpen;bingoCameraOpen=false;stopBingoCameraStream();bingoCameraHost().innerHTML='';
+  if(was&&history.state?.bingoCamera){bingoPopIgnore=true;history.back()}
+}
+async function startBingoStream(facing){
+  stopBingoCameraStream();
+  const attempts=[{video:{facingMode:{exact:facing}},audio:false},{video:{facingMode:{ideal:facing}},audio:false},{video:true,audio:false}];
+  let lastError;
+  for(const constraints of attempts){try{bingoCameraStream=await navigator.mediaDevices.getUserMedia(constraints);return}catch(error){lastError=error}}
+  throw lastError;
+}
+async function openBingoCamera(facing='environment'){
+  if(!bingoCameraOpen){history.pushState({bingoCamera:true},'');bingoCameraOpen=true}
+  bingoCameraHost().innerHTML=`<div class="bingo-camera" role="dialog" aria-modal="true" aria-label="צילום"><video id="bingo-video" playsinline muted autoplay></video><div class="bingo-camera-bar"><button class="bingo-camera-btn" data-camera="cancel">ביטול</button><button class="bingo-shutter" data-camera="shoot" aria-label="צילום"></button><button class="bingo-camera-btn" data-camera="flip" data-facing="${facing}">הפיכת מצלמה</button></div></div>`;
+  try{
+    await startBingoStream(facing);
+    const video=document.querySelector('#bingo-video');video.srcObject=bingoCameraStream;await video.play();
+  }catch(error){
+    // no camera access: close the viewfinder and hand over to the device's own camera picker
+    closeBingoCamera();notify('אין גישה למצלמה באפליקציה — נפתחת מצלמת המכשיר.',3500);
+    const input=document.querySelector('#bingo-file');if(input){input.value='';input.click()}
+  }
+}
+function startBingoCapture(){
+  if(navigator.mediaDevices?.getUserMedia)openBingoCamera();
+  else{const input=document.querySelector('#bingo-file');input.value='';input.click()}
+}
+async function shootBingoPhoto(){
+  const video=document.querySelector('#bingo-video');
+  if(!video||!video.videoWidth)return;
+  const scale=Math.min(1,1280/Math.max(video.videoWidth,video.videoHeight)),canvas=document.createElement('canvas');
+  canvas.width=Math.round(video.videoWidth*scale);canvas.height=Math.round(video.videoHeight*scale);
+  canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);
+  const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',0.82));
+  closeBingoCamera();
+  if(blob)await bingoStorePhoto(new File([blob],'camera.jpg',{type:'image/jpeg'}),true);
+}
+addEventListener('click',event=>{
+  const button=event.target.closest?.('[data-camera]');if(!button)return;
+  if(button.dataset.camera==='cancel'){bingoPending=null;closeBingoCamera()}
+  else if(button.dataset.camera==='shoot')shootBingoPhoto();
+  else if(button.dataset.camera==='flip')openBingoCamera(button.dataset.facing==='environment'?'user':'environment');
+});
+// The phone's Back gesture: closes the viewfinder if it is open, else the enlarged photo. A step we took ourselves (closing by button) is ignored.
+addEventListener('popstate',()=>{
+  if(bingoPopIgnore){bingoPopIgnore=false;return}
+  if(bingoCameraOpen){bingoCameraOpen=false;bingoPending=null;stopBingoCameraStream();bingoCameraHost().innerHTML='';return}
+  if(bingoViewing){bingoViewing=null;render()}
+});
+async function bingoPhotoChosen(input){const file=input.files?.[0];input.value='';await bingoStorePhoto(file,false)}
+// `ready`: the photo already came out of the viewfinder at its final size
+async function bingoStorePhoto(file,ready){
+  const pending=bingoPending;bingoPending=null;
   if(!file||!pending||bingoBusy)return;
   bingoBusy=pending.spotId;render();
   try{
-    const small=await shrinkImage(file),path=bingoStoragePath(state.trip.id,pending.theme,pending.pid,pending.spotId);
+    const small=ready?file:await shrinkImage(file),path=bingoStoragePath(state.trip.id,pending.theme,pending.pid,pending.spotId);
     await putLocalPhoto(path,small);
     const old=bingoPhotoUrls.get(path);if(old)URL.revokeObjectURL(old);
     bingoPhotoUrls.set(path,URL.createObjectURL(small));bingoFailed.delete(path);
@@ -961,7 +1018,6 @@ function hydrateBingoPhotos(){
 addEventListener('change',event=>{if(event.target?.id==='bingo-file')bingoPhotoChosen(event.target)});
 addEventListener('online',()=>syncBingoPhotos());
 addEventListener('keydown',event=>{if(event.key==='Escape'&&bingoViewing){closeBingoViewer();render()}});
-addEventListener('popstate',()=>{if(bingoViewing){bingoViewing=null;render()}});
 // 0.7.4: shared list + personal list per participant, with switching between them (MVP scope's
 // own wording). An item with no participantIds is shared; the "shared" view shows only those, and
 // a specific participant's view shows their own items PLUS every shared one -- their own personal
@@ -2463,7 +2519,7 @@ addEventListener('click',async event=>{if(Date.now()<suppressClickUntil)return;i
   else if(action==='bingo-participant')selectParticipant(button.closest('[data-carousel]'),button.dataset.participant);
   else if(action==='bingo-cell')bingoCellTap(button.dataset.spot);
   else if(action==='bingo-view-close'){closeBingoViewer();render()}
-  else if(action==='bingo-replace'){const game=bingoGame(),pid=bingoCurrentParticipant();if(game&&pid&&bingoViewing&&!bingoBusy){bingoPending={theme:game.activeTheme,pid,spotId:bingoViewing};const input=document.querySelector('#bingo-file');input.value='';input.click()}}
+  else if(action==='bingo-replace'){const game=bingoGame(),pid=bingoCurrentParticipant();if(game&&pid&&bingoViewing&&!bingoBusy){bingoPending={theme:game.activeTheme,pid,spotId:bingoViewing};startBingoCapture()}}
   else if(action==='bingo-erase')await eraseBingoPhoto();
   else if(action==='bingo-reset')await resetBingoBoard();
   else if(action==='game-start'&&button.dataset.id===BINGO_ID){const game=bingoGame();game.started=true;gamePlaying=BINGO_ID;bingoPicking=!BINGO_THEMES[game.activeTheme];save();render()}

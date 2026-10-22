@@ -330,7 +330,7 @@ test('the enlarged photo (approved design): tapping a found cell opens it full s
   assert(app.includes("else if(action==='bingo-view-close'){closeBingoViewer();render()}")&&app.includes("addEventListener('keydown',event=>{if(event.key==='Escape'&&bingoViewing){closeBingoViewer();render()}});"));
   const openClose=app.slice(app.indexOf('function openBingoViewer('),app.indexOf('function bingoCellTap('));
   assert(openClose.includes("history.pushState({bingoViewer:true},'')")&&openClose.includes('if(open&&history.state?.bingoViewer)history.back()'),'the viewer is one history step, so the phone Back gesture closes it instead of leaving the screen');
-  assert(app.includes("addEventListener('popstate',()=>{if(bingoViewing){bingoViewing=null;render()}});"),'Back closes it');
+  assert(app.includes("if(bingoViewing){bingoViewing=null;render()}")&&app.includes("addEventListener('popstate',()=>{"),'Back closes it (one handler for the viewfinder and the photo)');
   assert.equal((app.match(/bingoViewing=null/g)||[]).length,3,'only the declaration, closeBingoViewer() and the Back handler reset it -- every other path closes through closeBingoViewer()');
   assert.match(css,/\.bingo-viewer-close\{min-width:44px;height:44px;padding:0 16px;[^}]*background:#fff;color:var\(--ink\)/,'a solid white 44px button on the dark screen -- impossible to miss');
   assert.match(css,/\.bingo-viewer\{position:fixed;inset:0;z-index:80;[^}]*background:var\(--ink\)/);
@@ -347,7 +347,7 @@ test('the enlarged photo (approved design): tapping a found cell opens it full s
 
 test('replace and erase a photo: replace opens the camera for the same cell and overwrites the same path (found and celebrations untouched); erase confirms, deletes the file, returns the cell to unfound and forgets the celebrations that no longer hold',()=>{
   const replace=app.slice(app.indexOf("else if(action==='bingo-replace')"),app.indexOf("else if(action==='bingo-erase')"));
-  assert(replace.includes('bingoPending={theme:game.activeTheme,pid,spotId:bingoViewing}')&&replace.includes("input.click()"),'the camera, for the open cell');
+  assert(replace.includes('bingoPending={theme:game.activeTheme,pid,spotId:bingoViewing}')&&replace.includes('startBingoCapture()'),'the camera, for the open cell');
   const choose=fn('bingoPhotoChosen');
   assert(choose.includes('foundAt:existing?.foundAt||new Date().toISOString()'),'a replacement keeps the original found time');
   assert(choose.includes('const old=bingoPhotoUrls.get(path);if(old)URL.revokeObjectURL(old)'),'the old picture is released so the new one shows');
@@ -361,6 +361,29 @@ test('replace and erase a photo: replace opens the camera for the same cell and 
   const celebrated=['row-0'];delete board.found.e2;
   const pruned=pruneCelebrated(board,celebrated);assert.deepEqual(pruned,[],'the broken row is forgotten (at erase time)');board.found.e2={};assert.deepEqual(freshCompletions(board,pruned).keys,['row-0'],'and celebrates again when re-completed');
   assert.deepEqual(pruneCelebrated(board,['row-0']),['row-0'],'a line that still holds stays celebrated');
+});
+
+test('the camera opens on the REAR camera (PO: it opened the selfie camera): an in-app viewfinder with getUserMedia, rear first, a flip button, and a fallback to the device picker',()=>{
+  const start=fn('startBingoStream');
+  const attempts=start.slice(start.indexOf('const attempts='),start.indexOf('let lastError'));
+  assert(attempts.indexOf("facingMode:{exact:facing}")>0&&attempts.indexOf("facingMode:{exact:facing}")<attempts.indexOf("facingMode:{ideal:facing}")&&attempts.indexOf("facingMode:{ideal:facing}")<attempts.indexOf('video:true'),'exactly the rear camera first, then "prefer rear", then any camera');
+  assert(app.includes("async function openBingoCamera(facing='environment')"),'the rear camera is the default');
+  const open=fn('openBingoCamera');
+  assert(open.includes('data-camera="cancel">ביטול</button>')&&open.includes('data-camera="shoot"')&&open.includes('data-camera="flip" data-facing="${facing}">הפיכת מצלמה</button>'),'cancel, shutter and flip');
+  assert(open.includes('<video id="bingo-video" playsinline muted autoplay>'),'a real viewfinder');
+  assert(open.includes("history.pushState({bingoCamera:true},'')"),'the phone Back gesture closes it');
+  assert(open.includes('closeBingoCamera();notify(\'אין גישה למצלמה באפליקציה — נפתחת מצלמת המכשיר.\',3500)')&&open.includes("input.click()"),'no camera access: it hands over to the device camera picker instead of failing');
+  const capture=fn('startBingoCapture');assert(capture.includes('navigator.mediaDevices?.getUserMedia')&&capture.includes("input.click()"),'unsupported browsers keep the old picker');
+  assert(fn('bingoCellTap').includes('startBingoCapture()')&&app.includes('startBingoCapture()}}'),'tapping an empty cell AND "החלפת תמונה" use it');
+  const shoot=fn('shootBingoPhoto');
+  assert(shoot.includes('1280/Math.max(video.videoWidth,video.videoHeight)')&&shoot.includes("canvas.toBlob(resolve,'image/jpeg',0.82)")&&shoot.includes('closeBingoCamera();')&&shoot.includes('bingoStorePhoto(new File([blob],\'camera.jpg\',{type:\'image/jpeg\'}),true)'),'a frame is shrunk to 1280px, the stream stopped, and the photo goes through the same save-on-device-then-upload path');
+  assert(fn('closeBingoCamera').includes('stopBingoCameraStream()')&&fn('stopBingoCameraStream').includes('track.stop()'),'the camera is released (the phone\'s camera light goes off)');
+  assert(app.includes("bingoCameraHost()")&&fn('bingoCameraHost').includes("document.body.append(host)"),'mounted on <body>: a re-render can never kill the stream');
+  assert(app.includes("addEventListener('popstate',()=>{\n  if(bingoPopIgnore){bingoPopIgnore=false;return}\n  if(bingoCameraOpen)"),'one Back handler: a step we closed ourselves is ignored, then the viewfinder, then the photo');
+  assert.match(css,/#bingo-camera-host \.bingo-camera\{position:fixed;inset:0;z-index:82;/,'full screen, above the photo (80) and the account bar (70)');
+  assert.match(css,/\.bingo-shutter\{width:72px;height:72px;/);assert.match(css,/\.bingo-camera-btn\{min-width:44px;min-height:44px;/);
+  assert(fn('bingoStorePhoto').includes('const small=ready?file:await shrinkImage(file)'),'a photo from the file picker is shrunk; one from the viewfinder already is');
+  assert(app.includes('bingoPhotoChosen(input){const file=input.files?.[0];input.value=\'\';await bingoStorePhoto(file,false)}'),'the file-picker fallback still works');
 });
 
 let failed=0;
