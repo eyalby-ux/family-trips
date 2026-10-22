@@ -1,6 +1,6 @@
 # Beta 0.9.2 — Bingo + shared winner animation + Trivia patch: implementation report (for independent verification)
 
-**Build:** `0.9.2-9339a4ab` on `qa` (re-build after the PO NO-GO on `0.9.2-e03d0d3d`, see "Round 2") (`https://qa--familytripz.netlify.app`) — **not promoted**. Branch `version/V7`. (`374bb57` after it changes only a test pin; the deployed code is identical.)
+**Build:** `0.9.2-240f51e5` on `qa` (re-build after the PO NO-GO on `0.9.2-e03d0d3d`, see "Round 2") (`https://qa--familytripz.netlify.app`) — **not promoted**. Branch `version/V7`. (`374bb57` after it changes only a test pin; the deployed code is identical.)
 **Kickoff:** `PROMPT_FOR_CLAUDE_CODE_0_9_2_BINGO_KICKOFF_V1.md` · scope `FAMILY_TRIPS_GAMES_INTERACTIVE_SCOPE_V1.md` (`V12`, md5 `6057fb5c…`) · plan `V177`.
 **Gate:** `npm run check` green (syntax, whole suite, production build); new `tests/beta-0-9-2.mjs` (13 tests); older pins updated where this round changes a signature (`triviaPlaying` → `gamePlaying`, the carousel's `scope` argument).
 
@@ -34,6 +34,9 @@
 - **Replace** opens the camera for the same cell, overwrites the same Storage path, keeps the original found time and the celebrations. **Erase** asks (`למחוק את התמונה של "…"? התמונה תימחק לצמיתות והמשבצת תחזור להיות לא נמצאה.`), deletes the file (Storage first), forgets the device copy, returns the cell to unfound, and forgets only the celebrations that no longer hold, so finishing the line again celebrates again (tested).
 - Live: open (360×800, photo area 328×668, both buttons 28px, × 44px, no overflow), replace (picture changed, still open, upload cleared), erase (confirmation text as above, cell back to unfound, the PO's two other photos on that board untouched).
 - **Not exercised live:** the real camera and a real airplane-mode toggle; replace/erase **while offline**; how the viewer looks with a very large phone text size.
+
+### Round 3b — "how do I close a picture I opened?" (PO, 2026-10-22) — a real bug, found by a hit-test
+The × existed but a finger could never reach it: the signed-in **account bar** (`#account-bar`, `z-index:70`, `foundation.css`) sat **above** the enlarged photo (`z-index:65`) and covered the top row — my first live check clicked the button by script, which hides exactly this kind of bug. Fixed in `240f51e`: the viewer is now `z-index:80` (above the bar; the winner animation is `85`, messages `90`). Also in `3a57af7`: a **labelled solid-white "סגירה" button** (× + word, 44px), a **tap on the photo closes it**, the **phone Back gesture closes it** (the viewer is one history step; every other exit goes through one `closeBingoViewer()`), Escape still works. Live (390px, hit-tested with `elementFromPoint`): the point at the centre of the close button now belongs to the close button, both bottom buttons are reachable, the photo area is 358×672, close/photo tap/Back/Escape all close it. Tests: 20.
 
 ## Shared winner animation (P91-F3)
 One pure module builds the markup (`winnerHtml`), `fireWinner` mounts it on a host outside `#app` (so `render()` cannot wipe it, it never blocks a tap, it removes itself after 2.4 s / 3.8 s for the full board). **Four directions, picked at random every time** — confetti burst, falling stars, a pulsing medal, animated burst lines — **the winner's name in the middle** (escaped, in a `<bdi>`), an optional caption. `prefers-reduced-motion` hides the moving layer and keeps the named card. Direction and name are asserted in tests (each direction forced and rendered; random pick covers all four; name escaped).
