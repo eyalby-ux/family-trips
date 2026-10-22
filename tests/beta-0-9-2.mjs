@@ -333,7 +333,11 @@ test('the enlarged photo (approved design): tapping a found cell opens it full s
   assert(app.includes("addEventListener('popstate',()=>{if(bingoViewing){bingoViewing=null;render()}});"),'Back closes it');
   assert.equal((app.match(/bingoViewing=null/g)||[]).length,3,'only the declaration, closeBingoViewer() and the Back handler reset it -- every other path closes through closeBingoViewer()');
   assert.match(css,/\.bingo-viewer-close\{min-width:44px;height:44px;padding:0 16px;[^}]*background:#fff;color:var\(--ink\)/,'a solid white 44px button on the dark screen -- impossible to miss');
-  assert.match(css,/\.bingo-viewer\{position:fixed;inset:0;z-index:65;[^}]*background:var\(--ink\)/);
+  assert.match(css,/\.bingo-viewer\{position:fixed;inset:0;z-index:80;[^}]*background:var\(--ink\)/);
+  // the signed-in account bar (z-index 70) used to sit ON TOP of the close button, hiding it (PO: "how do I close a picture?")
+  const zOf=(file,selector)=>Number(new RegExp(`${selector.replace(/[.#]/g,'\\$&')}\\{[^}]*?z-index:(\\d+)`).exec(file)[1]);
+  assert(zOf(css,'.bingo-viewer')>zOf(read('../src/foundation.css'),'#account-bar'),'the enlarged photo (and its close button) is ABOVE the account bar');
+  assert(zOf(css,'#winner-host')>zOf(css,'.bingo-viewer'),'a celebration still shows over the photo');
   assert.match(css,/\.bingo-viewer-btn\{position:relative;flex:1;min-height:28px;padding:0 8px;[^}]*font-size:12px/,'28px buttons, 12px text, as approved');
   assert.match(css,/\.bingo-viewer-btn::before\{content:"";position:absolute;inset:-8px 0\}/,'the touch area is still 44px');
   assert.match(css,/\.bingo-viewer \.bingo-photo\.large\{[^}]*background:#2A5558 center\/contain no-repeat/,'the whole photo is shown, not cropped');
