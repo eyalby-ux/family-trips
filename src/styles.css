@@ -261,8 +261,9 @@ bdi,.bidi{unicode-bidi:isolate}
 .bingo-viewer-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .bingo-viewer-top b{font-size:16px}
 .bingo-viewer-top span{font-size:14px;color:var(--border)}
-.bingo-viewer-close{width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.6);border-radius:12px;background:transparent;color:#fff}
-.bingo-viewer-close .ti{width:22px;height:22px;stroke:#fff}
+.bingo-viewer-close{min-width:44px;height:44px;padding:0 16px;display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:12px;background:#fff;color:var(--ink);font-size:15px;font-weight:700}
+.bingo-viewer-close .ti{width:22px;height:22px;stroke:var(--ink);stroke-width:2.4}
+.bingo-viewer .bingo-photo.large{cursor:pointer}
 .bingo-viewer .bingo-photo.large{position:relative;inset:auto;flex:1;min-height:0;border-radius:12px;background:#2A5558 center/contain no-repeat}
 .bingo-viewer-note{margin:0;font-size:13px;color:var(--border);text-align:center}
 .bingo-viewer-actions{display:flex;gap:8px}

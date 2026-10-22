@@ -847,7 +847,7 @@ function bingoViewer(game,board,spots,selected){
   const entry=bingoViewing&&board.found[bingoViewing];
   if(!entry)return '';
   const person=state.participants.find(candidate=>candidate.id===selected);
-  return `<div class="bingo-viewer" role="dialog" aria-modal="true" aria-label="${esc(spots[bingoViewing].label)}"><div class="bingo-viewer-top"><button class="bingo-viewer-close" data-action="bingo-view-close" aria-label="סגירה">${tabler('x')}</button><b>${esc(spots[bingoViewing].label)}</b><span>${esc(String(person?.name||'').split(' ')[0])}</span></div><span class="bingo-photo large" data-photo-path="${esc(entry.photoPath)}" role="img" aria-label="${esc(spots[bingoViewing].label)}"></span>${entry.pending?'<p class="bingo-viewer-note">התמונה שמורה במכשיר ותעלה כשיהיה חיבור.</p>':''}<div class="bingo-viewer-actions"><button class="bingo-viewer-btn" data-action="bingo-replace">החלפת תמונה</button><button class="bingo-viewer-btn danger" data-action="bingo-erase">מחיקת תמונה</button></div></div>`;
+  return `<div class="bingo-viewer" role="dialog" aria-modal="true" aria-label="${esc(spots[bingoViewing].label)}"><div class="bingo-viewer-top"><button class="bingo-viewer-close" data-action="bingo-view-close" aria-label="סגירה">${tabler('x')}<span>סגירה</span></button><b>${esc(spots[bingoViewing].label)}</b><span>${esc(String(person?.name||'').split(' ')[0])}</span></div><span class="bingo-photo large" data-action="bingo-view-close" data-photo-path="${esc(entry.photoPath)}" role="img" aria-label="${esc(spots[bingoViewing].label)}"></span>${entry.pending?'<p class="bingo-viewer-note">התמונה שמורה במכשיר ותעלה כשיהיה חיבור.</p>':''}<div class="bingo-viewer-actions"><button class="bingo-viewer-btn" data-action="bingo-replace">החלפת תמונה</button><button class="bingo-viewer-btn danger" data-action="bingo-erase">מחיקת תמונה</button></div></div>`;
 }
 function bingoView(game){
   const fact=(label,value)=>value?`<div class="fact"><dt>${label}</dt><dd>${esc(value)}</dd></div>`:'';
@@ -866,11 +866,14 @@ function bingoView(game){
   const count=foundCount(board),total=board.layout.length;
   return `<section class="card bingo-card">${bingoTop(game)}<div class="bingo-toolbar"><button class="btn ghost small-btn" data-action="bingo-switch">${tabler(theme.icon)} ${esc(theme.label)} · החלפת מקום</button><button class="btn ghost small-btn" data-action="bingo-reset">${tabler('refresh')} איפוס הלוח</button></div>${participantCarousel(people.map(person=>[person.id,person.name]),selected,'bingo-participant','bingo')}<p class="bingo-progress"><bdi dir="ltr">${count}/${total}</bdi> נמצאו${count===total?' — הלוח הושלם!':''}</p><div class="bingo-board" role="group" aria-label="לוח בינגו">${cells}</div><input type="file" id="bingo-file" accept="image/*" capture="environment" hidden>${bingoViewer(game,board,spots,selected)}</section>`;
 }
+// The enlarged photo has four ways out: the big "סגירה" button, a tap on the photo, Escape, and the phone's Back gesture (the viewer is one history step).
+function openBingoViewer(spotId){bingoViewing=spotId;history.pushState({bingoViewer:true},'');render()}
+function closeBingoViewer(){const open=bingoViewing;bingoViewing=null;if(open&&history.state?.bingoViewer)history.back()}
 function bingoCellTap(spotId){
   const game=bingoGame(),pid=bingoCurrentParticipant();
   if(!game||!pid||bingoBusy||!BINGO_THEMES[game.activeTheme])return;
   // a found cell opens its photo full size; an unfound one goes straight to the camera (it works offline: the photo is kept on the device)
-  if(ensureBoard(game,game.activeTheme,pid).found[spotId]){bingoViewing=spotId;render();return}
+  if(ensureBoard(game,game.activeTheme,pid).found[spotId]){openBingoViewer(spotId);return}
   bingoPending={theme:game.activeTheme,pid,spotId};
   const input=document.querySelector('#bingo-file');input.value='';input.click();
 }
@@ -917,7 +920,7 @@ async function eraseBingoPhoto(){
   try{if(!entry.pending)await deleteAttachment(entry.photoPath)}catch(error){notify('מחיקת התמונה נכשלה. בדקו את החיבור ונסו שוב.',5000);return}
   await deleteLocalPhoto(entry.photoPath);
   const url=bingoPhotoUrls.get(entry.photoPath);if(url){URL.revokeObjectURL(url);bingoPhotoUrls.delete(entry.photoPath)}
-  delete board.found[spotId];bingoViewing=null;
+  delete board.found[spotId];closeBingoViewer();
   const celebrated=(game.celebratedLines?.[game.activeTheme]||{});if(celebrated[pid])celebrated[pid]=pruneCelebrated(board,celebrated[pid]);
   save();render();
 }
@@ -936,7 +939,7 @@ async function resetBingoBoard(){
       delete board.found[spotId];
     }
   }catch(error){save();render();notify('מחיקת התמונות נכשלה. בדקו את החיבור ונסו שוב.',5000);return}
-  bingoViewing=null;dropBoard(game,game.activeTheme,pid);save();render();
+  closeBingoViewer();dropBoard(game,game.activeTheme,pid);save();render();
 }
 function hydrateBingoPhotos(){
   for(const element of document.querySelectorAll('.bingo-photo[data-photo-path]')){
@@ -957,7 +960,8 @@ function hydrateBingoPhotos(){
 }
 addEventListener('change',event=>{if(event.target?.id==='bingo-file')bingoPhotoChosen(event.target)});
 addEventListener('online',()=>syncBingoPhotos());
-addEventListener('keydown',event=>{if(event.key==='Escape'&&bingoViewing){bingoViewing=null;render()}});
+addEventListener('keydown',event=>{if(event.key==='Escape'&&bingoViewing){closeBingoViewer();render()}});
+addEventListener('popstate',()=>{if(bingoViewing){bingoViewing=null;render()}});
 // 0.7.4: shared list + personal list per participant, with switching between them (MVP scope's
 // own wording). An item with no participantIds is shared; the "shared" view shows only those, and
 // a specific participant's view shows their own items PLUS every shared one -- their own personal
@@ -2453,12 +2457,12 @@ addEventListener('click',async event=>{if(Date.now()<suppressClickUntil)return;i
   else if(action==='trivia-replay'){const game=state.games.find(x=>x.id===button.dataset.id);game.triviaState=newTriviaState(game.deck);game.started=true;triviaRevealed=false;triviaMarked=[];save();render()}
   else if(action==='trivia-exit'){gamePlaying=null;render()}
   else if(action==='game-start'&&button.dataset.id===TRIVIA_ID){const game=state.games.find(x=>x.id===TRIVIA_ID);if(game?.deck?.length){game.started=true;gamePlaying=TRIVIA_ID;triviaRevealed=false;triviaMarked=[];save();render()}}
-  else if(action==='bingo-theme'){const game=bingoGame();game.activeTheme=button.dataset.theme;bingoPicking=false;bingoViewing=null;save();render()}
+  else if(action==='bingo-theme'){const game=bingoGame();game.activeTheme=button.dataset.theme;bingoPicking=false;closeBingoViewer();save();render()}
   else if(action==='bingo-switch'){bingoPicking=true;render()}
-  else if(action==='bingo-exit'){gamePlaying=null;bingoPicking=false;bingoViewing=null;render()}
+  else if(action==='bingo-exit'){gamePlaying=null;bingoPicking=false;closeBingoViewer();render()}
   else if(action==='bingo-participant')selectParticipant(button.closest('[data-carousel]'),button.dataset.participant);
   else if(action==='bingo-cell')bingoCellTap(button.dataset.spot);
-  else if(action==='bingo-view-close'){bingoViewing=null;render()}
+  else if(action==='bingo-view-close'){closeBingoViewer();render()}
   else if(action==='bingo-replace'){const game=bingoGame(),pid=bingoCurrentParticipant();if(game&&pid&&bingoViewing&&!bingoBusy){bingoPending={theme:game.activeTheme,pid,spotId:bingoViewing};const input=document.querySelector('#bingo-file');input.value='';input.click()}}
   else if(action==='bingo-erase')await eraseBingoPhoto();
   else if(action==='bingo-reset')await resetBingoBoard();

@@ -139,7 +139,7 @@ test('photo → found, across all six themes: the photo is kept on the device fi
   assert(choose.includes('pending:true,v:Date.now()'),'a new photo is pending (not in Storage yet) and stamped');
   assert(choose.includes("catch(error){bingoBusy=null;render();notify('שמירת התמונה נכשלה"),'a failure to save on the device leaves the cell unfound and says so');
   assert(choose.includes('celebrated.push(...fresh.keys)'),'celebrations are remembered');
-  const tap=fn('bingoCellTap');assert(!tap.includes('navigator.onLine'),'NO connection check: tapping a cell works offline');assert(tap.includes('{bingoViewing=spotId;render();return}'),'a found cell opens its photo');
+  const tap=fn('bingoCellTap');assert(!tap.includes('navigator.onLine'),'NO connection check: tapping a cell works offline');assert(tap.includes('{openBingoViewer(spotId);return}'),'a found cell opens its photo');
   assert(fn('bingoView').includes('<input type="file" id="bingo-file" accept="image/*" capture="environment" hidden>'),'the device camera');
   assert(app.includes("addEventListener('change',event=>{if(event.target?.id==='bingo-file')bingoPhotoChosen(event.target)});"));
   assert(read('../src/image-utils.js').includes("canvas.toBlob(resolve,'image/jpeg'"));
@@ -182,7 +182,7 @@ test('the picker and the board screen: six tiles, the last theme remembered, a v
   const view=fn('bingoView');
   assert(view.includes('BINGO_THEME_KEYS.map(key=>`<button class="bingo-tile${key===game.activeTheme?\' on\':\'\'}" data-action="bingo-theme" data-theme="${key}">'),'one tile per theme');
   assert(view.includes('if(bingoPicking||!theme)'),'the picker shows first time (no activeTheme) or on request');
-  assert(app.includes("else if(action==='bingo-theme'){const game=bingoGame();game.activeTheme=button.dataset.theme;bingoPicking=false;bingoViewing=null;save();render()}"),'picking a theme is remembered (activeTheme) and saved');
+  assert(app.includes("else if(action==='bingo-theme'){const game=bingoGame();game.activeTheme=button.dataset.theme;bingoPicking=false;closeBingoViewer();save();render()}"),'picking a theme is remembered (activeTheme) and saved');
   assert(app.includes("else if(action==='game-start'&&button.dataset.id===BINGO_ID){const game=bingoGame();game.started=true;gamePlaying=BINGO_ID;bingoPicking=!BINGO_THEMES[game.activeTheme];save();render()}"),'reopening goes straight to the remembered theme\'s board');
   assert(view.includes('data-action="bingo-switch">')&&view.includes('החלפת מקום'),'a visible, non-destructive way to switch');
   assert(view.includes("participantCarousel(people.map(person=>[person.id,person.name]),selected,'bingo-participant','bingo')"),'the existing carousel, as is');
@@ -318,22 +318,27 @@ test('offline wiring: sync runs after a capture, on every render and when the co
   assert.match(css,/\.bingo-pending\{position:absolute;/);
 });
 
-test('the enlarged photo (approved design): tapping a found cell opens it full size with "החלפת תמונה" and "מחיקת תמונה"; closes with × or Escape; no instructions on it',()=>{
+test('the enlarged photo (approved design): tapping a found cell opens it full size with "החלפת תמונה" and "מחיקת תמונה"; four ways out (a labelled close button, the photo, Escape, the phone Back gesture); no instructions on it',()=>{
   const viewer=fn('bingoViewer');
-  assert(viewer.includes('role="dialog" aria-modal="true"')&&viewer.includes('data-action="bingo-view-close" aria-label="סגירה"'),'a dialog with a real 44px close button');
-  assert(viewer.includes('<span class="bingo-photo large" data-photo-path=')&&viewer.includes('role="img"'),'the photo fills the dialog (same loader as the cells)');
+  assert(viewer.includes('role="dialog" aria-modal="true"')&&viewer.includes('<button class="bingo-viewer-close" data-action="bingo-view-close" aria-label="סגירה">${tabler(\'x\')}<span>סגירה</span></button>'),'a dialog with a real close button: an X AND the word "סגירה"');
+  assert(viewer.includes('<span class="bingo-photo large" data-action="bingo-view-close" data-photo-path=')&&viewer.includes('role="img"'),'the photo fills the dialog (same loader as the cells) and a tap on it closes it');
   assert(viewer.includes('data-action="bingo-replace">החלפת תמונה</button>')&&viewer.includes('data-action="bingo-erase">מחיקת תמונה</button>'),'the two actions side by side');
   assert(viewer.includes('<b>${esc(spots[bingoViewing].label)}</b><span>${esc(String(person?.name||\'\').split(\' \')[0])}</span>'),'the spot and the participant\'s first name in the header');
   assert(viewer.includes('התמונה שמורה במכשיר ותעלה כשיהיה חיבור.'),'a still-pending photo says where it is');
   assert(!/הוראות|לחצו על התמונה/.test(viewer),'no instruction text on the photo screen (PO)');
-  assert(fn('bingoCellTap').includes('{bingoViewing=spotId;render();return}'));
-  assert(app.includes("else if(action==='bingo-view-close'){bingoViewing=null;render()}")&&app.includes("addEventListener('keydown',event=>{if(event.key==='Escape'&&bingoViewing){bingoViewing=null;render()}});"));
+  assert(fn('bingoCellTap').includes('{openBingoViewer(spotId);return}'));
+  assert(app.includes("else if(action==='bingo-view-close'){closeBingoViewer();render()}")&&app.includes("addEventListener('keydown',event=>{if(event.key==='Escape'&&bingoViewing){closeBingoViewer();render()}});"));
+  const openClose=app.slice(app.indexOf('function openBingoViewer('),app.indexOf('function bingoCellTap('));
+  assert(openClose.includes("history.pushState({bingoViewer:true},'')")&&openClose.includes('if(open&&history.state?.bingoViewer)history.back()'),'the viewer is one history step, so the phone Back gesture closes it instead of leaving the screen');
+  assert(app.includes("addEventListener('popstate',()=>{if(bingoViewing){bingoViewing=null;render()}});"),'Back closes it');
+  assert.equal((app.match(/bingoViewing=null/g)||[]).length,3,'only the declaration, closeBingoViewer() and the Back handler reset it -- every other path closes through closeBingoViewer()');
+  assert.match(css,/\.bingo-viewer-close\{min-width:44px;height:44px;padding:0 16px;[^}]*background:#fff;color:var\(--ink\)/,'a solid white 44px button on the dark screen -- impossible to miss');
   assert.match(css,/\.bingo-viewer\{position:fixed;inset:0;z-index:65;[^}]*background:var\(--ink\)/);
   assert.match(css,/\.bingo-viewer-btn\{position:relative;flex:1;min-height:28px;padding:0 8px;[^}]*font-size:12px/,'28px buttons, 12px text, as approved');
   assert.match(css,/\.bingo-viewer-btn::before\{content:"";position:absolute;inset:-8px 0\}/,'the touch area is still 44px');
   assert.match(css,/\.bingo-viewer \.bingo-photo\.large\{[^}]*background:#2A5558 center\/contain no-repeat/,'the whole photo is shown, not cropped');
   assert.match(css,/\.bingo-viewer-btn\.danger\{border-color:#E8A89A;color:#F2B8AA\}/);
-  assert(app.includes("else if(action==='bingo-theme'")&&app.includes('bingoViewing=null;save();render()'),'switching place closes it');
+  assert(app.includes("else if(action==='bingo-theme'")&&app.includes('closeBingoViewer();save();render()'),'switching place closes it');
 });
 
 test('replace and erase a photo: replace opens the camera for the same cell and overwrites the same path (found and celebrations untouched); erase confirms, deletes the file, returns the cell to unfound and forgets the celebrations that no longer hold',()=>{
