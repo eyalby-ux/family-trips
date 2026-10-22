@@ -1,6 +1,6 @@
 # Beta 0.9.2 — Bingo + shared winner animation + Trivia patch: implementation report (for independent verification)
 
-**Build:** `0.9.2-bc3b0777` on `qa` (re-build after the PO NO-GO on `0.9.2-e03d0d3d`, see "Round 2") (`https://qa--familytripz.netlify.app`) — **not promoted**. Branch `version/V7`. (`374bb57` after it changes only a test pin; the deployed code is identical.)
+**Build:** `0.9.2-87f38cd2` on `qa` (re-build after the PO NO-GO on `0.9.2-e03d0d3d`, see "Round 2") (`https://qa--familytripz.netlify.app`) — **not promoted**. Branch `version/V7`. (`374bb57` after it changes only a test pin; the deployed code is identical.)
 **Kickoff:** `PROMPT_FOR_CLAUDE_CODE_0_9_2_BINGO_KICKOFF_V1.md` · scope `FAMILY_TRIPS_GAMES_INTERACTIVE_SCOPE_V1.md` (`V12`, md5 `6057fb5c…`) · plan `V177`.
 **Gate:** `npm run check` green (syntax, whole suite, production build); new `tests/beta-0-9-2.mjs` (13 tests); older pins updated where this round changes a signature (`triviaPlaying` → `gamePlaying`, the carousel's `scope` argument).
 
@@ -49,7 +49,7 @@ Existing trips pick the new places up on their next load (the backfill rewrites 
 
 ## Shared winner animation (P91-F3)
 One pure module builds the markup (`winnerHtml`), `fireWinner` mounts it on a host outside `#app` (so `render()` cannot wipe it, it never blocks a tap, it removes itself after 2.4 s / 3.8 s for the full board). **Four directions, picked at random every time** — confetti burst, falling stars, a pulsing medal, animated burst lines — **the winner's name in the middle** (escaped, in a `<bdi>`), an optional caption. `prefers-reduced-motion` hides the moving layer and keeps the named card. Direction and name are asserted in tests (each direction forced and rendered; random pick covers all four; name escaped).
-- **Trivia (live-verified):** a point given → the animation naming that participant; taking the point back → no new one; the 0.9.1 scoring lines are untouched (asserted).
+- **Trivia (changed on the PO's instruction, 2026-10-23; commit `87f38cd`, build `0.9.2-87f38cd2`):** the animation no longer fires on each correct-answer tap. It plays **once, when the round ends** (the tap on "לסיכום" after the last question), as the bigger version, naming **whoever won the round** — a tie names everyone ("אייל · דנה", caption "ניצחון משותף בסיבוב!"); if nobody scored there is no animation; reopening the finished game or leaving and coming back never replays it. Scoring is untouched (asserted). Winner logic: `triviaWinners` in `src/games.js` (everyone on the top score, tested for one winner / a tie / zero / a participant who has left). Live (390px): taps for two participants showed nothing; the last tap showed one big animation naming the winner; re-entering the finished game showed none. **A "round" here is one full pass through the deck** (the end screen already says "סיימתם את הסיבוב!") — tell me if you meant something else.
 - **Bingo (live-verified):** finishing a row fired "שורה הושלמה!" naming the participant; the full board is the bigger one ("הלוח הושלם!", `big`); `celebratedLines` stops a replay (tested with a full walk of 16 photos: each of the 9 lines celebrates exactly once).
 - **Not built:** the old bespoke highlight sweep (superseded, as the kickoff says). Pantomime (`0.9.3`) can call `fireWinner` directly.
 
