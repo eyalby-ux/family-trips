@@ -1,6 +1,6 @@
 # Beta 0.9.2 — Bingo + shared winner animation + Trivia patch: implementation report (for independent verification)
 
-**Build:** `0.9.2-cbf6dc55` on `qa` (re-build after the PO NO-GO on `0.9.2-e03d0d3d`, see "Round 2") (`https://qa--familytripz.netlify.app`) — **not promoted**. Branch `version/V7`. (`374bb57` after it changes only a test pin; the deployed code is identical.)
+**Build:** `0.9.2-810e940f` on `qa` (re-build after the PO NO-GO on `0.9.2-e03d0d3d`, see "Round 2") (`https://qa--familytripz.netlify.app`) — **not promoted**. Branch `version/V7`. (`374bb57` after it changes only a test pin; the deployed code is identical.)
 **Kickoff:** `PROMPT_FOR_CLAUDE_CODE_0_9_2_BINGO_KICKOFF_V1.md` · scope `FAMILY_TRIPS_GAMES_INTERACTIVE_SCOPE_V1.md` (`V12`, md5 `6057fb5c…`) · plan `V177`.
 **Gate:** `npm run check` green (syntax, whole suite, production build); new `tests/beta-0-9-2.mjs` (13 tests); older pins updated where this round changes a signature (`triviaPlaying` → `gamePlaying`, the carousel's `scope` argument).
 
@@ -15,7 +15,8 @@
 
 ## Round 2 — after the PO session (NO-GO on `0.9.2-e03d0d3d`, `QA_AGENT_SUMMARY_0_9_2.md`, `PO_DECISIONS_0_9_2.md`)
 - **P92-F1 fixed (the only finding):** the suggested game on Today ("הצעת משחק ליום פנוי") was a dead text row beside a "כל המשחקים" button. It is now a real 60px button that opens **that game's own page** (same `data-route="game"` + `data-id` the catalog rows use), with "כל המשחקים" (48px) below it, stacked so a long title is never squeezed beside the button (the first attempt put them side by side and the card grew to 121px at 360px — caught and fixed on the live check). Live on `qa` at 360px: tapping the card opens the game page (the suggestion that day was "20 שאלות"), "כל המשחקים" still opens the catalog, no overflow.
-- **Commits:** `3ff357e` (fix + the PO round records), `cbf6dc5` (stacked layout). Tests: `tests/beta-0-9-2.mjs` 14 (one new for P92-F1).
+- **PO visual feedback on the Today card (2026-10-22 23:19, "should be equal sizes or a symmetrical design"):** the suggestion and "כל המשחקים" are now **two identical rows** — the same `game-open` component, both 286×64 px at 360px, each with an icon and a chevron (live-verified); the PO's "fixed" screenshot (23:23) showed the intermediate build `cbf6dc55` (a 60 px card over a 48 px plain button); the identical-rows refinement `810e940` was deployed right after and is the build now on `qa`.
+- **Commits:** `3ff357e` (fix + the PO round records), `cbf6dc5` (stacked layout), `810e940` (identical rows). Tests: `tests/beta-0-9-2.mjs` 14 (one new for P92-F1).
 - **PO decisions recorded (no code change):** keep the Storage path `trips/{tripId}/sources/bingo_…` (no `storage.rules` change); Bingo stays untagged "בנסיעה", "בדרכים" keeps its label; the winner animation is a random pick from the pool.
 - **Planning items, not built (per the PO summary):** offline Bingo play with photos kept on the device, the enlarge / replace / erase photo view, the Nature and ZOO themes, diagonals, and the skipped tests (reduced motion, failed upload, four animations at full size).
 
