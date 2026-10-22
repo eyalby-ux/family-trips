@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {WINNER_ANIMATIONS,WINNER_MS,pickWinnerAnimation,winnerHtml} from '../src/winner-animation.js';
+import {triviaWinners} from '../src/games.js';
 import {BINGO_ID,BINGO_THEMES,BINGO_THEME_KEYS,LINE_CELLS,bingoPhotoLocation,bingoStoragePath,boardPhotoPaths,completedLines,dropBoard,ensureBoard,foundCount,freshCompletions,newBoardLayout,pendingPhotos,pruneCelebrated,syncPendingPhotos} from '../src/bingo.js';
 import {deleteLocalPhoto,getLocalPhoto,putLocalPhoto} from '../src/local-photos.js';
 import {BUILTIN_GAMES,backfillBuiltinGames,normalizeOperationalState} from '../src/operational-data.js';
@@ -54,13 +55,28 @@ test('winner animation: reduced motion keeps only the card; it never blocks a ta
   for(const kind of ['fall','drop','pulse','ray'])assert(css.includes(`@keyframes winner-${kind}`),kind);
 });
 
-test('P91-F3 patch to the live 0.9.1 Trivia: scoring a point fires the shared animation naming that participant; taking the point back does not; scoring logic is untouched',()=>{
-  const handler=app.slice(app.indexOf("else if(action==='trivia-score')"),app.indexOf("else if(action==='trivia-next')"));
-  assert(handler.includes('wasMarked=triviaMarked.includes(button.dataset.participant)')&&handler.includes('if(!wasMarked)'),'only a newly given point celebrates');
-  assert(handler.includes('fireWinner({name:winner.name})'),'the participant\'s own name');
-  assert(handler.includes('toggleCorrect(game.triviaState,triviaMarked,button.dataset.participant)')&&handler.includes('game.triviaState={...game.triviaState,scores:result.scores};save();render();'),'the 0.9.1 scoring lines are unchanged');
-  assert(handler.indexOf('save();render();')<handler.indexOf('fireWinner('),'drawn after the re-render, so it is not wiped');
+test('P91-F3 patch to the live 0.9.1 Trivia (PO: only when the ROUND is won): the animation plays after the last question naming the winner -- NOT on each correct-answer tap; a tie names everyone; nobody scored = no animation; scoring logic untouched',()=>{
+  const score=app.slice(app.indexOf("else if(action==='trivia-score')"),app.indexOf("else if(action==='trivia-next')"));
+  assert(!score.includes('fireWinner')&&!score.includes('wasMarked'),'tapping who answered correctly no longer celebrates');
+  assert(score.includes('toggleCorrect(game.triviaState,triviaMarked,button.dataset.participant)')&&score.includes('game.triviaState={...game.triviaState,scores:result.scores};save();render()'),'the 0.9.1 scoring lines are unchanged');
+  const next=app.slice(app.indexOf("else if(action==='trivia-next')"),app.indexOf("else if(action==='trivia-replay')"));
+  assert(next.includes('if(triviaFinished(game)){const winners=triviaWinners(game.triviaState.scores,state.participants);if(winners.length)fireWinner('),'only when that tap ended the deck, and only if somebody scored');
+  assert(next.includes("name:winners.join(' · ')")&&next.includes("caption:winners.length>1?'ניצחון משותף בסיבוב!':'ניצחון בסיבוב!'")&&next.includes('big:true'),'the name(s) in the middle, the bigger animation');
+  assert(next.indexOf('save();render();')<next.indexOf('fireWinner('),'drawn after the re-render, so it is not wiped');
+  const replay=app.slice(app.indexOf("else if(action==='trivia-replay')"),app.indexOf("else if(action==='trivia-exit')"));
+  assert(!replay.includes('fireWinner')&&!fn('triviaPlayView').includes('fireWinner'),'reopening the end screen or playing again does not replay it');
   assert(app.includes("import {WINNER_MS,winnerHtml} from './winner-animation.js';"));
+  // who won
+  const people=[{id:'a',name:'אייל'},{id:'b',name:'דנה'},{id:'c',name:'נועה'},{id:'d',name:'ישן',active:false}];
+  assert.deepEqual(triviaWinners({a:3,b:5,c:1},people),['דנה'],'one winner');
+  assert.deepEqual(triviaWinners({a:4,b:4,c:1},people),['אייל','דנה'],'a tie: both, in the participants\' order');
+  assert.deepEqual(triviaWinners({a:0,b:0},people),[],'nobody scored: nobody won');assert.deepEqual(triviaWinners({},people),[]);
+  assert.deepEqual(triviaWinners({a:2,d:7},people),['ישן'],'a participant who left still wins the round they won');
+  // the animation itself, for one winner and for a tie
+  const one=winnerHtml({name:triviaWinners({a:3,b:5},people).join(' · '),caption:'ניצחון בסיבוב!',big:true,animation:'medal'});
+  assert(one.includes('<bdi>דנה</bdi>')&&one.includes('ניצחון בסיבוב!')&&one.includes('winner-overlay medal big'));
+  const tie=winnerHtml({name:triviaWinners({a:4,b:4},people).join(' · '),caption:'ניצחון משותף בסיבוב!',big:true,animation:'stars'});
+  assert(tie.includes('<bdi>אייל · דנה</bdi>')&&tie.includes('ניצחון משותף בסיבוב!'));
 });
 
 // ---------------------------------------------------------------- Bingo

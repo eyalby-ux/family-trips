@@ -57,6 +57,8 @@ export function toggleCorrect(triviaState,marked,participantId){
   return {marked:has?marked.filter(id=>id!==participantId):[...marked,participantId],scores};
 }
 export const triviaNext=triviaState=>({...triviaState,position:triviaState.position+1});
+// Who won the ROUND (a full pass through the deck): everyone on the top score, if anyone scored at all. One entry = the winner; several = a shared win.
+export const triviaWinners=(scores,participants)=>triviaTally(scores,participants).filter(row=>row.medal==='🥇').map(row=>row.name);
 // High to low (ties keep the participants' own order); a medal for the top three ranks that scored, ties share one.
 export function triviaTally(scores,participants){
   const list=(participants||[]).filter(person=>person.active!==false||(scores?.[person.id]||0)>0).map(person=>({id:person.id,name:person.name,score:scores?.[person.id]||0}));
