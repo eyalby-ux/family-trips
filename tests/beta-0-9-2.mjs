@@ -249,10 +249,10 @@ test('the shared winner animation fires on Bingo completions (and only the first
 test('P92-F1: the suggested game on Today opens its own game page directly, and "כל המשחקים" still opens the catalog',()=>{
   const today=fn('todayView');
   assert(today.includes('<button class="game-open" data-route="game" data-id="${suggestedGame.id}">'),'the card is a real button to THE game (same route the catalog rows use)');
-  assert(today.includes('הצעת משחק ליום פנוי')&&today.includes('<button class="btn ghost" data-route="games">כל המשחקים</button>'),'the catalog button stays');
-  assert(today.indexOf('data-route="game" data-id="${suggestedGame.id}"')<today.indexOf('data-route="games">כל המשחקים'));
+  assert(today.includes('הצעת משחק ליום פנוי')&&today.includes('<button class="game-open" data-route="games">')&&today.includes('<b>כל המשחקים</b>'),'the catalog row stays -- the SAME component as the suggestion, so the two are symmetrical');
+  assert(today.indexOf('data-route="game" data-id="${suggestedGame.id}"')<today.indexOf('<button class="game-open" data-route="games">'),'the suggestion first, the catalog under it');
   assert(!today.includes('<div class="row day-item"><span class="row-main"><b>${tabler(\'dice\')} ${esc(suggestedGame.title)}'),'no more dead text row');
-  assert.match(css,/.suggested-game{flex-direction:column;align-items:stretch;/,'the two controls stack, so a long title is never squeezed beside the button');assert.match(css,/.suggested-game .btn{min-height:48px}/);assert.match(css,/.game-open{[^}]*min-height:56px/,'a 56px tap target');
+  assert.match(css,/.suggested-game{flex-direction:column;align-items:stretch;/,'the two controls stack, so a long title is never squeezed beside the button');assert.match(css,/.suggested-game .game-open{flex:0 0 auto;min-height:64px}/,'both rows are the same height');assert.match(css,/.game-open{[^}]*min-height:56px/,'a 56px tap target');
 });
 
 let failed=0;
