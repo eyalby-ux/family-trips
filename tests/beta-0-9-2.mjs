@@ -155,7 +155,9 @@ test('photo display: the cell shows the REAL photo through downloadAttachment() 
   assert(fn('bingoView').includes('<span class="bingo-photo" data-photo-path='),'a found cell is the photo, not a checkmark alone');
   assert(app.includes('fitActionRows();hydrateBingoPhotos();'),'photos are filled in after every render');
   assert(hydrate.includes('bingoFailed')&&hydrate.includes("classList.add('missing')"),'a photo that cannot load never retries forever');
-  assert.match(css,/\.bingo-photo\{position:absolute;inset:0;background:var\(--teal-soft\) center\/cover no-repeat\}/);
+  assert.match(css,/\.bingo-photo\{position:absolute;inset:0;border-radius:8px;background:var\(--teal-soft\) center\/cover no-repeat\}/);
+  assert.match(css,/\.bingo-cell\{position:relative;aspect-ratio:1;/,'a square when the label fits; it grows rather than clips (no overflow:hidden on the cell)');
+  assert(!/\.bingo-cell\{[^}]*overflow:hidden/.test(css));
 });
 
 test('reset: ONE (theme, participant) board -- Storage photos deleted first, then the board and its celebrations dropped; the next open is freshly shuffled',()=>{
