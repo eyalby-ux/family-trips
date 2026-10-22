@@ -1,6 +1,6 @@
 # Beta 0.9.2 — Bingo + shared winner animation + Trivia patch: implementation report (for independent verification)
 
-**Build:** `0.9.2-e03d0d3d` on `qa` (`https://qa--familytripz.netlify.app`) — **not promoted**. Branch `version/V7`. (`374bb57` after it changes only a test pin; the deployed code is identical.)
+**Build:** `0.9.2-cbf6dc55` on `qa` (re-build after the PO NO-GO on `0.9.2-e03d0d3d`, see "Round 2") (`https://qa--familytripz.netlify.app`) — **not promoted**. Branch `version/V7`. (`374bb57` after it changes only a test pin; the deployed code is identical.)
 **Kickoff:** `PROMPT_FOR_CLAUDE_CODE_0_9_2_BINGO_KICKOFF_V1.md` · scope `FAMILY_TRIPS_GAMES_INTERACTIVE_SCOPE_V1.md` (`V12`, md5 `6057fb5c…`) · plan `V177`.
 **Gate:** `npm run check` green (syntax, whole suite, production build); new `tests/beta-0-9-2.mjs` (13 tests); older pins updated where this round changes a signature (`triviaPlaying` → `gamePlaying`, the carousel's `scope` argument).
 
@@ -12,6 +12,12 @@
 | `8488d45` | **Bingo (§2–§6, §8):** `src/bingo.js` (themes, boards, lines, completions), `src/image-utils.js`, the UI, the migration, the cleanup in `cloud-store.js`, CSS, tests |
 | `e03d0d3` | Bingo cells grow instead of clipping a long label (found on the first live look) |
 | `374bb57` | test pins for that |
+
+## Round 2 — after the PO session (NO-GO on `0.9.2-e03d0d3d`, `QA_AGENT_SUMMARY_0_9_2.md`, `PO_DECISIONS_0_9_2.md`)
+- **P92-F1 fixed (the only finding):** the suggested game on Today ("הצעת משחק ליום פנוי") was a dead text row beside a "כל המשחקים" button. It is now a real 60px button that opens **that game's own page** (same `data-route="game"` + `data-id` the catalog rows use), with "כל המשחקים" (48px) below it, stacked so a long title is never squeezed beside the button (the first attempt put them side by side and the card grew to 121px at 360px — caught and fixed on the live check). Live on `qa` at 360px: tapping the card opens the game page (the suggestion that day was "20 שאלות"), "כל המשחקים" still opens the catalog, no overflow.
+- **Commits:** `3ff357e` (fix + the PO round records), `cbf6dc5` (stacked layout). Tests: `tests/beta-0-9-2.mjs` 14 (one new for P92-F1).
+- **PO decisions recorded (no code change):** keep the Storage path `trips/{tripId}/sources/bingo_…` (no `storage.rules` change); Bingo stays untagged "בנסיעה", "בדרכים" keeps its label; the winner animation is a random pick from the pool.
+- **Planning items, not built (per the PO summary):** offline Bingo play with photos kept on the device, the enlarge / replace / erase photo view, the Nature and ZOO themes, diagonals, and the skipped tests (reduced motion, failed upload, four animations at full size).
 
 ## Shared winner animation (P91-F3)
 One pure module builds the markup (`winnerHtml`), `fireWinner` mounts it on a host outside `#app` (so `render()` cannot wipe it, it never blocks a tap, it removes itself after 2.4 s / 3.8 s for the full board). **Four directions, picked at random every time** — confetti burst, falling stars, a pulsing medal, animated burst lines — **the winner's name in the middle** (escaped, in a `<bdi>`), an optional caption. `prefers-reduced-motion` hides the moving layer and keeps the named card. Direction and name are asserted in tests (each direction forced and rendered; random pick covers all four; name escaped).
