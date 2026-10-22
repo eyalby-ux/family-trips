@@ -7,7 +7,8 @@ import {normalizeProposalLifecycle,rejectProposal} from './proposal-lifecycle.js
 import {GAME_FILTERS,TRIVIA_ID,capHistory,filterGames,gamePrimaryAction,newTriviaDeck,newTriviaState,readMoreUrl,toggleCorrect,triviaBuildGate,triviaFinished,triviaNext,triviaQuestion,triviaTally} from './games.js';
 import {generateTrivia} from './game-content-client.js';
 import {WINNER_MS,winnerHtml} from './winner-animation.js';
-import {BINGO_ID,BINGO_THEMES,BINGO_THEME_KEYS,bingoPhotoLocation,dropBoard,ensureBoard,foundCount,freshCompletions} from './bingo.js';
+import {BINGO_ID,BINGO_THEMES,BINGO_THEME_KEYS,bingoPhotoLocation,bingoStoragePath,dropBoard,ensureBoard,foundCount,freshCompletions,pendingPhotos,pruneCelebrated,syncPendingPhotos} from './bingo.js';
+import {deleteLocalPhoto,getLocalPhoto,putLocalPhoto} from './local-photos.js';
 import {shrinkImage} from './image-utils.js';
 import {syncStripText,cloudFailureMessage} from './ui-states.js';
 import {normalizeThaiPua} from './text-normalize.js';
@@ -830,15 +831,23 @@ async function buildTrivia(gameId){
   }catch(error){triviaBuilding=null;render();notify(error.message||'בניית הטריוויה נכשלה.',6000)}
 }
 // Beta 0.9.2: Bingo ("בינגו לפי מקום"). Six location themes; every participant has their own shuffled 4x4 board per theme and finds a spot by photographing it.
-// Photos go through the existing Storage pipeline and are shown back with downloadAttachment() (getBytes), never getDownloadURL() -- the CORS bug the app already
-// paid to fix once. UI-only state (not saved): the picker, the participant on screen, the spot being photographed / uploaded.
-let bingoPicking=false,bingoParticipant=null,bingoPending=null,bingoBusy=null;
+// OFFLINE: a photo is saved on the device first (local-photos.js) and the cell is found at once; it is uploaded to Storage when there is a connection
+// (`pending` marks one that is not up yet). Photos are shown from the device copy, else downloaded with downloadAttachment() (getBytes), never getDownloadURL() --
+// the CORS bug the app already paid to fix once. Tapping a found cell opens it full size (replace / erase). UI-only state (not saved): the picker, the participant
+// on screen, the spot being photographed / opened.
+let bingoPicking=false,bingoParticipant=null,bingoPending=null,bingoBusy=null,bingoViewing=null,bingoSyncing=false;
 const bingoPhotoUrls=new Map(),bingoLoading=new Set(),bingoFailed=new Set();
 const bingoGame=()=>state.games.find(candidate=>candidate.id===BINGO_ID);
 const bingoTop=game=>backRow('games','','',`${tabler('dice')} ${esc(game.title)}`,'bingo-exit');
 function bingoCurrentParticipant(){
   const people=state.participants.filter(person=>person.active!==false);
   return people.some(person=>person.id===bingoParticipant)?bingoParticipant:people[0]?.id||null;
+}
+function bingoViewer(game,board,spots,selected){
+  const entry=bingoViewing&&board.found[bingoViewing];
+  if(!entry)return '';
+  const person=state.participants.find(candidate=>candidate.id===selected);
+  return `<div class="bingo-viewer" role="dialog" aria-modal="true" aria-label="${esc(spots[bingoViewing].label)}"><div class="bingo-viewer-top"><button class="bingo-viewer-close" data-action="bingo-view-close" aria-label="סגירה">${tabler('x')}</button><b>${esc(spots[bingoViewing].label)}</b><span>${esc(String(person?.name||'').split(' ')[0])}</span></div><span class="bingo-photo large" data-photo-path="${esc(entry.photoPath)}" role="img" aria-label="${esc(spots[bingoViewing].label)}"></span>${entry.pending?'<p class="bingo-viewer-note">התמונה שמורה במכשיר ותעלה כשיהיה חיבור.</p>':''}<div class="bingo-viewer-actions"><button class="bingo-viewer-btn" data-action="bingo-replace">החלפת תמונה</button><button class="bingo-viewer-btn danger" data-action="bingo-erase">מחיקת תמונה</button></div></div>`;
 }
 function bingoView(game){
   const fact=(label,value)=>value?`<div class="fact"><dt>${label}</dt><dd>${esc(value)}</dd></div>`:'';
@@ -850,18 +859,18 @@ function bingoView(game){
   const selected=bingoCurrentParticipant(),board=ensureBoard(game,game.activeTheme,selected),spots=Object.fromEntries(theme.spots.map(spot=>[spot.id,spot]));
   const cells=board.layout.map(id=>{
     const spot=spots[id],found=board.found[id];
-    if(found)return `<button class="bingo-cell found" data-action="bingo-cell" data-spot="${id}" aria-label="${esc(spot.label)} — נמצא"><span class="bingo-photo" data-photo-path="${esc(found.photoPath)}"></span><span class="bingo-check">${tabler('check')}</span><span class="bingo-label over">${esc(spot.label)}</span></button>`;
-    if(bingoBusy===id)return `<button class="bingo-cell busy" disabled aria-label="${esc(spot.label)} — מעלים תמונה">${tabler('upload')}<span class="bingo-label">מעלים…</span></button>`;
+    if(found)return `<button class="bingo-cell found" data-action="bingo-cell" data-spot="${id}" aria-label="${esc(spot.label)} — נמצא${found.pending?', ממתין להעלאה':''}. לחצו להגדלה"><span class="bingo-photo" data-photo-path="${esc(found.photoPath)}"></span><span class="bingo-check">${tabler('check')}</span>${found.pending?`<span class="bingo-pending" title="ממתין להעלאה">${tabler('clock')}</span>`:''}<span class="bingo-label over">${esc(spot.label)}</span></button>`;
+    if(bingoBusy===id)return `<button class="bingo-cell busy" disabled aria-label="${esc(spot.label)} — שומרים תמונה">${tabler('upload')}<span class="bingo-label">שומרים…</span></button>`;
     return `<button class="bingo-cell" data-action="bingo-cell" data-spot="${id}" aria-label="${esc(spot.label)} — עדיין לא נמצא, לחצו לצילום">${tabler('camera')}<span class="bingo-label">${esc(spot.label)}</span></button>`;
   }).join('');
   const count=foundCount(board),total=board.layout.length;
-  return `<section class="card bingo-card">${bingoTop(game)}<div class="bingo-toolbar"><button class="btn ghost small-btn" data-action="bingo-switch">${tabler(theme.icon)} ${esc(theme.label)} · החלפת מקום</button><button class="btn ghost small-btn" data-action="bingo-reset">${tabler('refresh')} איפוס הלוח</button></div>${participantCarousel(people.map(person=>[person.id,person.name]),selected,'bingo-participant','bingo')}<p class="bingo-progress"><bdi dir="ltr">${count}/${total}</bdi> נמצאו${count===total?' — הלוח הושלם!':''}</p><div class="bingo-board" role="group" aria-label="לוח בינגו">${cells}</div><input type="file" id="bingo-file" accept="image/*" capture="environment" hidden></section>`;
+  return `<section class="card bingo-card">${bingoTop(game)}<div class="bingo-toolbar"><button class="btn ghost small-btn" data-action="bingo-switch">${tabler(theme.icon)} ${esc(theme.label)} · החלפת מקום</button><button class="btn ghost small-btn" data-action="bingo-reset">${tabler('refresh')} איפוס הלוח</button></div>${participantCarousel(people.map(person=>[person.id,person.name]),selected,'bingo-participant','bingo')}<p class="bingo-progress"><bdi dir="ltr">${count}/${total}</bdi> נמצאו${count===total?' — הלוח הושלם!':''}</p><div class="bingo-board" role="group" aria-label="לוח בינגו">${cells}</div><input type="file" id="bingo-file" accept="image/*" capture="environment" hidden>${bingoViewer(game,board,spots,selected)}</section>`;
 }
 function bingoCellTap(spotId){
   const game=bingoGame(),pid=bingoCurrentParticipant();
   if(!game||!pid||bingoBusy||!BINGO_THEMES[game.activeTheme])return;
-  if(ensureBoard(game,game.activeTheme,pid).found[spotId])return;
-  if(!navigator.onLine){notify('צילום ללוח דורש חיבור לאינטרנט.');return}
+  // a found cell opens its photo full size; an unfound one goes straight to the camera (it works offline: the photo is kept on the device)
+  if(ensureBoard(game,game.activeTheme,pid).found[spotId]){bingoViewing=spotId;render();return}
   bingoPending={theme:game.activeTheme,pid,spotId};
   const input=document.querySelector('#bingo-file');input.value='';input.click();
 }
@@ -870,45 +879,85 @@ async function bingoPhotoChosen(input){
   if(!file||!pending||bingoBusy)return;
   bingoBusy=pending.spotId;render();
   try{
-    const small=await shrinkImage(file),location=bingoPhotoLocation(pending.theme,pending.pid,pending.spotId);
-    const path=await uploadAttachment(state.trip.id,location.sourceId,new File([small],location.filename,{type:small.type||'image/jpeg'}));
-    const game=bingoGame(),board=ensureBoard(game,pending.theme,pending.pid);
-    board.found[pending.spotId]={photoPath:path,foundAt:new Date().toISOString()};
-    bingoPhotoUrls.set(path,URL.createObjectURL(small));
+    const small=await shrinkImage(file),path=bingoStoragePath(state.trip.id,pending.theme,pending.pid,pending.spotId);
+    await putLocalPhoto(path,small);
+    const old=bingoPhotoUrls.get(path);if(old)URL.revokeObjectURL(old);
+    bingoPhotoUrls.set(path,URL.createObjectURL(small));bingoFailed.delete(path);
+    const game=bingoGame(),board=ensureBoard(game,pending.theme,pending.pid),existing=board.found[pending.spotId];
+    board.found[pending.spotId]={photoPath:path,foundAt:existing?.foundAt||new Date().toISOString(),pending:true,v:Date.now()};
     game.celebratedLines=game.celebratedLines||{};game.celebratedLines[pending.theme]=game.celebratedLines[pending.theme]||{};
     const celebrated=game.celebratedLines[pending.theme][pending.pid]=game.celebratedLines[pending.theme][pending.pid]||[];
     const fresh=freshCompletions(board,celebrated);celebrated.push(...fresh.keys);
     bingoBusy=null;save();render();
+    if(!navigator.onLine)notify('התמונה נשמרה במכשיר ותעלה כשיהיה חיבור.',4000);
     // a completed row / column / board celebrates with the shared winner animation, naming whose board it is
     if(fresh.keys.length)fireWinner({name:state.participants.find(person=>person.id===pending.pid)?.name||'',caption:fresh.caption,big:fresh.big});
-  }catch(error){bingoBusy=null;render();notify('העלאת התמונה נכשלה. בדקו את החיבור ונסו שוב.',5000)}
+    syncBingoPhotos();
+  }catch(error){bingoBusy=null;render();notify('שמירת התמונה נכשלה. נסו שוב.',5000)}
+}
+// Uploads the photos waiting on this device. Runs after every capture, every render and when the connection comes back; a failure just leaves them pending.
+async function syncBingoPhotos(){
+  if(bingoSyncing||!navigator.onLine||!state.trip||!bingoGame())return;
+  if(!pendingPhotos(bingoGame()).length)return;
+  bingoSyncing=true;
+  try{
+    await ensureTripDocSynced(state.trip.id,state.trip);
+    const result=await syncPendingPhotos({getGame:bingoGame,getBlob:getLocalPhoto,online:()=>navigator.onLine,save:()=>save(),upload:({theme,participantId,spotId,blob})=>{const location=bingoPhotoLocation(theme,participantId,spotId);return uploadAttachment(state.trip.id,location.sourceId,new File([blob],location.filename,{type:blob.type||'image/jpeg'}))}});
+    if(result.uploaded)render();
+  }catch(error){console.warn('Bingo photo upload will retry',error)}
+  finally{bingoSyncing=false}
+}
+async function eraseBingoPhoto(){
+  const game=bingoGame(),pid=bingoCurrentParticipant(),spotId=bingoViewing,theme=BINGO_THEMES[game?.activeTheme];
+  const board=game?.boards?.[game.activeTheme]?.[pid],entry=board?.found?.[spotId];
+  if(!theme||!entry)return;
+  const label=theme.spots.find(spot=>spot.id===spotId)?.label||'';
+  if(!entry.pending&&!navigator.onLine){notify('מחיקת תמונה דורשת חיבור לאינטרנט.');return}
+  if(!confirm(`למחוק את התמונה של "${label}"? התמונה תימחק לצמיתות והמשבצת תחזור להיות לא נמצאה.`))return;
+  try{if(!entry.pending)await deleteAttachment(entry.photoPath)}catch(error){notify('מחיקת התמונה נכשלה. בדקו את החיבור ונסו שוב.',5000);return}
+  await deleteLocalPhoto(entry.photoPath);
+  const url=bingoPhotoUrls.get(entry.photoPath);if(url){URL.revokeObjectURL(url);bingoPhotoUrls.delete(entry.photoPath)}
+  delete board.found[spotId];bingoViewing=null;
+  const celebrated=(game.celebratedLines?.[game.activeTheme]||{});if(celebrated[pid])celebrated[pid]=pruneCelebrated(board,celebrated[pid]);
+  save();render();
 }
 async function resetBingoBoard(){
   const game=bingoGame(),theme=BINGO_THEMES[game?.activeTheme],pid=bingoCurrentParticipant(),person=state.participants.find(candidate=>candidate.id===pid);
   if(!theme||!person)return;
-  if(!confirm(`לאפס את הלוח של ${person.name} ${theme.inLabel}? כל התמונות שצולמו יימחקו לצמיתות.`))return;
   const board=game.boards?.[game.activeTheme]?.[pid];
+  if(Object.values(board?.found||{}).some(entry=>!entry.pending)&&!navigator.onLine){notify('איפוס הלוח דורש חיבור לאינטרנט — התמונות נמחקות גם מהענן.',5000);return}
+  if(!confirm(`לאפס את הלוח של ${person.name} ${theme.inLabel}? כל התמונות שצולמו יימחקו לצמיתות.`))return;
   try{
     // Storage first, then the board: a failure part-way leaves the photos that are still there on the board, never orphaned files
     for(const [spotId,entry] of Object.entries(board?.found||{})){
-      if(entry?.photoPath)await deleteAttachment(entry.photoPath);
+      if(entry?.photoPath&&!entry.pending)await deleteAttachment(entry.photoPath);
+      if(entry?.photoPath)await deleteLocalPhoto(entry.photoPath);
       const url=bingoPhotoUrls.get(entry?.photoPath);if(url){URL.revokeObjectURL(url);bingoPhotoUrls.delete(entry.photoPath)}
       delete board.found[spotId];
     }
   }catch(error){save();render();notify('מחיקת התמונות נכשלה. בדקו את החיבור ונסו שוב.',5000);return}
-  dropBoard(game,game.activeTheme,pid);save();render();
+  bingoViewing=null;dropBoard(game,game.activeTheme,pid);save();render();
 }
 function hydrateBingoPhotos(){
   for(const element of document.querySelectorAll('.bingo-photo[data-photo-path]')){
     const path=element.dataset.photoPath,url=bingoPhotoUrls.get(path);
-    if(url){element.style.backgroundImage=`url("${url}")`;continue}
+    if(url){element.style.backgroundImage=`url("${url}")`;element.classList.remove('missing');continue}
     if(bingoFailed.has(path)){element.classList.add('missing');continue}
     if(bingoLoading.has(path))continue;
     bingoLoading.add(path);
-    downloadAttachment(path,'image/jpeg').then(blob=>{bingoPhotoUrls.set(path,URL.createObjectURL(blob))}).catch(()=>{bingoFailed.add(path)}).finally(()=>{bingoLoading.delete(path);hydrateBingoPhotos()});
+    // the copy on this device first (offline play), else Storage -- and keep what was downloaded, so the board opens offline next time
+    getLocalPhoto(path).then(async local=>{
+      if(local){bingoPhotoUrls.set(path,URL.createObjectURL(local));return}
+      if(!navigator.onLine)return;
+      const blob=await downloadAttachment(path,'image/jpeg');
+      bingoPhotoUrls.set(path,URL.createObjectURL(blob));putLocalPhoto(path,blob);
+    }).catch(()=>{bingoFailed.add(path)}).finally(()=>{bingoLoading.delete(path);if(bingoPhotoUrls.has(path)||bingoFailed.has(path))hydrateBingoPhotos();else document.querySelectorAll(`.bingo-photo[data-photo-path="${CSS.escape(path)}"]`).forEach(element=>element.classList.add('missing'))});
   }
+  syncBingoPhotos();
 }
 addEventListener('change',event=>{if(event.target?.id==='bingo-file')bingoPhotoChosen(event.target)});
+addEventListener('online',()=>syncBingoPhotos());
+addEventListener('keydown',event=>{if(event.key==='Escape'&&bingoViewing){bingoViewing=null;render()}});
 // 0.7.4: shared list + personal list per participant, with switching between them (MVP scope's
 // own wording). An item with no participantIds is shared; the "shared" view shows only those, and
 // a specific participant's view shows their own items PLUS every shared one -- their own personal
@@ -2404,11 +2453,14 @@ addEventListener('click',async event=>{if(Date.now()<suppressClickUntil)return;i
   else if(action==='trivia-replay'){const game=state.games.find(x=>x.id===button.dataset.id);game.triviaState=newTriviaState(game.deck);game.started=true;triviaRevealed=false;triviaMarked=[];save();render()}
   else if(action==='trivia-exit'){gamePlaying=null;render()}
   else if(action==='game-start'&&button.dataset.id===TRIVIA_ID){const game=state.games.find(x=>x.id===TRIVIA_ID);if(game?.deck?.length){game.started=true;gamePlaying=TRIVIA_ID;triviaRevealed=false;triviaMarked=[];save();render()}}
-  else if(action==='bingo-theme'){const game=bingoGame();game.activeTheme=button.dataset.theme;bingoPicking=false;save();render()}
+  else if(action==='bingo-theme'){const game=bingoGame();game.activeTheme=button.dataset.theme;bingoPicking=false;bingoViewing=null;save();render()}
   else if(action==='bingo-switch'){bingoPicking=true;render()}
-  else if(action==='bingo-exit'){gamePlaying=null;bingoPicking=false;render()}
+  else if(action==='bingo-exit'){gamePlaying=null;bingoPicking=false;bingoViewing=null;render()}
   else if(action==='bingo-participant')selectParticipant(button.closest('[data-carousel]'),button.dataset.participant);
   else if(action==='bingo-cell')bingoCellTap(button.dataset.spot);
+  else if(action==='bingo-view-close'){bingoViewing=null;render()}
+  else if(action==='bingo-replace'){const game=bingoGame(),pid=bingoCurrentParticipant();if(game&&pid&&bingoViewing&&!bingoBusy){bingoPending={theme:game.activeTheme,pid,spotId:bingoViewing};const input=document.querySelector('#bingo-file');input.value='';input.click()}}
+  else if(action==='bingo-erase')await eraseBingoPhoto();
   else if(action==='bingo-reset')await resetBingoBoard();
   else if(action==='game-start'&&button.dataset.id===BINGO_ID){const game=bingoGame();game.started=true;gamePlaying=BINGO_ID;bingoPicking=!BINGO_THEMES[game.activeTheme];save();render()}
   else if(action==='game-start'){const game=state.games.find(x=>x.id===button.dataset.id);if(game?.interactive){game.started=true;save()}notify(game?.interactive?'המשחק התחיל':'הפעילות התחילה')}

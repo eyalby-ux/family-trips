@@ -3,7 +3,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {WINNER_ANIMATIONS,WINNER_MS,pickWinnerAnimation,winnerHtml} from '../src/winner-animation.js';
-import {BINGO_ID,BINGO_THEMES,BINGO_THEME_KEYS,LINE_CELLS,bingoPhotoLocation,boardPhotoPaths,completedLines,dropBoard,ensureBoard,foundCount,freshCompletions,newBoardLayout} from '../src/bingo.js';
+import {BINGO_ID,BINGO_THEMES,BINGO_THEME_KEYS,LINE_CELLS,bingoPhotoLocation,bingoStoragePath,boardPhotoPaths,completedLines,dropBoard,ensureBoard,foundCount,freshCompletions,newBoardLayout,pendingPhotos,pruneCelebrated,syncPendingPhotos} from '../src/bingo.js';
+import {deleteLocalPhoto,getLocalPhoto,putLocalPhoto} from '../src/local-photos.js';
 import {BUILTIN_GAMES,backfillBuiltinGames,normalizeOperationalState} from '../src/operational-data.js';
 
 const read=path=>fs.readFileSync(new URL(path,import.meta.url),'utf8');
@@ -124,7 +125,7 @@ test('Bingo lines: rows, columns and the full board only (no diagonals); each co
   assert.equal(done.length,9);assert.equal(new Set(done).size,9);assert.equal(done.at(-1),'board'.length?done.at(-1):'');assert(done.includes('board'));assert(fired<=9);
 });
 
-test('photo → found, across all six themes: the photo is uploaded inside the Storage layout the rules ALREADY allow, then the cell flips, completions celebrate by name; a failed upload marks nothing',()=>{
+test('photo → found, across all six themes: the photo is kept on the device first (offline play), inside the Storage layout the rules ALREADY allow, then the cell flips and completions celebrate by name',()=>{
   for(const theme of BINGO_THEME_KEYS){
     const location=bingoPhotoLocation(theme,'p-1789abc',BINGO_THEMES[theme].spots[3].id);
     assert.match(location.sourceId,/^bingo_[A-Za-z]+_p-1789abc$/);assert.match(location.filename,/^[A-Za-z]+-4\.jpg$/);
@@ -132,16 +133,16 @@ test('photo → found, across all six themes: the photo is uploaded inside the S
   }
   assert(storageRules.includes('match /trips/{tripId}/sources/{sourceId}/{fileName}'),'the only path the rules allow');assert(storageRules.includes('match /{allPaths=**} { allow read, write: if false; }'),'everything else is denied -- the scope\'s trips/{tripId}/games/... path would have been refused');
   const choose=fn('bingoPhotoChosen');
-  const order=['shrinkImage(file)','uploadAttachment(state.trip.id,location.sourceId','board.found[pending.spotId]={photoPath:path','freshCompletions(board,celebrated)','save();render();','fireWinner({name:'].map(token=>choose.indexOf(token));
-  assert(order.every((index,i)=>index>0&&(i===0||index>order[i-1])),'shrink, upload, then mark found, then check completions, then save + render, then celebrate');
+  const order=['shrinkImage(file)','await putLocalPhoto(path,small)','board.found[pending.spotId]={photoPath:path','freshCompletions(board,celebrated)','save();render();','fireWinner({name:','syncBingoPhotos();'].map(token=>choose.indexOf(token));
+  assert(order.every((index,i)=>index>0&&(i===0||index>order[i-1])),'shrink, save on the device, mark found (pending), check completions, save + render, celebrate, then start the upload');
   assert(choose.includes('caption:fresh.caption,big:fresh.big')&&choose.includes('state.participants.find(person=>person.id===pending.pid)?.name'),'the animation names whose board it is, with the line caption, big for the full board');
-  assert(choose.indexOf('uploadAttachment(')<choose.indexOf('board.found[pending.spotId]'),'nothing is marked found before the upload succeeded');
-  assert(choose.includes("catch(error){bingoBusy=null;render();notify('העלאת התמונה נכשלה"),'a failure leaves the cell unfound and says so');
+  assert(choose.includes('pending:true,v:Date.now()'),'a new photo is pending (not in Storage yet) and stamped');
+  assert(choose.includes("catch(error){bingoBusy=null;render();notify('שמירת התמונה נכשלה"),'a failure to save on the device leaves the cell unfound and says so');
   assert(choose.includes('celebrated.push(...fresh.keys)'),'celebrations are remembered');
-  const tap=fn('bingoCellTap');assert(tap.includes('navigator.onLine')&&tap.includes('found[spotId])return'),'offline and already-found taps do nothing');
+  const tap=fn('bingoCellTap');assert(!tap.includes('navigator.onLine'),'NO connection check: tapping a cell works offline');assert(tap.includes('{bingoViewing=spotId;render();return}'),'a found cell opens its photo');
   assert(fn('bingoView').includes('<input type="file" id="bingo-file" accept="image/*" capture="environment" hidden>'),'the device camera');
   assert(app.includes("addEventListener('change',event=>{if(event.target?.id==='bingo-file')bingoPhotoChosen(event.target)});"));
-  assert(read('../src/image-utils.js').includes("canvas.toBlob(resolve,'image/jpeg'")&&choose.includes('new File([small],location.filename'));
+  assert(read('../src/image-utils.js').includes("canvas.toBlob(resolve,'image/jpeg'"));
 });
 
 test('photo display: the cell shows the REAL photo through downloadAttachment() (getBytes) -- getDownloadURL is never used (the already-fixed CORS bug)',()=>{
@@ -181,7 +182,7 @@ test('the picker and the board screen: six tiles, the last theme remembered, a v
   const view=fn('bingoView');
   assert(view.includes('BINGO_THEME_KEYS.map(key=>`<button class="bingo-tile${key===game.activeTheme?\' on\':\'\'}" data-action="bingo-theme" data-theme="${key}">'),'one tile per theme');
   assert(view.includes('if(bingoPicking||!theme)'),'the picker shows first time (no activeTheme) or on request');
-  assert(app.includes("else if(action==='bingo-theme'){const game=bingoGame();game.activeTheme=button.dataset.theme;bingoPicking=false;save();render()}"),'picking a theme is remembered (activeTheme) and saved');
+  assert(app.includes("else if(action==='bingo-theme'){const game=bingoGame();game.activeTheme=button.dataset.theme;bingoPicking=false;bingoViewing=null;save();render()}"),'picking a theme is remembered (activeTheme) and saved');
   assert(app.includes("else if(action==='game-start'&&button.dataset.id===BINGO_ID){const game=bingoGame();game.started=true;gamePlaying=BINGO_ID;bingoPicking=!BINGO_THEMES[game.activeTheme];save();render()}"),'reopening goes straight to the remembered theme\'s board');
   assert(view.includes('data-action="bingo-switch">')&&view.includes('החלפת מקום'),'a visible, non-destructive way to switch');
   assert(view.includes("participantCarousel(people.map(person=>[person.id,person.name]),selected,'bingo-participant','bingo')"),'the existing carousel, as is');
@@ -233,7 +234,7 @@ test('the shared winner animation fires on Bingo completions (and only the first
   const choose=fn('bingoPhotoChosen');
   assert(choose.includes('if(fresh.keys.length)fireWinner('),'only when a line or the board is newly complete');
   assert(!/line-sweep|highlight-sweep|row-win|bingo-sweep/.test(css+app),'the superseded highlight-sweep design was not built');
-  assert(app.includes("import {BINGO_ID,BINGO_THEMES,BINGO_THEME_KEYS,bingoPhotoLocation,dropBoard,ensureBoard,foundCount,freshCompletions} from './bingo.js';"));
+  assert(app.includes("import {BINGO_ID,BINGO_THEMES,BINGO_THEME_KEYS,bingoPhotoLocation,bingoStoragePath,dropBoard,ensureBoard,foundCount,freshCompletions,pendingPhotos,pruneCelebrated,syncPendingPhotos} from './bingo.js';"));
   assert(pkg.scripts.test.includes('tests/beta-0-9-2.mjs'));assert(pkg.version.startsWith('0.9.2'));
   const fired=[];
   // the exact data the firing receives, from the pure layer: who + which caption + how big
@@ -253,6 +254,104 @@ test('P92-F1: the suggested game on Today opens its own game page directly, and 
   assert(today.indexOf('data-route="game" data-id="${suggestedGame.id}"')<today.indexOf('<button class="game-open" data-route="games">'),'the suggestion first, the catalog under it');
   assert(!today.includes('<div class="row day-item"><span class="row-main"><b>${tabler(\'dice\')} ${esc(suggestedGame.title)}'),'no more dead text row');
   assert.match(css,/.suggested-game{flex-direction:column;align-items:stretch;/,'the two controls stack, so a long title is never squeezed beside the button');assert.match(css,/.suggested-game .game-open{flex:0 0 auto;min-height:64px}/,'both rows are the same height');assert.match(css,/.game-open{[^}]*min-height:56px/,'a 56px tap target');
+});
+
+// ---------------------------------------------------------------- Offline play + the enlarged photo
+
+test('offline play: a photo is saved on the device and the cell is found at once; the upload waits for a connection, then happens, once, and clears the pending flag',async()=>{
+  const game={boards:{}};
+  const capture=(theme,pid,spotId,v)=>{const board=ensureBoard(game,theme,pid,seeded(3));board.found[spotId]={photoPath:bingoStoragePath('trip-1',theme,pid,spotId),foundAt:'t',pending:true,v};return board};
+  assert.equal(bingoStoragePath('trip-1','beach','p-9','beach-3'),'trips/trip-1/sources/bingo_beach_p-9/beach-3.jpg','the path is known the moment the photo is taken, and is the one the rules allow');
+  capture('beach','p1','beach-1',1);capture('beach','p1','beach-2',2);capture('city','p2','city-5',3);
+  assert.deepEqual(pendingPhotos(game).map(item=>item.spotId),['beach-1','beach-2','city-5']);
+  const blobs=new Map(pendingPhotos(game).map(item=>[item.photoPath,{size:10,path:item.photoPath}]));
+  const uploads=[];let saves=0,online=false;
+  const deps={getGame:()=>game,getBlob:async path=>blobs.get(path)||null,online:()=>online,save:async()=>{saves++},upload:async item=>{uploads.push(item.photoPath)}};
+  // offline: nothing is uploaded, nothing is lost, everything stays found + pending
+  let result=await syncPendingPhotos(deps);
+  assert.deepEqual(result,{uploaded:0,lost:0,pending:3});assert.equal(uploads.length,0);assert.equal(foundCount(game.boards.beach.p1),2,'the cells stay found offline');
+  // back online: all three go up, each once, and stop being pending
+  online=true;result=await syncPendingPhotos(deps);
+  assert.equal(result.uploaded,3);assert.equal(result.pending,0);assert.deepEqual(uploads.length,3);assert.equal(new Set(uploads).size,3);assert.equal(saves,3,'saved after each one');
+  assert(!game.boards.beach.p1.found['beach-1'].pending&&game.boards.beach.p1.found['beach-1'].photoPath,'found, uploaded, still has its path');
+  assert.deepEqual((await syncPendingPhotos(deps)).uploaded,0,'nothing is uploaded twice');assert.equal(uploads.length,3);
+});
+
+test('offline play: a failed upload stays pending and is retried; a photo replaced while its upload is in flight is not wrongly marked uploaded; a photo missing from the device stays pending',async()=>{
+  const game={boards:{}};const board=ensureBoard(game,'hotel','p1',seeded(1));const path=bingoStoragePath('t','hotel','p1','hotel-1');
+  board.found['hotel-1']={photoPath:path,foundAt:'t',pending:true,v:1};
+  let failNext=true,uploads=0;
+  const deps={getGame:()=>game,getBlob:async()=>({size:1}),online:()=>true,save:async()=>{},upload:async()=>{if(failNext){failNext=false;throw new Error('network')}uploads++}};
+  await assert.rejects(()=>syncPendingPhotos(deps),/network/);assert.equal(board.found['hotel-1'].pending,true,'a failed upload leaves it pending');
+  assert.equal((await syncPendingPhotos(deps)).uploaded,1);assert.equal(board.found['hotel-1'].pending,undefined,'the retry succeeds');
+  // replaced mid-upload: v changes during the await, so the first upload must NOT clear the flag, and the newer photo is uploaded next
+  board.found['hotel-1']={photoPath:path,foundAt:'t',pending:true,v:10};let swapped=false;uploads=0;
+  const racy={...deps,upload:async()=>{uploads++;if(!swapped){swapped=true;board.found['hotel-1']={photoPath:path,foundAt:'t',pending:true,v:11}}}};
+  const raced=await syncPendingPhotos(racy);
+  assert.equal(uploads,2,'the newer photo went up as well');assert.equal(board.found['hotel-1'].pending,undefined);assert.equal(raced.uploaded,1);
+  // the device copy is gone (cleared site data): it stays pending, nothing is faked
+  board.found['hotel-2']={photoPath:bingoStoragePath('t','hotel','p1','hotel-2'),foundAt:'t',pending:true,v:5};
+  const lost=await syncPendingPhotos({...deps,getBlob:async()=>null});assert.equal(lost.lost>=1,true);assert.equal(board.found['hotel-2'].pending,true);
+});
+
+test('local photo store: keeps a photo by its Storage path (memory fallback when IndexedDB is unavailable, as in this suite), and forgets it on delete',async()=>{
+  const blob={size:3,type:'image/jpeg'};
+  assert.equal(await getLocalPhoto('trips/t/sources/a/b.jpg'),null);
+  await putLocalPhoto('trips/t/sources/a/b.jpg',blob);assert.equal(await getLocalPhoto('trips/t/sources/a/b.jpg'),blob);
+  await deleteLocalPhoto('trips/t/sources/a/b.jpg');assert.equal(await getLocalPhoto('trips/t/sources/a/b.jpg'),null);
+  const src=read('../src/local-photos.js');assert(src.includes("typeof indexedDB==='undefined'")&&src.includes("request.result.createObjectStore(STORE,{keyPath:'path'})"),'IndexedDB, guarded, keyed by path');
+});
+
+test('offline wiring: sync runs after a capture, on every render and when the connection returns; photos show from the device first and what is downloaded is kept; reset and erase handle offline honestly',()=>{
+  const sync=fn('syncBingoPhotos');
+  assert(sync.includes('!navigator.onLine')&&sync.includes('await ensureTripDocSynced(state.trip.id,state.trip)')&&sync.includes('syncPendingPhotos({getGame:bingoGame,getBlob:getLocalPhoto'),'the Firestore trip document first (the Storage rules need it), then the shared sync');
+  assert(sync.includes('uploadAttachment(state.trip.id,location.sourceId,new File([blob],location.filename'),'uploaded to the same path the cell already points at');
+  assert(app.includes("addEventListener('online',()=>syncBingoPhotos());"));
+  const hydrate=fn('hydrateBingoPhotos');
+  assert(hydrate.includes('getLocalPhoto(path).then(async local=>')&&hydrate.indexOf('getLocalPhoto(path)')<hydrate.indexOf("downloadAttachment(path,'image/jpeg')")&&hydrate.includes('putLocalPhoto(path,blob)'),'the device copy first, else Storage -- and the download is kept for next time');
+  assert(hydrate.includes('if(!navigator.onLine)return;')&&hydrate.trimEnd().endsWith('syncBingoPhotos();\n}'.trim())||hydrate.includes('syncBingoPhotos();'),'offline with no copy: no request, and it tries again later (never cached as failed)');
+  const choose=fn('bingoPhotoChosen');assert(choose.includes("if(!navigator.onLine)notify('התמונה נשמרה במכשיר ותעלה כשיהיה חיבור.',4000)"),'offline: a clear, calm message instead of a refusal');
+  assert(!app.includes('צילום ללוח דורש חיבור'),'the old "needs a connection" refusal is gone');
+  const reset=fn('resetBingoBoard');assert(reset.includes('.some(entry=>!entry.pending)&&!navigator.onLine'),'reset offline is refused only when it would have to delete cloud photos');
+  assert(reset.includes('if(entry?.photoPath&&!entry.pending)await deleteAttachment(entry.photoPath)')&&reset.includes('await deleteLocalPhoto(entry.photoPath)'),'a never-uploaded photo has nothing to delete in Storage; the device copy always goes');
+  assert(fn('bingoView').includes('<span class="bingo-pending" title="ממתין להעלאה">')&&fn('bingoView').includes('ממתין להעלאה'),'a cell still waiting to upload says so');
+  assert.match(css,/\.bingo-pending\{position:absolute;/);
+});
+
+test('the enlarged photo (approved design): tapping a found cell opens it full size with "החלפת תמונה" and "מחיקת תמונה"; closes with × or Escape; no instructions on it',()=>{
+  const viewer=fn('bingoViewer');
+  assert(viewer.includes('role="dialog" aria-modal="true"')&&viewer.includes('data-action="bingo-view-close" aria-label="סגירה"'),'a dialog with a real 44px close button');
+  assert(viewer.includes('<span class="bingo-photo large" data-photo-path=')&&viewer.includes('role="img"'),'the photo fills the dialog (same loader as the cells)');
+  assert(viewer.includes('data-action="bingo-replace">החלפת תמונה</button>')&&viewer.includes('data-action="bingo-erase">מחיקת תמונה</button>'),'the two actions side by side');
+  assert(viewer.includes('<b>${esc(spots[bingoViewing].label)}</b><span>${esc(String(person?.name||\'\').split(\' \')[0])}</span>'),'the spot and the participant\'s first name in the header');
+  assert(viewer.includes('התמונה שמורה במכשיר ותעלה כשיהיה חיבור.'),'a still-pending photo says where it is');
+  assert(!/הוראות|לחצו על התמונה/.test(viewer),'no instruction text on the photo screen (PO)');
+  assert(fn('bingoCellTap').includes('{bingoViewing=spotId;render();return}'));
+  assert(app.includes("else if(action==='bingo-view-close'){bingoViewing=null;render()}")&&app.includes("addEventListener('keydown',event=>{if(event.key==='Escape'&&bingoViewing){bingoViewing=null;render()}});"));
+  assert.match(css,/\.bingo-viewer\{position:fixed;inset:0;z-index:65;[^}]*background:var\(--ink\)/);
+  assert.match(css,/\.bingo-viewer-btn\{position:relative;flex:1;min-height:28px;padding:0 8px;[^}]*font-size:12px/,'28px buttons, 12px text, as approved');
+  assert.match(css,/\.bingo-viewer-btn::before\{content:"";position:absolute;inset:-8px 0\}/,'the touch area is still 44px');
+  assert.match(css,/\.bingo-viewer \.bingo-photo\.large\{[^}]*background:#2A5558 center\/contain no-repeat/,'the whole photo is shown, not cropped');
+  assert.match(css,/\.bingo-viewer-btn\.danger\{border-color:#E8A89A;color:#F2B8AA\}/);
+  assert(app.includes("else if(action==='bingo-theme'")&&app.includes('bingoViewing=null;save();render()'),'switching place closes it');
+});
+
+test('replace and erase a photo: replace opens the camera for the same cell and overwrites the same path (found and celebrations untouched); erase confirms, deletes the file, returns the cell to unfound and forgets the celebrations that no longer hold',()=>{
+  const replace=app.slice(app.indexOf("else if(action==='bingo-replace')"),app.indexOf("else if(action==='bingo-erase')"));
+  assert(replace.includes('bingoPending={theme:game.activeTheme,pid,spotId:bingoViewing}')&&replace.includes("input.click()"),'the camera, for the open cell');
+  const choose=fn('bingoPhotoChosen');
+  assert(choose.includes('foundAt:existing?.foundAt||new Date().toISOString()'),'a replacement keeps the original found time');
+  assert(choose.includes('const old=bingoPhotoUrls.get(path);if(old)URL.revokeObjectURL(old)'),'the old picture is released so the new one shows');
+  const erase=fn('eraseBingoPhoto');
+  assert(erase.includes('confirm(`למחוק את התמונה של "${label}"? התמונה תימחק לצמיתות והמשבצת תחזור להיות לא נמצאה.`)'),'the house confirm() with permanent wording');
+  assert(erase.indexOf('await deleteAttachment(entry.photoPath)')>0&&erase.indexOf('await deleteAttachment(entry.photoPath)')<erase.indexOf('delete board.found[spotId]'),'Storage first, then the cell');
+  assert(erase.includes('if(!entry.pending)await deleteAttachment(')&&erase.includes('if(!entry.pending&&!navigator.onLine){notify(\'מחיקת תמונה דורשת חיבור לאינטרנט.\');return}'),'a never-uploaded photo can be erased offline; an uploaded one needs the connection (never orphaned)');
+  assert(erase.includes('await deleteLocalPhoto(entry.photoPath)')&&erase.includes('pruneCelebrated(board,celebrated[pid])'));
+  // erasing un-completes a line -> finishing it again celebrates again
+  const board={layout:Array.from({length:16},(_,i)=>`e${i}`),found:{e0:{},e1:{},e2:{},e3:{}}};
+  const celebrated=['row-0'];delete board.found.e2;
+  const pruned=pruneCelebrated(board,celebrated);assert.deepEqual(pruned,[],'the broken row is forgotten (at erase time)');board.found.e2={};assert.deepEqual(freshCompletions(board,pruned).keys,['row-0'],'and celebrates again when re-completed');
+  assert.deepEqual(pruneCelebrated(board,['row-0']),['row-0'],'a line that still holds stays celebrated');
 });
 
 let failed=0;

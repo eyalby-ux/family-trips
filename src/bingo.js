@@ -62,3 +62,36 @@ export function dropBoard(game,theme,participantId){
   if(game.boards?.[theme])delete game.boards[theme][participantId];
   if(game.celebratedLines?.[theme])delete game.celebratedLines[theme][participantId];
 }
+
+// ---- Offline play (0.9.2 follow-up, PO request) -- a photo is saved on the device first and uploaded when there is a connection. ----
+// The Storage path is known the moment the photo is taken; `pending:true` on a found entry means "not in Storage yet", `v` stamps each capture.
+export const bingoStoragePath=(tripId,theme,participantId,spotId)=>{const location=bingoPhotoLocation(theme,participantId,spotId);return `trips/${tripId}/sources/${location.sourceId}/${location.filename}`};
+export function pendingPhotos(game){
+  const list=[];
+  for(const [theme,byParticipant] of Object.entries(game?.boards||{}))for(const [participantId,board] of Object.entries(byParticipant||{}))for(const [spotId,entry] of Object.entries(board?.found||{}))
+    if(entry?.pending&&entry.photoPath)list.push({theme,participantId,spotId,photoPath:entry.photoPath,v:entry.v});
+  return list;
+}
+// Erasing a photo can un-complete a line; forget those celebrations so finishing the line again celebrates again.
+export const pruneCelebrated=(board,celebrated)=>{const done=completedLines(board);return (celebrated||[]).filter(key=>done.includes(key))};
+// Uploads every pending photo it can. Dependencies are injected (getGame, getBlob, upload, online, save) so the offline -> online flow is testable.
+// A photo that was replaced while its upload was in flight keeps its pending flag (the stamp `v` no longer matches) and goes round again.
+export async function syncPendingPhotos({getGame,getBlob,upload,online,save}){
+  const result={uploaded:0,lost:0,pending:0};
+  if(!online())return {...result,pending:pendingPhotos(getGame()).length};
+  for(let round=0;round<3;round+=1){
+    let again=false;
+    for(const item of pendingPhotos(getGame())){
+      const live=()=>getGame()?.boards?.[item.theme]?.[item.participantId]?.found?.[item.spotId];
+      if(!live()?.pending||live().v!==item.v)continue;
+      const blob=await getBlob(item.photoPath);
+      if(!blob){result.lost+=1;continue}
+      await upload({...item,blob});
+      const after=live();
+      if(after?.pending&&after.v===item.v){delete after.pending;result.uploaded+=1;await save()}else again=true;
+    }
+    if(!again)break;
+  }
+  result.pending=pendingPhotos(getGame()).length;
+  return result;
+}

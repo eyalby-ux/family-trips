@@ -306,7 +306,7 @@ function test_0_7_2_storeOriginal_creates_the_firestore_trip_doc_before_uploadin
 function test_0_7_2_ensureTripDocSynced_is_shared_by_save_and_storeOriginal_not_duplicated(){
   assert(app.includes('async function ensureTripDocSynced(tripId,trip){'));
   const callers=[...app.matchAll(/ensureTripDocSynced\(/g)].length;
-  assert.equal(callers,3); // its own definition + save()'s call + storeOriginal()'s call
+  assert.equal(callers,4); // its own definition + save()'s call + storeOriginal()'s call + (0.9.2) syncBingoPhotos()'s call before uploading an offline-saved Bingo photo -- the same shared helper, not a copy
 }
 // A third real gap, found by auditing every other direct Firestore/Storage call site in
 // v5-app.js for the same "operates against a Trip document that may not exist yet" bug class,
