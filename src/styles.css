@@ -240,16 +240,17 @@ bdi,.bidi{unicode-bidi:isolate}
 .bingo-toolbar .ti{width:18px;height:18px}
 .bingo-progress{margin:8px 0;text-align:center;font-size:14px;color:var(--muted)}
 .bingo-board{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
-.bingo-cell{position:relative;aspect-ratio:1;min-width:0;padding:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;overflow:hidden;border:1.5px solid var(--border);border-radius:10px;background:var(--surface);color:var(--ink)}
+.bingo-cell{position:relative;aspect-ratio:1;min-width:0;padding:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border:1.5px solid var(--border);border-radius:10px;background:var(--surface);color:var(--ink)}
+/* a square when the label fits; it grows (never clips) when a long label or a larger phone text size needs the room */
 .bingo-cell .ti{width:20px;height:20px;flex:none}
-.bingo-label{font-size:11px;font-weight:600;line-height:1.15;text-align:center;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.bingo-label{font-size:11px;font-weight:600;line-height:1.15;text-align:center;overflow-wrap:anywhere}
 .bingo-cell.found{border-color:var(--ink);padding:0}
 .bingo-cell.busy{opacity:.6}
-.bingo-photo{position:absolute;inset:0;background:var(--teal-soft) center/cover no-repeat}
+.bingo-photo{position:absolute;inset:0;border-radius:8px;background:var(--teal-soft) center/cover no-repeat}
 .bingo-photo.missing{background:var(--accent-soft)}
 .bingo-check{position:absolute;top:3px;inset-inline-start:3px;z-index:2;width:20px;height:20px;border-radius:999px;background:var(--ink);display:flex;align-items:center;justify-content:center}
 .bingo-check .ti{width:13px;height:13px;stroke:#fff;stroke-width:3}
-.bingo-label.over{position:absolute;inset-inline:0;bottom:0;z-index:1;padding:10px 4px 3px;color:#fff;background:linear-gradient(to top,rgba(18,63,66,.85),rgba(18,63,66,0));-webkit-line-clamp:2}
+.bingo-label.over{position:absolute;inset-inline:0;bottom:0;z-index:1;padding:10px 4px 3px;border-radius:0 0 8px 8px;color:#fff;background:linear-gradient(to top,rgba(18,63,66,.85),rgba(18,63,66,0));display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 /* Beta 0.9.1: Trivia (mockup MOCKUP_GAMES_TRIVIA_V1) -- question card, revealed answer, 44px scoring chips, end tally. */
 .game-secondary{width:100%;min-height:48px;margin-top:10px}
 .game-hint{margin:10px 0 0;text-align:center}
