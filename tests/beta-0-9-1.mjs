@@ -154,7 +154,7 @@ test('the screens: question N/M, reveal in place, chips with running scores, end
   assert(play.includes('<bdi dir="ltr">${ts.position+1}/${total}</bdi>'));
   assert(view.includes("gamePrimaryAction(game)")&&view.includes('אפשר לשחק גם בלי חיבור לאינטרנט'));
   assert(app.includes("else if(action==='game-start'&&button.dataset.id===TRIVIA_ID)")&&app.indexOf("button.dataset.id===TRIVIA_ID")<app.indexOf("else if(action==='game-start'){"),'Trivia\'s start opens the play screen; it is no longer the generic no-op');
-  assert(app.includes("function route(view,options={}){triviaPlaying=null;"),'opening a game always lands on its detail page');
+  assert(app.includes("function route(view,options={}){gamePlaying=null;"),'opening a game always lands on its detail page');
   assert.match(css,/\.trivia-chip\{min-height:44px/,'44px tap targets');
   assert.match(css,/\.trivia-chip\.on\{border-color:var\(--ink\);background:var\(--teal-soft\)\}/);
   assert.match(css,/\.answer-box\{[^}]*background:var\(--accent-soft\)/);
@@ -193,7 +193,7 @@ test('migration: a brand-new trip gets the full record, and building on one trip
   assert.deepEqual(second.deck,[]);
   assert.equal(BUILTIN_GAMES.find(candidate=>candidate.id===TRIVIA_ID).id,TRIVIA_ID);
   assert(pkg.scripts.test.includes('tests/beta-0-9-1.mjs'),'registered in the suite');
-  assert.equal(pkg.version.startsWith('0.9.1'),true);
+  assert.equal(pkg.version.startsWith('0.9.'),true);
 });
 
 test('answer explanation: every generated question carries a short explanation; it shows under the revealed answer with a "קראו עוד" link that is a search, never a model-made URL; the history stays question + answer',()=>{

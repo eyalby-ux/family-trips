@@ -6,6 +6,7 @@ import {COUNTER_ABOVE,arrowKeyTarget,carouselSlots,participantLayout,positionInd
 import {normalizeProposalLifecycle,rejectProposal} from './proposal-lifecycle.js';
 import {GAME_FILTERS,TRIVIA_ID,capHistory,filterGames,gamePrimaryAction,newTriviaDeck,newTriviaState,readMoreUrl,toggleCorrect,triviaBuildGate,triviaFinished,triviaNext,triviaQuestion,triviaTally} from './games.js';
 import {generateTrivia} from './game-content-client.js';
+import {WINNER_MS,winnerHtml} from './winner-animation.js';
 import {syncStripText,cloudFailureMessage} from './ui-states.js';
 import {normalizeThaiPua} from './text-normalize.js';
 import {KIND_COLOURS,dayEntries,dayOf,daysBetween,isStay,monthWeeks,nightStay,ribbonRange,ribbonRows,shiftTimeline,stayHue,stayList,weekBands} from './timeline-view.js';
@@ -307,7 +308,7 @@ function fmt(value,withTime=true,precision=''){if(!value)return 'ללא תארי
 // immediately instead of waiting for a round-trip that never happens for this call path.
 function ensureTrip(seed={}){if(!state.trip){const dates=sanitizeTripDates(seed);state.trip={id:uid('trip'),name:seed.name||'הטיול המשפחתי שלי',startDate:dates.startDate,endDate:dates.endDate,createdAt:new Date().toISOString(),ownerUid:currentUid(),editorEmails:[]}}if(!state.packing.length)state.packing=defaultPacking();normalizeOperationalState(state)}
 function defaultPacking(){return [{id:uid('pl'),name:'מסמכים וכסף',owner:'shared',items:['דרכונים','ביטוח נסיעות','כרטיסי אשראי'].map(name=>({id:uid('pi'),name,done:false,suggested:true,owner:'shared'}))}]}
-function route(view,options={}){triviaPlaying=null;extraOpenFor=null;participantDeleteArmed=null;state.settingsPage=view==='settings'?(options.page||''):'';if(options.category==='document'&&state.category!=='document')state.docFilter='all';stopCamera();if(view==='timeline'&&state.view!=='timeline'){state.timelineMode='all';state.timelineCursor=state.trip?.startDate||today();state.calendarDate=null}state.view=view;state.category=options.category||null;state.itemId=options.itemId||null;state.suggestionId=options.suggestionId||null;render();const anchorTarget=options.anchor?document.getElementById(options.anchor)||(options.anchor==='item-tickets'?document.getElementById('item-documents'):null):null;if(anchorTarget)anchorTarget.scrollIntoView();else scrollTo(0,0)}
+function route(view,options={}){gamePlaying=null;extraOpenFor=null;participantDeleteArmed=null;state.settingsPage=view==='settings'?(options.page||''):'';if(options.category==='document'&&state.category!=='document')state.docFilter='all';stopCamera();if(view==='timeline'&&state.view!=='timeline'){state.timelineMode='all';state.timelineCursor=state.trip?.startDate||today();state.calendarDate=null}state.view=view;state.category=options.category||null;state.itemId=options.itemId||null;state.suggestionId=options.suggestionId||null;render();const anchorTarget=options.anchor?document.getElementById(options.anchor)||(options.anchor==='item-tickets'?document.getElementById('item-documents'):null):null;if(anchorTarget)anchorTarget.scrollIntoView();else scrollTo(0,0)}
 function notify(text,ms=2600){state.toast=text;render();setTimeout(()=>{if(state.toast===text){state.toast=null;render()}},ms)}
 function status(){if(!state.trip)return 'Empty';if(state.trip.startDate&&state.trip.endDate){const now=today();if(now>=state.trip.startDate&&now<=state.trip.endDate)return 'Active';if(now>state.trip.endDate)return 'Completed';return 'Planned'}return 'Draft'}
 function conflict(item){return isItemOutsideTrip(item,state.trip)}
@@ -769,7 +770,16 @@ function gameView(){
 // Beta 0.9.1: Trivia. The deck is built once per tap by the server (one of the day's Smart Import calls), stored on the game's own
 // record and playable offline afterwards. UI-only state (not saved): which game is being built / played, whether the answer is
 // shown, and who was marked correct on the current question.
-let triviaBuilding=null,triviaPlaying=null,triviaRevealed=false,triviaMarked=[];
+let triviaBuilding=null,gamePlaying=null,triviaRevealed=false,triviaMarked=[];
+// 0.9.2 (P91-F3): the winner animation every game shares -- one of four directions at random, the winner's name in the middle. Mounted outside #app
+// so render() never wipes it; it never blocks a tap and removes itself.
+let winnerTimer=0;
+function fireWinner({name,caption='',big=false},random=Math.random){
+  let host=document.querySelector('#winner-host');
+  if(!host){host=document.createElement('div');host.id='winner-host';document.body.append(host)}
+  host.innerHTML=winnerHtml({name,caption,big},random);
+  clearTimeout(winnerTimer);winnerTimer=setTimeout(()=>{host.innerHTML=''},big?WINNER_MS.big:WINNER_MS.normal);
+}
 const triviaTop=(game,action)=>backRow('games','','',`${tabler('dice')} ${esc(game.title)}`,action);
 function triviaView(game){
   if(triviaBuilding===game.id){
@@ -777,7 +787,7 @@ function triviaView(game){
     const phrases=['אוספים שאלות על מקומות ותרבות ביעד…','מתאימים את השאלות לילדים…',first?`מוסיפים שאלה על <bdi>${esc(first.title.length>24?first.title.slice(0,24).trim():first.title)}</bdi>…`:'מערבבים שאלות על חיי היומיום…'];
     return `<section class="card">${triviaTop(game)}${largePalm({phrases,label:'בונים טריוויה…',note:'זה יכול לקחת כמה שניות. אין צורך לסגור את המסך.'})}</section>`;
   }
-  if(triviaPlaying===game.id&&(game.deck||[]).length)return triviaPlayView(game);
+  if(gamePlaying===game.id&&(game.deck||[]).length)return triviaPlayView(game);
   const fact=(label,value)=>value?`<div class="fact"><dt>${label}</dt><dd>${esc(value)}</dd></div>`:'';
   const gate=triviaBuildGate(state.trip),built=(game.deck||[]).length>0;
   const facts=`<dl class="detail-facts">${fact('מתאים ל',game.participants)}${fact('משך',game.duration)}${fact('ציוד',game.items)}</dl>`;
@@ -809,7 +819,7 @@ async function buildTrivia(gameId){
     if(!deck.length)throw new Error('לא נמצאו שאלות חדשות ליעד הזה. נסו שוב מאוחר יותר.');
     const live=state.games.find(candidate=>candidate.id===gameId);
     live.deck=deck;live.askedQuestions=capHistory(live.askedQuestions,deck);live.triviaState=newTriviaState(deck);live.started=false;
-    triviaBuilding=null;triviaPlaying=null;save();render();
+    triviaBuilding=null;gamePlaying=null;save();render();
     notify(result.shortBy>0?`נבנו ${deck.length} שאלות חדשות — חומר חדש ליעד הזה מתחיל להיגמר`:'הטריוויה מוכנה',result.shortBy>0?5000:2600);
   }catch(error){triviaBuilding=null;render();notify(error.message||'בניית הטריוויה נכשלה.',6000)}
 }
@@ -2300,11 +2310,13 @@ addEventListener('click',async event=>{if(Date.now()<suppressClickUntil)return;i
   else if(action==='game-filter'){state.gameFilter=button.dataset.filter||'all';render()}
   else if(action==='trivia-build')await buildTrivia(button.dataset.id);
   else if(action==='trivia-reveal'){triviaRevealed=true;render()}
-  else if(action==='trivia-score'){const game=state.games.find(x=>x.id===button.dataset.id),result=toggleCorrect(game.triviaState,triviaMarked,button.dataset.participant);triviaMarked=result.marked;game.triviaState={...game.triviaState,scores:result.scores};save();render()}
+  else if(action==='trivia-score'){const game=state.games.find(x=>x.id===button.dataset.id),wasMarked=triviaMarked.includes(button.dataset.participant),result=toggleCorrect(game.triviaState,triviaMarked,button.dataset.participant);triviaMarked=result.marked;game.triviaState={...game.triviaState,scores:result.scores};save();render();
+    // 0.9.2 (P91-F3): scoring a point (not taking one back) celebrates whoever just got it
+    if(!wasMarked){const winner=state.participants.find(person=>person.id===button.dataset.participant);if(winner)fireWinner({name:winner.name})}}
   else if(action==='trivia-next'){const game=state.games.find(x=>x.id===button.dataset.id);game.triviaState=triviaNext(game.triviaState);triviaRevealed=false;triviaMarked=[];save();render()}
   else if(action==='trivia-replay'){const game=state.games.find(x=>x.id===button.dataset.id);game.triviaState=newTriviaState(game.deck);game.started=true;triviaRevealed=false;triviaMarked=[];save();render()}
-  else if(action==='trivia-exit'){triviaPlaying=null;render()}
-  else if(action==='game-start'&&button.dataset.id===TRIVIA_ID){const game=state.games.find(x=>x.id===TRIVIA_ID);if(game?.deck?.length){game.started=true;triviaPlaying=TRIVIA_ID;triviaRevealed=false;triviaMarked=[];save();render()}}
+  else if(action==='trivia-exit'){gamePlaying=null;render()}
+  else if(action==='game-start'&&button.dataset.id===TRIVIA_ID){const game=state.games.find(x=>x.id===TRIVIA_ID);if(game?.deck?.length){game.started=true;gamePlaying=TRIVIA_ID;triviaRevealed=false;triviaMarked=[];save();render()}}
   else if(action==='game-start'){const game=state.games.find(x=>x.id===button.dataset.id);if(game?.interactive){game.started=true;save()}notify(game?.interactive?'המשחק התחיל':'הפעילות התחילה')}
   else if(action==='add-list'){const name=prompt('שם קטגוריית האריזה');if(name){state.packing.push({id:uid('pl'),name,owner:'shared',items:[]});save();render()}}
   else if(action==='pack-collapse'){state.packingCollapsed[button.dataset.list]=!state.packingCollapsed[button.dataset.list];save();render()}
