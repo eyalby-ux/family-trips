@@ -233,8 +233,8 @@ if(process.argv.includes('--child')){
   t('P11-F14 a selection slides the track one position (180ms ease-out) and only then re-renders; reduced motion selects at once',()=>{
     const select=fnBody('selectParticipant');
     assert.match(select,/track\.style\.transition='transform 180ms ease-out'/);
-    assert.match(select,/setTimeout\(\(\)=>commitParticipant\(value,true\),190\)/);
-    assert.match(select,/prefersReducedMotion\(\)\)\{commitParticipant\(value,Boolean\(carousel\)\)/);
+    assert.match(select,/setTimeout\(\(\)=>commitParticipant\(value,true,scope\),190\)/);
+    assert.match(select,/prefersReducedMotion\(\)\)\{commitParticipant\(value,Boolean\(carousel\),scope\)/);
     assert.match(select,/if\(participantBusy/);
     assert.match(styles,/prefers-reduced-motion: reduce\)\{[\s\S]*\.p-carousel-track/);
   });

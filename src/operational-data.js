@@ -1,16 +1,19 @@
+const BINGO_INSTRUCTIONS='בוחרים מקום, ומחפשים בעולם האמיתי את הדברים שעל הלוח — כל משתתף עם לוח משלו. מצאתם? מצלמים! שורה, עמודה או לוח מלא — חוגגים.';
+const OLD_BINGO_TITLE='בינגו שדה תעופה',OLD_BINGO_INSTRUCTIONS='חפשו מזוודה אדומה, מטוס, מדים, מסוע, לוח המראות ושער עלייה.',OLD_BINGO_ITEMS='פתק או טלפון';
 const TRIVIA_INSTRUCTIONS='שאלות על מקומות, תרבות וחיי היומיום ביעד, שנבנות במיוחד בשביל הטיול — כולל המלונות והפעילויות שכבר הוספתם. מתאים לכל המשפחה, כולל הקטנים.';
 const TWENTY_QUESTIONS_INSTRUCTIONS='אדם אחד בוחר אדם, דמות, מקום או חפץ. האחרים שואלים שאלות כן/לא — עד 20 שאלות, או עד שמישהו מנחש.';
 const OLD_20Q_INSTRUCTIONS='בוחרים אדם, מקום או חפץ. האחרים שואלים עד 20 שאלות כן/לא.';
 const OLD_TRIVIA_TITLE='טריוויה תאילנד',OLD_TRIVIA_INSTRUCTIONS='כל משתתף שואל שאלה על תאילנד. נקודה על תשובה ונקודה נוספת על עובדה מעניינת.';
+import {BINGO_THEMES,BINGO_THEME_KEYS} from './bingo.js';
 // onTheGo: playable in the car / on the move with no setup (the "בנסיעה" filter, design spec S6).
 export const BUILTIN_GAMES=[
   {id:'game-road-story',onTheGo:true,title:'סיפור בהמשכים',instructions:'כל אחד מוסיף משפט אחד. אסור לבטל פרט שכבר נאמר.',items:'ללא ציוד',participants:'כל המשפחה',duration:'15–30 דקות'},
   // 0.9.1 (P91-P2, PO decision): "20 שאלות" and "מי אני?" were the same game -- one person chooses, the others ask yes/no questions. One game now: this one.
   {id:'game-20-questions',onTheGo:true,title:'20 שאלות',instructions:TWENTY_QUESTIONS_INSTRUCTIONS,items:'ללא ציוד',participants:'3 ומעלה',duration:'10–20 דקות'},
-  {id:'game-airport-bingo',title:'בינגו שדה תעופה',instructions:'חפשו מזוודה אדומה, מטוס, מדים, מסוע, לוח המראות ושער עלייה.',items:'פתק או טלפון',participants:'2 ומעלה',duration:'15 דקות'},
+  // 0.9.2: Bingo -- six location themes, a 4x4 photo board per participant per theme. The id stays (saved state is keyed by it); the title is place-neutral.
+  {id:'game-airport-bingo',interactive:true,title:'בינגו לפי מקום',instructions:BINGO_INSTRUCTIONS,items:'טלפון עם מצלמה',participants:'2 ומעלה',duration:'15 דקות',themes:BINGO_THEMES,activeTheme:'',boards:{},celebratedLines:{}},
   // 0.9.1: an AI-built deck per trip. The id stays (saved state is keyed by it); the title is destination-neutral.
   {id:'game-thailand-trivia',onTheGo:true,interactive:true,title:'טריוויה על היעד',instructions:TRIVIA_INSTRUCTIONS,items:'ללא ציוד',participants:'כל המשפחה',duration:'20 דקות',deck:[],askedQuestions:[],triviaState:{order:[],position:0,scores:{}}},
-  {id:'game-photo-hunt',onTheGo:true,title:'ציד תמונות',instructions:'בחרו חמש תמונות לצלם בדרך: שלט מצחיק, אוכל חדש, צבע מסוים, בעל חיים וחיוך משפחתי.',items:'מצלמה',participants:'כל המשפחה',duration:'במהלך היום'},
 ];
 
 // 0.7.2: Firestore subcollection sync logic, extracted here (dependency-free) rather than left
@@ -96,10 +99,15 @@ export function diffById(previous,next){
 // so a game that gained fields needs an explicit backfill or only brand-new trips would get them. Trivia: interactive, the
 // destination-neutral title and instructions (only where they are still the old defaults), and its deck / history / state.
 export function backfillBuiltinGames(games){
+  // 0.9.2 (P91-P1): "ציד תמונות" was folded into Bingo as two new themes. Remove it from every saved trip (not just from BUILTIN_GAMES, which only stops
+  // NEW trips getting it) -- and, unlike "מי אני?" in 0.9.1, its favourite star is deliberately NOT carried over.
+  const hunt=games.findIndex(game=>game.id==='game-photo-hunt');
+  if(hunt>=0)games.splice(hunt,1);
   // "מי אני?" was merged into "20 שאלות": drop the old record (its Firestore document goes with the next sync) and keep a favourite star.
   const merged=games.findIndex(game=>game.id==='game-who-am-i');
   if(merged>=0){const twenty=games.find(game=>game.id==='game-20-questions');if(twenty&&games[merged].favorite)twenty.favorite=true;games.splice(merged,1)}
   for(const game of games){
+    if(game.id==='game-airport-bingo')backfillBingo(game);
     if(game.id==='game-20-questions'&&(!game.instructions||game.instructions===OLD_20Q_INSTRUCTIONS))game.instructions=TWENTY_QUESTIONS_INSTRUCTIONS;
     if(game.id!=='game-thailand-trivia')continue;
     game.interactive=true;
@@ -112,6 +120,20 @@ export function backfillBuiltinGames(games){
     else{ts.position=Number(ts.position)||0;ts.scores=ts.scores&&typeof ts.scores==='object'?ts.scores:{}}
   }
   return games;
+}
+// Bingo: the old record (instructions only, plus -- in any save that carried them -- the pre-0.9.2 `spots` / `bingoState`) is OVERWRITTEN with the new structure,
+// never merged: the static themes always come from the app, and boards / celebrations / the last theme are created from nothing when missing. A board a family
+// already played is kept.
+function backfillBingo(game){
+  delete game.spots;delete game.bingoState;
+  game.interactive=true;
+  if(!game.title||game.title===OLD_BINGO_TITLE)game.title='בינגו לפי מקום';
+  if(!game.instructions||game.instructions===OLD_BINGO_INSTRUCTIONS)game.instructions=BINGO_INSTRUCTIONS;
+  if(!game.items||game.items===OLD_BINGO_ITEMS)game.items='טלפון עם מצלמה';
+  game.themes=structuredClone(BINGO_THEMES);
+  game.boards=game.boards&&typeof game.boards==='object'&&!Array.isArray(game.boards)?game.boards:{};
+  game.celebratedLines=game.celebratedLines&&typeof game.celebratedLines==='object'&&!Array.isArray(game.celebratedLines)?game.celebratedLines:{};
+  if(!BINGO_THEME_KEYS.includes(game.activeTheme))game.activeTheme='';
 }
 const freshBuiltin=game=>structuredClone({...game,favorite:false});
 export function normalizeOperationalState(state){

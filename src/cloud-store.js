@@ -169,6 +169,11 @@ async function deleteAllAttachments(tripId){
     const storagePath=document.data()?.storagePath;
     if(storagePath)await deleteAttachment(storagePath);
   }
+  // 0.9.2: Bingo photos live in the same Storage layout but have no `sources` record -- their paths are on the game's own boards, so sweep those too.
+  const games=await getDocs(subRef(tripId,'games'));
+  for(const document of games.docs){
+    for(const byParticipant of Object.values(document.data()?.boards||{}))for(const board of Object.values(byParticipant||{}))for(const entry of Object.values(board?.found||{}))if(entry?.photoPath)await deleteAttachment(entry.photoPath);
+  }
 }
 
 // Clears every record in every subcollection but leaves the Trip document itself (name/dates)
