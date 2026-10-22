@@ -31,3 +31,30 @@ A **real rear camera** and a real **airplane-mode** round trip (the developer si
 
 ## After the session
 Photos taken in tests stay on the QA trip's Bingo boards; use "איפוס הלוח" or the erase button to clean them. No other cleanup.
+
+## QA re-test results — build `0.9.2-87f38cd2` (QA agent, 2026-10-23, 00:17)
+
+Source: `PO_DECISIONS_0_9_2.md` in the same folder (full log).
+
+| # | Check | Result |
+|---|---|---|
+| R1 | Today: suggested game opens its own page (P92-F1) | PASS |
+| R2 | Rear camera opens with flip button | PASS |
+| R3 | Offline photo: cell found at once, "ממתין להעלאה" badge | PASS |
+| R4 | Enlarged photo: buttons visible and tappable, close works | PASS (replace and erase not run by PO) |
+| R5 part 1 | Online reset clears the board as before | PASS |
+| R5 part 2 | Offline reset refused when it would delete cloud photos | PASS (PO did not describe the message) |
+| R6 | Trivia animation only at end of a round, name in the middle | PASS |
+| — | Enlarged-photo buttons on a phone; real rear camera | PASS (PO verdict; individual checks not described) |
+| — | Round definition | CONFIRMED by PO: "a round means full set of questions" |
+| — | Name appears in the middle of the winner animation | PASS (PO: "yes, it appears") |
+| — | Four animations at full size on a phone | Not checked individually: PO: "it doesn't matter, its random" |
+| — | Reduce motion | SKIPPED by PO |
+| — | Failed upload on a bad connection | SKIPPED by PO |
+| — | Second phone with photos not yet uploaded | Not run |
+
+**Change request, moved to 0.9.3 (PO, 00:17):** the Trivia end-of-round winner animation should repeat twice, so it is longer. Not in `0.9.2-87f38cd2`; not checked in 0.9.2.
+
+**Still for the PO:** the Nature and ZOO item lists have not been reviewed in a PO session. The QA agent flagged two close pairs ("ציפור על ענף" and "ציפור צבעונית"; "טביעות כפות בבוץ" may be hard to photograph).
+
+**Round status:** NO-GO on `0.9.2-e03d0d3d` (first session), with P92-F1 and P92-F2 to fix. P92-F2 (Trivia animation after every question) is fixed in `0.9.2-87f38cd2`, as re-tested in R6.
