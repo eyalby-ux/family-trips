@@ -252,7 +252,7 @@ test('P92-F1: the suggested game on Today opens its own game page directly, and 
   assert(today.includes('הצעת משחק ליום פנוי')&&today.includes('<button class="btn ghost" data-route="games">כל המשחקים</button>'),'the catalog button stays');
   assert(today.indexOf('data-route="game" data-id="${suggestedGame.id}"')<today.indexOf('data-route="games">כל המשחקים'));
   assert(!today.includes('<div class="row day-item"><span class="row-main"><b>${tabler(\'dice\')} ${esc(suggestedGame.title)}'),'no more dead text row');
-  assert.match(css,/.suggested-game .btn{[^}]*min-height:56px/);assert.match(css,/.game-open{[^}]*min-height:56px/,'a 56px tap target');
+  assert.match(css,/.suggested-game{flex-direction:column;align-items:stretch;/,'the two controls stack, so a long title is never squeezed beside the button');assert.match(css,/.suggested-game .btn{min-height:48px}/);assert.match(css,/.game-open{[^}]*min-height:56px/,'a 56px tap target');
 });
 
 let failed=0;
