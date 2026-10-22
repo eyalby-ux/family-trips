@@ -246,6 +246,15 @@ test('the shared winner animation fires on Bingo completions (and only the first
   assert(winnerHtml({name:'דניאל',caption:full.caption,big:full.big},seeded(4)).includes('הלוח הושלם!'));
 });
 
+test('P92-F1: the suggested game on Today opens its own game page directly, and "כל המשחקים" still opens the catalog',()=>{
+  const today=fn('todayView');
+  assert(today.includes('<button class="game-open" data-route="game" data-id="${suggestedGame.id}">'),'the card is a real button to THE game (same route the catalog rows use)');
+  assert(today.includes('הצעת משחק ליום פנוי')&&today.includes('<button class="btn ghost" data-route="games">כל המשחקים</button>'),'the catalog button stays');
+  assert(today.indexOf('data-route="game" data-id="${suggestedGame.id}"')<today.indexOf('data-route="games">כל המשחקים'));
+  assert(!today.includes('<div class="row day-item"><span class="row-main"><b>${tabler(\'dice\')} ${esc(suggestedGame.title)}'),'no more dead text row');
+  assert.match(css,/.suggested-game .btn{[^}]*min-height:56px/);assert.match(css,/.game-open{[^}]*min-height:56px/,'a 56px tap target');
+});
+
 let failed=0;
 for(const [name,body] of tests){
   try{await body();console.log(`PASS: ${name}`)}
