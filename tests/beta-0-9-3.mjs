@@ -298,6 +298,7 @@ test('(C) the screen: two equally weighted cards (upload the first document / ad
   assert(screen.includes('<input name="country" type="text" required')&&screen.includes('<input name="startDate" type="date">')&&screen.includes('<input name="endDate" type="date">'),'one destination, two dates, right on this screen');
   assert(screen.includes('<form id="onboarding-form"'),'inline: not a route to the יעדים / settings screens');
   assert.match(css,/\.choice-card\{display:flex;align-items:center;gap:12px;min-height:76px;/,'tall tap targets');assert.match(css,/\.onboarding-form input\{min-height:44px;/);
+  assert.match(css,/\.choice-stack\{display:grid;grid-template-rows:1fr auto 1fr;/,'the two cards are always the same height (equally weighted)');
 });
 
 test('(C) the quick form: ensureTrip() is called with the date seed and the destination lands in destinationCountries (the field the יעדים form writes); dates are sanitized; a destination is required',()=>{
