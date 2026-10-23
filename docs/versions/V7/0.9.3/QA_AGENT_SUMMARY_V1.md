@@ -1,0 +1,55 @@
+# Beta 0.9.3 (Pantomime, מזכיר לי, new-user onboarding, animation twice) — summary for the QA agent
+
+**Build to test:** `0.9.3-c2889884` on `https://qa--familytripz.netlify.app` — qa only, **not** Production (Production runs `0.9.2-87f38cd2`). Settings → אודות shows the exact build; if the phone shows an older one, close and reopen the app or clear the site's data. **Real phone, 360 and 390px.**
+**Scope:** four pieces bundled — (A) **Pantomime** (new game), (B) **מזכיר לי** (new free-form game with an AI "smart start"), (C) **new-user onboarding** (two starting paths), (D) the **end-of-round winner animation plays twice** (Trivia, Pantomime). Developer's report: `IMPLEMENTATION_REPORT_V1.md` (same folder). Kickoff / scope: `PROMPT_FOR_CLAUDE_CODE_0_9_3_PANTOMIME_KICKOFF_V1.md`, `FAMILY_TRIPS_GAMES_INTERACTIVE_SCOPE_V1.md` (`V16`), mockups Pantomime `v3`, Remind Me `v2`, onboarding `V1`.
+
+## AI quota — read first
+Every **build / rebuild / "get a suggestion" / "replace"** is a real AI call and uses **one of the account's 10 daily calls**, shared with document scanning and Trivia. A Pantomime deck = 1 call; a מזכיר לי suggestion = 1 call per mode (trying word and song = 2). Playing, "שחקו שוב", reloading, switching modes back to a saved suggestion and offline play cost nothing. If the quota runs out the message is "מכסת הניתוח היומית הסתיימה." — expected. The developer already used a few calls on the QA account today; the count resets daily.
+
+## What the QA Test Trip has
+Destination **Argentina**; both new games already appear in the catalog (they are pushed into every saved trip, no migration). Pantomime already has a 12-phrase deck from the developer's tests (rebuild for fresh phrases); מזכיר לי already has a saved word ("טנגו") and song suggestion from the developer's tests. The trip's five participants make Pantomime playable (it needs 2+ active).
+
+## (A) Pantomime — what to check
+1. **Catalog + detail:** "פנטומימה" (2 ומעלה · 20 דקות) is listed. Before a deck: "עדיין לא נבנה פנטומימה לטיול הזה" + a **visible but disabled "בנה פנטומימה"** with "הוסיפו יעד לטיול כדי לבנות פנטומימה" **in a trip with no destination** (create a throw-away trip; delete it after). With a destination: enabled.
+2. **Build:** the swaying palm ("בונים פנטומימה…", 3 rotating lines), ~5–15 s, then "הפנטומימה מוכנה" and "12 ביטויים מוכנים". **Content:** short, kid-friendly Hebrew phrases that one person can act without words or props (a market scene, an animal, a food, a daily activity). **No place names: no city, landmark or country in any phrase** (generic things like "שוק צף", "רכבת תחתית", "חוף" are fine; "מפלי איגואסו", "בבואנוס איירס", "האובליסק" are not). Report any phrase that names a specific place or is impossible to act. A deck built **before** the no-names rule keeps its old phrases until rebuilt.
+3. **A round, screen by screen:** (a) **look-away screen** — "מעבירים את הטלפון ל<שם> — כל השאר, תביטו לכיוון אחר!" with a "נבחר/ה אוטומטית להציג" badge; **the phrase is NOT visible**; button "הצג את הביטוי". (b) **private reveal** — "חקו בלי מילים:", the phrase big, no timer; button "הצגתי, עברו לניחוש". (c) **scoring** — the phrase, "מי ניחש נכון?" chips (**the actor is not among them**; tap = counted, tap again = taken back), "ביטוי הבא" and the explicit **"דילוג — לא ניחשו"**. "ביטוי N/12" is shown.
+4. **The actor is picked automatically and never repeats twice in a row** (with more than one participant): play several rounds and write down the names — no name twice running; with exactly **two** participants they must alternate strictly. There is **no manual picker**.
+5. **End of the deck:** "סיימתם את הסיבוב!", the tally with 🥇🥈🥉, then the **winner animation twice** (see D). "שחקו שוב" = new order, empty scores, **instant, no AI**; "בנה פנטומימה מחדש" = a real rebuild (asks to confirm if a game is in progress).
+6. **Resume:** leave mid-round and come back / reload: the same actor is kept for that round; the phrase is hidden again until the actor taps. With fewer than two active participants the start button is disabled with a hint.
+7. **Saved to the cloud:** build a deck, reload the app (or open the trip on a second device): the deck is still there. *(A bug here was found and fixed in this round — a new game could not save to the cloud — so please really check this one, ideally on a second phone.)*
+
+## (B) מזכיר לי — what to check
+1. **Page:** "מזכיר לי" (2 ומעלה · לפי הצורך) shows the instructions text — **please read it word for word and report any wording to change** (it was a draft): *שני אופנים לשחק: (1) מילים … (2) שירים …* — and the usual "התחל פעילות" button (this game is a plain activity page, no in-app play screen: by design, the chain is free-form and nothing is tracked).
+2. **Smart start card ("התחלה חכמה"):** with a destination, the card offers a **two-tile mode picker (מילים / שירים)**; without a destination the tiles are disabled with "הוסיפו יעד לטיול כדי לקבל הצעה להתחלה". Tap a mode → the palm → **only that mode's suggestion** appears: a **word** (e.g. a concrete word from the destination) or a **song** (title + artist) with the muted line "ההצעה נוצרת בבינה מלאכותית — כדאי לוודא שהשיר קיים לפני שמשמיעים אותו."
+3. **The song must be REAL (hard requirement):** for every song suggestion, **search for it**: does that exact title by that exact artist exist? Report any invented song or wrong artist (note the song, the artist and the trip's destination). The check is prompt-only (no external verification), so it lowers the risk but cannot remove it — your findings tell us how often it slips. Prefer trying the song mode a few times (use "החלפת ההצעה"; each is a quota call).
+4. **Mode memory and caching:** the pill "מצב מילים · שינוי" reopens the picker. **Switching to a mode that already has a suggestion shows the saved one again with NO palm / NO new call**; only a mode with no suggestion yet generates. "החלפת ההצעה" = a fresh call for the **same** mode only (the other mode's suggestion is untouched). Closing and reopening the app keeps the mode and both suggestions. A repeated word/song should be rare (the last 10 per mode are sent to the AI as "do not repeat").
+5. A failed call (e.g. offline) shows a message and **keeps the old suggestion**.
+
+## (C) New-user onboarding — what to check (needs a brand-new account)
+The two-path screen shows **only to an account that has never had a trip** (no trip open and no trips at all). **Test it with a Google account that has never used the app** (the QA account has trips, so it cannot show this screen; a returning user must still see the old "מתחילים מטיול ריק" / "הטיולים שלי" screens).
+1. First launch: **"ברוכים הבאים ל-FamilyTrips"**, "איך תרצו להתחיל את הטיול הראשון שלכם?", **two cards of equal size**: "העלאת המסמך הראשון" and "הוספת תאריכים ויעד", with "או" between and the QR/manual hint below.
+2. "העלאת המסמך הראשון" opens **today's intake window unchanged** (upload, QR, manual entry) — nothing is pre-filled from the document.
+3. "הוספת תאריכים ויעד" opens an **inline form** (not a settings screen): "לאן נוסעים?", start date, end date, "יצירת הטיול", and a ghost **"דילוג — אעדכן בהמשך"**. Submit with a country + dates → you land on **היום** with the trip named "טיול ל<country>", the dates set, the destination set (check Settings → יעדים) and zero items. A **missing country** creates nothing ("כתבו לאן נוסעים."). An **end date before the start** is moved up to the start date.
+4. **"דילוג" and the back arrow** return to the two cards and create **nothing** (also what happens if you leave the form half-filled).
+5. After the trip exists the onboarding screen never shows again for that account.
+
+## (D) The winner animation plays twice
+At the **end of a Trivia round and of a Pantomime game** the winner celebration plays **two passes in a row** (~7.6 s in total), **each pass a random one of the four (confetti, falling stars, medal, burst rays)**, the **winner's name in the middle** (a tie shows every top scorer's name, "ניצחון משותף בסיבוב!"), none if nobody scored. It does **not** play on each answer. Bingo's row / column / board celebrations are **still a single pass**. Reopening a finished game does not replay it. "Reduce motion" keeps only the named card.
+
+## Regression (short)
+Games: catalog now lists **six** games (בינגו לפי מקום, 20 שאלות, סיפור בהמשכים, טריוויה על היעד, **פנטומימה**, **מזכיר לי**); the filter row (icons, one line) still works; Trivia build / play / scoring unchanged except the double animation; Bingo (picker with eight places, photos, offline, enlarged photo, reset) unchanged — **the Nature and ZOO item lists were deliberately not touched** (still waiting for their own review); the Today screen's game suggestion; Documents / Tasks / Settings.
+
+## Not exercised live by the developer — please cover
+The **onboarding screen with a real new account** (checked only in tests and by rendering its markup) · a מזכיר לי **replace** on a phone · **Pantomime with exactly two participants** on a phone · the look-away screen's final wording on a screenshot · the **double animation on Trivia** on a phone (the Pantomime one was seen live) · "reduce motion" · a failed build / quota-exhausted message.
+
+## Known limits — do not report as new
+- Song accuracy is a **prompt-only** guarantee (no external check, no curated list — the Product Owner's decision); the caption under a song says so.
+- Pantomime phrases are free of **the trip's own destination name** by a hard rule, and of other **proper place names** by the prompt only — a rare city/landmark can still slip through; report it, it helps tune the prompt.
+- 12 phrases per build and 10 remembered suggestions per mode are starting values.
+- The Pantomime actor rule is "never the same person twice in a row", chosen among the others (a strict alternation with two players).
+- The look-away sub-line keeps the mockup's gender-slashed wording ("תלחץ/י כשאת/ה מוכן/ה …").
+- Planning items, not in this build: diagonal Bingo celebrations; the Nature / ZOO list review.
+- Not Production: `0.9.3`'s own GO triggers any promotion. Promoting it also ships a **sync fix** (a built-in game new to a trip is now created in the cloud, and the old `ציד תמונות` / `מי אני?` documents are deleted the first time each trip saves) — worth a glance at a trip after the first save.
+
+## After the session
+A rebuild replaces a Pantomime deck; saved word/song suggestions can be replaced; delete any throw-away trip you created for the no-destination checks.
