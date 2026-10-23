@@ -28,12 +28,12 @@ export function dropRepeats(list,history,fields){
 
 // callModel({count,exclude,topUp}) -> array of generated items; `exclude` is the explicit exclusion list for that call.
 // Returns {items,shortBy,calls}. At most two calls: the build and one top-up.
-export async function generateWithRepeatGuard({callModel,history=[],count,fields}){
+export async function generateWithRepeatGuard({callModel,history=[],count,fields,accept=()=>true}){
   const past=(history||[]).slice(-HISTORY_CAP);
-  let items=dropRepeats(await callModel({count,exclude:past,topUp:false}),past,fields).slice(0,count);
+  let items=dropRepeats((await callModel({count,exclude:past,topUp:false})).filter(accept),past,fields).slice(0,count);
   let calls=1;
   if(items.length<count){
-    items=[...items,...dropRepeats(await callModel({count:count-items.length,exclude:[...past,...items],topUp:true}),[...past,...items],fields)].slice(0,count);
+    items=[...items,...dropRepeats((await callModel({count:count-items.length,exclude:[...past,...items],topUp:true})).filter(accept),[...past,...items],fields)].slice(0,count);
     calls=2;
   }
   return {items,shortBy:count-items.length,calls};
@@ -78,11 +78,16 @@ export const pantomimeSystemPrompt=`You write phrases for a family charades (pan
 Every phrase must be something ONE person can act out without words or props: a scene at a market, an animal doing something, a daily activity or a custom of the destination, a kind of food being prepared or eaten, a place or a vehicle. NOT an abstract idea, NOT a name of a person, NOT something that needs speech or a written word.
 Tone: kid-friendly, playful, nothing scary or mature, understandable by the youngest child on the trip. Short: two to six words each.
 Content: places, culture and daily life of the trip's actual destination.
+NO PLACE NAMES: never write the name of a country, city, region, landmark, street, venue or any other named place inside a phrase -- a name cannot be acted out and it gives the answer away. Describe the activity, animal, food or scene itself ('dancing a tango', not 'dancing a tango in <city>'; 'watching a huge waterfall', not the waterfall's name). The destination should show through WHAT is acted, never through a name.
 Never repeat, even rephrased or with the same meaning, any phrase in the exclusion list.`;
+// A hard rule on top of the prompt for the one name we always know -- the trip's own destination(s): a phrase that contains one is dropped (the bounded top-up
+// refills it). Cities and landmarks cannot be recognized from text alone, so for those the prompt is the only guard.
+export const mentionsDestination=(text,destinations)=>{const flat=normalizeForMatch(text);return (destinations||[]).some(name=>{const n=normalizeForMatch(name);return n.length>=3&&flat.includes(n)})};
+export const pantomimeAccept=({destinations})=>item=>!mentionsDestination(item?.text,destinations);
 // Pantomime is destination-only content: no hotels, no activities, nothing from the itinerary ever reaches its prompt.
 export const buildPantomimeContext=body=>({destinations:buildTripContext(body).destinations,items:[]});
 export function pantomimeInstruction({destinations},{count,exclude,topUp}){
-  const lines=[`Destination(s): ${destinations.join(', ')||'unknown'}`,`Write exactly ${count} NEW charades phrases${topUp?' (a top-up: the first attempt repeated earlier phrases)':''}.`];
+  const lines=[`Destination(s): ${destinations.join(', ')||'unknown'}`,`Write exactly ${count} NEW charades phrases${topUp?' (a top-up: the first attempt repeated earlier phrases)':''}. No place names in any phrase.`];
   if(exclude.length)lines.push('Do NOT repeat any of the following, in substance, even rephrased:',...exclude.map(entry=>`- ${entry.text}`));
   return lines.join('\n');
 }

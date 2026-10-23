@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {WINNER_ANIMATIONS,WINNER_MS,WINNER_REPEATS,createWinnerPlayer,winnerHtml} from '../src/winner-animation.js';
-import {REMIND_ME_HISTORY_CAP,REMIND_ME_MODES as SERVER_MODES,cleanStartHistory,extractRemindMe,remindMeInstruction,remindMeSchema,remindMeSystemPrompt,PANTOMIME_COUNT,PANTOMIME_FIELDS,buildPantomimeContext,cleanHistory,generateWithRepeatGuard,pantomimeInstruction,pantomimeSchema,pantomimeSystemPrompt} from '../netlify/functions/_shared/game-content.mjs';
+import {REMIND_ME_HISTORY_CAP,REMIND_ME_MODES as SERVER_MODES,cleanStartHistory,extractRemindMe,remindMeInstruction,remindMeSchema,remindMeSystemPrompt,PANTOMIME_COUNT,PANTOMIME_FIELDS,buildPantomimeContext,cleanHistory,generateWithRepeatGuard,mentionsDestination,pantomimeAccept,pantomimeInstruction,pantomimeSchema,pantomimeSystemPrompt} from '../netlify/functions/_shared/game-content.mjs';
 import {REMIND_ME_CAP,REMIND_ME_ID,REMIND_ME_MODES,applyRemindMeResult,chooseRemindMeMode,emptyRemindMe,remindMeHistory,remindMeSuggestion,PANTOMIME_ID,beginPantomimeRound,capHistory,gameBuildGate,newPantomimeDeck,newPantomimeState,pantomimeFinished,pantomimeNext,pantomimePhrase,pantomimePlayable,pickActor,toggleCorrect,triviaWinners} from '../src/games.js';
 import {BUILTIN_GAMES,diffById,normalizeOperationalState,sanitizeTripDates,syncBaseline} from '../src/operational-data.js';
 import {onboardingTripFrom,showsOnboarding} from '../src/onboarding.js';
@@ -365,6 +365,29 @@ test('sync baseline: a built-in game that is NEW to a trip is created in Firesto
   const merge=fn('mergeRemoteState');
   assert(merge.includes('const remoteGames=clone(remoteState.games||[]);')&&merge.indexOf('const remoteGames=')<merge.indexOf('normalizeOperationalState(state)'),'the remote games are captured before the normalizer edits them');
   assert(merge.includes('lastSyncedSnapshot=syncBaseline({games:remoteGames},state);')&&!merge.includes('lastSyncedSnapshot=clone(state)'),'the baseline is the remote games, not the normalized ones');
+});
+
+test('(A) Pantomime phrases carry NO place names (PO, 2026-10-23): the prompt forbids them with examples, the instruction repeats it, and a phrase naming the trip\'s own destination is dropped and refilled by the bounded top-up',async()=>{
+  for(const required of ['NO PLACE NAMES','never write the name of a country, city, region, landmark, street, venue or any other named place','a name cannot be acted out and it gives the answer away','Describe the activity, animal, food or scene itself','The destination should show through WHAT is acted, never through a name'])assert(pantomimeSystemPrompt.includes(required),required);
+  assert(pantomimeInstruction({destinations:['ארגנטינה']},{count:12,exclude:[],topUp:false}).includes('No place names in any phrase.'),'repeated in the per-call instruction');
+  // the hard rule for the one name we always know
+  assert.equal(mentionsDestination('רוקדים טנגו בארגנטינה',['ארגנטינה']),true,'also with a Hebrew prefix glued on ("בארגנטינה")');
+  assert.equal(mentionsDestination('רוקדים טנגו',['ארגנטינה']),false);assert.equal(mentionsDestination('מי אני בארגנטינה?!',['  ארגנטינה ']),true,'punctuation and spacing do not hide it');
+  assert.equal(mentionsDestination('אוכלים פרוסה',['פו']),false,'a very short destination string is not used (it would match inside ordinary words)');assert.equal(mentionsDestination('כל ביטוי',[]),false);
+  const accept=pantomimeAccept({destinations:['ארגנטינה','ספרד']});
+  assert.equal(accept({text:'שוק בספרד'}),false);assert.equal(accept({text:'שוק צף'}),true);
+  // end to end through the shared engine (AI mocked): phrases that name the destination never reach the deck; the top-up refills them; the exclusion list still goes out
+  const payloads=[];
+  const callModel=async request=>{payloads.push(request);return payloads.length===1?[{text:'רוקדים טנגו בארגנטינה'},{text:'אוכלים אמפנדה חמה'},{text:'שותים מאטה בארגנטינה'},...Array.from({length:9},(_,i)=>({text:`ביטוי ${i}`}))]:[{text:'מטפסים על סלע'},{text:'רוכבים על סוס'}]};
+  const result=await generateWithRepeatGuard({callModel,history:[],count:12,fields:PANTOMIME_FIELDS,accept});
+  assert.equal(result.items.length,12,'refilled to the full count');assert.equal(result.calls,2);assert.equal(payloads[1].count,2,'the top-up asked for exactly the two that were dropped');
+  assert(!result.items.some(item=>item.text.includes('ארגנטינה')),'none names the destination');
+  assert(result.items.some(item=>item.text==='אוכלים אמפנדה חמה'),'the clean ones are kept');
+  // without a rule nothing changes for the other games (Trivia passes no accept)
+  const trivia=await generateWithRepeatGuard({callModel:async()=>[{question:'ש',answer:'ת'}],history:[],count:1,fields:['question','answer']});assert.equal(trivia.items.length,1);
+  const fnSource=read('../netlify/functions/game-content.mjs');
+  assert(fnSource.includes('context:buildPantomimeContext,accept:pantomimeAccept}')&&fnSource.includes('accept:kind.accept?kind.accept(context):undefined'),'wired for Pantomime only');
+  assert(!/accept:/.test(fnSource.slice(fnSource.indexOf('generate_trivia:{'),fnSource.indexOf('generate_pantomime:{'))),'Trivia is untouched');
 });
 
 let failed=0;
