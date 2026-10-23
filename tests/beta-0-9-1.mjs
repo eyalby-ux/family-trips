@@ -87,7 +87,7 @@ test('the function: a SIBLING of smart-import reusing the shared auth, the SAME 
   assert(fnSource.includes("type:'json_schema',name:kind.schemaName,strict:true,schema:kind.schema"),'the same structured-output pattern as every Smart Import operation');
   assert(fnSource.includes('no_destination'),'a trip without a destination is refused before any quota is spent');
   assert(fnSource.indexOf("'no_destination'")<fnSource.indexOf('consumeDailyQuota(user)'));
-  assert(client.includes("'/api/familytrips-game-content'")&&client.includes("operation:'generate_trivia'"));
+  assert(client.includes("'/api/familytrips-game-content'")&&client.includes("generateContent('generate_trivia'"));
   assert(!read('../netlify/functions/smart-import.mjs').includes('generate_trivia'),'smart-import.mjs itself is untouched');
   assert.equal(TRIVIA_COUNT,10);
 });

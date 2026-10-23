@@ -277,6 +277,17 @@ bdi,.bidi{unicode-bidi:isolate}
 .bingo-viewer-btn{position:relative;flex:1;min-height:28px;padding:0 8px;border:1px solid rgba(255,255,255,.6);border-radius:6px;background:transparent;color:#fff;font-size:12px;font-weight:600}
 .bingo-viewer-btn::before{content:"";position:absolute;inset:-8px 0}
 .bingo-viewer-btn.danger{border-color:#E8A89A;color:#F2B8AA}
+/* Beta 0.9.3: Pantomime (mockup MOCKUP_GAMES_PANTOMIME_V1 v3) -- the look-away screen and the private reveal; scoring and the end tally reuse Trivia's. */
+.lookaway{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;padding:28px 12px 24px;margin:8px 0 16px;border:1px solid var(--border);border-radius:14px;background:var(--accent-soft)}
+.lookaway h2{margin:0;font-size:20px;line-height:1.4}
+.lookaway p{margin:0;color:var(--muted);font-size:14.5px;line-height:1.5}
+.lookaway .q-label,.reveal-card .q-label{font-size:12.5px;color:var(--muted);font-weight:600}
+.auto-pick-badge{display:inline-flex;align-items:center;gap:6px;min-height:28px;padding:0 12px;border-radius:999px;background:var(--surface);border:1px solid var(--border);font-size:13px;font-weight:600}
+.auto-pick-badge .ti{width:16px;height:16px}
+.reveal-card{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;padding:28px 14px;margin:8px 0 16px;border:1px solid var(--border);border-radius:14px;background:var(--surface)}
+.reveal-label{font-size:13.5px;color:var(--muted);font-weight:600}
+.reveal-text{margin:0;font-size:26px;font-weight:700;line-height:1.45;overflow-wrap:anywhere}
+.reveal-rule{font-size:13px;color:var(--muted)}
 /* Beta 0.9.1: Trivia (mockup MOCKUP_GAMES_TRIVIA_V1) -- question card, revealed answer, 44px scoring chips, end tally. */
 .game-secondary{width:100%;min-height:48px;margin-top:10px}
 .game-hint{margin:10px 0 0;text-align:center}

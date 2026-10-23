@@ -34,9 +34,11 @@ export function gamePrimaryAction(game){
 export const TRIVIA_ID='game-thailand-trivia';
 export const HISTORY_CAP=60;
 // Every question ever generated for the trip, newest last, capped at the 60 most recent (oldest dropped first).
-export const capHistory=(history,added,cap=HISTORY_CAP)=>[...(Array.isArray(history)?history:[]),...(Array.isArray(added)?added:[])].map(({question,answer})=>({question,answer})).slice(-cap);
+// `fields` names what a history entry keeps -- Trivia's {question,answer} by default, Pantomime's {text}.
+export const capHistory=(history,added,cap=HISTORY_CAP,fields=['question','answer'])=>[...(Array.isArray(history)?history:[]),...(Array.isArray(added)?added:[])].map(entry=>Object.fromEntries(fields.map(field=>[field,entry?.[field]]))).slice(-cap);
 // "בנה טריוויה" needs a destination; without one the button stays visible but disabled, with a hint.
-export const triviaBuildGate=trip=>(trip?.destinationCountries||[]).length>0?{allowed:true,hint:''}:{allowed:false,hint:'הוסיפו יעד לטיול כדי לבנות טריוויה'};
+export const gameBuildGate=(trip,what)=>(trip?.destinationCountries||[]).length>0?{allowed:true,hint:''}:{allowed:false,hint:`הוסיפו יעד לטיול כדי לבנות ${what}`};
+export const triviaBuildGate=trip=>gameBuildGate(trip,'טריוויה');
 export const newTriviaDeck=questions=>(questions||[]).map((entry,index)=>({id:`q${index+1}`,question:String(entry.question).trim(),answer:String(entry.answer).trim(),explanation:String(entry.explanation??'').trim()})).filter(entry=>entry.question&&entry.answer);
 // "קראו עוד": a Hebrew Wikipedia search for the answer -- always a working page, never a link the model made up.
 export const readMoreUrl=answer=>`https://he.wikipedia.org/w/index.php?search=${encodeURIComponent(String(answer||'').trim())}`;
@@ -65,3 +67,30 @@ export function triviaTally(scores,participants){
   const sorted=list.map((entry,index)=>({entry,index})).sort((left,right)=>right.entry.score-left.entry.score||left.index-right.index).map(({entry})=>entry);
   return sorted.map(entry=>{const rank=sorted.filter(other=>other.score>entry.score).length;return {...entry,medal:entry.score>0&&rank<3?['🥇','🥈','🥉'][rank]:''}});
 }
+
+// ---- Beta 0.9.3: Pantomime -- the same generated-deck game as Trivia, plus a private "pass the phone" reveal and an automatically picked actor. ----
+export const PANTOMIME_ID='game-pantomime';
+export const newPantomimeDeck=phrases=>(phrases||[]).map((entry,index)=>({id:`p${index+1}`,text:String(entry.text??'').trim()})).filter(entry=>entry.text);
+// currentActorId / actorPosition remember who performs the round that is open, so reopening the app mid-round does not pick someone else.
+export const emptyPantomimeState=()=>({order:[],position:0,scores:{},lastActorId:'',currentActorId:'',actorPosition:-1});
+export const newPantomimeState=(deck,random=Math.random)=>({...emptyPantomimeState(),order:shuffleOrder((deck||[]).length,random)});
+export const pantomimeFinished=game=>!(game.deck||[]).length||(game.pantomimeState?.position||0)>=(game.pantomimeState?.order||[]).length;
+export const pantomimePhrase=game=>pantomimeFinished(game)?null:game.deck[game.pantomimeState.order[game.pantomimeState.position]]||null;
+// The actor is picked at random every round -- there is no manual picker. With more than one participant the same person never performs two rounds in
+// a row: a pick that equals the previous actor is re-rolled among the OTHERS (so with exactly two participants it is a strict alternation).
+export function pickActor(participantIds,lastActorId,random=Math.random){
+  const ids=participantIds||[];
+  if(!ids.length)return '';
+  let pick=ids[Math.floor(random()*ids.length)];
+  if(ids.length>1&&pick===lastActorId){const others=ids.filter(id=>id!==lastActorId);pick=others[Math.floor(random()*others.length)]}
+  return pick;
+}
+// Opens the round at the current position: keeps the actor already picked for it (if still active), else picks one. Returns the new state (never mutates).
+export function beginPantomimeRound(state,participantIds,random=Math.random){
+  if(state.actorPosition===state.position&&(participantIds||[]).includes(state.currentActorId))return state;
+  const previous=state.currentActorId||state.lastActorId||'';
+  return {...state,lastActorId:previous,currentActorId:pickActor(participantIds,previous,random),actorPosition:state.position};
+}
+export const pantomimeNext=state=>({...state,position:state.position+1});
+// Pantomime needs an actor and at least one guesser.
+export const pantomimePlayable=participants=>(participants||[]).filter(person=>person.active!==false).length>=2;

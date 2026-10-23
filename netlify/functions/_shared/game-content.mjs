@@ -68,3 +68,21 @@ export function triviaInstruction({destinations,items},{count,exclude,topUp}){
   if(exclude.length)lines.push('Do NOT repeat any of the following, in substance, even rephrased:',...exclude.map(entry=>`- ${entry.question} => ${entry.answer}`));
   return lines.join('\n');
 }
+
+// ---- Beta 0.9.3: Pantomime phrases. The generation, the exclusion-list history and the dedup / top-up guard are the SAME engine as Trivia's
+// (generateWithRepeatGuard / dropRepeats / cleanHistory above), parameterized by `fields`; only the schema, prompt and context differ. ----
+export const PANTOMIME_COUNT=12;
+export const PANTOMIME_FIELDS=['text'];
+export const pantomimeSchema={type:'object',additionalProperties:false,required:['phrases'],properties:{phrases:{type:'array',items:{type:'object',additionalProperties:false,required:['text'],properties:{text:{type:'string'}}}}}};
+export const pantomimeSystemPrompt=`You write phrases for a family charades (pantomime) game on a trip, in Hebrew. One person acts a phrase out silently, using only body movements, and the others guess.
+Every phrase must be something ONE person can act out without words or props: a scene at a market, an animal doing something, a daily activity or a custom of the destination, a kind of food being prepared or eaten, a place or a vehicle. NOT an abstract idea, NOT a name of a person, NOT something that needs speech or a written word.
+Tone: kid-friendly, playful, nothing scary or mature, understandable by the youngest child on the trip. Short: two to six words each.
+Content: places, culture and daily life of the trip's actual destination.
+Never repeat, even rephrased or with the same meaning, any phrase in the exclusion list.`;
+// Pantomime is destination-only content: no hotels, no activities, nothing from the itinerary ever reaches its prompt.
+export const buildPantomimeContext=body=>({destinations:buildTripContext(body).destinations,items:[]});
+export function pantomimeInstruction({destinations},{count,exclude,topUp}){
+  const lines=[`Destination(s): ${destinations.join(', ')||'unknown'}`,`Write exactly ${count} NEW charades phrases${topUp?' (a top-up: the first attempt repeated earlier phrases)':''}.`];
+  if(exclude.length)lines.push('Do NOT repeat any of the following, in substance, even rephrased:',...exclude.map(entry=>`- ${entry.text}`));
+  return lines.join('\n');
+}

@@ -6,11 +6,13 @@ import crypto from 'node:crypto';
 import OpenAI from 'openai';
 import {authorize,httpError} from './_shared/smart-import-auth.mjs';
 import {consumeDailyQuota,registerOrVerifyTrip,writeAudit} from './_shared/smart-import-quota.mjs';
-import {TRIVIA_COUNT,TRIVIA_FIELDS,buildTripContext,cleanHistory,generateWithRepeatGuard,triviaInstruction,triviaSchema,triviaSystemPrompt} from './_shared/game-content.mjs';
+import {PANTOMIME_COUNT,PANTOMIME_FIELDS,TRIVIA_COUNT,TRIVIA_FIELDS,buildPantomimeContext,buildTripContext,cleanHistory,generateWithRepeatGuard,pantomimeInstruction,pantomimeSchema,pantomimeSystemPrompt,triviaInstruction,triviaSchema,triviaSystemPrompt} from './_shared/game-content.mjs';
 
 const MODEL='gpt-5.6-luna';
 const KINDS={
-  generate_trivia:{schemaName:'familytrips_trivia',schema:triviaSchema,systemPrompt:triviaSystemPrompt,instruction:triviaInstruction,fields:TRIVIA_FIELDS,count:TRIVIA_COUNT,listKey:'questions',needsDestination:true},
+  generate_trivia:{schemaName:'familytrips_trivia',schema:triviaSchema,systemPrompt:triviaSystemPrompt,instruction:triviaInstruction,fields:TRIVIA_FIELDS,count:TRIVIA_COUNT,listKey:'questions',needsDestination:true,context:buildTripContext},
+  // 0.9.3: destination-only phrases for Pantomime; the same engine, the same quota, the same audit
+  generate_pantomime:{schemaName:'familytrips_pantomime',schema:pantomimeSchema,systemPrompt:pantomimeSystemPrompt,instruction:pantomimeInstruction,fields:PANTOMIME_FIELDS,count:PANTOMIME_COUNT,listKey:'phrases',needsDestination:true,context:buildPantomimeContext},
 };
 export default async function handler(request){
   if(request.method!=='POST')return json({error:'method_not_allowed'},405);
@@ -19,7 +21,7 @@ export default async function handler(request){
     const user=await authorize(request);const body=await request.json();const tripId=String(body.tripId||'').trim();if(!tripId)throw httpError(400,'invalid_trip','tripId is required.');
     audit={...audit,userEmailHash:user.emailHash,tripId,sourceKind:body.operation};
     const kind=KINDS[body.operation];if(!kind)throw httpError(400,'invalid_operation','Unsupported operation.');
-    const context=buildTripContext(body);if(kind.needsDestination&&!context.destinations.length)throw httpError(400,'no_destination','The trip has no destination yet.');
+    const context=kind.context(body);if(kind.needsDestination&&!context.destinations.length)throw httpError(400,'no_destination','The trip has no destination yet.');
     await registerOrVerifyTrip(tripId,user);const quota=await consumeDailyQuota(user);
     const client=new OpenAI();let usage={inputTokens:0,outputTokens:0};
     const callModel=async request=>{

@@ -1,5 +1,6 @@
 const BINGO_INSTRUCTIONS='בוחרים מקום, ומחפשים בעולם האמיתי את הדברים שעל הלוח — כל משתתף עם לוח משלו. מצאתם? מצלמים! שורה, עמודה או לוח מלא — חוגגים.';
 const OLD_BINGO_TITLE='בינגו שדה תעופה',OLD_BINGO_INSTRUCTIONS='חפשו מזוודה אדומה, מטוס, מדים, מסוע, לוח המראות ושער עלייה.',OLD_BINGO_ITEMS='פתק או טלפון';
+const PANTOMIME_INSTRUCTIONS='ביטויים על מקומות, תרבות וחיי היומיום ביעד, לחיקוי בלי מילים ובלי קול — נבנים במיוחד בשביל הטיול. מתאים לכל המשפחה כשכולם נמצאים יחד.';
 const TRIVIA_INSTRUCTIONS='שאלות על מקומות, תרבות וחיי היומיום ביעד, שנבנות במיוחד בשביל הטיול — כולל המלונות והפעילויות שכבר הוספתם. מתאים לכל המשפחה, כולל הקטנים.';
 const TWENTY_QUESTIONS_INSTRUCTIONS='אדם אחד בוחר אדם, דמות, מקום או חפץ. האחרים שואלים שאלות כן/לא — עד 20 שאלות, או עד שמישהו מנחש.';
 const OLD_20Q_INSTRUCTIONS='בוחרים אדם, מקום או חפץ. האחרים שואלים עד 20 שאלות כן/לא.';
@@ -14,6 +15,8 @@ export const BUILTIN_GAMES=[
   {id:'game-airport-bingo',interactive:true,title:'בינגו לפי מקום',instructions:BINGO_INSTRUCTIONS,items:'טלפון עם מצלמה',participants:'2 ומעלה',duration:'15 דקות',themes:BINGO_THEMES,activeTheme:'',boards:{},celebratedLines:{}},
   // 0.9.1: an AI-built deck per trip. The id stays (saved state is keyed by it); the title is destination-neutral.
   {id:'game-thailand-trivia',onTheGo:true,interactive:true,title:'טריוויה על היעד',instructions:TRIVIA_INSTRUCTIONS,items:'ללא ציוד',participants:'כל המשפחה',duration:'20 דקות',deck:[],askedQuestions:[],triviaState:{order:[],position:0,scores:{}}},
+  // 0.9.3: a brand-new id, so it is simply pushed into every saved trip by the push-if-missing step -- no backfill. needs everyone watching, so no onTheGo.
+  {id:'game-pantomime',interactive:true,title:'פנטומימה',instructions:PANTOMIME_INSTRUCTIONS,items:'ללא ציוד',participants:'2 ומעלה',duration:'20 דקות',deck:[],askedPhrases:[],pantomimeState:{order:[],position:0,scores:{},lastActorId:'',currentActorId:'',actorPosition:-1}},
 ];
 
 // 0.7.2: Firestore subcollection sync logic, extracted here (dependency-free) rather than left

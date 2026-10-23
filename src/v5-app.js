@@ -4,8 +4,8 @@ import {MultipartQrCollector,decodeExternalText,importBatchToApp} from './extern
 import {availableTimelineModes,backfillTripDates,currentOperational,filterAndSortTasks,isDeletionEligible,isItemOutsideTrip,normalizeDateRange,normalizeOperationalState,packingDuplicate,periodBounds,QUARANTINE_DELETION_ELIGIBLE_DAYS,quickAccessTasks,sanitizeTripDates,shiftCursor,sortItemsByStartAt,TASK_DUE_SCOPES,TRANSPORT_TYPES,itemStartMs,planToday,shortDayLabel,shouldClearEndedOnEdit,today,addParticipantsToRecord,computeTicketCoverage,participantChipLabel,pickerParticipants,uniqueRecordsById,upNextItem,isTaskOverdue,filterShoppingItems,isSharedShoppingItem,participantAssignments,shoppingOwnerLabel,normalizeTaskLink} from './operational-data.js';
 import {COUNTER_ABOVE,arrowKeyTarget,carouselSlots,participantLayout,positionIndicator} from './participant-carousel.js';
 import {normalizeProposalLifecycle,rejectProposal} from './proposal-lifecycle.js';
-import {GAME_FILTERS,TRIVIA_ID,capHistory,filterGames,gamePrimaryAction,newTriviaDeck,newTriviaState,readMoreUrl,toggleCorrect,triviaBuildGate,triviaFinished,triviaNext,triviaQuestion,triviaTally,triviaWinners} from './games.js';
-import {generateTrivia} from './game-content-client.js';
+import {GAME_FILTERS,PANTOMIME_ID,TRIVIA_ID,beginPantomimeRound,capHistory,gameBuildGate,newPantomimeDeck,newPantomimeState,pantomimeFinished,pantomimeNext,pantomimePhrase,pantomimePlayable,filterGames,gamePrimaryAction,newTriviaDeck,newTriviaState,readMoreUrl,toggleCorrect,triviaBuildGate,triviaFinished,triviaNext,triviaQuestion,triviaTally,triviaWinners} from './games.js';
+import {generatePantomime,generateTrivia} from './game-content-client.js';
 import {WINNER_REPEATS,createWinnerPlayer} from './winner-animation.js';
 import {BINGO_ID,BINGO_THEMES,BINGO_THEME_KEYS,bingoPhotoLocation,bingoStoragePath,dropBoard,ensureBoard,foundCount,freshCompletions,pendingPhotos,pruneCelebrated,syncPendingPhotos} from './bingo.js';
 import {deleteLocalPhoto,getLocalPhoto,putLocalPhoto} from './local-photos.js';
@@ -772,6 +772,7 @@ function gameView(){
   const game=state.games.find(candidate=>candidate.id===state.itemId);
   if(!game)return `<section class="card">${backRow('games')}${emptyState('dice','המשחק לא נמצא','ייתכן שהוסר.','')}</section>`;
   if(game.id===TRIVIA_ID)return triviaView(game);
+  if(game.id===PANTOMIME_ID)return pantomimeView(game);
   if(game.id===BINGO_ID)return bingoView(game);
   const fact=(label,value)=>value?`<div class="fact"><dt>${label}</dt><dd>${esc(value)}</dd></div>`:'';
   return `<section class="card">${backRow('games','','',`${tabler('dice')} ${esc(game.title)}`)}<p class="game-description">${esc(game.instructions)}</p><dl class="detail-facts">${fact('מתאים ל',game.participants)}${fact('משך',game.duration)}${fact('ציוד',game.items)}</dl><button class="btn game-primary" data-action="game-start" data-id="${game.id}">${gamePrimaryAction(game)}</button></section>`;
@@ -1017,6 +1018,66 @@ function hydrateBingoPhotos(){
 addEventListener('change',event=>{if(event.target?.id==='bingo-file')bingoPhotoChosen(event.target)});
 addEventListener('online',()=>syncBingoPhotos());
 addEventListener('keydown',event=>{if(event.key==='Escape'&&bingoViewing){closeBingoViewer();render()}});
+// Beta 0.9.3: Pantomime. The deck of phrases is built once per tap by the same server function as Trivia (destination-only, one of the day's calls), kept on the
+// game's own record and playable offline afterwards. Each round: the app picks the actor at random, shows a "pass the phone, look away" screen naming them, the
+// actor reveals the phrase privately, performs it silently, then the family taps who guessed (or skips). UI-only state (not saved): which game is being built,
+// which of the three screens of the round is showing, and who was marked this round.
+let pantomimeBuilding=null,pantomimeStage='away',pantomimeMarked=[];
+const pantomimeActiveIds=()=>state.participants.filter(person=>person.active!==false).map(person=>person.id);
+function pantomimeView(game){
+  if(pantomimeBuilding===game.id){
+    const phrases=['אוספים ביטויים על מקומות ותרבות ביעד…','בוחרים ביטויים שאפשר לחקות בלי מילים…','מתאימים את הביטויים לילדים…'];
+    return `<section class="card">${triviaTop(game)}${largePalm({phrases,label:'בונים פנטומימה…',note:'זה יכול לקחת כמה שניות. אין צורך לסגור את המסך.'})}</section>`;
+  }
+  if(gamePlaying===game.id&&(game.deck||[]).length)return pantomimePlayView(game);
+  const fact=(label,value)=>value?`<div class="fact"><dt>${label}</dt><dd>${esc(value)}</dd></div>`:'';
+  const gate=gameBuildGate(state.trip,'פנטומימה'),built=(game.deck||[]).length>0,playable=pantomimePlayable(state.participants);
+  const facts=`<dl class="detail-facts">${fact('מתאים ל',game.participants)}${fact('משך',game.duration)}${fact('ציוד',game.items)}</dl>`;
+  const hint=gate.allowed?'':`<p class="muted small game-hint">${gate.hint}</p>`;
+  if(built)return `<section class="card">${triviaTop(game)}<p class="game-description">${esc(game.instructions)}</p>${facts}<p class="muted small">${game.deck.length} ביטויים מוכנים · אפשר לשחק גם בלי חיבור לאינטרנט.</p><button class="btn game-primary" data-action="game-start" data-id="${game.id}"${playable?'':' disabled'}>${gamePrimaryAction(game)}</button>${playable?'':'<p class="muted small game-hint">פנטומימה צריכה לפחות שני משתתפים — מוסיפים אותם בהגדרות הטיול.</p>'}<button class="btn ghost game-secondary" data-action="pantomime-build" data-id="${game.id}"${gate.allowed?'':' disabled'}>בנה פנטומימה מחדש</button>${hint}</section>`;
+  return `<section class="card">${triviaTop(game)}${emptyState('dice','עדיין לא נבנה פנטומימה לטיול הזה',esc(game.instructions))}${facts}<button class="btn game-primary" data-action="pantomime-build" data-id="${game.id}"${gate.allowed?'':' disabled'}>בנה פנטומימה</button>${hint}</section>`;
+}
+function pantomimePlayView(game){
+  const ps=game.pantomimeState,total=ps.order.length;
+  if(pantomimeFinished(game)){
+    const rows=triviaTally(ps.scores,state.participants).map(row=>`<div class="tally-row${row.medal==='🥇'?' first':''}"><span class="tally-name">${row.medal?`<span class="medal" aria-hidden="true">${row.medal}</span>`:''}${esc(row.name)}</span><span class="tally-score">${row.score}</span></div>`).join('');
+    const gate=gameBuildGate(state.trip,'פנטומימה');
+    return `<section class="card">${triviaTop(game,'pantomime-exit')}<div class="trivia-end"><b>סיימתם את הסיבוב!</b><p class="muted">${total} ביטויים על היעד והטיול שלכם</p><div class="tally">${rows}</div></div><button class="btn game-primary" data-action="pantomime-replay" data-id="${game.id}">שחקו שוב</button><button class="btn ghost game-secondary" data-action="pantomime-build" data-id="${game.id}"${gate.allowed?'':' disabled'}>בנה פנטומימה מחדש</button></section>`;
+  }
+  const phrase=pantomimePhrase(game),actor=state.participants.find(person=>person.id===ps.currentActorId),actorName=actor?actor.name:'';
+  const progress=`<span class="q-label">ביטוי <bdi dir="ltr">${ps.position+1}/${total}</bdi></span>`;
+  if(pantomimeStage==='away')return `<section class="card">${triviaTop(game,'pantomime-exit')}<div class="lookaway">${progress}<span class="auto-pick-badge">${tabler('dice')} נבחר/ה אוטומטית להציג</span><h2>מעבירים את הטלפון ל<bdi>${esc(actorName)}</bdi> — כולם אחרים, תביטו לכיוון אחר!</h2><p><bdi>${esc(actorName)}</bdi>, תלחץ/י כשאת/ה מוכן/ה לראות את הביטוי בעצמך.</p></div><button class="btn game-primary" data-action="pantomime-reveal" data-id="${game.id}">הצג את הביטוי</button></section>`;
+  if(pantomimeStage==='reveal')return `<section class="card">${triviaTop(game,'pantomime-exit')}<div class="reveal-card">${progress}<span class="reveal-label">חקו בלי מילים:</span><p class="reveal-text">${esc(phrase.text)}</p><span class="reveal-rule">בלי לדבר, בלי להצביע על אובייקטים — רק תנועות</span></div><button class="btn game-primary" data-action="pantomime-ready" data-id="${game.id}">הצגתי, עברו לניחוש</button></section>`;
+  const guessers=state.participants.filter(person=>person.active!==false&&person.id!==ps.currentActorId);
+  const chips=guessers.length?`<p class="trivia-prompt">מי ניחש נכון?</p><div class="trivia-chips">${guessers.map(person=>`<button class="trivia-chip${pantomimeMarked.includes(person.id)?' on':''}" data-action="pantomime-score" data-id="${game.id}" data-participant="${person.id}" aria-pressed="${pantomimeMarked.includes(person.id)}">${esc(person.name)} <span class="score">${ps.scores?.[person.id]||0}</span></button>`).join('')}</div>`:'';
+  return `<section class="card">${triviaTop(game,'pantomime-exit')}<div class="trivia-q">${progress}<p class="q-text">${esc(phrase.text)}</p></div>${chips}<button class="btn game-primary" data-action="pantomime-next" data-id="${game.id}">${ps.position+1<total?'ביטוי הבא':'לסיכום'}</button><button class="btn ghost game-secondary" data-action="pantomime-skip" data-id="${game.id}">דילוג — לא ניחשו</button></section>`;
+}
+async function buildPantomime(gameId){
+  const game=state.games.find(candidate=>candidate.id===gameId);
+  if(!game||pantomimeBuilding||!gameBuildGate(state.trip,'פנטומימה').allowed)return;
+  if((game.deck||[]).length&&(game.pantomimeState?.position||0)>0&&!pantomimeFinished(game)&&!confirm('לבנות פנטומימה חדשה? המשחק שבאמצע והניקוד שלו יימחקו.'))return;
+  pantomimeBuilding=gameId;render();
+  try{
+    const result=await generatePantomime({trip:state.trip,history:game.askedPhrases||[]});
+    const deck=newPantomimeDeck(result.phrases);
+    if(!deck.length)throw new Error('לא נמצאו ביטויים חדשים ליעד הזה. נסו שוב מאוחר יותר.');
+    const live=state.games.find(candidate=>candidate.id===gameId);
+    live.deck=deck;live.askedPhrases=capHistory(live.askedPhrases,deck,undefined,['text']);live.pantomimeState=newPantomimeState(deck);live.started=false;
+    pantomimeBuilding=null;gamePlaying=null;save();render();
+    notify(result.shortBy>0?`נבנו ${deck.length} ביטויים חדשים — חומר חדש ליעד הזה מתחיל להיגמר`:'הפנטומימה מוכנה',result.shortBy>0?5000:2600);
+  }catch(error){pantomimeBuilding=null;render();notify(error.message||'בניית הפנטומימה נכשלה.',6000)}
+}
+// Opens the round at the current position (the actor is picked here, once, and saved) and shows the "look away" screen.
+function pantomimeOpenRound(game){
+  pantomimeStage='away';pantomimeMarked=[];
+  if(!pantomimeFinished(game))game.pantomimeState=beginPantomimeRound(game.pantomimeState,pantomimeActiveIds());
+}
+// "ביטוי הבא" and "דילוג" both end the round; the last one ends the game and the winner(s) celebrate (twice), as in Trivia.
+function pantomimeAdvance(gameId){
+  const game=state.games.find(candidate=>candidate.id===gameId);if(!game)return;
+  game.pantomimeState=pantomimeNext(game.pantomimeState);pantomimeOpenRound(game);save();render();
+  if(pantomimeFinished(game)){const winners=triviaWinners(game.pantomimeState.scores,state.participants);if(winners.length)fireWinner({name:winners.join(' · '),caption:winners.length>1?'ניצחון משותף בסיבוב!':'ניצחון בסיבוב!',big:true,times:WINNER_REPEATS})}
+}
 // 0.7.4: shared list + personal list per participant, with switching between them (MVP scope's
 // own wording). An item with no participantIds is shared; the "shared" view shows only those, and
 // a specific participant's view shows their own items PLUS every shared one -- their own personal
@@ -2511,6 +2572,14 @@ addEventListener('click',async event=>{if(Date.now()<suppressClickUntil)return;i
     if(triviaFinished(game)){const winners=triviaWinners(game.triviaState.scores,state.participants);if(winners.length)fireWinner({name:winners.join(' · '),caption:winners.length>1?'ניצחון משותף בסיבוב!':'ניצחון בסיבוב!',big:true,times:WINNER_REPEATS})}}
   else if(action==='trivia-replay'){const game=state.games.find(x=>x.id===button.dataset.id);game.triviaState=newTriviaState(game.deck);game.started=true;triviaRevealed=false;triviaMarked=[];save();render()}
   else if(action==='trivia-exit'){gamePlaying=null;render()}
+  else if(action==='pantomime-build')await buildPantomime(button.dataset.id);
+  else if(action==='pantomime-reveal'){pantomimeStage='reveal';render()}
+  else if(action==='pantomime-ready'){pantomimeStage='score';render()}
+  else if(action==='pantomime-score'){const game=state.games.find(x=>x.id===button.dataset.id),result=toggleCorrect(game.pantomimeState,pantomimeMarked,button.dataset.participant);pantomimeMarked=result.marked;game.pantomimeState={...game.pantomimeState,scores:result.scores};save();render()}
+  else if(action==='pantomime-next'||action==='pantomime-skip')pantomimeAdvance(button.dataset.id);
+  else if(action==='pantomime-replay'){const game=state.games.find(x=>x.id===button.dataset.id);game.pantomimeState=newPantomimeState(game.deck);game.started=true;pantomimeOpenRound(game);save();render()}
+  else if(action==='pantomime-exit'){gamePlaying=null;render()}
+  else if(action==='game-start'&&button.dataset.id===PANTOMIME_ID){const game=state.games.find(x=>x.id===PANTOMIME_ID);if(game?.deck?.length&&pantomimePlayable(state.participants)){game.started=true;gamePlaying=PANTOMIME_ID;pantomimeOpenRound(game);save();render()}}
   else if(action==='game-start'&&button.dataset.id===TRIVIA_ID){const game=state.games.find(x=>x.id===TRIVIA_ID);if(game?.deck?.length){game.started=true;gamePlaying=TRIVIA_ID;triviaRevealed=false;triviaMarked=[];save();render()}}
   else if(action==='bingo-theme'){const game=bingoGame();game.activeTheme=button.dataset.theme;bingoPicking=false;closeBingoViewer();save();render()}
   else if(action==='bingo-switch'){bingoPicking=true;render()}
