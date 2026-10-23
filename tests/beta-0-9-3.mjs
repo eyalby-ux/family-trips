@@ -5,7 +5,8 @@ import fs from 'node:fs';
 import {WINNER_ANIMATIONS,WINNER_MS,WINNER_REPEATS,createWinnerPlayer,winnerHtml} from '../src/winner-animation.js';
 import {REMIND_ME_HISTORY_CAP,REMIND_ME_MODES as SERVER_MODES,cleanStartHistory,extractRemindMe,remindMeInstruction,remindMeSchema,remindMeSystemPrompt,PANTOMIME_COUNT,PANTOMIME_FIELDS,buildPantomimeContext,cleanHistory,generateWithRepeatGuard,pantomimeInstruction,pantomimeSchema,pantomimeSystemPrompt} from '../netlify/functions/_shared/game-content.mjs';
 import {REMIND_ME_CAP,REMIND_ME_ID,REMIND_ME_MODES,applyRemindMeResult,chooseRemindMeMode,emptyRemindMe,remindMeHistory,remindMeSuggestion,PANTOMIME_ID,beginPantomimeRound,capHistory,gameBuildGate,newPantomimeDeck,newPantomimeState,pantomimeFinished,pantomimeNext,pantomimePhrase,pantomimePlayable,pickActor,toggleCorrect,triviaWinners} from '../src/games.js';
-import {BUILTIN_GAMES,normalizeOperationalState} from '../src/operational-data.js';
+import {BUILTIN_GAMES,normalizeOperationalState,sanitizeTripDates} from '../src/operational-data.js';
+import {onboardingTripFrom,showsOnboarding} from '../src/onboarding.js';
 
 const read=path=>fs.readFileSync(new URL(path,import.meta.url),'utf8');
 const app=read('../src/v5-app.js'),css=read('../src/styles.css'),pkg=JSON.parse(read('../package.json'));
@@ -270,6 +271,61 @@ test('(B) the card: gated on a destination (disabled + hint), a two-tile mode pi
   const wordBody=card.slice(card.indexOf('`<div class="smart-suggestion"><span class="q-label">מילה להתחלה'),card.indexOf('`<div class="smart-suggestion"><span class="q-label">מילה להתחלה')+160);assert(!wordBody.includes('בינה מלאכותית'),'no caption under a word');
   assert(card.includes("largePalm({phrases:[remindMeBuilding==='song'"),'the same palm loader while it builds');
   assert.match(css,/\.smart-card\{margin:16px 0;padding:14px;/);assert.match(css,/\.mode-pill\{[^}]*min-height:44px/);assert(app.includes("  music:'<path d="),'the music-note icon');
+});
+
+// ---------------------------------------------------------------- (C) new-user onboarding
+
+test('(C) the two-path screen appears ONLY for an account that has never had a trip; a returning user keeps the original screen',()=>{
+  assert.equal(showsOnboarding({trip:null,myTripCount:0}),true,'first ever launch');
+  assert.equal(showsOnboarding({trip:null,myTripCount:2}),false,'a returning user with trips (e.g. tapping a tab before opening one)');
+  assert.equal(showsOnboarding({trip:{id:'t'},myTripCount:0}),false,'a trip is open (a returning user starting their 2nd trip has state.trip set by startNewTripFlow)');
+  assert.equal(showsOnboarding({trip:{id:'t'},myTripCount:1}),false);assert.equal(showsOnboarding({trip:null,myTripCount:undefined}),false,'unknown is not "first time"');
+  // wiring: empty() asks that one question; the original markup is still there for everyone else
+  const empty=fn('empty');
+  assert(empty.includes('if(showsOnboarding({trip:state.trip,myTripCount:myTrips.length}))return onboardingScreen();')&&empty.includes('מתחילים מטיול ריק')&&empty.includes('data-action="create">הוספה</button>'),'the original one-button screen is untouched');
+  const startNew=fn('startNewTripFlow');assert(startNew.includes("ensureTrip({name:'טיול חדש'})"),'a returning user starting a new trip gets state.trip immediately -- they never reach the empty screen');
+  assert(read('../src/onboarding.js').includes('!trip&&Number(myTripCount)===0'));
+  // no new "has this user ever had a trip" flag was invented
+  assert(!/hasEverHadTrip|firstTimeUser|isFirstTrip/.test(app));
+});
+
+test('(C) the screen: two equally weighted cards (upload the first document / add dates and destination), with the approved copy; a quick inline form; a דילוג button',()=>{
+  const screen=fn('onboardingScreen');
+  for(const text of ['ברוכים הבאים ל-FamilyTrips','איך תרצו להתחיל את הטיול הראשון שלכם?','העלאת המסמך הראשון','כרטיס טיסה, אישור הזמנה או כל מסמך אחר — נזין את הפרטים בשבילכם','הוספת תאריכים ויעד','בלי מסמך — קובעים מתי ולאן נוסעים, ומתחילים מכאן','אפשר גם להוסיף פריט ידנית או לסרוק קוד QR — זה נשאר בתוך אפשרות ההעלאה.'])assert(screen.includes(text),text);
+  assert(screen.includes("choiceCard('create','upload','העלאת המסמך הראשון'")&&screen.includes("choiceCard('onboarding-form','calendar','הוספת תאריכים ויעד'"),'both through the SAME card component: equal weight');
+  assert.equal((app.match(/const choiceCard=/g)||[]).length,1);
+  for(const text of ['לאן נוסעים?','למשל: תאילנד','תאריך התחלה','תאריך סיום','אפשר לשנות או להוסיף יעדים נוספים בהמשך, מתוך הגדרות הטיול.','יצירת הטיול','דילוג — אעדכן בהמשך','חזרה לבחירה'])assert(screen.includes(text),text);
+  assert(screen.includes('<input name="country" type="text" required')&&screen.includes('<input name="startDate" type="date">')&&screen.includes('<input name="endDate" type="date">'),'one destination, two dates, right on this screen');
+  assert(screen.includes('<form id="onboarding-form"'),'inline: not a route to the יעדים / settings screens');
+  assert.match(css,/\.choice-card\{display:flex;align-items:center;gap:12px;min-height:76px;/,'tall tap targets');assert.match(css,/\.onboarding-form input\{min-height:44px;/);
+});
+
+test('(C) the quick form: ensureTrip() is called with the date seed and the destination lands in destinationCountries (the field the יעדים form writes); dates are sanitized; a destination is required',()=>{
+  assert.deepEqual(onboardingTripFrom({country:'  תאילנד ',startDate:'2026-12-20',endDate:'2027-01-03'}),{country:'תאילנד',seed:{name:'טיול לתאילנד',startDate:'2026-12-20',endDate:'2027-01-03'}});
+  assert.deepEqual(onboardingTripFrom({country:'ספרד'}).seed,{name:'טיול לספרד',startDate:'',endDate:''},'dates are optional');
+  assert.deepEqual(onboardingTripFrom({country:'יפן',startDate:'2026-13-45',endDate:'לא תאריך'}).seed,{name:'טיול ליפן',startDate:'',endDate:''},'not real calendar dates: dropped');
+  assert.deepEqual(onboardingTripFrom({country:'איטליה',startDate:'2026-12-20',endDate:'2026-12-10'}).seed,{name:'טיול לאיטליה',startDate:'2026-12-20',endDate:'2026-12-20'},'an end before the start is pulled up to the start (the settings rule)');
+  assert.deepEqual(onboardingTripFrom({country:'   ',startDate:'2026-12-20'}),{error:'missing_country'});assert.deepEqual(onboardingTripFrom({}),{error:'missing_country'});
+  assert.deepEqual(sanitizeTripDates({startDate:'2026-12-20',endDate:'2027-01-03'}),{startDate:'2026-12-20',endDate:'2027-01-03'},'ensureTrip\'s existing seed support');
+  const submit=app.slice(app.indexOf("else if(form.id==='onboarding-form')"),app.indexOf("else if(form.id==='destination-add-form')"));
+  assert(submit.includes("onboardingTripFrom({country:data.get('country'),startDate:data.get('startDate'),endDate:data.get('endDate')})")&&submit.includes("if(made.error){notify('כתבו לאן נוסעים.');return}"),'a missing destination creates nothing');
+  assert(submit.includes('ensureTrip(made.seed);state.trip.destinationCountries=[made.country];onboardingForm=false;save();render();'),'ensureTrip with the seed, the destination into the same field the יעדים form writes, then save');
+  assert(app.includes("else if(form.id==='destination-add-form'){const country=String(data.get('country')||'').trim();if(country){state.trip.destinationCountries=[...(state.trip.destinationCountries||[]),country]"),'the יעדים form is untouched: same field');
+  assert(app.includes("function ensureTrip(seed={}){if(!state.trip){const dates=sanitizeTripDates(seed);state.trip={id:uid('trip'),name:seed.name||"),'ensureTrip already takes the date seed (unchanged)');
+});
+
+test('(C) דילוג and the back arrow return to the two-choice screen creating NOTHING (also the answer for a form left partway); the document path is unchanged',()=>{
+  assert(app.includes("else if(action==='onboarding-form'){onboardingForm=true;render()}")&&app.includes("else if(action==='onboarding-back'){onboardingForm=false;render()}"));
+  const back=app.slice(app.indexOf("else if(action==='onboarding-back')"),app.indexOf("else if(action==='onboarding-back')")+80);assert(!/ensureTrip|save\(\)/.test(back),'going back neither creates a trip nor saves');
+  const screen=fn('onboardingScreen');
+  assert((screen.match(/data-action="onboarding-back"/g)||[]).length===2,'the back arrow AND "דילוג" both go back');
+  assert(screen.includes('<button class="btn ghost game-secondary" type="button" data-action="onboarding-back">דילוג — אעדכן בהמשך</button>'),'דילוג is a ghost button, not a submit');
+  // the upload path: the first card is today's "הוספה" action, untouched
+  assert(app.includes("if(action==='create'){state.modal={type:'intake',source:'manual'};render()}"),'the existing intake modal (upload, QR or manual entry) opens exactly as before');
+  assert(screen.includes("choiceCard('create','upload'"),'the first card IS that action -- nothing is pre-filled from the document, no behaviour change beyond being one of two options');
+  assert(!/prefill|preFill|pre-fill/i.test(screen),'no pre-fill of dates / destination from the uploaded document');
+  // a skipped form means the screen shows the choices again (state only)
+  assert(screen.indexOf('if(onboardingForm)')<screen.indexOf('ברוכים הבאים ל-FamilyTrips'));
 });
 
 let failed=0;

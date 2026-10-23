@@ -10,6 +10,7 @@ import {WINNER_REPEATS,createWinnerPlayer} from './winner-animation.js';
 import {BINGO_ID,BINGO_THEMES,BINGO_THEME_KEYS,bingoPhotoLocation,bingoStoragePath,dropBoard,ensureBoard,foundCount,freshCompletions,pendingPhotos,pruneCelebrated,syncPendingPhotos} from './bingo.js';
 import {deleteLocalPhoto,getLocalPhoto,putLocalPhoto} from './local-photos.js';
 import {shrinkImage} from './image-utils.js';
+import {onboardingTripFrom,showsOnboarding} from './onboarding.js';
 import {syncStripText,cloudFailureMessage} from './ui-states.js';
 import {normalizeThaiPua} from './text-normalize.js';
 import {KIND_COLOURS,dayEntries,dayOf,daysBetween,isStay,monthWeeks,nightStay,ribbonRange,ribbonRows,shiftTimeline,stayHue,stayList,weekBands} from './timeline-view.js';
@@ -373,7 +374,14 @@ function suggestionById(id){return state.suggestions.find(suggestion=>suggestion
 function isHebrewText(text){return [...String(text)].some(char=>{const code=char.codePointAt(0);return code>=0x590&&code<=0x5FF})}
 function destinationSummary(){const countries=state.trip?.destinationCountries||[];if(!countries.length)return '';const arrow=isHebrewText(countries.join(''))?'←':'→';return countries.map(esc).join(` ${arrow} `)}
 function header(){const destination=destinationSummary();return `<header class="top"><div class="top-in"><div class="brand"><img src="/assets/icons/icon-192.png" alt=""><div><h1>${esc(state.trip?.name||'Family Trips')}</h1><p>${destination?`${destination} · `:''}${state.trip?.startDate?`${fmt(state.trip.startDate,false)} — ${state.trip.endDate?fmt(state.trip.endDate,false):'ללא סיום'}`:`<bdi>${appVersionLabel()}</bdi> · Hotel + Flight Smart Import`}</p></div></div><span class="status">${status()}</span></div></header>`}
-function empty(){return `<section class="card hero empty"><div class="big">${tabler('compass').replace('class="ti"','class="ti ti-big"')}</div><h2>מתחילים מטיול ריק</h2><p class="muted">העלה מקור, ייבא JSON/QR או הזן פריט ידנית.</p><div class="actions center-actions"><button class="btn" data-action="create">הוספה</button></div></section>`}
+// 0.9.3 (C): a first-ever user (no trip open, no trips on the account) gets two equal starting paths; everyone else keeps the original one-button screen.
+let onboardingForm=false;
+const choiceCard=(action,icon,title,text)=>`<button class="choice-card" data-action="${action}"><span class="choice-icon">${tabler(icon)}</span><span class="choice-text"><b>${title}</b><span>${text}</span></span>${tabler('chevron').replace('class="ti"','class="ti icon-directional row-chevron"')}</button>`;
+function onboardingScreen(){
+  if(onboardingForm)return `<section class="card"><div class="detail-top"><button class="icon-btn back-btn" data-action="onboarding-back" aria-label="חזרה לבחירה">${tabler('arrow').replace('class="ti"','class="ti icon-directional"')}</button><h2 class="detail-title">תאריכים ויעד</h2></div><form id="onboarding-form" class="onboarding-form"><label class="field"><span>לאן נוסעים?</span><input name="country" type="text" required autocomplete="off" placeholder="למשל: תאילנד"></label><div class="date-row"><label class="field"><span>תאריך התחלה</span><input name="startDate" type="date"></label><label class="field"><span>תאריך סיום</span><input name="endDate" type="date"></label></div><p class="muted small">אפשר לשנות או להוסיף יעדים נוספים בהמשך, מתוך הגדרות הטיול.</p><button class="btn game-primary" type="submit">יצירת הטיול</button><button class="btn ghost game-secondary" type="button" data-action="onboarding-back">דילוג — אעדכן בהמשך</button></form></section>`;
+  return `<section class="card hero empty"><div class="big">${tabler('compass').replace('class="ti"','class="ti ti-big"')}</div><h2>ברוכים הבאים ל-FamilyTrips</h2><p class="muted">איך תרצו להתחיל את הטיול הראשון שלכם?</p><div class="choice-stack">${choiceCard('create','upload','העלאת המסמך הראשון','כרטיס טיסה, אישור הזמנה או כל מסמך אחר — נזין את הפרטים בשבילכם')}<div class="divider-or">או</div>${choiceCard('onboarding-form','calendar','הוספת תאריכים ויעד','בלי מסמך — קובעים מתי ולאן נוסעים, ומתחילים מכאן')}</div><p class="muted small">אפשר גם להוסיף פריט ידנית או לסרוק קוד QR — זה נשאר בתוך אפשרות ההעלאה.</p></section>`;
+}
+function empty(){if(showsOnboarding({trip:state.trip,myTripCount:myTrips.length}))return onboardingScreen();return `<section class="card hero empty"><div class="big">${tabler('compass').replace('class="ti"','class="ti ti-big"')}</div><h2>מתחילים מטיול ריק</h2><p class="muted">העלה מקור, ייבא JSON/QR או הזן פריט ידנית.</p><div class="actions center-actions"><button class="btn" data-action="create">הוספה</button></div></section>`}
 // 0.7.3.1: shown only before bootResolved -- see its own declaration for why this is a distinct
 // state from empty() rather than reusing it.
 // Spec S7: an empty screen is a small muted line icon, an --ink headline naming the empty space, one muted line of
@@ -2446,6 +2454,8 @@ function approveSuggestion(suggestion,mode='check',targetId=''){if(!suggestion||
 
 addEventListener('click',async event=>{if(Date.now()<suppressClickUntil)return;if(event.target.closest('#more-menu')||!event.target.closest('[data-action="more-menu"]'))closeMoreMenu();const routeButton=event.target.closest('[data-route]');if(routeButton){const view=routeButton.dataset.route;route(view,{category:routeButton.dataset.cat,itemId:routeButton.dataset.id,suggestionId:routeButton.dataset.id,anchor:routeButton.dataset.anchor,page:routeButton.dataset.page});if(view==='settings'&&state.trip?.ownerUid===currentUid())refreshEditorHistory();else if(view==='admin')refreshAdminInvitations();return}const button=event.target.closest('[data-action]');if(!button)return;const action=button.dataset.action;
   if(action==='create'){state.modal={type:'intake',source:'manual'};render()}
+  else if(action==='onboarding-form'){onboardingForm=true;render()}
+  else if(action==='onboarding-back'){onboardingForm=false;render()}
   else if(action==='more-menu')openMoreMenu(button);
   else if(action==='tasks-done-toggle'){state.tasksDoneCollapsed=!state.tasksDoneCollapsed;render()}
   else if(action==='doc-filter'){state.docFilter=button.dataset.filter||'all';render()}
@@ -2681,6 +2691,12 @@ function requiresOutOfRangeConfirmation(values){return isItemOutsideTrip(values,
 function confirmOutOfRangeSave(values){return !requiresOutOfRangeConfirmation(values)||confirm(`התאריך שנבחר מחוץ לטווח הטיול (${state.trip.startDate} עד ${state.trip.endDate}). לשמור בכל זאת?`)}
 addEventListener('submit',async event=>{event.preventDefault();const form=event.target,data=new FormData(form);
   if(form.id==='trip-form'){const range=normalizeDateRange(data.get('startDate'),data.get('endDate')),start=range.start,end=range.end,added=backfillTripDates(state.items,start);state.trip={...state.trip,name:String(data.get('name')).trim(),startDate:start,endDate:end};if(!state.timelineCursor)state.timelineCursor=start;save();render();notify(added?`הטיול נשמר ו־${added} פריטים ללא תאריך קיבלו את תאריך ההתחלה`:'הטיול נשמר')}
+  else if(form.id==='onboarding-form'){
+    // 0.9.3 (C): create the first trip from just a destination and dates -- the same ensureTrip() date seed and the same destinationCountries field the יעדים form writes to
+    const made=onboardingTripFrom({country:data.get('country'),startDate:data.get('startDate'),endDate:data.get('endDate')});
+    if(made.error){notify('כתבו לאן נוסעים.');return}
+    ensureTrip(made.seed);state.trip.destinationCountries=[made.country];onboardingForm=false;save();render();
+  }
   else if(form.id==='destination-add-form'){const country=String(data.get('country')||'').trim();if(country){state.trip.destinationCountries=[...(state.trip.destinationCountries||[]),country];save();render()}}
   else if(form.id==='participant-form'){
     const id=form.dataset.id||uid('participant'),existing=state.participants.find(candidate=>candidate.id===id);
