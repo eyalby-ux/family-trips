@@ -3,8 +3,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {WINNER_ANIMATIONS,WINNER_MS,WINNER_REPEATS,createWinnerPlayer,winnerHtml} from '../src/winner-animation.js';
-import {PANTOMIME_COUNT,PANTOMIME_FIELDS,buildPantomimeContext,cleanHistory,generateWithRepeatGuard,pantomimeInstruction,pantomimeSchema,pantomimeSystemPrompt} from '../netlify/functions/_shared/game-content.mjs';
-import {PANTOMIME_ID,beginPantomimeRound,capHistory,gameBuildGate,newPantomimeDeck,newPantomimeState,pantomimeFinished,pantomimeNext,pantomimePhrase,pantomimePlayable,pickActor,toggleCorrect,triviaWinners} from '../src/games.js';
+import {REMIND_ME_HISTORY_CAP,REMIND_ME_MODES as SERVER_MODES,cleanStartHistory,extractRemindMe,remindMeInstruction,remindMeSchema,remindMeSystemPrompt,PANTOMIME_COUNT,PANTOMIME_FIELDS,buildPantomimeContext,cleanHistory,generateWithRepeatGuard,pantomimeInstruction,pantomimeSchema,pantomimeSystemPrompt} from '../netlify/functions/_shared/game-content.mjs';
+import {REMIND_ME_CAP,REMIND_ME_ID,REMIND_ME_MODES,applyRemindMeResult,chooseRemindMeMode,emptyRemindMe,remindMeHistory,remindMeSuggestion,PANTOMIME_ID,beginPantomimeRound,capHistory,gameBuildGate,newPantomimeDeck,newPantomimeState,pantomimeFinished,pantomimeNext,pantomimePhrase,pantomimePlayable,pickActor,toggleCorrect,triviaWinners} from '../src/games.js';
 import {BUILTIN_GAMES,normalizeOperationalState} from '../src/operational-data.js';
 
 const read=path=>fs.readFileSync(new URL(path,import.meta.url),'utf8');
@@ -175,6 +175,101 @@ test('(A) a brand-new id: pushed into every saved trip by the existing push-if-m
   assert.deepEqual(BUILTIN_GAMES.find(game=>game.id===PANTOMIME_ID).deck,[]);assert.deepEqual(BUILTIN_GAMES.find(game=>game.id===PANTOMIME_ID).pantomimeState.scores,{});
   assert(app.includes('if(game.id===PANTOMIME_ID)return pantomimeView(game);'));
   assert.match(css,/\.lookaway\{display:flex;flex-direction:column;align-items:center;/);assert.match(css,/\.reveal-text\{margin:0;font-size:26px;/);
+});
+
+// ---------------------------------------------------------------- (B) מזכיר לי
+
+test('(B) the new game pushes into saved trips with no backfill; the draft instructions are the kickoff\'s, verbatim; it keeps the plain activity page (no interactive plumbing)',()=>{
+  const entry=BUILTIN_GAMES.find(game=>game.id===REMIND_ME_ID);
+  assert(entry);assert.equal(entry.title,'מזכיר לי');assert.equal(entry.onTheGo,true);assert.equal(entry.interactive,undefined,'no interactive flag: the chain is free-form, the app tracks nothing');
+  assert.equal(entry.participants,'2 ומעלה');assert.equal(entry.duration,'לפי הצורך');assert.equal(entry.items,'ללא ציוד (למצב השירים: טלפון עם נגן מוזיקה)');
+  assert(entry.instructions.startsWith('שני אופנים לשחק: (1) מילים — משתתף ראשון אומר מילה')&&entry.instructions.includes('(2) שירים — משתתף ראשון בוחר שיר ומשמיע אותו')&&entry.instructions.endsWith('או להמשיך להאזין עד הסוף.'));
+  assert.deepEqual({mode:entry.remindMeMode,start:entry.smartStart,asked:entry.askedStarts},{mode:'',start:{word:'',song:{title:'',artist:''}},asked:{words:[],songs:[]}});
+  const odSource=read('../src/operational-data.js');assert(!/game-remind-me/.test(odSource.slice(odSource.indexOf('export function backfillBuiltinGames'),odSource.indexOf('const freshBuiltin='))),'no backfill');
+  const trip=normalizeOperationalState({games:[{id:'game-road-story',title:'סיפור בהמשכים',favorite:true}],trip:{id:'t'},items:[]});
+  assert(trip.games.some(game=>game.id===REMIND_ME_ID&&game.favorite===false),'pushed into a trip that never had it');assert.equal(trip.games.filter(game=>game.id===REMIND_ME_ID).length,1);
+  const kept=normalizeOperationalState({games:[{...structuredClone(entry),remindMeMode:'song',smartStart:{word:'',song:{title:'א',artist:'ב'}}}],trip:{id:'t'},items:[]}).games.find(game=>game.id===REMIND_ME_ID);
+  assert.equal(kept.remindMeMode,'song');assert.equal(kept.smartStart.song.title,'א','an existing suggestion is never overwritten');
+  assert.deepEqual(emptyRemindMe(),{remindMeMode:'',smartStart:{word:'',song:{title:'',artist:''}},askedStarts:{words:[],songs:[]}});
+  // the bespoke card on the game's own instructions page, not the interactive play plumbing
+  assert(app.includes('if(game.id===REMIND_ME_ID)return remindMeView(game);'));
+  const view=fn('remindMeView');assert(view.includes('gamePrimaryAction(game)')&&view.includes('data-action="game-start"')&&view.includes('${remindMeCard(game)}'));
+  assert(!app.includes("action==='game-start'&&button.dataset.id===REMIND_ME_ID"),'the generic start stays as for סיפור בהמשכים');
+});
+
+test('(B) generate_remind_me_start: a SINGLE mode per call -- only the requested field comes back, never both; one quota call; gated on a destination; same engine file as the other games',async()=>{
+  const fnSource=read('../netlify/functions/game-content.mjs');
+  assert(fnSource.includes("body.operation==='generate_remind_me_start'")&&fnSource.includes("throw httpError(400,'invalid_mode'")&&fnSource.includes('single:true'));
+  assert.equal((fnSource.match(/consumeDailyQuota\(user\)/g)||[]).length,1,'the same shared 10-a-day pool, one consume');
+  assert(fnSource.indexOf("'no_destination'")<fnSource.indexOf('consumeDailyQuota(user)'),'no destination: refused before any quota is spent');
+  assert(fnSource.includes('context:buildPantomimeContext'),'destination-only context');
+  assert(fnSource.includes('const suggestion=extractRemindMe(body.mode,await callModel({exclude:cleanStartHistory(body.history,body.mode)}))'),'one model call, the history of THIS mode only');
+  assert(!/generateWithRepeatGuard|dropRepeats/.test(fnSource.slice(fnSource.indexOf('if(kind.single){'),fnSource.indexOf('const result=await generateWithRepeatGuard('))),'no dedup guard / top-up for a single suggestion (prompt-only exclusion)');
+  // schemas: one field each
+  assert.deepEqual(remindMeSchema('word').required,['word']);assert.deepEqual(Object.keys(remindMeSchema('word').properties),['word']);
+  assert.deepEqual(remindMeSchema('song').required,['song']);assert.deepEqual(Object.keys(remindMeSchema('song').properties),['song']);assert.deepEqual(remindMeSchema('song').properties.song.required,['title','artist']);
+  // extraction: only the asked-for field, whatever the model sent
+  assert.deepEqual(extractRemindMe('word',{word:' שוק ',song:{title:'x',artist:'y'}}),{word:'שוק'},'a word call never returns a song, even if the model added one');
+  assert.deepEqual(extractRemindMe('song',{word:'w',song:{title:' ש ',artist:' א '}}),{song:{title:'ש',artist:'א'}},'a song call never returns a word');
+  assert.equal(extractRemindMe('song',{song:{title:'x',artist:''}}),null,'a title without an artist is not accepted');assert.equal(extractRemindMe('word',{word:'  '}),null);assert.equal(extractRemindMe('song',{}),null);
+  assert.deepEqual(REMIND_ME_MODES.length,2);
+});
+
+test('(B) the real-song requirement: the system prompt forbids inventing a song or guessing an artist, demands genuine confidence, prefers famous songs, leans to the destination, stays family-friendly; the exclusion list is per mode and capped at 10',()=>{
+  const song=remindMeSystemPrompt('song'),word=remindMeSystemPrompt('word');
+  for(const required of ['HARD REQUIREMENT -- THE SONG MUST BE REAL','Never invent a song title','Never guess an artist','genuinely confident','exactly this title by exactly this artist exists','choose a different song you ARE sure about','Prefer very famous, widely known songs over obscure ones','never pair a title with another artist','destination\'s own country, culture or language','kid-friendly','Never suggest a song that is in the exclusion list'])assert(song.includes(required),required);
+  assert(!/real, existing song/.test(word)&&word.includes('ONE simple starting word')&&word.includes('kid-friendly'),'the word prompt is its own');
+  const ctx=buildPantomimeContext({destinations:['תאילנד'],items:[{title:'secret hotel'}]});
+  const text=remindMeInstruction(ctx,{mode:'song',exclude:[{title:'שיר ישן',artist:'זמר'}]});
+  assert(text.includes('Suggest one real song (title and artist).')&&text.includes('תאילנד')&&text.includes('- שיר ישן -- זמר')&&!text.includes('secret hotel'));
+  assert(remindMeInstruction(ctx,{mode:'word',exclude:['פיל']}).includes('- פיל'));assert(!remindMeInstruction(ctx,{mode:'word',exclude:[]}).includes('Do NOT'));
+  // per-mode history, capped at 10, oldest dropped
+  const words=Array.from({length:14},(_,i)=>`מילה${i}`);assert.deepEqual(cleanStartHistory(words,'word'),words.slice(-10));
+  const songs=Array.from({length:14},(_,i)=>({title:`ש${i}`,artist:`א${i}`}));assert.deepEqual(cleanStartHistory(songs,'song'),songs.slice(-10));
+  assert.deepEqual(cleanStartHistory([{title:'',artist:'x'},{title:'ש',artist:'א'}],'song'),[{title:'ש',artist:'א'}]);assert.deepEqual(cleanStartHistory(undefined,'word'),[]);
+  assert.equal(REMIND_ME_HISTORY_CAP,10);assert.equal(REMIND_ME_CAP,10);
+  // the client keeps each mode's own history and sends only that one
+  let game={...emptyRemindMe()};
+  for(let i=0;i<13;i++)Object.assign(game,applyRemindMeResult(game,'word',{word:`מילה${i}`}));
+  for(let i=0;i<3;i++)Object.assign(game,applyRemindMeResult(game,'song',{song:{title:`ש${i}`,artist:`א${i}`}}));
+  assert.equal(game.askedStarts.words.length,10);assert.equal(game.askedStarts.words[0],'מילה3');assert.equal(game.askedStarts.songs.length,3,'the song history is separate from the word history');
+  assert.deepEqual(remindMeHistory(game,'word'),game.askedStarts.words);assert.deepEqual(remindMeHistory(game,'song'),game.askedStarts.songs);
+  assert.deepEqual(game.smartStart,{word:'מילה12',song:{title:'ש2',artist:'א2'}},'each call wrote only its own field');
+});
+
+test('(B) mode first, remembered, non-destructive: a cached suggestion is shown for free when switching back; only the first pick of a mode or an explicit replace spends a call',()=>{
+  let game=emptyRemindMe();let calls=0;
+  const pick=mode=>{const choice=chooseRemindMeMode(game,mode);game.remindMeMode=choice.mode;if(choice.needsCall){calls++;Object.assign(game,applyRemindMeResult(game,mode,mode==='song'?{song:{title:`ש${calls}`,artist:'א'}}:{word:`מילה${calls}`}))}};
+  pick('word');assert.equal(calls,1,'the first pick of a mode generates ONLY that mode');assert.equal(remindMeSuggestion(game,'song'),null,'the song was never generated');assert.deepEqual(remindMeSuggestion(game,'word'),{word:'מילה1'});
+  pick('song');assert.equal(calls,2,'trying the other mode is a second call (two calls to see both -- traded on purpose)');
+  pick('word');assert.equal(calls,2,'switching BACK shows the cached word: no call');assert.deepEqual(remindMeSuggestion(game,'word'),{word:'מילה1'},'the same word as before');
+  pick('song');assert.equal(calls,2,'and back again');assert.deepEqual(remindMeSuggestion(game,'song'),{song:{title:'ש2',artist:'א'}});
+  assert.equal(game.remindMeMode,'song','the mode is remembered');
+  // replace = a fresh call for the SAME mode, the other mode untouched
+  calls++;Object.assign(game,applyRemindMeResult(game,'song',{song:{title:'שיר חדש',artist:'אמן'}}));
+  assert.deepEqual(remindMeSuggestion(game,'song'),{song:{title:'שיר חדש',artist:'אמן'}});assert.deepEqual(remindMeSuggestion(game,'word'),{word:'מילה1'},'the word is untouched by a song replace');assert.equal(game.askedStarts.songs.length,2,'the history survives a replace');
+  // wiring
+  const mode=app.slice(app.indexOf("else if(action==='remind-me-mode')"),app.indexOf("else if(action==='remind-me-switch')"));
+  assert(mode.includes('chooseRemindMeMode(game,button.dataset.mode)')&&mode.includes('if(choice.needsCall)await remindMeGenerate(choice.mode)')&&mode.includes('game.remindMeMode=choice.mode;remindMePicking=false;save()'),'pick → remembered and saved; a call only when that mode has no suggestion');
+  assert(app.includes("else if(action==='remind-me-switch'){remindMePicking=true;render()}"),'the pill reopens the picker without touching anything');
+  assert(app.includes("else if(action==='remind-me-generate')await remindMeGenerate(button.dataset.mode);"),'the replace / get button is an explicit call');
+  const gen=fn('remindMeGenerate');
+  assert(gen.includes('generateRemindMeStart({trip:state.trip,mode,history:remindMeHistory(game,mode)})')&&gen.includes('Object.assign(live,applyRemindMeResult(live,mode,result))'),'one mode, that mode\'s history, that mode\'s field');
+  assert(gen.indexOf('generateRemindMeStart(')<gen.indexOf('applyRemindMeResult('),'a failed call changes nothing');
+  assert(gen.includes("!gameBuildGate(state.trip,'הצעה').allowed")&&gen.includes('remindMeBuilding||'),'gated on a destination; one call at a time');
+});
+
+test('(B) the card: gated on a destination (disabled + hint), a two-tile mode picker, a mode pill, one suggestion; the song-accuracy caption is shown under a song only',()=>{
+  const card=fn('remindMeCard');
+  assert(card.includes('הוסיפו יעד לטיול כדי לקבל הצעה להתחלה')&&card.includes("${gate.allowed?'':' disabled'}"),'visible but disabled, with the hint, until a destination exists');
+  assert(card.includes('REMIND_ME_MODES.map(([key,label])=>`<button class="bingo-tile${key===mode?\' on\':\'\'}" data-action="remind-me-mode" data-mode="${key}"'),'two tiles, the same component as Bingo\'s place picker');
+  assert(card.includes('if(remindMePicking||!mode)'),'the picker shows first time, or on request, never otherwise');
+  assert(card.includes('data-action="remind-me-switch" aria-label="שינוי אופן המשחק">')&&card.includes('מצב ${label} · שינוי'),'the pill');
+  assert(card.includes('${suggestion?\'החלפת ההצעה\':\'קבלו הצעה\'}'),'"get" when there is none, "replace" when there is');
+  assert(card.includes('ההצעה נוצרת בבינה מלאכותית — כדאי לוודא שהשיר קיים לפני שמשמיעים אותו.'),'the song-accuracy caption');
+  const wordBody=card.slice(card.indexOf('`<div class="smart-suggestion"><span class="q-label">מילה להתחלה'),card.indexOf('`<div class="smart-suggestion"><span class="q-label">מילה להתחלה')+160);assert(!wordBody.includes('בינה מלאכותית'),'no caption under a word');
+  assert(card.includes("largePalm({phrases:[remindMeBuilding==='song'"),'the same palm loader while it builds');
+  assert.match(css,/\.smart-card\{margin:16px 0;padding:14px;/);assert.match(css,/\.mode-pill\{[^}]*min-height:44px/);assert(app.includes("  music:'<path d="),'the music-note icon');
 });
 
 let failed=0;

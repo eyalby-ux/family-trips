@@ -4,8 +4,8 @@ import {MultipartQrCollector,decodeExternalText,importBatchToApp} from './extern
 import {availableTimelineModes,backfillTripDates,currentOperational,filterAndSortTasks,isDeletionEligible,isItemOutsideTrip,normalizeDateRange,normalizeOperationalState,packingDuplicate,periodBounds,QUARANTINE_DELETION_ELIGIBLE_DAYS,quickAccessTasks,sanitizeTripDates,shiftCursor,sortItemsByStartAt,TASK_DUE_SCOPES,TRANSPORT_TYPES,itemStartMs,planToday,shortDayLabel,shouldClearEndedOnEdit,today,addParticipantsToRecord,computeTicketCoverage,participantChipLabel,pickerParticipants,uniqueRecordsById,upNextItem,isTaskOverdue,filterShoppingItems,isSharedShoppingItem,participantAssignments,shoppingOwnerLabel,normalizeTaskLink} from './operational-data.js';
 import {COUNTER_ABOVE,arrowKeyTarget,carouselSlots,participantLayout,positionIndicator} from './participant-carousel.js';
 import {normalizeProposalLifecycle,rejectProposal} from './proposal-lifecycle.js';
-import {GAME_FILTERS,PANTOMIME_ID,TRIVIA_ID,beginPantomimeRound,capHistory,gameBuildGate,newPantomimeDeck,newPantomimeState,pantomimeFinished,pantomimeNext,pantomimePhrase,pantomimePlayable,filterGames,gamePrimaryAction,newTriviaDeck,newTriviaState,readMoreUrl,toggleCorrect,triviaBuildGate,triviaFinished,triviaNext,triviaQuestion,triviaTally,triviaWinners} from './games.js';
-import {generatePantomime,generateTrivia} from './game-content-client.js';
+import {GAME_FILTERS,PANTOMIME_ID,REMIND_ME_ID,REMIND_ME_MODES,TRIVIA_ID,applyRemindMeResult,chooseRemindMeMode,remindMeHistory,remindMeSuggestion,beginPantomimeRound,capHistory,gameBuildGate,newPantomimeDeck,newPantomimeState,pantomimeFinished,pantomimeNext,pantomimePhrase,pantomimePlayable,filterGames,gamePrimaryAction,newTriviaDeck,newTriviaState,readMoreUrl,toggleCorrect,triviaBuildGate,triviaFinished,triviaNext,triviaQuestion,triviaTally,triviaWinners} from './games.js';
+import {generatePantomime,generateRemindMeStart,generateTrivia} from './game-content-client.js';
 import {WINNER_REPEATS,createWinnerPlayer} from './winner-animation.js';
 import {BINGO_ID,BINGO_THEMES,BINGO_THEME_KEYS,bingoPhotoLocation,bingoStoragePath,dropBoard,ensureBoard,foundCount,freshCompletions,pendingPhotos,pruneCelebrated,syncPendingPhotos} from './bingo.js';
 import {deleteLocalPhoto,getLocalPhoto,putLocalPhoto} from './local-photos.js';
@@ -445,6 +445,7 @@ Object.assign(TABLER,{
   pin:'<path d="M9 11a3 3 0 1 0 6 0a3 3 0 0 0 -6 0"/><path d="M17.657 16.657l-4.243 4.243a2 2 0 0 1 -2.827 0l-4.244 -4.243a8 8 0 1 1 11.314 0"/>',
   leaf:'<path d="M5 21c.5 -4.5 2.5 -8 7 -10"/><path d="M9 18c6.218 0 10.5 -3.288 11 -12v-2h-4.014c-9 0 -11.986 4 -12 9c0 1 0 3 2 5h3z"/>',
   paw:'<path d="M12 12.5c-2.2 0 -4.5 2.3 -4.5 4.4c0 1.4 1 2.1 2.2 2.1c1 0 1.6 -.5 2.3 -.5s1.3 .5 2.3 .5c1.2 0 2.2 -.7 2.2 -2.1c0 -2.1 -2.3 -4.4 -4.5 -4.4z"/><circle cx="6" cy="10" r="1.6"/><circle cx="9.5" cy="6" r="1.6"/><circle cx="14.5" cy="6" r="1.6"/><circle cx="18" cy="10" r="1.6"/>',
+  music:'<path d="M9 17v-13l10 -2v13"/><circle cx="6" cy="17" r="3"/><circle cx="16" cy="15" r="3"/>',
   camera:'<path d="M5 7h1a2 2 0 0 0 2 -2a1 1 0 0 1 1 -1h6a1 1 0 0 1 1 1a2 2 0 0 0 2 2h1a2 2 0 0 1 2 2v9a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-9a2 2 0 0 1 2 -2"/><path d="M9 13a3 3 0 1 0 6 0a3 3 0 0 0 -6 0"/>',
   beach:'<path d="M4 12a8 8 0 0 1 16 0z"/><path d="M12 12v6a2 2 0 0 0 4 0"/>',
   city:'<path d="M3 21h18"/><path d="M5 21v-14l8 -4v18"/><path d="M19 21v-10l-6 -4"/><path d="M9 9v.01"/><path d="M9 12v.01"/><path d="M9 15v.01"/><path d="M9 18v.01"/>',
@@ -773,6 +774,7 @@ function gameView(){
   if(!game)return `<section class="card">${backRow('games')}${emptyState('dice','המשחק לא נמצא','ייתכן שהוסר.','')}</section>`;
   if(game.id===TRIVIA_ID)return triviaView(game);
   if(game.id===PANTOMIME_ID)return pantomimeView(game);
+  if(game.id===REMIND_ME_ID)return remindMeView(game);
   if(game.id===BINGO_ID)return bingoView(game);
   const fact=(label,value)=>value?`<div class="fact"><dt>${label}</dt><dd>${esc(value)}</dd></div>`:'';
   return `<section class="card">${backRow('games','','',`${tabler('dice')} ${esc(game.title)}`)}<p class="game-description">${esc(game.instructions)}</p><dl class="detail-facts">${fact('מתאים ל',game.participants)}${fact('משך',game.duration)}${fact('ציוד',game.items)}</dl><button class="btn game-primary" data-action="game-start" data-id="${game.id}">${gamePrimaryAction(game)}</button></section>`;
@@ -1077,6 +1079,41 @@ function pantomimeAdvance(gameId){
   const game=state.games.find(candidate=>candidate.id===gameId);if(!game)return;
   game.pantomimeState=pantomimeNext(game.pantomimeState);pantomimeOpenRound(game);save();render();
   if(pantomimeFinished(game)){const winners=triviaWinners(game.pantomimeState.scores,state.participants);if(winners.length)fireWinner({name:winners.join(' · '),caption:winners.length>1?'ניצחון משותף בסיבוב!':'ניצחון בסיבוב!',big:true,times:WINNER_REPEATS})}
+}
+// Beta 0.9.3: מזכיר לי. The chain itself is free-form -- the app tracks nothing; this game keeps its plain instructions page (the generic "התחל פעילות")
+// and adds ONE optional card: a smart start, a word or a real song, in the mode the family picked first. Only that mode's suggestion is ever generated;
+// the mode is remembered (remindMeMode), switching back to a mode shows its cached suggestion for free, and only an explicit replace spends another call.
+let remindMePicking=false,remindMeBuilding=null;
+function remindMeCard(game){
+  const gate=gameBuildGate(state.trip,'הצעה'),mode=game.remindMeMode;
+  const hint=gate.allowed?'':'<p class="muted small game-hint">הוסיפו יעד לטיול כדי לקבל הצעה להתחלה</p>';
+  const head=`<div class="smart-head"><b>${tabler('dice')} התחלה חכמה</b><span class="muted small">הצעה אחת, אופציונלית</span></div>`;
+  if(remindMeBuilding)return `<div class="smart-card">${head}${largePalm({phrases:[remindMeBuilding==='song'?'מחפשים שיר מוכר…':'מחפשים מילה להתחלה…'],label:remindMeBuilding==='song'?'מכינים הצעה לשיר…':'מכינים הצעה למילה…',note:'זה יכול לקחת כמה שניות.'})}</div>`;
+  if(remindMePicking||!mode)return `<div class="smart-card">${head}<p class="muted small">באיזה אופן משחקים? הבחירה נשמרת, ומקבלים הצעה רק לאופן שנבחר.</p><div class="bingo-picker remind-modes">${REMIND_ME_MODES.map(([key,label])=>`<button class="bingo-tile${key===mode?' on':''}" data-action="remind-me-mode" data-mode="${key}"${gate.allowed?'':' disabled'}>${tabler(key==='song'?'music':'notes')}<b>${label}</b></button>`).join('')}</div>${hint}</div>`;
+  const label=REMIND_ME_MODES.find(([key])=>key===mode)[1],suggestion=remindMeSuggestion(game,mode);
+  const pill=`<button class="mode-pill" data-action="remind-me-switch" aria-label="שינוי אופן המשחק">${tabler(mode==='song'?'music':'notes')} מצב ${label} · שינוי</button>`;
+  const body=suggestion
+    ?(mode==='song'
+      ?`<div class="smart-suggestion"><span class="q-label">שיר להתחלה</span><p class="smart-main"><bdi>${esc(suggestion.song.title)}</bdi></p><p class="smart-sub"><bdi>${esc(suggestion.song.artist)}</bdi></p></div><p class="muted small smart-note">ההצעה נוצרת בבינה מלאכותית — כדאי לוודא שהשיר קיים לפני שמשמיעים אותו.</p>`
+      :`<div class="smart-suggestion"><span class="q-label">מילה להתחלה</span><p class="smart-main"><bdi>${esc(suggestion.word)}</bdi></p></div>`)
+    :`<p class="muted small">עדיין אין הצעה ל${mode==='song'?'שיר':'מילה'} בטיול הזה.</p>`;
+  return `<div class="smart-card">${head}${pill}${body}<button class="btn ghost game-secondary" data-action="remind-me-generate" data-mode="${mode}"${gate.allowed?'':' disabled'}>${suggestion?'החלפת ההצעה':'קבלו הצעה'}</button>${hint}</div>`;
+}
+function remindMeView(game){
+  const fact=(label,value)=>value?`<div class="fact"><dt>${label}</dt><dd>${esc(value)}</dd></div>`:'';
+  return `<section class="card">${triviaTop(game)}<p class="game-description">${esc(game.instructions)}</p><dl class="detail-facts">${fact('מתאים ל',game.participants)}${fact('משך',game.duration)}${fact('ציוד',game.items)}</dl>${remindMeCard(game)}<button class="btn game-primary" data-action="game-start" data-id="${game.id}">${gamePrimaryAction(game)}</button></section>`;
+}
+// One suggestion for one mode. A failure changes nothing (the old suggestion stays); a success writes only that mode's field and history.
+async function remindMeGenerate(mode){
+  const game=state.games.find(candidate=>candidate.id===REMIND_ME_ID);
+  if(!game||remindMeBuilding||!gameBuildGate(state.trip,'הצעה').allowed)return;
+  remindMeBuilding=mode;render();
+  try{
+    const result=await generateRemindMeStart({trip:state.trip,mode,history:remindMeHistory(game,mode)});
+    const live=state.games.find(candidate=>candidate.id===REMIND_ME_ID);
+    Object.assign(live,applyRemindMeResult(live,mode,result));
+    remindMeBuilding=null;save();render();
+  }catch(error){remindMeBuilding=null;render();notify(error.message||'קבלת ההצעה נכשלה.',6000)}
 }
 // 0.7.4: shared list + personal list per participant, with switching between them (MVP scope's
 // own wording). An item with no participantIds is shared; the "shared" view shows only those, and
@@ -2572,6 +2609,9 @@ addEventListener('click',async event=>{if(Date.now()<suppressClickUntil)return;i
     if(triviaFinished(game)){const winners=triviaWinners(game.triviaState.scores,state.participants);if(winners.length)fireWinner({name:winners.join(' · '),caption:winners.length>1?'ניצחון משותף בסיבוב!':'ניצחון בסיבוב!',big:true,times:WINNER_REPEATS})}}
   else if(action==='trivia-replay'){const game=state.games.find(x=>x.id===button.dataset.id);game.triviaState=newTriviaState(game.deck);game.started=true;triviaRevealed=false;triviaMarked=[];save();render()}
   else if(action==='trivia-exit'){gamePlaying=null;render()}
+  else if(action==='remind-me-mode'){const game=state.games.find(x=>x.id===REMIND_ME_ID),choice=chooseRemindMeMode(game,button.dataset.mode);game.remindMeMode=choice.mode;remindMePicking=false;save();render();if(choice.needsCall)await remindMeGenerate(choice.mode)}
+  else if(action==='remind-me-switch'){remindMePicking=true;render()}
+  else if(action==='remind-me-generate')await remindMeGenerate(button.dataset.mode);
   else if(action==='pantomime-build')await buildPantomime(button.dataset.id);
   else if(action==='pantomime-reveal'){pantomimeStage='reveal';render()}
   else if(action==='pantomime-ready'){pantomimeStage='score';render()}

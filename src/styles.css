@@ -277,6 +277,19 @@ bdi,.bidi{unicode-bidi:isolate}
 .bingo-viewer-btn{position:relative;flex:1;min-height:28px;padding:0 8px;border:1px solid rgba(255,255,255,.6);border-radius:6px;background:transparent;color:#fff;font-size:12px;font-weight:600}
 .bingo-viewer-btn::before{content:"";position:absolute;inset:-8px 0}
 .bingo-viewer-btn.danger{border-color:#E8A89A;color:#F2B8AA}
+/* Beta 0.9.3: מזכיר לי -- the smart-start card (mockup MOCKUP_GAMES_REMIND_ME_V1 v2): a two-tile mode picker like Bingo's place picker, a mode pill, one suggestion. */
+.smart-card{margin:16px 0;padding:14px;border:1px solid var(--border);border-radius:14px;background:var(--accent-soft);display:flex;flex-direction:column;gap:10px}
+.smart-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.smart-head b .ti{width:18px;height:18px}
+.remind-modes{margin:0}
+.mode-pill{align-self:flex-start;display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 14px;border:1px solid var(--ink);border-radius:999px;background:var(--teal-soft);color:var(--ink);font-size:14px;font-weight:600}
+.mode-pill .ti{width:18px;height:18px}
+.smart-suggestion{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center}
+.smart-suggestion .q-label{font-size:12.5px;color:var(--muted);font-weight:600}
+.smart-main{margin:6px 0 0;font-size:24px;font-weight:700;line-height:1.4;overflow-wrap:anywhere}
+.smart-sub{margin:2px 0 0;font-size:16px;color:var(--muted)}
+.smart-note{margin:0;text-align:center}
+.bingo-tile:disabled{opacity:.5}
 /* Beta 0.9.3: Pantomime (mockup MOCKUP_GAMES_PANTOMIME_V1 v3) -- the look-away screen and the private reveal; scoring and the end tally reuse Trivia's. */
 .lookaway{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;padding:28px 12px 24px;margin:8px 0 16px;border:1px solid var(--border);border-radius:14px;background:var(--accent-soft)}
 .lookaway h2{margin:0;font-size:20px;line-height:1.4}

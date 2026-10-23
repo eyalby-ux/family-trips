@@ -86,3 +86,40 @@ export function pantomimeInstruction({destinations},{count,exclude,topUp}){
   if(exclude.length)lines.push('Do NOT repeat any of the following, in substance, even rephrased:',...exclude.map(entry=>`- ${entry.text}`));
   return lines.join('\n');
 }
+
+// ---- Beta 0.9.3: מזכיר לי -- one AI-suggested starting word OR one real song, the family's chosen mode first. One mode per call, never both. ----
+export const REMIND_ME_MODES=['word','song'];
+export const REMIND_ME_HISTORY_CAP=10;
+export const remindMeSchema=mode=>mode==='song'
+  ?{type:'object',additionalProperties:false,required:['song'],properties:{song:{type:'object',additionalProperties:false,required:['title','artist'],properties:{title:{type:'string'},artist:{type:'string'}}}}}
+  :{type:'object',additionalProperties:false,required:['word'],properties:{word:{type:'string'}}};
+// The song must be REAL. This is a prompt-only guarantee (no external check, no curated list -- both declined by the Product Owner): it lowers the
+// risk of a made-up title or a wrong artist, it cannot remove it.
+export const remindMeSystemPrompt=mode=>mode==='song'
+  ?`You suggest ONE real, existing song to start a family "song chain" game on a trip (each person in turn picks a song that reminds them of the previous one), in Hebrew context.
+HARD REQUIREMENT -- THE SONG MUST BE REAL. Never invent a song title. Never guess an artist. Name a song ONLY if you are genuinely confident that exactly this title by exactly this artist exists; if you are not sure, choose a different song you ARE sure about. Prefer very famous, widely known songs over obscure ones (a famous song is far less likely to be a fabrication), and never pair a title with another artist's name.
+Relevance: lean towards the trip destination's own country, culture or language -- a famous song from there or a famous song about it.
+Suitable for the whole family: kid-friendly, nothing violent, sexual or scary.
+Write the title and the artist as they are commonly written (original language is fine; Hebrew for Hebrew songs).
+Never suggest a song that is in the exclusion list.`
+  :`You suggest ONE simple starting word for a family word-association chain game on a trip (each person in turn says a word the previous word reminds them of), in Hebrew.
+The word is concrete and kid-friendly, easy to associate from: a place, a food, an animal, an object or a daily thing connected to the trip's destination. One word (or a very short two-word name), no explanation.
+Never suggest a word that is in the exclusion list.`;
+export function remindMeInstruction({destinations},{mode,exclude}){
+  const lines=[`Destination(s): ${destinations.join(', ')||'unknown'}`,mode==='song'?'Suggest one real song (title and artist).':'Suggest one starting word.'];
+  if(exclude.length)lines.push('Do NOT suggest any of the following again:',...exclude.map(entry=>typeof entry==='string'?`- ${entry}`:`- ${entry.title} -- ${entry.artist}`));
+  return lines.join('\n');
+}
+// The history sent back by the client: the 10 most recent for THIS mode only, prompt-only (no server dedup safety net at this volume).
+export function cleanStartHistory(history,mode){
+  const list=Array.isArray(history)?history:[];
+  const clipped=mode==='song'
+    ?list.map(entry=>({title:String(entry?.title??'').slice(0,120),artist:String(entry?.artist??'').slice(0,120)})).filter(entry=>entry.title)
+    :list.map(entry=>String(typeof entry==='string'?entry:entry?.word??'').slice(0,80)).filter(Boolean);
+  return clipped.slice(-REMIND_ME_HISTORY_CAP);
+}
+// Only the requested mode's field ever leaves the server, whatever the model returned.
+export function extractRemindMe(mode,raw){
+  if(mode==='song'){const title=String(raw?.song?.title??'').trim(),artist=String(raw?.song?.artist??'').trim();return title&&artist?{song:{title,artist}}:null}
+  const word=String(raw?.word??'').trim();return word?{word}:null;
+}

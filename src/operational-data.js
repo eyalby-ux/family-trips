@@ -1,5 +1,6 @@
 const BINGO_INSTRUCTIONS='בוחרים מקום, ומחפשים בעולם האמיתי את הדברים שעל הלוח — כל משתתף עם לוח משלו. מצאתם? מצלמים! שורה, עמודה או לוח מלא — חוגגים.';
 const OLD_BINGO_TITLE='בינגו שדה תעופה',OLD_BINGO_INSTRUCTIONS='חפשו מזוודה אדומה, מטוס, מדים, מסוע, לוח המראות ושער עלייה.',OLD_BINGO_ITEMS='פתק או טלפון';
+const REMIND_ME_INSTRUCTIONS='שני אופנים לשחק: (1) מילים — משתתף ראשון אומר מילה, הבא אומר מילה שהמילה הקודמת מזכירה לו, וממשיכים כך סביב המשתתפים. (2) שירים — משתתף ראשון בוחר שיר ומשמיע אותו, הבא בוחר שיר שמזכיר לו את השיר הקודם (מילה דומה בשם השיר, נושא דומה, או מילה דומה במילים) ומשמיע אותו, וממשיכים כך. אם כולם מסכימים, אפשר לדלג לשיר הבא באמצע או להמשיך להאזין עד הסוף.';
 const PANTOMIME_INSTRUCTIONS='ביטויים על מקומות, תרבות וחיי היומיום ביעד, לחיקוי בלי מילים ובלי קול — נבנים במיוחד בשביל הטיול. מתאים לכל המשפחה כשכולם נמצאים יחד.';
 const TRIVIA_INSTRUCTIONS='שאלות על מקומות, תרבות וחיי היומיום ביעד, שנבנות במיוחד בשביל הטיול — כולל המלונות והפעילויות שכבר הוספתם. מתאים לכל המשפחה, כולל הקטנים.';
 const TWENTY_QUESTIONS_INSTRUCTIONS='אדם אחד בוחר אדם, דמות, מקום או חפץ. האחרים שואלים שאלות כן/לא — עד 20 שאלות, או עד שמישהו מנחש.';
@@ -17,6 +18,8 @@ export const BUILTIN_GAMES=[
   {id:'game-thailand-trivia',onTheGo:true,interactive:true,title:'טריוויה על היעד',instructions:TRIVIA_INSTRUCTIONS,items:'ללא ציוד',participants:'כל המשפחה',duration:'20 דקות',deck:[],askedQuestions:[],triviaState:{order:[],position:0,scores:{}}},
   // 0.9.3: a brand-new id, so it is simply pushed into every saved trip by the push-if-missing step -- no backfill. needs everyone watching, so no onTheGo.
   {id:'game-pantomime',interactive:true,title:'פנטומימה',instructions:PANTOMIME_INSTRUCTIONS,items:'ללא ציוד',participants:'2 ומעלה',duration:'20 דקות',deck:[],askedPhrases:[],pantomimeState:{order:[],position:0,scores:{},lastActorId:'',currentActorId:'',actorPosition:-1}},
+  // 0.9.3: מזכיר לי -- a free-form game (word chain / song chain) with one optional AI smart start; a brand-new id, pushed by push-if-missing, no backfill.
+  {id:'game-remind-me',onTheGo:true,title:'מזכיר לי',instructions:REMIND_ME_INSTRUCTIONS,items:'ללא ציוד (למצב השירים: טלפון עם נגן מוזיקה)',participants:'2 ומעלה',duration:'לפי הצורך',remindMeMode:'',smartStart:{word:'',song:{title:'',artist:''}},askedStarts:{words:[],songs:[]}},
 ];
 
 // 0.7.2: Firestore subcollection sync logic, extracted here (dependency-free) rather than left

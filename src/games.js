@@ -94,3 +94,25 @@ export function beginPantomimeRound(state,participantIds,random=Math.random){
 export const pantomimeNext=state=>({...state,position:state.position+1});
 // Pantomime needs an actor and at least one guesser.
 export const pantomimePlayable=participants=>(participants||[]).filter(person=>person.active!==false).length>=2;
+
+// ---- Beta 0.9.3: מזכיר לי -- an optional smart start; the chain itself stays free-form (the app tracks nothing). ----
+export const REMIND_ME_ID='game-remind-me';
+export const REMIND_ME_MODES=[['word','מילים'],['song','שירים']];
+export const REMIND_ME_CAP=10;
+export const emptyRemindMe=()=>({remindMeMode:'',smartStart:{word:'',song:{title:'',artist:''}},askedStarts:{words:[],songs:[]}});
+// What the game page shows for a mode: the cached suggestion, or nothing (an explicit tap -- never a silent AI call -- is needed to get one).
+export function remindMeSuggestion(game,mode){
+  const start=game?.smartStart||{};
+  if(mode==='word')return start.word?{word:start.word}:null;
+  return start.song?.title&&start.song?.artist?{song:{title:start.song.title,artist:start.song.artist}}:null;
+}
+// Picking a mode (or switching back to one): a suggestion that already exists is shown again for free; only a mode with none needs a (quota) call.
+export const chooseRemindMeMode=(game,mode)=>({mode,needsCall:!remindMeSuggestion(game,mode)});
+// The history sent with a call: only this mode's, the 10 most recent.
+export const remindMeHistory=(game,mode)=>mode==='song'?(game?.askedStarts?.songs||[]).slice(-REMIND_ME_CAP):(game?.askedStarts?.words||[]).slice(-REMIND_ME_CAP);
+// A generated suggestion writes ONLY its own mode's sub-field and appends to ONLY that mode's history (capped at 10, oldest dropped); the other mode is untouched.
+export function applyRemindMeResult(game,mode,result){
+  const start=game.smartStart||emptyRemindMe().smartStart,asked=game.askedStarts||emptyRemindMe().askedStarts;
+  if(mode==='song'){const song={title:result.song.title,artist:result.song.artist};return {smartStart:{...start,song},askedStarts:{...asked,songs:[...(asked.songs||[]),song].slice(-REMIND_ME_CAP)}}}
+  return {smartStart:{...start,word:result.word},askedStarts:{...asked,words:[...(asked.words||[]),result.word].slice(-REMIND_ME_CAP)}};
+}
