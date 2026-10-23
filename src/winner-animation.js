@@ -24,3 +24,16 @@ export function winnerHtml({name,caption='',big=false,animation},random=Math.ran
   const total=(big?WINNER_MS.big:WINNER_MS.normal)/1000;
   return `<div class="winner-overlay ${kind}${big?' big':''}" style="--total:${total}s" role="status" aria-live="polite" data-animation="${kind}"><div class="winner-fx" aria-hidden="true">${particles(kind,big,random)}</div><div class="winner-card"><b class="winner-name"><bdi>${esc(name)}</bdi></b>${caption?`<span class="winner-caption">${esc(caption)}</span>`:''}</div></div>`;
 }
+
+// ---- 0.9.3: the end-of-round celebration plays TWICE (PO: a longer moment). Each pass picks its own direction at random. ----
+// A round-ending win (Trivia, Pantomime) asks for WINNER_REPEATS passes; Bingo's line/board celebrations stay a single pass.
+export const WINNER_REPEATS=2;
+// The browser supplies mount / clear / schedule / cancel; a test supplies fakes. Starting a new celebration cancels the one still running.
+export function createWinnerPlayer({mount,clear,schedule,cancel,random=Math.random}){
+  let timer=null;
+  const pass=(spec,left)=>{
+    mount(winnerHtml(spec,random));
+    timer=schedule(()=>{if(left>1)pass(spec,left-1);else{clear();timer=null}},spec.big?WINNER_MS.big:WINNER_MS.normal);
+  };
+  return {play(spec){if(timer!==null)cancel(timer);pass(spec,Math.max(1,Number(spec.times)||1))}};
+}

@@ -48,10 +48,10 @@ test('winner animation: the winner\'s NAME is in the middle of every direction, 
 test('winner animation: reduced motion keeps only the card; it never blocks a tap; it is mounted outside #app so render() cannot wipe it; it removes itself',()=>{
   assert.match(css,/@media \(prefers-reduced-motion:reduce\)\{\.winner-fx\{display:none\}\.winner-overlay\{animation:none\}\}/);
   assert.match(css,/#winner-host\{position:fixed;inset:0;[^}]*pointer-events:none\}/);
-  const fire=fn('fireWinner');
+  const fire=app.slice(app.indexOf('const winnerHost='),app.indexOf('function fireWinner(spec)')+40);
   assert(fire.includes("document.querySelector('#winner-host')")&&fire.includes('document.body.append(host)'),'a host on <body>, not inside #app');
-  assert(fire.includes('winnerHtml({name,caption,big},random)')&&fire.includes('clearTimeout(winnerTimer)')&&fire.includes("host.innerHTML=''"),'one at a time, and it clears itself');
-  assert(fire.includes('big?WINNER_MS.big:WINNER_MS.normal'));
+  assert(fire.includes('createWinnerPlayer({mount:html=>{winnerHost().innerHTML=html},clear:()=>{winnerHost().innerHTML=\'\'}')&&fire.includes('cancel:clearTimeout'),'one at a time, and it clears itself');
+  assert(read('../src/winner-animation.js').includes('spec.big?WINNER_MS.big:WINNER_MS.normal'));
   for(const kind of ['fall','drop','pulse','ray'])assert(css.includes(`@keyframes winner-${kind}`),kind);
 });
 
@@ -65,7 +65,7 @@ test('P91-F3 patch to the live 0.9.1 Trivia (PO: only when the ROUND is won): th
   assert(next.indexOf('save();render();')<next.indexOf('fireWinner('),'drawn after the re-render, so it is not wiped');
   const replay=app.slice(app.indexOf("else if(action==='trivia-replay')"),app.indexOf("else if(action==='trivia-exit')"));
   assert(!replay.includes('fireWinner')&&!fn('triviaPlayView').includes('fireWinner'),'reopening the end screen or playing again does not replay it');
-  assert(app.includes("import {WINNER_MS,winnerHtml} from './winner-animation.js';"));
+  assert(app.includes("import {WINNER_REPEATS,createWinnerPlayer} from './winner-animation.js';"));
   // who won
   const people=[{id:'a',name:'אייל'},{id:'b',name:'דנה'},{id:'c',name:'נועה'},{id:'d',name:'ישן',active:false}];
   assert.deepEqual(triviaWinners({a:3,b:5,c:1},people),['דנה'],'one winner');
@@ -257,7 +257,7 @@ test('the shared winner animation fires on Bingo completions (and only the first
   assert(choose.includes('if(fresh.keys.length)fireWinner('),'only when a line or the board is newly complete');
   assert(!/line-sweep|highlight-sweep|row-win|bingo-sweep/.test(css+app),'the superseded highlight-sweep design was not built');
   assert(app.includes("import {BINGO_ID,BINGO_THEMES,BINGO_THEME_KEYS,bingoPhotoLocation,bingoStoragePath,dropBoard,ensureBoard,foundCount,freshCompletions,pendingPhotos,pruneCelebrated,syncPendingPhotos} from './bingo.js';"));
-  assert(pkg.scripts.test.includes('tests/beta-0-9-2.mjs'));assert(pkg.version.startsWith('0.9.2'));
+  assert(pkg.scripts.test.includes('tests/beta-0-9-2.mjs'));assert(pkg.version.startsWith('0.9.'));
   const fired=[];
   // the exact data the firing receives, from the pure layer: who + which caption + how big
   const board={layout:Array.from({length:16},(_,i)=>`z${i}`),found:{z0:{},z1:{},z2:{},z3:{}}};

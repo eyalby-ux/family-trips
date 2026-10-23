@@ -6,7 +6,7 @@ import {COUNTER_ABOVE,arrowKeyTarget,carouselSlots,participantLayout,positionInd
 import {normalizeProposalLifecycle,rejectProposal} from './proposal-lifecycle.js';
 import {GAME_FILTERS,TRIVIA_ID,capHistory,filterGames,gamePrimaryAction,newTriviaDeck,newTriviaState,readMoreUrl,toggleCorrect,triviaBuildGate,triviaFinished,triviaNext,triviaQuestion,triviaTally,triviaWinners} from './games.js';
 import {generateTrivia} from './game-content-client.js';
-import {WINNER_MS,winnerHtml} from './winner-animation.js';
+import {WINNER_REPEATS,createWinnerPlayer} from './winner-animation.js';
 import {BINGO_ID,BINGO_THEMES,BINGO_THEME_KEYS,bingoPhotoLocation,bingoStoragePath,dropBoard,ensureBoard,foundCount,freshCompletions,pendingPhotos,pruneCelebrated,syncPendingPhotos} from './bingo.js';
 import {deleteLocalPhoto,getLocalPhoto,putLocalPhoto} from './local-photos.js';
 import {shrinkImage} from './image-utils.js';
@@ -782,13 +782,10 @@ function gameView(){
 let triviaBuilding=null,gamePlaying=null,triviaRevealed=false,triviaMarked=[];
 // 0.9.2 (P91-F3): the winner animation every game shares -- one of four directions at random, the winner's name in the middle. Mounted outside #app
 // so render() never wipes it; it never blocks a tap and removes itself.
-let winnerTimer=0;
-function fireWinner({name,caption='',big=false},random=Math.random){
-  let host=document.querySelector('#winner-host');
-  if(!host){host=document.createElement('div');host.id='winner-host';document.body.append(host)}
-  host.innerHTML=winnerHtml({name,caption,big},random);
-  clearTimeout(winnerTimer);winnerTimer=setTimeout(()=>{host.innerHTML=''},big?WINNER_MS.big:WINNER_MS.normal);
-}
+// `times` passes in a row (0.9.3: a round-ending win plays twice), each with its own random direction.
+const winnerHost=()=>{let host=document.querySelector('#winner-host');if(!host){host=document.createElement('div');host.id='winner-host';document.body.append(host)}return host};
+const winnerPlayer=createWinnerPlayer({mount:html=>{winnerHost().innerHTML=html},clear:()=>{winnerHost().innerHTML=''},schedule:(fn,ms)=>setTimeout(fn,ms),cancel:clearTimeout});
+function fireWinner(spec){winnerPlayer.play(spec)}
 const triviaTop=(game,action)=>backRow('games','','',`${tabler('dice')} ${esc(game.title)}`,action);
 function triviaView(game){
   if(triviaBuilding===game.id){
@@ -2511,7 +2508,7 @@ addEventListener('click',async event=>{if(Date.now()<suppressClickUntil)return;i
   else if(action==='trivia-score'){const game=state.games.find(x=>x.id===button.dataset.id),result=toggleCorrect(game.triviaState,triviaMarked,button.dataset.participant);triviaMarked=result.marked;game.triviaState={...game.triviaState,scores:result.scores};save();render()}
   else if(action==='trivia-next'){const game=state.games.find(x=>x.id===button.dataset.id);game.triviaState=triviaNext(game.triviaState);triviaRevealed=false;triviaMarked=[];save();render();
     // 0.9.2 (P91-F3, PO): the winner animation plays when the ROUND ends -- after the last question -- naming whoever won it (a tie names them all); never per answer, and not at all if nobody scored
-    if(triviaFinished(game)){const winners=triviaWinners(game.triviaState.scores,state.participants);if(winners.length)fireWinner({name:winners.join(' · '),caption:winners.length>1?'ניצחון משותף בסיבוב!':'ניצחון בסיבוב!',big:true})}}
+    if(triviaFinished(game)){const winners=triviaWinners(game.triviaState.scores,state.participants);if(winners.length)fireWinner({name:winners.join(' · '),caption:winners.length>1?'ניצחון משותף בסיבוב!':'ניצחון בסיבוב!',big:true,times:WINNER_REPEATS})}}
   else if(action==='trivia-replay'){const game=state.games.find(x=>x.id===button.dataset.id);game.triviaState=newTriviaState(game.deck);game.started=true;triviaRevealed=false;triviaMarked=[];save();render()}
   else if(action==='trivia-exit'){gamePlaying=null;render()}
   else if(action==='game-start'&&button.dataset.id===TRIVIA_ID){const game=state.games.find(x=>x.id===TRIVIA_ID);if(game?.deck?.length){game.started=true;gamePlaying=TRIVIA_ID;triviaRevealed=false;triviaMarked=[];save();render()}}
