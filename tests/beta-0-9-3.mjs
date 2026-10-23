@@ -127,7 +127,7 @@ test('(A) the round flow end to end: build gate, look-away screen naming the act
   assert(build.indexOf('generatePantomime(')<build.indexOf('live.deck=deck'),'nothing is discarded before the new deck exists');
   // the three screens of a round
   const play=fn('pantomimePlayView');
-  assert(play.includes("pantomimeStage==='away'")&&play.includes('מעבירים את הטלפון ל<bdi>${esc(actorName)}</bdi> — כולם אחרים, תביטו לכיוון אחר!')&&play.includes('data-action="pantomime-reveal"')&&play.includes('>הצג את הביטוי</button>'),'the look-away screen names the automatically picked actor; the phrase is NOT in it');
+  assert(play.includes("pantomimeStage==='away'")&&play.includes('מעבירים את הטלפון ל<bdi>${esc(actorName)}</bdi> — כל השאר, תביטו לכיוון אחר!')&&play.includes('data-action="pantomime-reveal"')&&play.includes('>הצג את הביטוי</button>'),'the look-away screen names the automatically picked actor; the phrase is NOT in it');
   const away=play.slice(play.indexOf("if(pantomimeStage==='away')"),play.indexOf("if(pantomimeStage==='reveal')"));assert(!away.includes('phrase.text'),'the phrase is hidden until the actor taps');
   assert(play.includes('נבחר/ה אוטומטית להציג')&&!play.includes('בחירת משתתף'),'the automatic pick is shown; there is no manual picker');
   const reveal=play.slice(play.indexOf("if(pantomimeStage==='reveal')"),play.indexOf('const guessers='));
