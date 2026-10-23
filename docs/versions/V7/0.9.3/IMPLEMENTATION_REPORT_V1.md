@@ -1,8 +1,8 @@
 # Beta 0.9.3 — Pantomime, מזכיר לי, new-user onboarding, carried 0.9.2 item: implementation report (for independent verification)
 
-**Build:** `0.9.3-b506c2a0` on `qa` (`https://qa--familytripz.netlify.app`) — **not promoted**. Branch `version/V7`.
+**Build:** `0.9.3-c2889884` on `qa` (`https://qa--familytripz.netlify.app`) — **not promoted**. Branch `version/V7`.
 **Kickoff:** `PROMPT_FOR_CLAUDE_CODE_0_9_3_PANTOMIME_KICKOFF_V1.md` · scope `V16` · mockups Pantomime `v3`, Remind Me `v2`, onboarding `V1` · plan `V182` (committed in this round).
-**Gate:** `npm run check` green (syntax, whole suite, production build); new `tests/beta-0-9-3.mjs` (16 tests); older pins updated where this round changes them (the game-content client, the 0.9.2 `fireWinner` pins, the sync-engine baseline pin).
+**Gate:** `npm run check` green (syntax, whole suite, production build); new `tests/beta-0-9-3.mjs` (17 tests); older pins updated where this round changes them (the game-content client, the 0.9.2 `fireWinner` pins, the sync-engine baseline pin).
 
 ## Commits
 | Hash | What |
@@ -49,6 +49,9 @@ Building a Pantomime deck on `qa` showed "שמירת השינויים בענן �
 2. The kickoff's section 0 says the plan is at `V181`; the staged copy was `V182` — committed (`docs/roadmap/MVP_DELIVERY_PLAN_CURRENT_STATE.md`).
 3. `empty()` reachability (above); the extra `pantomimeState` fields (above); "re-roll once" semantics (above).
 4. **Quota used on `qa` today while testing:** two Pantomime builds, one word and one song suggestion.
+
+## Pantomime: no place names (PO feedback, 2026-10-23; commits `0c25f6e`, `c288988`; build `0.9.3-c2889884`)
+The first live deck had phrases such as "רוקדים טנגו בבואנוס איירס", "צופים במפלי איגואסו" and "מטפסים על האובליסק" — specific names that are very hard to act out and give the answer away. **Rule now:** a *proper name* of a specific place or landmark is forbidden; **generic kinds of places and things are welcome** ("שוק צף", "חוף", "תחנת רכבת", "מקדש" — the Product Owner confirmed "השוק הצף" is fine). Two layers: (1) the system prompt says NO PLACE NAMES, with examples both ways, and the per-call instruction repeats it; (2) a **hard drop** of any phrase that contains the trip's own destination (country) name — Hebrew prefixes included ("בארגנטינה") — refilled by the same bounded top-up (an optional `accept` filter on the shared engine; Trivia passes none). **Honest limit:** cities and landmarks cannot be recognized from text alone, so for those the prompt is the only guard. Live on `qa` (Argentina), a fresh 12-phrase deck: "אוכלים גלידה בגביע", "נוסעים ברכבת תחתית", "מכינים מרק ירקות", "משחקים פולו על סוסים", "מטיילים בשביל הררי", "צופים בלווייתן קופץ", "מנגנים באקורדיון", "קוצרים ענבים בכרם" … — none names a place. A deck built before this change keeps its old phrases until rebuilt ("בנה פנטומימה מחדש").
 
 ## Not exercised live
 A brand-new-account first launch (onboarding); a Remind Me **replace** (tested in logic only); the Trivia double animation live (Pantomime's, which uses the same player, was); the look-away screen's wording after the fix on a screenshot; reduced-motion; a Pantomime round with exactly two participants live (logic-tested).
