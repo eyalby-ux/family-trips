@@ -142,6 +142,18 @@ function backfillBingo(game){
   if(!BINGO_THEME_KEYS.includes(game.activeTheme))game.activeTheme='';
 }
 const freshBuiltin=game=>structuredClone({...game,favorite:false});
+// The baseline the next save is diffed against must describe what is ACTUALLY in Firestore. mergeRemoteState() used to clone the state AFTER
+// normalizeOperationalState() had pushed missing built-in games into it, so a game that was new to this trip looked "already synced": it was never created in
+// Firestore, and the first edit to it failed with "No document to update" (found live in 0.9.3: Pantomime and מזכיר לי could not save). Likewise a game the
+// normalizer removed (ציד תמונות, מי אני?) looked already deleted, so its document was never removed. Here the games are rebuilt from the remote list:
+// a game that exists remotely keeps its normalized version (so only real edits are diffed), a game the normalizer REMOVED keeps its remote record (so it is
+// deleted on the next save), and a game the normalizer ADDED is left out (so it is created on the next save).
+export function syncBaseline(remoteState,normalizedState){
+  const baseline=JSON.parse(JSON.stringify(normalizedState));
+  const current=new Map((normalizedState.games||[]).map(game=>[game.id,game]));
+  baseline.games=(remoteState?.games||[]).map(remote=>JSON.parse(JSON.stringify(current.get(remote.id)||remote)));
+  return baseline;
+}
 export function normalizeOperationalState(state){
   state.games=Array.isArray(state.games)?state.games:BUILTIN_GAMES.map(freshBuiltin);
   for(const game of BUILTIN_GAMES)if(!state.games.some(item=>item.id===game.id))state.games.push(freshBuiltin(game));

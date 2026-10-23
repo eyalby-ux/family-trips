@@ -1,7 +1,7 @@
 import {ITEM_TYPES,ITEM_TYPE_PLURALS,TRANSPORT_MODES,flightRouteDeparture,needsReviewFormField,TYPE_FIELDS,buildItemFormValues,confirmNeedsReviewField,createSuggestions,findPossibleDuplicates,flagReversedFlightDirection,isDismissibleWarning,manualCreateDefaults,mapsUrl,normalizeUrlInput,reconcileStaleNeedsReview,resolveMergeCandidate,resolveParticipantIdsFromDraft,scheduleForType,suggestionReviewDefaults,suggestionToItem,validateSource} from './ingestion.js';
 import {extractSourceContent,sha256File} from './content-extraction.js';
 import {MultipartQrCollector,decodeExternalText,importBatchToApp} from './external-import.js';
-import {availableTimelineModes,backfillTripDates,currentOperational,filterAndSortTasks,isDeletionEligible,isItemOutsideTrip,normalizeDateRange,normalizeOperationalState,packingDuplicate,periodBounds,QUARANTINE_DELETION_ELIGIBLE_DAYS,quickAccessTasks,sanitizeTripDates,shiftCursor,sortItemsByStartAt,TASK_DUE_SCOPES,TRANSPORT_TYPES,itemStartMs,planToday,shortDayLabel,shouldClearEndedOnEdit,today,addParticipantsToRecord,computeTicketCoverage,participantChipLabel,pickerParticipants,uniqueRecordsById,upNextItem,isTaskOverdue,filterShoppingItems,isSharedShoppingItem,participantAssignments,shoppingOwnerLabel,normalizeTaskLink} from './operational-data.js';
+import {syncBaseline,availableTimelineModes,backfillTripDates,currentOperational,filterAndSortTasks,isDeletionEligible,isItemOutsideTrip,normalizeDateRange,normalizeOperationalState,packingDuplicate,periodBounds,QUARANTINE_DELETION_ELIGIBLE_DAYS,quickAccessTasks,sanitizeTripDates,shiftCursor,sortItemsByStartAt,TASK_DUE_SCOPES,TRANSPORT_TYPES,itemStartMs,planToday,shortDayLabel,shouldClearEndedOnEdit,today,addParticipantsToRecord,computeTicketCoverage,participantChipLabel,pickerParticipants,uniqueRecordsById,upNextItem,isTaskOverdue,filterShoppingItems,isSharedShoppingItem,participantAssignments,shoppingOwnerLabel,normalizeTaskLink} from './operational-data.js';
 import {COUNTER_ABOVE,arrowKeyTarget,carouselSlots,participantLayout,positionIndicator} from './participant-carousel.js';
 import {normalizeProposalLifecycle,rejectProposal} from './proposal-lifecycle.js';
 import {GAME_FILTERS,PANTOMIME_ID,REMIND_ME_ID,REMIND_ME_MODES,TRIVIA_ID,applyRemindMeResult,chooseRemindMeMode,remindMeHistory,remindMeSuggestion,beginPantomimeRound,capHistory,gameBuildGate,newPantomimeDeck,newPantomimeState,pantomimeFinished,pantomimeNext,pantomimePhrase,pantomimePlayable,filterGames,gamePrimaryAction,newTriviaDeck,newTriviaState,readMoreUrl,toggleCorrect,triviaBuildGate,triviaFinished,triviaNext,triviaQuestion,triviaTally,triviaWinners} from './games.js';
@@ -235,9 +235,11 @@ async function bootInner(){
 function mergeRemoteState(remoteState){
   // The screen's own, never-synced state survives a remote update (it used to reset the timeline day, the task filters and so on).
   const {view,category,itemId,suggestionId,modal,timelineMode,calendarDate,toast,packingParticipantView,settingsPage,timelineCursor,taskFilters,shoppingFilters,gameFilter,docFilter,tasksDoneCollapsed}=state;
+  // what Firestore really holds, captured BEFORE normalizeOperationalState() edits the shared games array in place (see syncBaseline)
+  const remoteGames=clone(remoteState.games||[]);
   state={...clone(EMPTY),...remoteState,view,category,itemId,suggestionId,modal,timelineMode,calendarDate,toast,packingParticipantView,settingsPage,timelineCursor,taskFilters,shoppingFilters,gameFilter,docFilter,tasksDoneCollapsed};
   normalizeOperationalState(state);
-  lastSyncedSnapshot=clone(state);
+  lastSyncedSnapshot=syncBaseline({games:remoteGames},state);
   bootResolved=true; // this IS the real initial Trip data boot() was waiting on, wherever it came from
 }
 function openTrip(tripId){

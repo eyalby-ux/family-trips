@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import {WINNER_ANIMATIONS,WINNER_MS,WINNER_REPEATS,createWinnerPlayer,winnerHtml} from '../src/winner-animation.js';
 import {REMIND_ME_HISTORY_CAP,REMIND_ME_MODES as SERVER_MODES,cleanStartHistory,extractRemindMe,remindMeInstruction,remindMeSchema,remindMeSystemPrompt,PANTOMIME_COUNT,PANTOMIME_FIELDS,buildPantomimeContext,cleanHistory,generateWithRepeatGuard,pantomimeInstruction,pantomimeSchema,pantomimeSystemPrompt} from '../netlify/functions/_shared/game-content.mjs';
 import {REMIND_ME_CAP,REMIND_ME_ID,REMIND_ME_MODES,applyRemindMeResult,chooseRemindMeMode,emptyRemindMe,remindMeHistory,remindMeSuggestion,PANTOMIME_ID,beginPantomimeRound,capHistory,gameBuildGate,newPantomimeDeck,newPantomimeState,pantomimeFinished,pantomimeNext,pantomimePhrase,pantomimePlayable,pickActor,toggleCorrect,triviaWinners} from '../src/games.js';
-import {BUILTIN_GAMES,normalizeOperationalState,sanitizeTripDates} from '../src/operational-data.js';
+import {BUILTIN_GAMES,diffById,normalizeOperationalState,sanitizeTripDates,syncBaseline} from '../src/operational-data.js';
 import {onboardingTripFrom,showsOnboarding} from '../src/onboarding.js';
 
 const read=path=>fs.readFileSync(new URL(path,import.meta.url),'utf8');
@@ -326,6 +326,44 @@ test('(C) דילוג and the back arrow return to the two-choice screen creating
   assert(!/prefill|preFill|pre-fill/i.test(screen),'no pre-fill of dates / destination from the uploaded document');
   // a skipped form means the screen shows the choices again (state only)
   assert(screen.indexOf('if(onboardingForm)')<screen.indexOf('ברוכים הבאים ל-FamilyTrips'));
+});
+
+// ---------------------------------------------------------------- the sync-baseline bug found live on qa (Pantomime could not save to the cloud)
+
+test('sync baseline: a built-in game that is NEW to a trip is created in Firestore on the next save (it used to look "already synced", so its first edit failed with "No document to update"); a game the normalizer removed is deleted',()=>{
+  // what Firestore holds for a trip that predates 0.9.3: no Pantomime, no מזכיר לי, and still the old ציד תמונות
+  const remote={games:[{id:'game-thailand-trivia',title:'טריוויה על היעד',interactive:true,favorite:false,deck:[],askedQuestions:[],triviaState:{order:[],position:0,scores:{}}},{id:'game-photo-hunt',title:'ציד תמונות',favorite:true},{id:'game-road-story',title:'סיפור בהמשכים',favorite:false}]};
+  // the app loads it: mergeRemoteState shares the games ARRAY with the remote object, and the normalizer edits it in place
+  const remoteGames=JSON.parse(JSON.stringify(remote.games));
+  const state={...remote,trip:{id:'t'},items:[]};normalizeOperationalState(state);
+  assert(state.games.some(game=>game.id===PANTOMIME_ID)&&state.games.some(game=>game.id===REMIND_ME_ID),'the normalizer pushed the two new games');assert(!state.games.some(game=>game.id==='game-photo-hunt'),'and removed the old one');
+  assert(!remote.games.some(game=>game.id==='game-photo-hunt'),'(the in-place edit also changed the remote object -- which is why the remote list has to be captured BEFORE normalizing)');
+  const baseline=syncBaseline({games:remoteGames},state);
+  assert.deepEqual(baseline.games.map(game=>game.id).sort(),['game-photo-hunt','game-road-story','game-thailand-trivia'],'the baseline lists exactly what Firestore holds');
+  // the user builds a Pantomime deck: the next save must CREATE the game (set), not update a document that does not exist
+  const pantomime=state.games.find(game=>game.id===PANTOMIME_ID);pantomime.deck=[{id:'p1',text:'פיל שרוחץ בנהר'}];
+  const diff=diffById(baseline.games,state.games);
+  assert.deepEqual(diff.toCreate.map(game=>game.id).sort(),['game-20-questions','game-airport-bingo','game-pantomime','game-remind-me'],'every built-in that Firestore lacks (here also two this test trip never had) is created, with its full record');
+  assert.equal(diff.toCreate.find(game=>game.id===PANTOMIME_ID).deck.length,1);
+  assert.deepEqual(diff.toDelete,['game-photo-hunt'],'the folded-in game\'s document is deleted');
+  assert.equal(diff.toUpdate.find(entry=>entry.id===PANTOMIME_ID),undefined,'NEVER an update of a document that was never created');
+  // the OLD behaviour, to document the bug: a baseline cloned after normalizing makes the new game look synced
+  const oldBaseline=JSON.parse(JSON.stringify(state));
+  const edited=JSON.parse(JSON.stringify(state));edited.games.find(game=>game.id===PANTOMIME_ID).deck=[{id:'p2',text:'ב'}];
+  assert(diffById(oldBaseline.games,edited.games).toUpdate.some(entry=>entry.id===PANTOMIME_ID),'(the old baseline produced exactly the failing update)');
+  // a trip that already has every game: nothing is created or deleted, only real edits are diffed
+  const full={games:BUILTIN_GAMES.map(game=>({...structuredClone(game),favorite:false}))};const fullRemote=JSON.parse(JSON.stringify(full.games));
+  const fullState={...full,trip:{id:'t'},items:[]};normalizeOperationalState(fullState);
+  const fullBaseline=syncBaseline({games:fullRemote},fullState);assert.deepEqual(diffById(fullBaseline.games,fullState.games),{toCreate:[],toUpdate:[],toDelete:[]},'no spurious writes on a trip that is already complete');
+  fullState.games.find(game=>game.id==='game-road-story').favorite=true;
+  assert.deepEqual(diffById(fullBaseline.games,fullState.games).toUpdate.map(entry=>entry.id),['game-road-story'],'a star is a plain update');
+  // a trip with no game documents at all: every built-in is created
+  const bare={games:[],trip:{id:'t'},items:[]};normalizeOperationalState(bare);
+  assert.equal(diffById(syncBaseline({games:[]},bare).games,bare.games).toCreate.length,BUILTIN_GAMES.length);
+  // wiring
+  const merge=fn('mergeRemoteState');
+  assert(merge.includes('const remoteGames=clone(remoteState.games||[]);')&&merge.indexOf('const remoteGames=')<merge.indexOf('normalizeOperationalState(state)'),'the remote games are captured before the normalizer edits them');
+  assert(merge.includes('lastSyncedSnapshot=syncBaseline({games:remoteGames},state);')&&!merge.includes('lastSyncedSnapshot=clone(state)'),'the baseline is the remote games, not the normalized ones');
 });
 
 let failed=0;

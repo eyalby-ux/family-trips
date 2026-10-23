@@ -176,7 +176,8 @@ function test_0_7_3_mergeRemoteState_preserves_the_same_ephemeral_fields_as_befo
   // Phase 3.2: the screen's own never-synced fields (Settings page, timeline day, filters) are preserved as well.
   assert(body.includes('const {view,category,itemId,suggestionId,modal,timelineMode,calendarDate,toast,packingParticipantView,settingsPage,timelineCursor,taskFilters,shoppingFilters,gameFilter,docFilter,tasksDoneCollapsed}=state;'));
   assert(body.includes('normalizeOperationalState(state);'));
-  assert(body.includes('lastSyncedSnapshot=clone(state);'));
+  // 0.9.3: the baseline is the REMOTE games (captured before normalizing) + the normalized rest, via syncBaseline -- so a built-in game new to the trip is created, not 'updated'
+  assert(body.includes('lastSyncedSnapshot=syncBaseline({games:remoteGames},state);'));
   // mergeRemoteState itself must NOT call render() -- render() calls it (for the buffered-flush
   // case) and openTrip calls it directly then renders separately (for the immediate case); if
   // mergeRemoteState also rendered, the flush path would render twice per update.
