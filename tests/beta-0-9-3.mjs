@@ -368,7 +368,7 @@ test('sync baseline: a built-in game that is NEW to a trip is created in Firesto
 });
 
 test('(A) Pantomime phrases carry NO place names (PO, 2026-10-23): the prompt forbids them with examples, the instruction repeats it, and a phrase naming the trip\'s own destination is dropped and refilled by the bounded top-up',async()=>{
-  for(const required of ['NO PLACE NAMES','never write the name of a country, city, region, landmark, street, venue or any other named place','a name cannot be acted out and it gives the answer away','Describe the activity, animal, food or scene itself','The destination should show through WHAT is acted, never through a name'])assert(pantomimeSystemPrompt.includes(required),required);
+  for(const required of ['NO PLACE NAMES','never write the name of a country, city, region, landmark, street, venue or any other named place','a name cannot be acted out and it gives the answer away','Describe the activity, animal, food or scene itself','The destination should show through WHAT is acted, never through a name',"Generic kinds of places and things ARE fine and welcome ('a floating market'",'only the PROPER name of a specific place or landmark is forbidden','a specific name is very hard to act out'])assert(pantomimeSystemPrompt.includes(required),required);
   assert(pantomimeInstruction({destinations:['ארגנטינה']},{count:12,exclude:[],topUp:false}).includes('No place names in any phrase.'),'repeated in the per-call instruction');
   // the hard rule for the one name we always know
   assert.equal(mentionsDestination('רוקדים טנגו בארגנטינה',['ארגנטינה']),true,'also with a Hebrew prefix glued on ("בארגנטינה")');
