@@ -71,25 +71,26 @@ export function triviaTally(scores,participants){
 // ---- Beta 0.9.3: Pantomime -- the same generated-deck game as Trivia, plus a private "pass the phone" reveal and an automatically picked actor. ----
 export const PANTOMIME_ID='game-pantomime';
 export const newPantomimeDeck=phrases=>(phrases||[]).map((entry,index)=>({id:`p${index+1}`,text:String(entry.text??'').trim()})).filter(entry=>entry.text);
-// currentActorId / actorPosition remember who performs the round that is open, so reopening the app mid-round does not pick someone else.
-export const emptyPantomimeState=()=>({order:[],position:0,scores:{},lastActorId:'',currentActorId:'',actorPosition:-1});
-export const newPantomimeState=(deck,random=Math.random)=>({...emptyPantomimeState(),order:shuffleOrder((deck||[]).length,random)});
+export const PANTOMIME_DEFAULT_ROUNDS=2,PANTOMIME_MAX_ROUNDS=5,PANTOMIME_MIN_PHRASES=12,PANTOMIME_MAX_PHRASES=40;
+// The organiser picks 1-5 rounds per player; a playthrough is players x rounds turns (3 players x 2 rounds = 6 turns).
+export const clampRounds=value=>Math.min(PANTOMIME_MAX_ROUNDS,Math.max(1,Math.round(Number(value))||PANTOMIME_DEFAULT_ROUNDS));
+export const pantomimeTurns=(playerCount,rounds)=>Math.max(0,playerCount)*clampRounds(rounds);
+// How many phrases a build asks for: enough for every turn, never fewer than the usual 12.
+export const pantomimeBuildCount=(playerCount,rounds)=>Math.min(PANTOMIME_MAX_PHRASES,Math.max(PANTOMIME_MIN_PHRASES,pantomimeTurns(playerCount,rounds)));
+export const emptyPantomimeState=()=>({order:[],position:0,scores:{},actorOrder:[],rounds:PANTOMIME_DEFAULT_ROUNDS});
+// A fresh playthrough. The ONLY randomness in who acts is here: the players are put in a random order once (round 1 = a random one of all of them, round 2 = a random
+// one of the rest, ...); after everyone has acted once the same order repeats. The turns are the first players x rounds phrases of a shuffled deck (fewer if the deck is shorter).
+export function newPantomimeState(deck,{activeIds=[],rounds=PANTOMIME_DEFAULT_ROUNDS,random=Math.random}={}){
+  const length=(deck||[]).length,turns=Math.min(length,pantomimeTurns(activeIds.length,rounds));
+  return {...emptyPantomimeState(),order:shuffleOrder(length,random).slice(0,turns),actorOrder:shuffleOrder(activeIds.length,random).map(index=>activeIds[index]),rounds:clampRounds(rounds)};
+}
 export const pantomimeFinished=game=>!(game.deck||[]).length||(game.pantomimeState?.position||0)>=(game.pantomimeState?.order||[]).length;
 export const pantomimePhrase=game=>pantomimeFinished(game)?null:game.deck[game.pantomimeState.order[game.pantomimeState.position]]||null;
-// The actor is picked at random every round -- there is no manual picker. With more than one participant the same person never performs two rounds in
-// a row: a pick that equals the previous actor is re-rolled among the OTHERS (so with exactly two participants it is a strict alternation).
-export function pickActor(participantIds,lastActorId,random=Math.random){
-  const ids=participantIds||[];
-  if(!ids.length)return '';
-  let pick=ids[Math.floor(random()*ids.length)];
-  if(ids.length>1&&pick===lastActorId){const others=ids.filter(id=>id!==lastActorId);pick=others[Math.floor(random()*others.length)]}
-  return pick;
-}
-// Opens the round at the current position: keeps the actor already picked for it (if still active), else picks one. Returns the new state (never mutates).
-export function beginPantomimeRound(state,participantIds,random=Math.random){
-  if(state.actorPosition===state.position&&(participantIds||[]).includes(state.currentActorId))return state;
-  const previous=state.currentActorId||state.lastActorId||'';
-  return {...state,lastActorId:previous,currentActorId:pickActor(participantIds,previous,random),actorPosition:state.position};
+// Who performs the open round: the saved order, cycled -- A B C A B C ... -- so closing and reopening the app can never change it. A participant who has left is skipped;
+// a game saved before this rule (no order) falls back to the participants' own order.
+export function pantomimeActor(state,activeIds){
+  const active=activeIds||[],saved=(state?.actorOrder||[]).filter(id=>active.includes(id)),ids=saved.length?saved:active;
+  return ids.length?ids[(state?.position||0)%ids.length]:'';
 }
 export const pantomimeNext=state=>({...state,position:state.position+1});
 // Pantomime needs an actor and at least one guesser.

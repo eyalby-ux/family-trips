@@ -6,13 +6,13 @@ import crypto from 'node:crypto';
 import OpenAI from 'openai';
 import {authorize,httpError} from './_shared/smart-import-auth.mjs';
 import {consumeDailyQuota,registerOrVerifyTrip,writeAudit} from './_shared/smart-import-quota.mjs';
-import {REMIND_ME_MODES,cleanStartHistory,extractRemindMe,remindMeInstruction,remindMeSchema,remindMeSystemPrompt,PANTOMIME_COUNT,PANTOMIME_FIELDS,TRIVIA_COUNT,TRIVIA_FIELDS,buildPantomimeContext,buildTripContext,cleanHistory,generateWithRepeatGuard,pantomimeAccept,pantomimeInstruction,pantomimeSchema,pantomimeSystemPrompt,triviaInstruction,triviaSchema,triviaSystemPrompt} from './_shared/game-content.mjs';
+import {REMIND_ME_MODES,cleanStartHistory,extractRemindMe,remindMeInstruction,remindMeSchema,remindMeSystemPrompt,PANTOMIME_COUNT,PANTOMIME_FIELDS,TRIVIA_COUNT,TRIVIA_FIELDS,buildPantomimeContext,buildTripContext,clampCount,cleanHistory,generateWithRepeatGuard,pantomimeAccept,pantomimeInstruction,pantomimeSchema,pantomimeSystemPrompt,triviaInstruction,triviaSchema,triviaSystemPrompt} from './_shared/game-content.mjs';
 
 const MODEL='gpt-5.6-luna';
 const KINDS={
   generate_trivia:{schemaName:'familytrips_trivia',schema:triviaSchema,systemPrompt:triviaSystemPrompt,instruction:triviaInstruction,fields:TRIVIA_FIELDS,count:TRIVIA_COUNT,listKey:'questions',needsDestination:true,context:buildTripContext},
   // 0.9.3: destination-only phrases for Pantomime; the same engine, the same quota, the same audit
-  generate_pantomime:{schemaName:'familytrips_pantomime',schema:pantomimeSchema,systemPrompt:pantomimeSystemPrompt,instruction:pantomimeInstruction,fields:PANTOMIME_FIELDS,count:PANTOMIME_COUNT,listKey:'phrases',needsDestination:true,context:buildPantomimeContext,accept:pantomimeAccept},
+  generate_pantomime:{schemaName:'familytrips_pantomime',schema:pantomimeSchema,systemPrompt:pantomimeSystemPrompt,instruction:pantomimeInstruction,fields:PANTOMIME_FIELDS,count:PANTOMIME_COUNT,listKey:'phrases',needsDestination:true,context:buildPantomimeContext,accept:pantomimeAccept,sizable:true},
 };
 export default async function handler(request){
   if(request.method!=='POST')return json({error:'method_not_allowed'},405);
@@ -39,7 +39,7 @@ export default async function handler(request){
       const latencyMs=Date.now()-started;audit={...audit,status:'completed',model:MODEL,latencyMs,estimatedVariableCostUsd:Number(((usage.inputTokens*0.25+usage.outputTokens*2)/1_000_000).toFixed(6))};await writeAudit(audit);
       return json({mode:body.mode,...suggestion,latencyMs,quota:{remaining:Math.max(0,quota.limit-quota.count),limit:quota.limit}},200);
     }
-    const result=await generateWithRepeatGuard({callModel,history:cleanHistory(body.history,kind.fields),count:kind.count,fields:kind.fields,accept:kind.accept?kind.accept(context):undefined});
+    const result=await generateWithRepeatGuard({callModel,history:cleanHistory(body.history,kind.fields),count:kind.sizable?clampCount(body.count,kind.count):kind.count,fields:kind.fields,accept:kind.accept?kind.accept(context):undefined});
     const latencyMs=Date.now()-started;audit={...audit,status:'completed',model:MODEL,latencyMs,estimatedVariableCostUsd:Number(((usage.inputTokens*0.25+usage.outputTokens*2)/1_000_000).toFixed(6))};await writeAudit(audit);
     return json({[kind.listKey]:result.items,shortBy:result.shortBy,calls:result.calls,latencyMs,quota:{remaining:Math.max(0,quota.limit-quota.count),limit:quota.limit}},200);
   }catch(error){audit={...audit,status:error.code||'failed',latencyMs:Date.now()-started};if(audit.userEmailHash)await writeAudit(audit).catch(()=>{});console.error('FamilyTrips game content failed',{code:error?.code||'',message:String(error?.message||error)});return json({error:error?.code||'game_content_failed',message:Number(error?.status)>=500||!error?.status?'Game content could not be generated.':String(error.message)},Number(error?.status)||500)}

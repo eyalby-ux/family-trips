@@ -72,6 +72,8 @@ export function triviaInstruction({destinations,items},{count,exclude,topUp}){
 // ---- Beta 0.9.3: Pantomime phrases. The generation, the exclusion-list history and the dedup / top-up guard are the SAME engine as Trivia's
 // (generateWithRepeatGuard / dropRepeats / cleanHistory above), parameterized by `fields`; only the schema, prompt and context differ. ----
 export const PANTOMIME_COUNT=12;
+// The client asks for as many phrases as the game needs (players x rounds per player); the server keeps it between 6 and 40.
+export const clampCount=(value,fallback,min=6,max=40)=>{const n=Math.round(Number(value));return Number.isFinite(n)&&n>0?Math.min(max,Math.max(min,n)):fallback};
 export const PANTOMIME_FIELDS=['text'];
 export const pantomimeSchema={type:'object',additionalProperties:false,required:['phrases'],properties:{phrases:{type:'array',items:{type:'object',additionalProperties:false,required:['text'],properties:{text:{type:'string'}}}}}};
 export const pantomimeSystemPrompt=`You write phrases for a family charades (pantomime) game on a trip, in Hebrew. One person acts a phrase out silently, using only body movements, and the others guess.
@@ -79,6 +81,7 @@ Every phrase must be something ONE person can act out without words or props: a 
 Tone: kid-friendly, playful, nothing scary or mature, understandable by the youngest child on the trip. Short: two to six words each.
 Content: places, culture and daily life of the trip's actual destination.
 NO PLACE NAMES: never write the name of a country, city, region, landmark, street, venue or any other named place inside a phrase -- a name cannot be acted out and it gives the answer away. Describe the activity, animal, food or scene itself ('dancing a tango', not 'dancing a tango in <city>'; 'watching a huge waterfall', not the waterfall's name). Generic kinds of places and things ARE fine and welcome ('a floating market', 'a beach', 'a train station', 'a night market', 'a temple') -- only the PROPER name of a specific place or landmark is forbidden, because a specific name is very hard to act out. The destination should show through WHAT is acted, never through a name.
+GENERIC, NOT SPECIFIC: prefer the generic thing over a specific named one. A generic food is fine ('cheese', 'soup', 'bread', 'ice cream', 'a sandwich'); a specific named dish, product or regional speciality is NOT ('feta', 'sufganiyah', 'empanada', 'alfajor', a named cake or cheese). The same for drinks, instruments, dances and animals: 'playing a drum', 'a guitar', 'dancing with a scarf', 'a penguin' -- not a specific foreign name that nobody can mime. A phrase must be something a child can picture and act out at once.
 Never repeat, even rephrased or with the same meaning, any phrase in the exclusion list.`;
 // A hard rule on top of the prompt for the one name we always know -- the trip's own destination(s): a phrase that contains one is dropped (the bounded top-up
 // refills it). Cities and landmarks cannot be recognized from text alone, so for those the prompt is the only guard.

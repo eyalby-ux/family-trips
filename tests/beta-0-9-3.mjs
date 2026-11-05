@@ -3,8 +3,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {WINNER_ANIMATIONS,WINNER_MS,WINNER_REPEATS,createWinnerPlayer,winnerHtml} from '../src/winner-animation.js';
-import {REMIND_ME_HISTORY_CAP,REMIND_ME_MODES as SERVER_MODES,cleanStartHistory,extractRemindMe,remindMeInstruction,remindMeSchema,remindMeSystemPrompt,PANTOMIME_COUNT,PANTOMIME_FIELDS,buildPantomimeContext,cleanHistory,generateWithRepeatGuard,mentionsDestination,pantomimeAccept,pantomimeInstruction,pantomimeSchema,pantomimeSystemPrompt} from '../netlify/functions/_shared/game-content.mjs';
-import {REMIND_ME_CAP,REMIND_ME_ID,REMIND_ME_MODES,applyRemindMeResult,chooseRemindMeMode,emptyRemindMe,remindMeHistory,remindMeSuggestion,PANTOMIME_ID,beginPantomimeRound,capHistory,gameBuildGate,newPantomimeDeck,newPantomimeState,pantomimeFinished,pantomimeNext,pantomimePhrase,pantomimePlayable,pickActor,toggleCorrect,triviaWinners} from '../src/games.js';
+import {REMIND_ME_HISTORY_CAP,REMIND_ME_MODES as SERVER_MODES,cleanStartHistory,extractRemindMe,remindMeInstruction,remindMeSchema,remindMeSystemPrompt,PANTOMIME_COUNT,PANTOMIME_FIELDS,buildPantomimeContext,clampCount,cleanHistory,generateWithRepeatGuard,mentionsDestination,pantomimeAccept,pantomimeInstruction,pantomimeSchema,pantomimeSystemPrompt} from '../netlify/functions/_shared/game-content.mjs';
+import {REMIND_ME_CAP,REMIND_ME_ID,REMIND_ME_MODES,applyRemindMeResult,chooseRemindMeMode,emptyRemindMe,remindMeHistory,remindMeSuggestion,PANTOMIME_ID,PANTOMIME_MAX_ROUNDS,capHistory,clampRounds,pantomimeActor,pantomimeBuildCount,pantomimeTurns,gameBuildGate,newPantomimeDeck,newPantomimeState,pantomimeFinished,pantomimeNext,pantomimePhrase,pantomimePlayable,toggleCorrect,triviaWinners} from '../src/games.js';
 import {BUILTIN_GAMES,diffById,normalizeOperationalState,sanitizeTripDates,syncBaseline} from '../src/operational-data.js';
 import {onboardingTripFrom,showsOnboarding} from '../src/onboarding.js';
 
@@ -71,7 +71,7 @@ test('(A) generate_pantomime REUSES 0.9.1\'s engine (one dedup implementation, o
   const ctx=buildPantomimeContext({destinations:['תאילנד'],items:[{title:'Hyatt Regency Phuket',location:'Phuket',confirmationNumber:'X1'}]});
   assert.deepEqual(ctx,{destinations:['תאילנד'],items:[]});
   const text=pantomimeInstruction(ctx,{count:12,exclude:[],topUp:false});assert(!/Hyatt|Phuket|X1/.test(text)&&text.includes('תאילנד')&&text.includes('exactly 12'));
-  assert(read('../src/game-content-client.js').includes("generatePantomime=({trip,history})=>generateContent('generate_pantomime',{trip,items:[],history})"),'the client never even sends items');
+  assert(read('../src/game-content-client.js').includes("generatePantomime=({trip,history,count})=>generateContent('generate_pantomime',{trip,items:[],history,count})"),'the client never even sends items');
   // the exclusion list is in the request payload of every call -- including the top-up (AI call mocked), through the SAME guard
   const history=[{text:'פיל שרוחץ בנהר'},{text:'מוכר בשוק צף'}];const payloads=[];
   const callModel=async request=>{payloads.push(request);return payloads.length===1?[{text:'פיל שרוחץ בנהר!'},...Array.from({length:10},(_,i)=>({text:`ביטוי חדש ${i}`}))]:[{text:'עוד ביטוי'},{text:'ועוד אחד'}]};
@@ -89,29 +89,54 @@ test('(A) generate_pantomime REUSES 0.9.1\'s engine (one dedup implementation, o
   assert.deepEqual(cleanHistory(Array.from({length:90},(_,i)=>({text:`t${i}`})),PANTOMIME_FIELDS).length,60,'the server caps it too');
 });
 
-test('(A) the actor is picked automatically at random with a re-roll on an immediate repeat -- concrete examples, including the exactly-two-participants alternation',()=>{
-  const ids=['a','b','c'];
-  // the pick comes from the participants
-  const seen=new Set();for(let seed=1;seed<=80;seed++)seen.add(pickActor(ids,'',seeded(seed*7919+3)));assert.deepEqual([...seen].sort(),['a','b','c'],'every participant can be picked');
-  // a random pick that equals the previous actor is re-rolled among the others, so the same person never performs two rounds in a row
-  assert.equal(pickActor(ids,'a',()=>0),'b','first draw is "a" = the last actor, so it is re-rolled: the first of the others');
-  assert.equal(pickActor(ids,'a',()=>0.99),'c','a draw that is already someone else stands');
-  for(let seed=1;seed<=300;seed++)assert.notEqual(pickActor(ids,'b',seeded(seed*104729+11)),'b','never the same actor twice in a row');
-  // exactly two participants: a strict alternation
-  let last='',sequence=[];for(let round=0;round<10;round++){const pick=pickActor(['a','b'],last,seeded(round*31+5));sequence.push(pick);last=pick}
-  assert(sequence.every((pick,i)=>i===0||pick!==sequence[i-1]),'two participants alternate strictly: '+sequence.join(''));
-  // one participant: no loop, no crash
-  assert.equal(pickActor(['solo'],'solo',()=>0),'solo');assert.equal(pickActor([],'',()=>0),'');
-  // across a whole game, via the round opener (the state records lastActorId / currentActorId)
-  let state={...newPantomimeState(newPantomimeDeck(Array.from({length:6},(_,i)=>({text:`ב${i}`}))),seeded(2))};const actors=[];const rnd=seeded(99);
-  for(let r=0;r<6;r++){state=beginPantomimeRound(state,ids,rnd);actors.push(state.currentActorId);assert.equal(state.actorPosition,state.position);state=pantomimeNext(state)}
-  assert(actors.every((a,i)=>i===0||a!==actors[i-1]),'no repeats across a game: '+actors.join(''));
-  console.log('  actors over a 6-round game with a,b,c:',actors.join(' '),'| two players:',sequence.join(' '));
-  // reopening mid-round keeps the same actor; an actor who left is replaced
-  const mid=beginPantomimeRound({...newPantomimeState([{id:'p1'}],seeded(1))},ids,seeded(5));
-  assert.equal(beginPantomimeRound(mid,ids,seeded(123)).currentActorId,mid.currentActorId,'same round, same actor after a reload');
-  assert.notEqual(beginPantomimeRound(mid,ids.filter(id=>id!==mid.currentActorId),seeded(1)).currentActorId,mid.currentActorId,'a participant who left is not kept');
+test('(A) P93-P1 the actor rule: round 1 a random player, then the remaining ones one per round, then the SAME order repeats (A B C A B C)',()=>{
+  const ids=['a','b','c'],deck=newPantomimeDeck(Array.from({length:12},(_,i)=>({text:`ב${i}`})));
+  // the first actor can be any of the players (random), the order is a permutation of ALL of them
+  const firsts=new Set();for(let seed=1;seed<=80;seed++){const st=newPantomimeState(deck,{activeIds:ids,rounds:2,random:seeded(seed*7919+3)});firsts.add(st.actorOrder[0]);assert.deepEqual([...st.actorOrder].sort(),ids,'everyone is in the order exactly once')}
+  assert.deepEqual([...firsts].sort(),ids,'round 1 can be any player');
+  // a whole game: 3 players x 2 rounds = 6 turns; nobody acts twice before everybody acted once; the second pass repeats the first
+  const st=newPantomimeState(deck,{activeIds:ids,rounds:2,random:seeded(5)});const actors=[];let cur=st;
+  for(let r=0;r<6;r++){actors.push(pantomimeActor(cur,ids));cur=pantomimeNext(cur)}
+  assert.equal(st.order.length,6,'3 players x 2 rounds = 6 turns');assert(pantomimeFinished({deck,pantomimeState:cur}),'finished after 6');
+  assert.deepEqual(actors.slice(0,3).sort(),ids,'the first three rounds are all different players');assert.deepEqual(actors.slice(3),actors.slice(0,3),'then the same order again');
+  console.log('  actors, 3 players x 2 rounds:',actors.join(' '));
+  // fixed draw -> concrete order: the draw decides the order, nothing else does
+  const fixed=newPantomimeState(deck,{activeIds:ids,rounds:1,random:()=>0});assert.equal(fixed.actorOrder.length,3);
+  // two players alternate strictly; one player acts every round without a crash
+  const two=newPantomimeState(deck,{activeIds:['a','b'],rounds:3,random:seeded(9)});let seq=[],t=two;for(let r=0;r<6;r++){seq.push(pantomimeActor(t,['a','b']));t=pantomimeNext(t)}
+  assert(seq.every((x,i)=>i===0||x!==seq[i-1]),'two players alternate: '+seq.join(''));
+  assert.equal(pantomimeActor({actorOrder:['solo'],position:3},['solo']),'solo');assert.equal(pantomimeActor({},[]),'');
+  // the actor depends only on the SAVED order and position: reopening or reloading the app cannot change it
+  assert.equal(pantomimeActor(cur,ids),pantomimeActor(JSON.parse(JSON.stringify(cur)),ids));
+  const mid={actorOrder:['a','b','c'],position:4};assert.equal(pantomimeActor(mid,ids),'b','position 4 of A B C A B C is B');
+  // a participant who left is skipped; a game saved before the rule (no order) falls back to the participants' order, still cycling
+  assert.equal(pantomimeActor({actorOrder:['a','b','c'],position:0},['b','c']),'b');assert.equal(pantomimeActor({position:4},ids),'b');
   assert.equal(pantomimePlayable([{id:'a'}]),false);assert.equal(pantomimePlayable([{id:'a'},{id:'b',active:false}]),false);assert.equal(pantomimePlayable([{id:'a'},{id:'b'}]),true,'needs an actor and a guesser');
+});
+
+test('(A) P93-P2/P3 rounds per player: 1-5, turns = players x rounds, the deck is built for it and never shorter than 12; the game plays exactly that many turns',()=>{
+  assert.equal(PANTOMIME_MAX_ROUNDS,5);assert.equal(clampRounds(0),2,'garbage falls back to the default of 2');assert.equal(clampRounds('x'),2);assert.equal(clampRounds(-3),1);assert.equal(clampRounds(9),5);assert.equal(clampRounds('3'),3);assert.equal(clampRounds(1),1);assert.equal(clampRounds(5),5);
+  assert.equal(pantomimeTurns(3,2),6,'the PO example');assert.equal(pantomimeTurns(5,5),25);assert.equal(pantomimeTurns(0,2),0);
+  assert.equal(pantomimeBuildCount(3,2),12,'never fewer than the usual 12');assert.equal(pantomimeBuildCount(5,5),25);assert.equal(pantomimeBuildCount(10,5),40,'capped at 40');
+  const deck=newPantomimeDeck(Array.from({length:25},(_,i)=>({text:`ב${i}`})));
+  for(const [players,rounds] of [[2,1],[3,2],[4,3],[5,5]]){const ids=Array.from({length:players},(_,i)=>`p${i}`),st=newPantomimeState(deck,{activeIds:ids,rounds,random:seeded(players*rounds)});
+    assert.equal(st.order.length,players*rounds,`${players} players x ${rounds} rounds`);assert.equal(new Set(st.order).size,st.order.length,'no phrase twice in a game');assert.equal(st.rounds,rounds);
+    const counts={};let cur=st;for(let r=0;r<st.order.length;r++){const who=pantomimeActor(cur,ids);counts[who]=(counts[who]||0)+1;cur=pantomimeNext(cur)}
+    assert(ids.every(id=>counts[id]===rounds),'everyone acts exactly "rounds" times: '+JSON.stringify(counts))}
+  // a deck shorter than the turns: the game simply has as many turns as phrases
+  assert.equal(newPantomimeState(deck.slice(0,4),{activeIds:['a','b','c'],rounds:5,random:seeded(1)}).order.length,4);
+  assert.equal(newPantomimeState(deck,{activeIds:['a','b'],random:seeded(1)}).order.length,4,'default 2 rounds');
+  // server: the requested count is clamped, anything else falls back to 12
+  assert.equal(clampCount(25,12),25);assert.equal(clampCount(500,12),40);assert.equal(clampCount(1,12),6);assert.equal(clampCount(undefined,12),12);assert.equal(clampCount('abc',12),12);assert.equal(clampCount(-4,12),12);
+  const fnSrc=read('../netlify/functions/game-content.mjs');assert(fnSrc.includes('count:kind.sizable?clampCount(body.count,kind.count):kind.count')&&/generate_pantomime[^\n]*sizable:true/.test(fnSrc),'only Pantomime accepts a client count; Trivia stays at 10');
+  assert(read('../src/game-content-client.js').includes("generateContent('generate_pantomime',{trip,items:[],history,count})"));
+  // wiring: the picker, the persisted setting, the build asks for what the game needs, replay uses it, no leftovers of the old rule
+  const view=fn('pantomimeView');assert(view.includes('data-action="pantomime-rounds"')&&view.includes('כמה סיבובים לכל משתתף?')&&view.includes('תורות במשחק')&&view.includes('PANTOMIME_MAX_ROUNDS'),'the organiser picks 1-5 rounds on the detail page');
+  assert(app.includes("else if(action==='pantomime-rounds'){const game=state.games.find(x=>x.id===button.dataset.id);if(game){game.roundsPerPlayer=clampRounds(button.dataset.rounds);"),'the choice is saved on the game (and synced with it)');
+  assert(fn('buildPantomime').includes('count:pantomimeBuildCount(pantomimeActiveIds().length,game.roundsPerPlayer)')&&fn('buildPantomime').includes('newPantomimeStateFor(live,deck)'));
+  assert(app.includes('newPantomimeState(deck,{activeIds:pantomimeActiveIds(),rounds:game.roundsPerPlayer})'));
+  assert(!/lastActorId|currentActorId:|actorPosition|pickActor|beginPantomimeRound/.test(app+read('../src/games.js')),'the "never twice in a row" rule is gone');
+  assert(fn('pantomimePlayView').includes('pantomimeActor(ps,pantomimeActiveIds())'));
 });
 
 test('(A) the round flow end to end: build gate, look-away screen naming the actor, private reveal, performance, tap who guessed, דילוג, tally, winner animation twice',()=>{
@@ -123,7 +148,7 @@ test('(A) the round flow end to end: build gate, look-away screen naming the act
   assert(view.includes('game-start')&&view.includes("${playable?'':' disabled'}")&&view.includes('פנטומימה צריכה לפחות שני משתתפים'),'it cannot start with fewer than two participants');
   assert(app.includes("if(!game||pantomimeBuilding||!gameBuildGate(state.trip,'פנטומימה').allowed)return;"),'the handler enforces the gate too');
   const build=fn('buildPantomime');
-  assert(build.includes('generatePantomime({trip:state.trip,history:game.askedPhrases||[]})')&&build.includes("live.askedPhrases=capHistory(live.askedPhrases,deck,undefined,['text'])")&&build.includes('live.pantomimeState=newPantomimeState(deck)'),'full rebuild: history kept, deck and state reset');
+  assert(build.includes('generatePantomime({trip:state.trip,history:game.askedPhrases||[],count:')&&build.includes("live.askedPhrases=capHistory(live.askedPhrases,deck,undefined,['text'])")&&build.includes('live.pantomimeState=newPantomimeStateFor(live,deck)'),'full rebuild: history kept, deck and state reset');
   assert(build.indexOf('generatePantomime(')<build.indexOf('live.deck=deck'),'nothing is discarded before the new deck exists');
   // the three screens of a round
   const play=fn('pantomimePlayView');
@@ -133,11 +158,11 @@ test('(A) the round flow end to end: build gate, look-away screen naming the act
   const reveal=play.slice(play.indexOf("if(pantomimeStage==='reveal')"),play.indexOf('const guessers='));
   assert(reveal.includes('${esc(phrase.text)}')&&reveal.includes('data-action="pantomime-ready"')&&reveal.includes('הצגתי, עברו לניחוש')&&!/timer|setInterval|countdown/.test(play),'the private reveal; no round timer');
   assert(play.includes('data-action="pantomime-score"')&&play.includes('מי ניחש נכון?')&&play.includes('data-action="pantomime-skip"')&&play.includes('דילוג — לא ניחשו'),'tap who guessed, and the explicit דילוג button');
-  assert(play.includes('person.id!==ps.currentActorId'),'the actor cannot be marked as guessing their own phrase');
+  assert(play.includes('person.id!==currentActorId'),'the actor cannot be marked as guessing their own phrase');
   assert(play.includes('data-action="pantomime-replay"')&&play.includes('class="btn ghost game-secondary" data-action="pantomime-build"'),'the end screen: שחקו שוב (no AI) and the real rebuild');
   // simulate a game with the pure pieces: reveal-and-score, skip, tally, winners
-  const deck=newPantomimeDeck(Array.from({length:4},(_,i)=>({text:`ביטוי ${i}`})));let ps=newPantomimeState(deck,seeded(4));const game={deck};const people=[{id:'a',name:'אייל'},{id:'b',name:'דנה'},{id:'c',name:'נועה'}];
-  const marks=[];const play1=(guessers,skip)=>{ps=beginPantomimeRound(ps,['a','b','c'],seeded(ps.position*13+1));let marked=[];for(const g of guessers){const r=toggleCorrect(ps,marked,g);marked=r.marked;ps={...ps,scores:r.scores}}ps=pantomimeNext(ps);marks.push(skip?'skip':guessers.join('+'))};
+  const deck=newPantomimeDeck(Array.from({length:4},(_,i)=>({text:`ביטוי ${i}`})));let ps=newPantomimeState(deck,{activeIds:['a','b','c'],rounds:1,random:seeded(4)});ps={...ps,order:[0,1,2,3]};const game={deck};const people=[{id:'a',name:'אייל'},{id:'b',name:'דנה'},{id:'c',name:'נועה'}];
+  const marks=[];const play1=(guessers,skip)=>{let marked=[];for(const g of guessers){const r=toggleCorrect(ps,marked,g);marked=r.marked;ps={...ps,scores:r.scores}}ps=pantomimeNext(ps);marks.push(skip?'skip':guessers.join('+'))};
   play1(['b']);play1(['b','c']);play1([],true);play1(['c']);
   game.pantomimeState=ps;assert(pantomimeFinished(game));assert.equal(pantomimePhrase(game),null);
   assert.deepEqual(ps.scores,{b:2,c:2},'two points each; the skipped round scored nobody');
@@ -148,7 +173,7 @@ test('(A) the round flow end to end: build gate, look-away screen naming the act
   assert(adv.includes('if(pantomimeFinished(game)){const winners=triviaWinners(game.pantomimeState.scores,state.participants);if(winners.length)fireWinner(')&&adv.includes("caption:winners.length>1?'ניצחון משותף בסיבוב!':'ניצחון בסיבוב!',big:true,times:WINNER_REPEATS"),'after the last phrase: the shared animation, the winner(s) named, TWICE');
   assert(adv.indexOf('save();render();')<adv.indexOf('fireWinner('),'drawn after the render');
   assert(!fn('pantomimePlayView').includes('fireWinner')&&!app.slice(app.indexOf("else if(action==='pantomime-replay')"),app.indexOf("else if(action==='pantomime-exit')")).includes('fireWinner'),'reopening or replaying never repeats it');
-  const replay=app.slice(app.indexOf("else if(action==='pantomime-replay')"),app.indexOf("else if(action==='pantomime-exit')"));assert(replay.includes('newPantomimeState(game.deck)')&&!replay.includes('generatePantomime')&&!replay.includes('buildPantomime'),'שחקו שוב never calls the AI');
+  const replay=app.slice(app.indexOf("else if(action==='pantomime-replay')"),app.indexOf("else if(action==='pantomime-exit')"));assert(replay.includes('newPantomimeStateFor(game,game.deck)')&&!replay.includes('generatePantomime')&&!replay.includes('buildPantomime'),'שחקו שוב never calls the AI');
   // the winner overlay itself, for the tie, twice
   const queue=[];const mounted=[];createWinnerPlayer({mount:h=>mounted.push(h),clear:()=>mounted.push('cleared'),schedule:f=>{queue.push(f);return queue.length},cancel:()=>{}}).play({name:'דנה · נועה',caption:'ניצחון משותף בסיבוב!',big:true,times:WINNER_REPEATS});
   queue.shift()();assert.equal(mounted.filter(h=>h!=='cleared').length,2);assert(mounted.every(h=>h==='cleared'||h.includes('<bdi>דנה · נועה</bdi>')));
@@ -158,7 +183,7 @@ test('(A) a brand-new id: pushed into every saved trip by the existing push-if-m
   const entry=BUILTIN_GAMES.find(game=>game.id===PANTOMIME_ID);
   assert(entry&&entry.interactive===true&&entry.title==='פנטומימה'&&entry.items==='ללא ציוד'&&entry.participants==='2 ומעלה'&&entry.duration==='20 דקות');
   assert.equal(entry.onTheGo,undefined,'needs everyone watching: not tagged "בנסיעה"');
-  assert.deepEqual(entry.deck,[]);assert.deepEqual(entry.askedPhrases,[]);assert.deepEqual(entry.pantomimeState,{order:[],position:0,scores:{},lastActorId:'',currentActorId:'',actorPosition:-1});
+  assert.deepEqual(entry.deck,[]);assert.deepEqual(entry.askedPhrases,[]);assert.deepEqual(entry.pantomimeState,{order:[],position:0,scores:{},actorOrder:[],rounds:2});assert.equal(entry.roundsPerPlayer,2);
   assert(entry.instructions.includes('בלי מילים ובלי קול'));
   const odSource=read('../src/operational-data.js');assert(!/game-pantomime/.test(odSource.slice(odSource.indexOf('export function backfillBuiltinGames'),odSource.indexOf('const freshBuiltin='))),'no backfill for it');
   // a pre-0.9.3 trip: Bingo, Trivia etc. exist, Pantomime does not -> it appears, the rest is untouched
@@ -180,13 +205,13 @@ test('(A) a brand-new id: pushed into every saved trip by the existing push-if-m
 
 // ---------------------------------------------------------------- (B) מזכיר לי
 
-test('(B) the new game pushes into saved trips with no backfill; the draft instructions are the kickoff\'s, verbatim; it keeps the plain activity page (no interactive plumbing)',()=>{
+test('(B) the new game pushes into saved trips with no backfill; the instructions are the PO\'s final text, verbatim (Test 9); it keeps the plain activity page (no interactive plumbing)',()=>{
   const entry=BUILTIN_GAMES.find(game=>game.id===REMIND_ME_ID);
   assert(entry);assert.equal(entry.title,'מזכיר לי');assert.equal(entry.onTheGo,true);assert.equal(entry.interactive,undefined,'no interactive flag: the chain is free-form, the app tracks nothing');
   assert.equal(entry.participants,'2 ומעלה');assert.equal(entry.duration,'לפי הצורך');assert.equal(entry.items,'ללא ציוד (למצב השירים: טלפון עם נגן מוזיקה)');
   assert(entry.instructions.startsWith('שני אופנים לשחק: (1) מילים — משתתף ראשון אומר מילה')&&entry.instructions.includes('(2) שירים — משתתף ראשון בוחר שיר ומשמיע אותו')&&entry.instructions.endsWith('או להמשיך להאזין עד הסוף.'));
   assert.deepEqual({mode:entry.remindMeMode,start:entry.smartStart,asked:entry.askedStarts},{mode:'',start:{word:'',song:{title:'',artist:''}},asked:{words:[],songs:[]}});
-  const odSource=read('../src/operational-data.js');assert(!/game-remind-me/.test(odSource.slice(odSource.indexOf('export function backfillBuiltinGames'),odSource.indexOf('const freshBuiltin='))),'no backfill');
+  const odSource=read('../src/operational-data.js');const bf=odSource.slice(odSource.indexOf('export function backfillBuiltinGames'),odSource.indexOf('const freshBuiltin='));assert(bf.split('game-remind-me').length===2&&bf.includes('OLD_REMIND_ME_INSTRUCTIONS'),'the only backfill is the one-time text swap');
   const trip=normalizeOperationalState({games:[{id:'game-road-story',title:'סיפור בהמשכים',favorite:true}],trip:{id:'t'},items:[]});
   assert(trip.games.some(game=>game.id===REMIND_ME_ID&&game.favorite===false),'pushed into a trip that never had it');assert.equal(trip.games.filter(game=>game.id===REMIND_ME_ID).length,1);
   const kept=normalizeOperationalState({games:[{...structuredClone(entry),remindMeMode:'song',smartStart:{word:'',song:{title:'א',artist:'ב'}}}],trip:{id:'t'},items:[]}).games.find(game=>game.id===REMIND_ME_ID);
@@ -386,7 +411,9 @@ test('(A) Pantomime phrases carry NO place names (PO, 2026-10-23): the prompt fo
   // without a rule nothing changes for the other games (Trivia passes no accept)
   const trivia=await generateWithRepeatGuard({callModel:async()=>[{question:'ש',answer:'ת'}],history:[],count:1,fields:['question','answer']});assert.equal(trivia.items.length,1);
   const fnSource=read('../netlify/functions/game-content.mjs');
-  assert(fnSource.includes('context:buildPantomimeContext,accept:pantomimeAccept}')&&fnSource.includes('accept:kind.accept?kind.accept(context):undefined'),'wired for Pantomime only');
+  assert(fnSource.includes('context:buildPantomimeContext,accept:pantomimeAccept,sizable:true}')&&fnSource.includes('accept:kind.accept?kind.accept(context):undefined'),'wired for Pantomime only');
+  // P93-F1: generic foods / items only, never a specific named dish, product or speciality
+  assert(pantomimeSystemPrompt.includes('GENERIC, NOT SPECIFIC')&&pantomimeSystemPrompt.includes("'cheese'")&&pantomimeSystemPrompt.includes("is NOT ('feta'"),'generic food is welcome, a specific named one is not');
   assert(!/accept:/.test(fnSource.slice(fnSource.indexOf('generate_trivia:{'),fnSource.indexOf('generate_pantomime:{'))),'Trivia is untouched');
 });
 
