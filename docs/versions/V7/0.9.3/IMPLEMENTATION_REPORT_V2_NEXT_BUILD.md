@@ -1,6 +1,6 @@
 # Beta 0.9.3 — second build (PO decisions from the QA round)
 
-Source: `QA_RESULTS_0_9_3.md`, `PO_DECISIONS_0_9_3.md`. Still qa only; Production runs 0.9.2.
+Source: `QA_RESULTS_0_9_3.md`, `PO_DECISIONS_0_9_3.md`. **Build:** `0.9.3-2c4327cb` (commit `2c4327c`) on `qa` only, deploy not promoted; Production runs `0.9.2-87f38cd2`. QA brief for this build: `QA_AGENT_SUMMARY_V2.md`.
 
 | Item | What changed |
 |---|---|
@@ -12,3 +12,11 @@ Source: `QA_RESULTS_0_9_3.md`, `PO_DECISIONS_0_9_3.md`. Still qa only; Productio
 Tests: `tests/beta-0-9-3.mjs` (18) rewritten for the new rule — order is a permutation, 3 players × 2 rounds = A B C A B C, everyone acts exactly `rounds` times for 2–5 players × 1–5 rounds, clamps, wiring, text and backfill, prompt rule.
 
 Not covered by the developer (still open from QA): onboarding with a brand-new account, reduce motion, phone check of songs, deletion of the QA throw-away trip.
+
+## Live verification on qa (developer, 375px, QA Test Trip with 5 participants)
+- Served bundle carries the picker and the new text, none of the old actor rule; the content function answers 401 unauthenticated.
+- Picker 5/1/3: "5 משתתפים × R = T תורות", chips 38×44 px, no horizontal overflow; with a 12-phrase deck and 3 rounds the page says "לכל התורות צריך 15 — בנו מחדש".
+- One rebuild (one AI call): 15 phrases for 5 × 3. A full game: 15 turns, actors A B C D E ×3 in the same order, end screen after turn 15, "ביטוי n/15".
+- Phrases: no place names; foods generic (שוקו חם, סטייק, סלט טרי); "מניפים דגל כחול־לבן" names nothing but hints at a place — flagged for QA judgement. One deck is a small sample for P93-F1; QA re-checks.
+- מזכיר לי page shows the PO text exactly (the QA trip held the first draft; the one-time update replaced it on load).
+- Not exercised live: two participants, reload mid-round, second device, 360px (covered by unit tests only where noted: actor order from saved order+position, 2-player alternation, 2–5 players × 1–5 rounds).

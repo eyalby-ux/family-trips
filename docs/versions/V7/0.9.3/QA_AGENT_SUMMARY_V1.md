@@ -1,6 +1,8 @@
 # Beta 0.9.3 (Pantomime, מזכיר לי, new-user onboarding, animation twice) — summary for the QA agent
 
-**Build to test:** `0.9.3-c2889884` on `https://qa--familytripz.netlify.app` — qa only, **not** Production (Production runs `0.9.2-87f38cd2`). Settings → אודות shows the exact build; if the phone shows an older one, close and reopen the app or clear the site's data. **Real phone, 360 and 390px.**
+> **Superseded for the changed items by `QA_AGENT_SUMMARY_V2.md` (build `0.9.3-2c4327cb`):** the Pantomime actor rule, rounds per player, the מזכיר לי text and the food rule. This brief is otherwise still valid.
+
+**Build to test (first build):** `0.9.3-c2889884` on `https://qa--familytripz.netlify.app` — qa only, **not** Production (Production runs `0.9.2-87f38cd2`). Settings → אודות shows the exact build; if the phone shows an older one, close and reopen the app or clear the site's data. **Real phone, 360 and 390px.**
 **Scope:** four pieces bundled — (A) **Pantomime** (new game), (B) **מזכיר לי** (new free-form game with an AI "smart start"), (C) **new-user onboarding** (two starting paths), (D) the **end-of-round winner animation plays twice** (Trivia, Pantomime). Developer's report: `IMPLEMENTATION_REPORT_V1.md` (same folder). Kickoff / scope: `PROMPT_FOR_CLAUDE_CODE_0_9_3_PANTOMIME_KICKOFF_V1.md`, `FAMILY_TRIPS_GAMES_INTERACTIVE_SCOPE_V1.md` (`V16`), mockups Pantomime `v3`, Remind Me `v2`, onboarding `V1`.
 
 ## AI quota — read first
