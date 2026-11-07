@@ -1,6 +1,6 @@
 {
   "name": "family-trips-alpha-v6",
-  "version": "0.9.3.2",
+  "version": "0.9.3.3",
   "private": true,
   "description": "Family Trips Beta 0.8.1 -- quick-fix bundle: Tasks participant filter never clips, Documents chip row keeps its scroll, re-link / linkage indicator / hard delete in the documents list, a removed account is told so, Today action buttons are icon + label with an icon-only fallback. qa only -- not promoted to Production until its own acceptance GO.",
   "type": "module",

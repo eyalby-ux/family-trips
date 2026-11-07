@@ -453,6 +453,7 @@ Object.assign(TABLER,{
   upload:'<path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"/><path d="M7 9l5 -5l5 5"/><path d="M12 4l0 12"/>',
   qr:'<path d="M4 4m0 1a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z"/><path d="M7 17l0 .01"/><path d="M14 4m0 1a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z"/><path d="M7 7l0 .01"/><path d="M4 14m0 1a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z"/><path d="M17 7l0 .01"/><path d="M14 14l3 0"/><path d="M20 14l0 .01"/><path d="M14 14l0 3"/><path d="M14 20l3 0"/><path d="M17 17l3 0"/><path d="M20 17l0 3"/>',
   pin:'<path d="M9 11a3 3 0 1 0 6 0a3 3 0 0 0 -6 0"/><path d="M17.657 16.657l-4.243 4.243a2 2 0 0 1 -2.827 0l-4.244 -4.243a8 8 0 1 1 11.314 0"/>',
+  cloud:'<path d="M6.657 18c-2.572 0 -4.657 -2.007 -4.657 -4.483c0 -2.475 2.085 -4.482 4.657 -4.482c.393 -1.762 1.794 -3.2 3.675 -3.773c1.88 -.572 3.956 -.193 5.444 1c1.488 1.19 2.162 3.007 1.77 4.769h.99c1.913 0 3.464 1.56 3.464 3.486c0 1.927 -1.551 3.487 -3.465 3.487h-11.878"/>',
   leaf:'<path d="M5 21c.5 -4.5 2.5 -8 7 -10"/><path d="M9 18c6.218 0 10.5 -3.288 11 -12v-2h-4.014c-9 0 -11.986 4 -12 9c0 1 0 3 2 5h3z"/>',
   paw:'<path d="M12 12.5c-2.2 0 -4.5 2.3 -4.5 4.4c0 1.4 1 2.1 2.2 2.1c1 0 1.6 -.5 2.3 -.5s1.3 .5 2.3 .5c1.2 0 2.2 -.7 2.2 -2.1c0 -2.1 -2.3 -4.4 -4.5 -4.4z"/><circle cx="6" cy="10" r="1.6"/><circle cx="9.5" cy="6" r="1.6"/><circle cx="14.5" cy="6" r="1.6"/><circle cx="18" cy="10" r="1.6"/>',
   music:'<path d="M9 17v-13l10 -2v13"/><circle cx="6" cy="17" r="3"/><circle cx="16" cy="15" r="3"/>',
@@ -849,7 +850,7 @@ async function buildTrivia(gameId){
 // (`pending` marks one that is not up yet). Photos are shown from the device copy, else downloaded with downloadAttachment() (getBytes), never getDownloadURL() --
 // the CORS bug the app already paid to fix once. Tapping a found cell opens it full size (replace / erase). UI-only state (not saved): the picker, the participant
 // on screen, the spot being photographed / opened.
-let bingoPicking=false,bingoParticipant=null,bingoPending=null,bingoBusy=null,bingoViewing=null,bingoSyncing=false;
+let bingoParticipant=null,bingoPending=null,bingoBusy=null,bingoViewing=null,bingoSyncing=false;
 const bingoPhotoUrls=new Map(),bingoLoading=new Set(),bingoFailed=new Set();
 const bingoGame=()=>state.games.find(candidate=>candidate.id===BINGO_ID);
 const bingoTop=game=>backRow('games','','',`${tabler('dice')} ${esc(game.title)}`,'bingo-exit');
@@ -866,11 +867,14 @@ function bingoViewer(game,board,spots,selected){
 }
 function bingoView(game){
   const fact=(label,value)=>value?`<div class="fact"><dt>${label}</dt><dd>${esc(value)}</dd></div>`:'';
-  if(gamePlaying!==game.id)return `<section class="card">${backRow('games','','',`${tabler('dice')} ${esc(game.title)}`)}<p class="game-description">${esc(game.instructions)}</p><dl class="detail-facts">${fact('מתאים ל',game.participants)}${fact('משך',game.duration)}${fact('ציוד',game.items)}</dl>${setupEntryRows(game)}<button class="btn game-primary" data-action="game-start" data-id="${game.id}">${gamePrimaryAction(game)}</button></section>`;
+  const theme=BINGO_THEMES[game.activeTheme];
+  // 0.9.3.3 (PO design): the place is chosen on THIS page; the game page only shows it. Nine places in a 3 x 3 grid; the start button waits for a choice.
+  if(gamePlaying!==game.id||!theme){
+    const places=`<div class="bingo-places"><h3>איפה אתם עכשיו?</h3><p class="muted small">ההתקדמות של כל מקום נשמרת בנפרד. אפשר להחליף מקום כאן בכל רגע.</p><div class="bingo-picker">${BINGO_THEME_KEYS.map(key=>`<button class="bingo-tile${key===game.activeTheme?' on':''}" type="button" data-action="bingo-theme" data-theme="${key}" aria-pressed="${key===game.activeTheme}">${tabler(BINGO_THEMES[key].icon)}<b>${esc(BINGO_THEMES[key].label)}</b></button>`).join('')}</div></div>`;
+    return `<section class="card">${backRow('games','','',`${tabler('dice')} ${esc(game.title)}`)}<p class="game-description">${esc(game.instructions)}</p><dl class="detail-facts">${fact('מתאים ל',game.participants)}${fact('משך',game.duration)}${fact('ציוד',game.items)}</dl>${places}${setupEntryRows(game)}${theme?'':'<p class="muted small game-hint">בחרו מקום כדי להתחיל.</p>'}<button class="btn game-primary" data-action="game-start" data-id="${game.id}"${theme?'':' disabled'}>${gamePrimaryAction(game)}</button></section>`;
+  }
   const people=bingoPlayers(game);
   if(!people.length)return `<section class="card">${bingoTop(game)}${emptyState('users','אין עדיין משתתפים','הוסיפו משתתפים בהגדרות הטיול — לכל משתתף יש לוח משלו.')}</section>`;
-  const theme=BINGO_THEMES[game.activeTheme];
-  if(bingoPicking||!theme)return `<section class="card">${bingoTop(game)}<p class="game-description">איפה אתם עכשיו? בחרו מקום. ההתקדמות של כל מקום נשמרת בנפרד.</p><div class="bingo-picker">${BINGO_THEME_KEYS.map(key=>`<button class="bingo-tile${key===game.activeTheme?' on':''}" data-action="bingo-theme" data-theme="${key}">${tabler(BINGO_THEMES[key].icon)}<b>${esc(BINGO_THEMES[key].label)}</b></button>`).join('')}</div></section>`;
   const selected=bingoCurrentParticipant(),board=ensureBoard(game,game.activeTheme,selected),spots=Object.fromEntries(theme.spots.map(spot=>[spot.id,spot]));
   const cells=board.layout.map(id=>{
     const spot=spots[id],found=board.found[id];
@@ -879,7 +883,7 @@ function bingoView(game){
     return `<button class="bingo-cell" data-action="bingo-cell" data-spot="${id}" aria-label="${esc(spot.label)} — עדיין לא נמצא, לחצו לצילום">${tabler('camera')}<span class="bingo-label">${esc(spot.label)}</span></button>`;
   }).join('');
   const count=foundCount(board),total=board.layout.length;
-  return `<section class="card bingo-card">${bingoTop(game)}<div class="bingo-toolbar"><button class="btn ghost small-btn" data-action="bingo-switch">${tabler(theme.icon)} ${esc(theme.label)} · החלפת מקום</button><button class="btn ghost small-btn" data-action="bingo-reset">${tabler('refresh')} איפוס הלוח</button></div>${participantCarousel(people.map(person=>[person.id,person.name]),selected,'bingo-participant','bingo')}<p class="bingo-progress"><bdi dir="ltr">${count}/${total}</bdi> נמצאו${count===total?' — הלוח הושלם!':''}</p><div class="bingo-board" role="group" aria-label="לוח בינגו">${cells}</div><input type="file" id="bingo-file" accept="image/*" capture="environment" hidden>${bingoViewer(game,board,spots,selected)}</section>`;
+  return `<section class="card bingo-card">${bingoTop(game)}<div class="bingo-toolbar"><span class="bingo-place">${tabler(theme.icon)} ${esc(theme.label)}</span><button class="btn ghost small-btn" data-action="bingo-reset">${tabler('refresh')} איפוס הלוח</button></div>${participantCarousel(people.map(person=>[person.id,person.name]),selected,'bingo-participant','bingo')}<p class="bingo-progress"><bdi dir="ltr">${count}/${total}</bdi> נמצאו${count===total?' — הלוח הושלם!':''}</p><div class="bingo-board" role="group" aria-label="לוח בינגו">${cells}</div><input type="file" id="bingo-file" accept="image/*" capture="environment" hidden>${bingoViewer(game,board,spots,selected)}</section>`;
 }
 // The enlarged photo has four ways out: the big "סגירה" button, a tap on the photo, Escape, and the phone's Back gesture (the viewer is one history step).
 function openBingoViewer(spotId){bingoViewing=spotId;history.pushState({bingoViewer:true},'');render()}
@@ -2683,16 +2687,15 @@ addEventListener('click',async event=>{if(Date.now()<suppressClickUntil)return;i
   else if(action==='pantomime-exit'){gamePlaying=null;render()}
   else if(action==='game-start'&&button.dataset.id===PANTOMIME_ID){const game=state.games.find(x=>x.id===PANTOMIME_ID);if(game?.deck?.length&&pantomimePlayable(pantomimePlayerList(game))){game.started=true;gamePlaying=PANTOMIME_ID;pantomimeOpenRound();save();render()}}
   else if(action==='game-start'&&button.dataset.id===TRIVIA_ID){const game=state.games.find(x=>x.id===TRIVIA_ID);if(game?.deck?.length){game.started=true;gamePlaying=TRIVIA_ID;triviaRevealed=false;triviaMarked=[];save();render()}}
-  else if(action==='bingo-theme'){const game=bingoGame();game.activeTheme=button.dataset.theme;bingoPicking=false;closeBingoViewer();save();render()}
-  else if(action==='bingo-switch'){bingoPicking=true;render()}
-  else if(action==='bingo-exit'){gamePlaying=null;bingoPicking=false;closeBingoViewer();render()}
+  else if(action==='bingo-theme'){const game=bingoGame();if(game&&BINGO_THEMES[button.dataset.theme]){game.activeTheme=button.dataset.theme;save();render()}}
+  else if(action==='bingo-exit'){gamePlaying=null;closeBingoViewer();render()}
   else if(action==='bingo-participant')selectParticipant(button.closest('[data-carousel]'),button.dataset.participant);
   else if(action==='bingo-cell')bingoCellTap(button.dataset.spot);
   else if(action==='bingo-view-close'){closeBingoViewer();render()}
   else if(action==='bingo-replace'){const game=bingoGame(),pid=bingoCurrentParticipant();if(game&&pid&&bingoViewing&&!bingoBusy){bingoPending={theme:game.activeTheme,pid,spotId:bingoViewing};startBingoCapture()}}
   else if(action==='bingo-erase')await eraseBingoPhoto();
   else if(action==='bingo-reset')await resetBingoBoard();
-  else if(action==='game-start'&&button.dataset.id===BINGO_ID){const game=bingoGame();game.started=true;gamePlaying=BINGO_ID;bingoPicking=!BINGO_THEMES[game.activeTheme];save();render()}
+  else if(action==='game-start'&&button.dataset.id===BINGO_ID){const game=bingoGame();if(!BINGO_THEMES[game.activeTheme])return;game.started=true;gamePlaying=BINGO_ID;save();render()}
   else if(action==='game-start'){const game=state.games.find(x=>x.id===button.dataset.id);if(game?.interactive){game.started=true;save()}notify(game?.interactive?'המשחק התחיל':'הפעילות התחילה')}
   else if(action==='add-list'){const name=prompt('שם קטגוריית האריזה');if(name){state.packing.push({id:uid('pl'),name,owner:'shared',items:[]});save();render()}}
   else if(action==='pack-collapse'){state.packingCollapsed[button.dataset.list]=!state.packingCollapsed[button.dataset.list];save();render()}

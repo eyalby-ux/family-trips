@@ -6,6 +6,7 @@ import {WINNER_ANIMATIONS,WINNER_MS,WINNER_REPEATS,createWinnerPlayer,winnerHtml
 import {REMIND_ME_HISTORY_CAP,REMIND_ME_MODES as SERVER_MODES,cleanStartHistory,extractRemindMe,remindMeInstruction,remindMeSchema,remindMeSystemPrompt,PANTOMIME_COUNT,PANTOMIME_FIELDS,buildPantomimeContext,clampCount,cleanHistory,generateWithRepeatGuard,mentionsDestination,pantomimeAccept,pantomimeInstruction,pantomimeSchema,pantomimeSystemPrompt} from '../netlify/functions/_shared/game-content.mjs';
 import {REMIND_ME_CAP,REMIND_ME_ID,REMIND_ME_MODES,applyRemindMeResult,chooseRemindMeMode,emptyRemindMe,remindMeHistory,remindMeSuggestion,PANTOMIME_ID,TRIVIA_ID,PANTOMIME_MAX_ROUNDS,capHistory,clampRounds,pantomimeActor,pantomimeBuildCount,pantomimeTurns,gameBuildGate,newPantomimeDeck,newPantomimeState,pantomimeFinished,pantomimeNext,pantomimePhrase,pantomimePlayable,pantomimePlayers,pantomimeSummaryLine,gamePlayers,songSearchLinks,TRIVIA_QUESTION_COUNTS,clampQuestionCount,triviaSummaryLine,newTriviaDeck,newTriviaState,toggleCorrect,triviaWinners} from '../src/games.js';
 import {BUILTIN_GAMES,diffById,normalizeOperationalState,sanitizeTripDates,syncBaseline} from '../src/operational-data.js';
+import {BINGO_THEMES,BINGO_THEME_KEYS} from '../src/bingo.js';
 import {onboardingTripFrom,showsOnboarding} from '../src/onboarding.js';
 
 const read=path=>fs.readFileSync(new URL(path,import.meta.url),'utf8');
@@ -216,6 +217,21 @@ test('(A) P93-P7 rebuild path: a deck smaller than the chosen number is offered 
   assert(save.includes('!button.dataset.build&&signature()!==before&&(game.deck||[]).length'),'an unchanged choice leaves a game in progress alone');
   assert(fn('triviaView').includes('לכל השאלות צריך')&&fn('pantomimeView').includes('לכל הסיבובים צריך'),'the main-page note stays (rebuild reachable without reopening the sub-page)');
   assert(app.includes('<div class="setup-top">${backRow('),'the header of all three sub-pages');assert.match(css,/\.setup-top \.detail-top\.with-title \.detail-title\{font-size:22px;white-space:normal;overflow:visible/);
+});
+
+test('(0.9.3.3) Bingo: the place is chosen on the intro page in a 3 x 3 grid, the game page keeps only the place label and "איפוס הלוח", and a ninth place "במטוס" is added',()=>{
+  assert.equal(BINGO_THEME_KEYS.length,9,'nine places = a 3 x 3 grid');
+  const plane=BINGO_THEMES.plane;assert(plane&&plane.label==='מטוס'&&plane.inLabel==='במטוס'&&plane.icon==='cloud'&&plane.spots.length===16&&new Set(plane.spots.map(s=>s.label)).size===16&&plane.spots[0].id==='plane-1','sixteen distinct spots, ids from key + position');
+  assert(!plane.spots.some(s=>/(אדם|אנשי|נוסע|ילד|תינוק)/.test(s.label)),'no spot asks for a photo of a person (the PO\'s rule for every pool)');
+  assert(/\n  cloud:'/.test(app.slice(app.indexOf('const TABLER={'),app.indexOf('const tabler=name=>'))),'the cloud icon exists');
+  const view=fn('bingoView');
+  assert(view.includes('const theme=BINGO_THEMES[game.activeTheme];')&&view.indexOf('const theme=')<view.indexOf('if(gamePlaying!==game.id||!theme){'),'the intro page shows whenever the game is not being played or no place is chosen');
+  const intro=view.slice(view.indexOf('if(gamePlaying!==game.id||!theme){'),view.indexOf('const people=bingoPlayers(game);'));
+  assert(intro.includes('איפה אתם עכשיו?')&&intro.includes('data-action="bingo-theme"')&&intro.includes('${places}${setupEntryRows(game)}')&&intro.includes('בחרו מקום כדי להתחיל.')&&intro.includes("${theme?'':' disabled'}"),'places, then the participants row, then the start button, disabled until a place is chosen');
+  const board=view.slice(view.indexOf('const people=bingoPlayers(game);'));
+  assert(!board.includes('bingo-theme')&&!board.includes('bingo-switch')&&board.includes('<span class="bingo-place">${tabler(theme.icon)} ${esc(theme.label)}</span>')&&board.includes('data-action="bingo-reset">'),'the game page: the place as text and the reset button only');
+  assert.match(css,/\.bingo-places \.bingo-picker\{grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/,'3 x 3');
+  assert(!app.includes('bingoPicking')&&!app.includes('bingo-switch'),'the old in-game picker and switch are gone');
 });
 
 test('(F3) only the Owner can delete a trip: the button is replaced by a note for an Editor, and the handler refuses BEFORE erasing anything (firestore.rules allows delete to the owner only)',()=>{

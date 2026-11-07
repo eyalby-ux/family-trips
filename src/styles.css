@@ -914,3 +914,9 @@ a.t-menu-item{display:flex;align-items:center;text-decoration:none}
 /* P93-P7 / 360px: the setup sub-page title wraps (was cut off) */
 .setup-top .detail-top.with-title .detail-title{font-size:22px;white-space:normal;overflow:visible;line-height:1.25}.setup-top .detail-title .ti{width:22px;height:22px}
 .setup-short{margin:0 0 12px;padding:12px;border-radius:12px;background:var(--surface);border:1px solid var(--border);font-size:14px;font-weight:600}
+/* 0.9.3.3: Bingo intro page -- nine places, 3 x 3; the game page shows the place as plain text next to "איפוס הלוח" */
+.bingo-places{margin:12px 0}.bingo-places h3{margin:0 0 4px;font-size:15px}
+.bingo-places .bingo-picker{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:10px 0 0}
+.bingo-places .bingo-tile{min-height:76px;padding:6px 4px;gap:4px;font-size:13.5px;text-align:center;line-height:1.2}.bingo-places .bingo-tile .ti{width:24px;height:24px}
+.bingo-toolbar{justify-content:space-between;align-items:center}
+.bingo-place{display:inline-flex;align-items:center;gap:8px;font-size:15px;font-weight:600;color:var(--ink)}.bingo-place .ti{width:20px;height:20px}

@@ -81,8 +81,8 @@ test('P91-F3 patch to the live 0.9.1 Trivia (PO: only when the ROUND is won): th
 
 // ---------------------------------------------------------------- Bingo
 
-test('Bingo content: eight themes of 16 distinct spots each (the four reviewed pools, בדרכים / מסעדות from ציד תמונות, and the new טבע / גן חיות), every icon exists in the app\'s set',()=>{
-  assert.deepEqual(BINGO_THEME_KEYS,['airport','beach','city','hotel','onTheRoad','restaurant','nature','zoo']);
+test('Bingo content: nine themes of 16 distinct spots each (the four reviewed pools, בדרכים / מסעדות from ציד תמונות, טבע / גן חיות, and במטוס from 0.9.3.3), every icon exists in the app\'s set',()=>{
+  assert.deepEqual(BINGO_THEME_KEYS,['airport','plane','beach','city','hotel','onTheRoad','restaurant','nature','zoo']);
   const ids=new Set();
   for(const key of BINGO_THEME_KEYS){
     const theme=BINGO_THEMES[key];
@@ -91,7 +91,7 @@ test('Bingo content: eight themes of 16 distinct spots each (the four reviewed p
     assert(theme.label&&theme.inLabel.startsWith('ב'),key);
     assert(new RegExp(`\\n  ${theme.icon}:'`).test(app.slice(app.indexOf('const TABLER={'),app.indexOf('const tabler=name=>'))),`${key}: icon "${theme.icon}" is in TABLER`);
   }
-  assert.equal(ids.size,128);
+  assert.equal(ids.size,144);
   assert.equal(BINGO_THEMES.nature.label,'טבע');assert.equal(BINGO_THEMES.zoo.label,'גן חיות');assert.equal(BINGO_THEMES.nature.inLabel,'בטבע');assert.equal(BINGO_THEMES.zoo.inLabel,'בגן החיות');
   // no pool asks for a person, and the two new ones repeat nothing from the others
   const peopleWords=/(ילד|תינוק|אדם|צוות|עובד|שומר|מדריך|אנשים|אישה|גבר)/;
@@ -200,13 +200,13 @@ test('reset: ONE (theme, participant) board -- Storage photos deleted first, the
   assert(cloud.includes("const games=await getDocs(subRef(tripId,'games'));")&&cloud.includes('if(entry?.photoPath)await deleteAttachment(entry.photoPath)'),'"delete trip data" / "delete trip" also remove every Bingo photo (they have no sources record)');
 });
 
-test('the picker and the board screen: eight tiles, the last theme remembered, a visible switch, the participant carousel reused with its own selection',()=>{
+test('the picker (now on the intro page, 0.9.3.3) and the board screen: nine tiles, the last theme remembered, a visible switch, the participant carousel reused with its own selection',()=>{
   const view=fn('bingoView');
-  assert(view.includes('BINGO_THEME_KEYS.map(key=>`<button class="bingo-tile${key===game.activeTheme?\' on\':\'\'}" data-action="bingo-theme" data-theme="${key}">'),'one tile per theme');
-  assert(view.includes('if(bingoPicking||!theme)'),'the picker shows first time (no activeTheme) or on request');
-  assert(app.includes("else if(action==='bingo-theme'){const game=bingoGame();game.activeTheme=button.dataset.theme;bingoPicking=false;closeBingoViewer();save();render()}"),'picking a theme is remembered (activeTheme) and saved');
-  assert(app.includes("else if(action==='game-start'&&button.dataset.id===BINGO_ID){const game=bingoGame();game.started=true;gamePlaying=BINGO_ID;bingoPicking=!BINGO_THEMES[game.activeTheme];save();render()}"),'reopening goes straight to the remembered theme\'s board');
-  assert(view.includes('data-action="bingo-switch">')&&view.includes('החלפת מקום'),'a visible, non-destructive way to switch');
+  assert(view.includes('BINGO_THEME_KEYS.map(key=>`<button class="bingo-tile${key===game.activeTheme?\' on\':\'\'}" type="button" data-action="bingo-theme" data-theme="${key}" aria-pressed="${key===game.activeTheme}">'),'one tile per theme');
+  assert(view.includes('if(gamePlaying!==game.id||!theme){')&&!app.includes('bingoPicking'),'the picker is on the intro page: shown whenever the game is not being played, or no place is chosen yet');
+  assert(app.includes("else if(action==='bingo-theme'){const game=bingoGame();if(game&&BINGO_THEMES[button.dataset.theme]){game.activeTheme=button.dataset.theme;save();render()}}"),'picking a theme is remembered (activeTheme) and saved');
+  assert(app.includes("else if(action==='game-start'&&button.dataset.id===BINGO_ID){const game=bingoGame();if(!BINGO_THEMES[game.activeTheme])return;game.started=true;gamePlaying=BINGO_ID;save();render()}"),'starting needs a chosen place and goes straight to its board');
+  assert(!view.includes('bingo-switch')&&!view.includes('החלפת מקום'),'no switch on the game page any more: the place is changed on the intro page');
   assert(view.includes("participantCarousel(people.map(person=>[person.id,person.name]),selected,'bingo-participant','bingo')"),'the existing carousel, as is');
   assert(fn('participantCarousel').includes('data-carousel data-scope="${scope}"')&&fn('selectParticipant').includes("const scope=carousel?.dataset.scope||'packing';"));
   assert(fn('commitParticipant').includes("if(scope==='bingo')bingoParticipant=value;else state.packingParticipantView=value;"),'Bingo\'s participant never changes Packing\'s view');
@@ -217,7 +217,7 @@ test('the picker and the board screen: eight tiles, the last theme remembered, a
   assert.match(css,/\.bingo-board\{display:grid;grid-template-columns:repeat\(4,1fr\);gap:6px\}/);assert.match(css,/\.bingo-label\{font-size:11px;/,'11px labels, not the mockup\'s 8.5px');
 });
 
-test('migration (the big one): an existing-by-id trip\'s old Bingo is OVERWRITTEN with eight-key themes, never merged; ציד תמונות is removed from saved state, with no star carried over',()=>{
+test('migration (the big one): an existing-by-id trip\'s old Bingo is OVERWRITTEN with nine-key themes, never merged; ציד תמונות is removed from saved state, with no star carried over',()=>{
   const OLD={id:'game-airport-bingo',title:'בינגו שדה תעופה',instructions:'חפשו מזוודה אדומה, מטוס, מדים, מסוע, לוח המראות ושער עלייה.',items:'פתק או טלפון',participants:'2 ומעלה',duration:'15 דקות',favorite:true,started:true,spots:[{id:'old1',label:'מזוודה אדומה'}],bingoState:{found:['old1']}};
   const HUNT={id:'game-photo-hunt',onTheGo:true,title:'ציד תמונות',favorite:true};
   const state={games:[{...OLD},{...HUNT},{id:'game-road-story',title:'סיפור בהמשכים',favorite:false}],trip:{id:'t1'},items:[]};
@@ -248,7 +248,7 @@ test('migration (the big one): an existing-by-id trip\'s old Bingo is OVERWRITTE
   const odd=backfillBuiltinGames([{id:BINGO_ID,activeTheme:'moon',boards:[],celebratedLines:null}])[0];assert.equal(odd.activeTheme,'');assert.deepEqual(odd.boards,{});assert.deepEqual(odd.celebratedLines,{});
   // a brand-new trip and each trip\'s own copies
   const fresh=normalizeOperationalState({trip:{id:'t2'},items:[]}),game=fresh.games.find(candidate=>candidate.id===BINGO_ID);
-  assert.equal(Object.keys(game.themes).length,8);game.boards.beach={p1:{}};game.themes.beach.spots.pop();
+  assert.equal(Object.keys(game.themes).length,9);game.boards.beach={p1:{}};game.themes.beach.spots.pop();
   assert.deepEqual(BUILTIN_GAMES.find(candidate=>candidate.id===BINGO_ID).boards,{},'the built-in definition is never shared between trips');assert.equal(BINGO_THEMES.beach.spots.length,16);
 });
 
@@ -364,7 +364,7 @@ test('the enlarged photo (approved design): tapping a found cell opens it full s
   assert.match(css,/\.bingo-viewer-btn::before\{content:"";position:absolute;inset:-8px 0\}/,'the touch area is still 44px');
   assert.match(css,/\.bingo-viewer \.bingo-photo\.large\{[^}]*background:#2A5558 center\/contain no-repeat/,'the whole photo is shown, not cropped');
   assert.match(css,/\.bingo-viewer-btn\.danger\{border-color:#E8A89A;color:#F2B8AA\}/);
-  assert(app.includes("else if(action==='bingo-theme'")&&app.includes('closeBingoViewer();save();render()'),'switching place closes it');
+  assert(app.includes("else if(action==='bingo-exit'){gamePlaying=null;closeBingoViewer();render()}"),'leaving the board (the only way to another place) closes the viewer');
 });
 
 test('replace and erase a photo: replace opens the camera for the same cell and overwrites the same path (found and celebrations untouched); erase confirms, deletes the file, returns the cell to unfound and forgets the celebrations that no longer hold',()=>{
