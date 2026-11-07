@@ -911,3 +911,6 @@ a.t-menu-item{display:flex;align-items:center;text-decoration:none}
 .setup-summary{margin:0 0 12px;padding:12px;border-radius:12px;background:var(--teal-soft);font-size:14px}
 /* P93-P5: song search links */
 .song-links{display:flex;gap:8px;margin:12px 0 4px}.song-links .btn{flex:1 1 0;min-height:44px;display:flex;align-items:center;justify-content:center;text-align:center;text-decoration:none;font-size:14px}
+/* P93-P7 / 360px: the setup sub-page title wraps (was cut off) */
+.setup-top .detail-top.with-title .detail-title{font-size:22px;white-space:normal;overflow:visible;line-height:1.25}.setup-top .detail-title .ti{width:22px;height:22px}
+.setup-short{margin:0 0 12px;padding:12px;border-radius:12px;background:var(--surface);border:1px solid var(--border);font-size:14px;font-weight:600}

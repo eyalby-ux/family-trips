@@ -1085,14 +1085,17 @@ function pantomimePlayView(game){
 // (Pantomime: rounds per player 1-5; Trivia: questions per game 5/10/15/20; Bingo: none). Edits live in a draft; nothing is saved until the button (the back arrow discards).
 function gameSetupView(game){
   const active=state.participants.filter(person=>person.active!==false),draft=gameSetupDraft,picked=active.filter(person=>draft.ids.includes(person.id)).length,min=gameSetupMin(game),ok=picked>=min,isPantomime=game.id===PANTOMIME_ID,isTrivia=game.id===TRIVIA_ID;
-  const startsGame=(isPantomime||isTrivia)&&(game.deck||[]).length>0;
+  // P93-P7: a deck game whose saved deck is smaller than the chosen number is offered a rebuild; the sub-page never starts a game with fewer questions than chosen.
+  const have=(game.deck||[]).length,need=isPantomime?pantomimeTurns(picked,draft.rounds):isTrivia?clampQuestionCount(draft.count):0,short=(isPantomime||isTrivia)&&have<need;
+  const gate=isPantomime?gameBuildGate(state.trip,'פנטומימה'):gameBuildGate(state.trip,'טריוויה'),canBuild=gate.allowed;
+  const shortLine=short?`<p class="setup-short">${have?`${isTrivia?'לכל השאלות':'לכל הסיבובים'} צריך ${need} — המשחק הנוכחי מכיל ${have}`:'עדיין לא נבנה משחק לטיול הזה'}</p>${canBuild?'':`<p class="muted small game-hint">${gate.hint}</p>`}`:'';
   const title=isPantomime?'משתתפים וסיבובים':isTrivia?'משתתפים ושאלות':'משתתפים';
   const rows=active.map(person=>{const on=draft.ids.includes(person.id);return `<button class="pick-row${on?' on':''}" type="button" role="checkbox" aria-checked="${on}" data-action="game-setup-toggle" data-participant="${person.id}"><span class="pick-box" aria-hidden="true">${on?'✓':''}</span><span class="pick-name">${esc(person.name)}</span></button>`}).join('');
   const chipRow=(values,current,action,attr)=>values.map(n=>`<button class="trivia-chip${n===current?' on':''}" type="button" data-action="${action}" data-${attr}="${n}" aria-pressed="${n===current}">${n}</button>`).join('');
   const number=isPantomime?`<div class="rounds-picker"><h3>כמה סיבובים לכל משתתף?</h3><div class="trivia-chips">${chipRow(Array.from({length:PANTOMIME_MAX_ROUNDS},(_,index)=>index+1),draft.rounds,'game-setup-rounds','rounds')}</div></div>`:isTrivia?`<div class="rounds-picker"><h3>כמה שאלות במשחק?</h3><div class="trivia-chips">${chipRow(TRIVIA_QUESTION_COUNTS,draft.count,'game-setup-count','count')}</div></div>`:'';
   const summary=isPantomime?pantomimeSummaryLine(picked,draft.rounds):isTrivia?triviaSummaryLine(picked,draft.count):`${picked} משתתפים — לכל משתתף לוח משלו`;
-  const need=min===1?'בחרו לפחות משתתף אחד.':'בחרו לפחות שני משתתפים.';
-  return `<section class="card">${backRow('games','','',`${tabler('dice')} ${title}`,'game-setup-back')}<div class="pick-head"><h3>מי משחק?</h3><button class="link-btn" type="button" data-action="game-setup-all">בחירת כולם</button></div><div class="pick-list">${rows}</div>${number}<p class="setup-summary">${summary}</p>${ok?'':`<p class="muted small game-hint">${need}</p>`}<button class="btn game-primary" type="button" data-action="game-setup-save" data-id="${game.id}"${ok?'':' disabled'}>${startsGame?'שמירה והתחלה':'שמירה'}</button></section>`;
+  const needText=min===1?'בחרו לפחות משתתף אחד.':'בחרו לפחות שני משתתפים.';
+  return `<section class="card"><div class="setup-top">${backRow('games','','',`${tabler('dice')} ${title}`,'game-setup-back')}</div><div class="pick-head"><h3>מי משחק?</h3><button class="link-btn" type="button" data-action="game-setup-all">בחירת כולם</button></div><div class="pick-list">${rows}</div>${number}<p class="setup-summary">${summary}</p>${ok?'':`<p class="muted small game-hint">${needText}</p>`}${shortLine}<button class="btn game-primary" type="button" data-action="game-setup-save" data-id="${game.id}"${short?' data-build="1"':''}${ok&&(!short||canBuild)?'':' disabled'}>${short?'שמירה ובניית משחק חדש':'שמירה'}</button></section>`;
 }
 async function buildPantomime(gameId){
   const game=state.games.find(candidate=>candidate.id===gameId);
@@ -2668,10 +2671,15 @@ addEventListener('click',async event=>{if(Date.now()<suppressClickUntil)return;i
   else if(action==='game-setup-all'){gameSetupDraft.ids=pantomimeActiveIds();render()}
   else if(action==='game-setup-rounds'){gameSetupDraft.rounds=clampRounds(button.dataset.rounds);render()}
   else if(action==='game-setup-count'){gameSetupDraft.count=clampQuestionCount(button.dataset.count);render()}
-  else if(action==='game-setup-save'){const game=state.games.find(x=>x.id===button.dataset.id),active=pantomimeActiveIds(),ids=active.filter(id=>gameSetupDraft.ids.includes(id));if(game&&ids.length>=gameSetupMin(game)){game.playerIds=ids.length===active.length?[]:ids;gameSetup=null;
-    if(game.id===PANTOMIME_ID){game.roundsPerPlayer=clampRounds(gameSetupDraft.rounds);if((game.deck||[]).length){game.pantomimeState=newPantomimeStateFor(game,game.deck);game.started=true;gamePlaying=game.id;pantomimeOpenRound()}}
-    else if(game.id===TRIVIA_ID){game.questionCount=clampQuestionCount(gameSetupDraft.count);if((game.deck||[]).length){game.triviaState=newTriviaStateFor(game,game.deck);game.started=true;gamePlaying=game.id;triviaRevealed=false;triviaMarked=[]}}
-    save();render()}}
+  else if(action==='game-setup-save'){const game=state.games.find(x=>x.id===button.dataset.id),active=pantomimeActiveIds(),ids=active.filter(id=>gameSetupDraft.ids.includes(id));if(game&&ids.length>=gameSetupMin(game)){
+    const signature=()=>JSON.stringify([game.playerIds||[],clampRounds(game.roundsPerPlayer),clampQuestionCount(game.questionCount)]),before=signature();
+    game.playerIds=ids.length===active.length?[]:ids;
+    if(game.id===PANTOMIME_ID)game.roundsPerPlayer=clampRounds(gameSetupDraft.rounds);else if(game.id===TRIVIA_ID)game.questionCount=clampQuestionCount(gameSetupDraft.count);
+    gameSetup=null;
+    // A changed choice deals a fresh game that is NOT started (the main page offers it); an unchanged one leaves a game in progress alone.
+    if(!button.dataset.build&&signature()!==before&&(game.deck||[]).length){if(game.id===PANTOMIME_ID)game.pantomimeState=newPantomimeStateFor(game,game.deck);else if(game.id===TRIVIA_ID)game.triviaState=newTriviaStateFor(game,game.deck);game.started=false;pantomimeStage='away';pantomimeMarked=[];triviaRevealed=false;triviaMarked=[]}
+    save();render();
+    if(button.dataset.build){if(game.id===PANTOMIME_ID)await buildPantomime(game.id);else if(game.id===TRIVIA_ID)await buildTrivia(game.id)}}}
   else if(action==='pantomime-exit'){gamePlaying=null;render()}
   else if(action==='game-start'&&button.dataset.id===PANTOMIME_ID){const game=state.games.find(x=>x.id===PANTOMIME_ID);if(game?.deck?.length&&pantomimePlayable(pantomimePlayerList(game))){game.started=true;gamePlaying=PANTOMIME_ID;pantomimeOpenRound();save();render()}}
   else if(action==='game-start'&&button.dataset.id===TRIVIA_ID){const game=state.games.find(x=>x.id===TRIVIA_ID);if(game?.deck?.length){game.started=true;gamePlaying=TRIVIA_ID;triviaRevealed=false;triviaMarked=[];save();render()}}

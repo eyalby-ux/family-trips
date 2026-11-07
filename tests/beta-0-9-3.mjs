@@ -153,11 +153,11 @@ test('(A) P93-P4 participant selection (PO design, Option 2): who plays is saved
   assert.equal(pantomimeBuildCount(2,3),12,'the build still asks for at least 12');assert.equal(pantomimeSummaryLine(4,2),'4 משתתפים × 2 תורות לכל משתתף = סה"כ 8 סיבובים למשחק',"the PO's example");assert.equal(pantomimeSummaryLine(5,5),'5 משתתפים × 5 תורות לכל משתתף = סה"כ 25 סיבובים למשחק',"the PO's wording for more than one round");assert.equal(pantomimeSummaryLine(5,1),'5 משתתפים × תור 1 לכל משתתף = סה"כ 5 סיבובים למשחק');
   // wiring
   const setup=fn('gameSetupView');
-  assert(setup.includes('מי משחק?')&&setup.includes('בחירת כולם')&&setup.includes('כמה סיבובים לכל משתתף?')&&setup.includes('pantomimeSummaryLine(picked,draft.rounds)')&&setup.includes('שמירה והתחלה')&&setup.includes('משתתפים וסיבובים'),'the sub-page copy of the design');
-  assert(setup.includes("${ok?'':' disabled'}")&&setup.includes('בחרו לפחות שני משתתפים')&&setup.includes('role="checkbox"'),'start is disabled below two participants; the rows are real checkbox buttons');
+  assert(setup.includes('מי משחק?')&&setup.includes('בחירת כולם')&&setup.includes('כמה סיבובים לכל משתתף?')&&setup.includes('pantomimeSummaryLine(picked,draft.rounds)')&&setup.includes('שמירה ובניית משחק חדש')&&setup.includes('משתתפים וסיבובים'),'the sub-page copy of the design');
+  assert(setup.includes("ok&&(!short||canBuild)?'':' disabled'")&&setup.includes('בחרו לפחות שני משתתפים')&&setup.includes('role="checkbox"'),'start is disabled below two participants; the rows are real checkbox buttons');
   assert(fn('pantomimeView').includes('if(gameSetup===game.id)return gameSetupView(game);'));
-  const save=app.slice(app.indexOf("else if(action==='game-setup-save')"),app.indexOf('\n',app.indexOf("else if(action==='game-setup-save')")+400));
-  assert(save.includes('ids.length>=gameSetupMin(game)')&&save.includes('game.playerIds=ids.length===active.length?[]:ids')&&save.includes('newPantomimeStateFor(game,game.deck)')&&save.includes('game.started=true'),'saved on the game (all picked = [] = everybody, even people added later); a built deck starts a fresh game');
+  const save=app.slice(app.indexOf("else if(action==='game-setup-save')"),app.indexOf("else if(action==='pantomime-exit')"));
+  assert(save.includes('ids.length>=gameSetupMin(game)')&&save.includes('game.playerIds=ids.length===active.length?[]:ids')&&save.includes('newPantomimeStateFor(game,game.deck)')&&save.includes('game.started=false'),'saved on the game (all picked = [] = everybody, even people added later); a changed choice deals a fresh game that is NOT started');
   assert(app.includes("else if(action==='game-setup-back'){gameSetup=null;render()}")&&app.includes('participantDeleteArmed=null;gameSetup=null;'),'back discards the draft; leaving the game resets the sub-page');
   assert(fn('pantomimePlayView').includes('const guessers=players.filter(person=>person.id!==currentActorId)')&&fn('pantomimePlayView').includes('triviaTally(ps.scores,pantomimePlayerList(game))'),'only players guess and appear in the tally');
   assert(!app.includes('pantomime-rounds'),'the inline picker is replaced by the sub-page');
@@ -195,14 +195,27 @@ test('(A) P93-P6 participants (and Trivia\'s question count) for every relevant 
   // wiring: the shared rows and sub-page
   assert(app.includes('const gameSetupMin=game=>game.id===PANTOMIME_ID?2:1;')&&app.includes("if(game.id===TRIVIA_ID)rows.push(row('כמה שאלות במשחק'"),'Trivia gets a question-count row, Bingo only the participants row');
   const setup=fn('gameSetupView');assert(setup.includes("isTrivia?'משתתפים ושאלות':'משתתפים'")&&setup.includes('TRIVIA_QUESTION_COUNTS')&&setup.includes("'game-setup-count'")&&setup.includes('לכל משתתף לוח משלו')&&setup.includes('בחרו לפחות משתתף אחד.'),'the sub-page adapts: title, question chips, Bingo summary, minimum one');
-  assert(setup.includes("startsGame?'שמירה והתחלה':'שמירה'")&&setup.includes('const startsGame=(isPantomime||isTrivia)&&(game.deck||[]).length>0;'),'Bingo only saves; Trivia / Pantomime with a deck start a fresh game');
-  const saveH=app.slice(app.indexOf("else if(action==='game-setup-save')"),app.indexOf('save();render()}}',app.indexOf("else if(action==='game-setup-save')")));assert(saveH.includes('game.questionCount=clampQuestionCount(gameSetupDraft.count)')&&saveH.includes('newTriviaStateFor(game,game.deck)'),'saved on the game');
+  assert(!setup.includes('שמירה והתחלה')&&!/startsGame/.test(setup),'"שמירה והתחלה" is gone: the sub-page never starts a game (P93-P7)');
+  const saveH=app.slice(app.indexOf("else if(action==='game-setup-save')"),app.indexOf("else if(action==='pantomime-exit')"));assert(saveH.includes('game.questionCount=clampQuestionCount(gameSetupDraft.count)')&&saveH.includes('newTriviaStateFor(game,game.deck)'),'saved on the game');
   assert(fn('triviaView').includes('setupEntryRows(game)')&&fn('bingoView').includes('setupEntryRows(game)'));
   assert(fn('gameView').indexOf('if(gameSetup===game.id)return gameSetupView(game);')>-1&&fn('gameView').indexOf('if(gameSetup===game.id)')<fn('gameView').indexOf('if(game.id===TRIVIA_ID)'),'the sub-page opens for every game, not only Pantomime');
   const play=fn('triviaPlayView');assert(play.includes('people=gamePlayers(state.participants,game.playerIds)')&&play.includes('triviaTally(ts.scores,gamePlayers(state.participants,game.playerIds))'),'only the chosen players answer and are tallied');
   assert(fn('buildTrivia').includes('count:clampQuestionCount(game.questionCount)')&&app.includes('const newTriviaStateFor=(game,deck)=>newTriviaState(deck,Math.random,clampQuestionCount(game.questionCount));'),'a build asks for the chosen number of questions');
   assert(app.includes('const bingoPlayers=game=>gamePlayers(state.participants,(game||bingoGame())?.playerIds);')&&fn('bingoCurrentParticipant').includes('bingoPlayers()')&&fn('bingoView').includes('const people=bingoPlayers(game)'),'only the chosen players have a board on screen');
   assert(!fn('remindMeView').includes('setupEntryRows'),'מזכיר לי has no participants choice');
+});
+
+test('(A) P93-P7 rebuild path: a deck smaller than the chosen number is offered a rebuild on the sub-page ("שמירה ובניית משחק חדש"), otherwise the button just saves; 360px title wraps',()=>{
+  const setup=fn('gameSetupView');
+  assert(setup.includes('need=isPantomime?pantomimeTurns(picked,draft.rounds):isTrivia?clampQuestionCount(draft.count):0,short=(isPantomime||isTrivia)&&have<need'),'Trivia: chosen questions; Pantomime: players x rounds; Bingo has no deck');
+  assert(setup.includes('צריך ${need} — המשחק הנוכחי מכיל ${have}')&&setup.includes('לכל השאלות')&&setup.includes('לכל הסיבובים')&&setup.includes('עדיין לא נבנה משחק לטיול הזה'),'the explanation line ("לכל השאלות צריך 15 — המשחק הנוכחי מכיל 5")');
+  assert(setup.includes("${short?' data-build=\"1\"':''}")&&setup.includes("short?'שמירה ובניית משחק חדש':'שמירה'")&&setup.includes("ok&&(!short||canBuild)?'':' disabled'"),'two button states; the rebuild one needs a destination (the build gate) like the main page');
+  const save=app.slice(app.indexOf("else if(action==='game-setup-save')"),app.indexOf("else if(action==='pantomime-exit')"));
+  assert(save.includes('if(button.dataset.build){if(game.id===PANTOMIME_ID)await buildPantomime(game.id);else if(game.id===TRIVIA_ID)await buildTrivia(game.id)}'),'it saves first, then rebuilds with the saved choice');
+  assert(save.indexOf('save();render();')<save.indexOf('await buildPantomime(game.id)')&&save.indexOf('gameSetup=null;')<save.indexOf('await buildPantomime(game.id)'),'the sub-page is closed before the palm shows');
+  assert(save.includes('!button.dataset.build&&signature()!==before&&(game.deck||[]).length'),'an unchanged choice leaves a game in progress alone');
+  assert(fn('triviaView').includes('לכל השאלות צריך')&&fn('pantomimeView').includes('לכל הסיבובים צריך'),'the main-page note stays (rebuild reachable without reopening the sub-page)');
+  assert(app.includes('<div class="setup-top">${backRow('),'the header of all three sub-pages');assert.match(css,/\.setup-top \.detail-top\.with-title \.detail-title\{font-size:22px;white-space:normal;overflow:visible/);
 });
 
 test('(F3) only the Owner can delete a trip: the button is replaced by a note for an Editor, and the handler refuses BEFORE erasing anything (firestore.rules allows delete to the owner only)',()=>{
@@ -247,8 +260,8 @@ test('(A) the round flow end to end: build gate, look-away screen naming the act
   const adv=fn('pantomimeAdvance');
   assert(adv.includes('if(pantomimeFinished(game)){const winners=triviaWinners(game.pantomimeState.scores,pantomimePlayerList(game));if(winners.length)fireWinner(')&&adv.includes("caption:winners.length>1?'ניצחון משותף בסיבוב!':'ניצחון בסיבוב!',big:true,times:WINNER_REPEATS"),'after the last phrase: the shared animation, the winner(s) named, TWICE');
   assert(adv.indexOf('save();render();')<adv.indexOf('fireWinner('),'drawn after the render');
-  assert(!fn('pantomimePlayView').includes('fireWinner')&&!app.slice(app.indexOf("else if(action==='pantomime-replay')"),app.indexOf("else if(action==='pantomime-exit')")).includes('fireWinner'),'reopening or replaying never repeats it');
-  const replay=app.slice(app.indexOf("else if(action==='pantomime-replay')"),app.indexOf("else if(action==='pantomime-exit')"));assert(replay.includes('newPantomimeStateFor(game,game.deck)')&&!replay.includes('generatePantomime')&&!replay.includes('buildPantomime'),'שחקו שוב never calls the AI');
+  assert(!fn('pantomimePlayView').includes('fireWinner')&&!app.slice(app.indexOf("else if(action==='pantomime-replay')"),app.indexOf("else if(action==='game-setup-open')")).includes('fireWinner'),'reopening or replaying never repeats it');
+  const replay=app.slice(app.indexOf("else if(action==='pantomime-replay')"),app.indexOf("else if(action==='game-setup-open')"));assert(replay.includes('newPantomimeStateFor(game,game.deck)')&&!replay.includes('generatePantomime')&&!replay.includes('buildPantomime'),'שחקו שוב never calls the AI');
   // the winner overlay itself, for the tie, twice
   const queue=[];const mounted=[];createWinnerPlayer({mount:h=>mounted.push(h),clear:()=>mounted.push('cleared'),schedule:f=>{queue.push(f);return queue.length},cancel:()=>{}}).play({name:'דנה · נועה',caption:'ניצחון משותף בסיבוב!',big:true,times:WINNER_REPEATS});
   queue.shift()();assert.equal(mounted.filter(h=>h!=='cleared').length,2);assert(mounted.every(h=>h==='cleared'||h.includes('<bdi>דנה · נועה</bdi>')));
