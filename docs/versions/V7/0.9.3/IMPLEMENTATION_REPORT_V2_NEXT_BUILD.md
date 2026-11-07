@@ -29,3 +29,13 @@ Not covered by the developer (still open from QA): onboarding with a brand-new a
 | Not built | P93-P4 (participant selection Option 2a/2b), P93-P5 (Spotify / YouTube links), P93-P6 (participants in Bingo / Trivia, Trivia question count) — in planning; no scope document yet. |
 
 Tests: `tests/beta-0-9-3.mjs` 19 (one new, F3). Full gate green. Brief: `QA_AGENT_SUMMARY_V3.md`.
+
+## Fourth build `0.9.3-af9b7dc6` (commits `7c30b20`, `af9b7dc`, qa only) — P93-P4 participant selection, wording
+| Item | What changed |
+|---|---|
+| P93-P4 | PO design Option 2 (chosen 2026-11-07). New per-game `playerIds` (`[]` = every active participant, so later additions join; a partial pick is a fixed list; inactive ones drop out; if none of the picked is left everyone plays). The game page shows two entry rows (משתתפים / כמה סיבובים לכל משתתף) that open the sub-page "משתתפים וסיבובים": checklist, בחירת כולם, rounds 1–5, summary line, "שמירה והתחלה" (disabled below two; "שמירה" when no deck). Edits live in a draft, discarded by the back arrow; saving starts a fresh game. Actor order, guessers, turns, deck-build count, tally and winners all use the chosen players only. Pure helpers `pantomimePlayers`, `pantomimeSummaryLine` in `games.js`. The inline rounds buttons are removed. |
+| Wording | Summary line: one round "תור 1", more "N תורות" ("5 משתתפים × 5 תורות לכל משתתף = סה"כ 25 סיבובים למשחק"); deck note says "לכל הסיבובים צריך T". |
+| Open | Design sub-line reads "4 מתוך 5 משחקים" — built as "משתתפים" (likely typo). "1 משתתפים" shows while fewer than two are ticked. |
+| Not built | P93-P5 (song links), P93-P6 (participants in Bingo / Trivia + Trivia question count). |
+
+Tests: `tests/beta-0-9-3.mjs` 20 (new P93-P4 test); full gate green. Live: two chosen players played a 4-round game on qa (see `QA_AGENT_SUMMARY_V4.md`); the QA trip was restored to everybody / 5 rounds. Brief: `QA_AGENT_SUMMARY_V4.md`.
