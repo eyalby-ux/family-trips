@@ -782,6 +782,7 @@ function gamesView(){
 function gameView(){
   const game=state.games.find(candidate=>candidate.id===state.itemId);
   if(!game)return `<section class="card">${backRow('games')}${emptyState('dice','המשחק לא נמצא','ייתכן שהוסר.','')}</section>`;
+  if(gameSetup===game.id)return gameSetupView(game);
   if(game.id===TRIVIA_ID)return triviaView(game);
   if(game.id===PANTOMIME_ID)return pantomimeView(game);
   if(game.id===REMIND_ME_ID)return remindMeView(game);
