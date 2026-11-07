@@ -10,7 +10,13 @@
 - **Snapshot saved in this directory:** `production-index-before-promotion.html`.
 
 ## New Production state
-*(filled in after the deploy)*
+- **Build identifier:** `0.9.3-3a11a6d1`
+- **Deploy ID:** `6aef3153a75d6afbb1dbb825` (context `production`, state `ready`)
+- **Deployed:** 2026-11-07T14:10:44Z — `netlify deploy --dir dist --prod --no-build`, run by the Development Agent at the Product Owner's explicit instruction.
+- **Verified (fresh cache-bypassed fetches):** `build-version` reads `0.9.3-3a11a6d1`; all 11 files of `dist/` return HTTP 200 and are byte-identical to the local `dist/` (identical=11, different=0); both functions (`/api/familytrips-game-content`, `/api/familytrips-smart-import`) answer an unauthenticated POST with HTTP 401. **Not done:** no real trip was opened or written on Production (the same code ran live on `qa`, build `0.9.3-3a11a6d1`, and passed QA).
+- **Artifact:** the exact, untouched `dist/` of the build accepted on `qa` (`qa`, `dist/` and Production all read `0.9.3-3a11a6d1`; no source change since commit `3a11a6d`; no rebuild). Build commit `3a11a6d` on `version/V7`.
+- **Backend:** no `firestore.rules` / `storage.rules` change. The `game-content` function changed in this version (Pantomime and מזכיר לי operations, a client-requested count for Pantomime 6–40 and Trivia 5–20) and deployed with this site deploy.
+- **Known, carried:** song accuracy is prompt-only; the Spotify / YouTube buttons open a search, not the song; reduce motion was removed from the test list by the PO; the QA commits are local (the GitHub push from the QA sandbox is refused with HTTP 403 and must be done from the owner's machine).
 
 ## Rollback command, if needed
 ```
