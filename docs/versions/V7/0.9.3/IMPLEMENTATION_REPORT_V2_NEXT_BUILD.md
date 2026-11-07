@@ -20,3 +20,12 @@ Not covered by the developer (still open from QA): onboarding with a brand-new a
 - Phrases: no place names; foods generic (שוקו חם, סטייק, סלט טרי); "מניפים דגל כחול־לבן" names nothing but hints at a place — flagged for QA judgement. One deck is a small sample for P93-F1; QA re-checks.
 - מזכיר לי page shows the PO text exactly (the QA trip held the first draft; the one-time update replaced it on load).
 - Not exercised live: two participants, reload mid-round, second device, 360px (covered by unit tests only where noted: actor order from saved order+position, 2-player alternation, 2–5 players × 1–5 rounds).
+
+## Third build `0.9.3-7b531008` (commit `7b53100`, qa only) — R-4 and P93-F3 from `QA_RESULTS_0_9_3_BUILD2.md`
+| Item | What changed |
+|---|---|
+| R-4 | Summary line is now "N משתתפים × תור R לכל משתתף = סה"כ T סיבובים למשחק" (PO wording, 2026-11-05/06). |
+| P93-F3 | Likely cause: the trip is "shared with me" (the account is an Editor); `firestore.rules` allows `delete` on a trip only to the Owner, while `resetCurrentTrip(true)` erased the content first and then failed on the trip document, reporting "nothing changed". Fix: a non-owner sees a note instead of the delete button and the handler throws before any deletion. Owner flow unchanged. **Unconfirmed live** (browser pane signed out); QA re-tests with an owned trip. |
+| Not built | P93-P4 (participant selection Option 2a/2b), P93-P5 (Spotify / YouTube links), P93-P6 (participants in Bingo / Trivia, Trivia question count) — in planning; no scope document yet. |
+
+Tests: `tests/beta-0-9-3.mjs` 19 (one new, F3). Full gate green. Brief: `QA_AGENT_SUMMARY_V3.md`.
