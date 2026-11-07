@@ -1,0 +1,18 @@
+# Beta 0.9.3.3 — Bingo: the place is chosen on the intro page; a ninth place "במטוס" (implementation report)
+
+**Build:** `0.9.3.3-d840d00f` on `qa` only (Production runs `0.9.3.1-2a4890e4`; `0.9.3.2`, the two Bingo labels, is on `qa` earlier and not promoted). Commit `d840d00` on `version/V7`. Source: the Product Owner's request in the session ("the location selection should move to the game intro page … only איפוס הלוח will stay … add another location — on the plane … the intro page locations should be split 3×3") and the approved design canvas `https://claude.ai/artifact/RccEa7eEDDDG6RNTM8QCmn` ("approved, build it"). Full gate green (syntax, all tests — `beta-0-9-3.mjs` 24 — build).
+
+## What changed
+- **Intro page (the page before the game):** after the description and facts, "איפה אתם עכשיו?" with the places as tiles in a **3 × 3 grid** (nine places, 76 px tiles; the chosen one highlighted, `aria-pressed`), then the "משתתפים" row, then the start button. **Until a place is chosen the button is disabled** with "בחרו מקום כדי להתחיל." Choosing a place on this page is remembered (`activeTheme`) and can be changed at any time here; progress per place is still saved separately.
+- **Game page:** the in-game picker and the "החלפת מקום" button are **gone**. The toolbar holds the current place as **plain text** (icon + name, not tappable — my addition so the board is not unlabelled; the PO's design showed it) and **"איפוס הלוח"**. To change place: the back arrow to the intro page, pick, "המשך משחק".
+- **A ninth place, "מטוס" ("במטוס"), key `plane`, icon `cloud` (new icon):** sixteen hand-authored spots, none of which needs a photo of a person (the PO's rule for every pool): חלון עגול, כנף המטוס, עננים מבחוץ, מגש אוכל, חגורת בטיחות, כרטיס הוראות בטיחות, כרית צוואר, שמיכה קטנה, אוזניות, מסך בידור, תא אחסון עליון, כפתור קריאה לדיילת, מנורת קריאה, כוס עם שתייה, כרטיס עלייה למטוס, שלט יציאת חירום. **Drafted by the Development Agent and not yet reviewed by the PO** (like the Nature / ZOO pools were) — it is placed second in the grid, after "שדה תעופה".
+- **Existing trips:** no migration. `backfillBingo` re-copies the shipped themes, so the new place appears on load; boards, found spots and photos are stored per place key and are untouched.
+
+## Tests
+`beta-0-9-2.mjs` pins updated for nine places (key order, 144 ids, nine-key migration, the intro-page picker instead of the in-game one, no switch button); new `beta-0-9-3.mjs` test for the 3 × 3 grid, the intro / game split, the disabled start, the plane theme (16 distinct spots, no person words, icon exists), and no leftovers (`bingoPicking`, `bingo-switch`).
+
+## Live check on `qa` (360px, QA Test Trip)
+Intro page: nine tiles in 3 columns × 3 rows (76 px each), no horizontal overflow, "מטוס" present on the existing trip, "משתתפים" row, "המשך משחק". Picked "מטוס" → started: game page shows only "מטוס" (text) and "איפוס הלוח", no switch, no picker, the 16 plane spots on a 4×4 board, "0/16 נמצאו", the five participants in the carousel. Back arrow → intro → "גן חיות" restored. **Not exercised live:** the first-visit state (no place chosen → disabled button; pinned by a test), photographing a plane spot (same code as every other place), a real phone. A first, empty "plane" board now exists for the first participant in the QA trip's saved game.
+
+## Not promoted
+`0.9.3.3` is on `qa` only. Commits need `git push origin version/V7` from the Product Owner's machine.
