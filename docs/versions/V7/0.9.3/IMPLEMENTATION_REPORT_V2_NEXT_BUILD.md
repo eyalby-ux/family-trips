@@ -54,6 +54,6 @@ Tests: `tests/beta-0-9-3.mjs` 22 (P93-P5 and P93-P6 tests); pins in `beta-0-9-1`
 |---|---|
 | P93-P7 (P93-F4) | "שמירה והתחלה" removed. `gameSetupView` compares the saved deck with the chosen number (Trivia: questions; Pantomime: players × rounds; Bingo none). Short → explanation line + "שמירה ובניית משחק חדש" (`data-build`; saves, closes the sub-page, then `buildTrivia` / `buildPantomime`; disabled without a destination). Enough → "שמירה": saves and returns; a changed choice re-deals an un-started game (`started=false`), an unchanged one leaves a game in progress alone. The main-page "בנו מחדש" notes are unchanged. |
 | 360px title | The sub-page header sits in `.setup-top` (22 px, wraps) so "משתתפים וסיבובים" is no longer cut; all three sub-pages share it. |
-| Final wording | PO 14:13: "N תורות" for two or more — already built; one round still reads "תור 1" (asked in the brief). |
+| Final wording | PO 14:13: "N תורות" for two or more — already built; one round still reads "תור 1" — confirmed by the PO, no change. |
 
 Tests: `tests/beta-0-9-3.mjs` 23 (new P93-P7 test; P4/P6 pins updated); full gate green. Live check at 360px incl. one real rebuild through the new button (see `QA_AGENT_SUMMARY_V6.md`). Housekeeping: QA's push attempts left an empty `.git/HEAD.lock` twice; removed with the owner's approval each time; `da1d725` and all later commits are local, unpushed.
