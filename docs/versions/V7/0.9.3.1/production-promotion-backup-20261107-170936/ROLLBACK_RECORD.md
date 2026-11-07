@@ -10,7 +10,13 @@
 - **Snapshot saved in this directory:** `production-index-before-promotion.html`.
 
 ## New Production state
-*(filled in after the deploy)*
+- **Build identifier:** `0.9.3.1-2a4890e4`
+- **Deploy ID:** `6aef3f4da7eb59ba81b6addd` (context `production`, state `ready`)
+- **Deployed:** 2026-11-07T15:10:16Z — `netlify deploy --dir dist --prod --no-build`, run by the Development Agent after the Product Owner's explicit confirmation in this session.
+- **Verified (fresh cache-bypassed fetches):** `build-version` reads `0.9.3.1-2a4890e4`; all 11 files of `dist/` return HTTP 200 and are byte-identical to the local `dist/` (identical=11, different=0); both functions answer an unauthenticated POST with HTTP 401. **Not done:** no real trip was opened or written on Production (the same code was verified live on `qa` by the developer and by QA).
+- **Artifact:** the exact, untouched `dist/` of the build accepted on `qa` (`qa`, `dist/` and Production all read `0.9.3.1-2a4890e4`; no source change since commit `2a4890e`; no rebuild).
+- **Backend:** no `firestore.rules` / `storage.rules` / function change.
+- **Known, carried:** the Owner-only erase is an app gate only — `firestore.rules` still lets an Editor delete documents directly with a modified client (PO decision); the owner erase itself was not re-run on `0.9.3.1` by QA (it passed on `0.9.3`).
 
 ## Rollback command, if needed
 ```
