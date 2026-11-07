@@ -7,7 +7,7 @@ const ENDPOINT='/api/familytrips-game-content';
 // Only title + location of hotels / activities leave the device -- never confirmation numbers, phones, participants or notes.
 export const tripContextForGames=(trip,items)=>({destinations:(trip?.destinationCountries||[]).map(String),items:(items||[]).filter(item=>['hotel','activity'].includes(item.type)).map(item=>({title:item.title||'',location:item.location||''}))});
 
-export const generateTrivia=({trip,items,history})=>generateContent('generate_trivia',{trip,items,history});
+export const generateTrivia=({trip,items,history,count})=>generateContent('generate_trivia',{trip,items,history,count});
 // 0.9.3: Pantomime is destination-only -- the items are never even sent
 export const generatePantomime=({trip,history,count})=>generateContent('generate_pantomime',{trip,items:[],history,count});
 // 0.9.3: one suggestion for one mode (word | song); `history` is that mode's recent suggestions

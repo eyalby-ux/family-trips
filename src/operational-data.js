@@ -14,9 +14,9 @@ export const BUILTIN_GAMES=[
   // 0.9.1 (P91-P2, PO decision): "20 שאלות" and "מי אני?" were the same game -- one person chooses, the others ask yes/no questions. One game now: this one.
   {id:'game-20-questions',onTheGo:true,title:'20 שאלות',instructions:TWENTY_QUESTIONS_INSTRUCTIONS,items:'ללא ציוד',participants:'3 ומעלה',duration:'10–20 דקות'},
   // 0.9.2: Bingo -- six location themes, a 4x4 photo board per participant per theme. The id stays (saved state is keyed by it); the title is place-neutral.
-  {id:'game-airport-bingo',interactive:true,title:'בינגו לפי מקום',instructions:BINGO_INSTRUCTIONS,items:'טלפון עם מצלמה',participants:'2 ומעלה',duration:'15 דקות',themes:BINGO_THEMES,activeTheme:'',boards:{},celebratedLines:{}},
+  {id:'game-airport-bingo',interactive:true,title:'בינגו לפי מקום',instructions:BINGO_INSTRUCTIONS,items:'טלפון עם מצלמה',participants:'2 ומעלה',duration:'15 דקות',playerIds:[],themes:BINGO_THEMES,activeTheme:'',boards:{},celebratedLines:{}},
   // 0.9.1: an AI-built deck per trip. The id stays (saved state is keyed by it); the title is destination-neutral.
-  {id:'game-thailand-trivia',onTheGo:true,interactive:true,title:'טריוויה על היעד',instructions:TRIVIA_INSTRUCTIONS,items:'ללא ציוד',participants:'כל המשפחה',duration:'20 דקות',deck:[],askedQuestions:[],triviaState:{order:[],position:0,scores:{}}},
+  {id:'game-thailand-trivia',onTheGo:true,interactive:true,title:'טריוויה על היעד',instructions:TRIVIA_INSTRUCTIONS,items:'ללא ציוד',participants:'כל המשפחה',duration:'20 דקות',playerIds:[],questionCount:10,deck:[],askedQuestions:[],triviaState:{order:[],position:0,scores:{}}},
   // 0.9.3: a brand-new id, so it is simply pushed into every saved trip by the push-if-missing step -- no backfill. needs everyone watching, so no onTheGo.
   {id:'game-pantomime',interactive:true,title:'פנטומימה',instructions:PANTOMIME_INSTRUCTIONS,items:'ללא ציוד',participants:'2 ומעלה',duration:'20 דקות',roundsPerPlayer:2,playerIds:[],deck:[],askedPhrases:[],pantomimeState:{order:[],position:0,scores:{},actorOrder:[],rounds:2}},
   // 0.9.3: מזכיר לי -- a free-form game (word chain / song chain) with one optional AI smart start; a brand-new id, pushed by push-if-missing, no backfill.

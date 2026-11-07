@@ -60,7 +60,7 @@ test('P91-F3 patch to the live 0.9.1 Trivia (PO: only when the ROUND is won): th
   assert(!score.includes('fireWinner')&&!score.includes('wasMarked'),'tapping who answered correctly no longer celebrates');
   assert(score.includes('toggleCorrect(game.triviaState,triviaMarked,button.dataset.participant)')&&score.includes('game.triviaState={...game.triviaState,scores:result.scores};save();render()'),'the 0.9.1 scoring lines are unchanged');
   const next=app.slice(app.indexOf("else if(action==='trivia-next')"),app.indexOf("else if(action==='trivia-replay')"));
-  assert(next.includes('if(triviaFinished(game)){const winners=triviaWinners(game.triviaState.scores,state.participants);if(winners.length)fireWinner('),'only when that tap ended the deck, and only if somebody scored');
+  assert(next.includes('if(triviaFinished(game)){const winners=triviaWinners(game.triviaState.scores,gamePlayers(state.participants,game.playerIds));if(winners.length)fireWinner('),'only when that tap ended the deck, and only if somebody scored');
   assert(next.includes("name:winners.join(' · ')")&&next.includes("caption:winners.length>1?'ניצחון משותף בסיבוב!':'ניצחון בסיבוב!'")&&next.includes('big:true'),'the name(s) in the middle, the bigger animation');
   assert(next.indexOf('save();render();')<next.indexOf('fireWinner('),'drawn after the re-render, so it is not wiped');
   const replay=app.slice(app.indexOf("else if(action==='trivia-replay')"),app.indexOf("else if(action==='trivia-exit')"));
@@ -211,7 +211,7 @@ test('the picker and the board screen: eight tiles, the last theme remembered, a
   assert(fn('participantCarousel').includes('data-carousel data-scope="${scope}"')&&fn('selectParticipant').includes("const scope=carousel?.dataset.scope||'packing';"));
   assert(fn('commitParticipant').includes("if(scope==='bingo')bingoParticipant=value;else state.packingParticipantView=value;"),'Bingo\'s participant never changes Packing\'s view');
   assert(app.includes("else if(action==='bingo-participant')selectParticipant(button.closest('[data-carousel]'),button.dataset.participant);"));
-  assert(view.includes('people.filter')||view.includes("state.participants.filter(person=>person.active!==false)"),'only active participants');
+  assert(view.includes('bingoPlayers(game)')&&fs.readFileSync(new URL('../src/v5-app.js',import.meta.url),'utf8').includes('const bingoPlayers=game=>gamePlayers(state.participants,'),'only the chosen, active participants (P93-P6)');
   assert(view.includes("emptyState('users','אין עדיין משתתפים'"),'no participants: a clear empty state');
   assert(app.includes('if(game.id===BINGO_ID)return bingoView(game);'));
   assert.match(css,/\.bingo-board\{display:grid;grid-template-columns:repeat\(4,1fr\);gap:6px\}/);assert.match(css,/\.bingo-label\{font-size:11px;/,'11px labels, not the mockup\'s 8.5px');

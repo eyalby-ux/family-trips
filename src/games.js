@@ -41,6 +41,8 @@ export const gameBuildGate=(trip,what)=>(trip?.destinationCountries||[]).length>
 export const triviaBuildGate=trip=>gameBuildGate(trip,'טריוויה');
 export const newTriviaDeck=questions=>(questions||[]).map((entry,index)=>({id:`q${index+1}`,question:String(entry.question).trim(),answer:String(entry.answer).trim(),explanation:String(entry.explanation??'').trim()})).filter(entry=>entry.question&&entry.answer);
 // "קראו עוד": a Hebrew Wikipedia search for the answer -- always a working page, never a link the model made up.
+// P93-P5: the song suggestion's two links. Each OPENS A SEARCH for the title and the artist (the PO's decision) -- the AI never makes a link, so nothing can point at a made-up page.
+export const songSearchLinks=song=>{const query=encodeURIComponent(`${String(song?.title??'').trim()} ${String(song?.artist??'').trim()}`.trim());return {spotify:`https://open.spotify.com/search/${query}`,youtube:`https://www.youtube.com/results?search_query=${query}`}};
 export const readMoreUrl=answer=>`https://he.wikipedia.org/w/index.php?search=${encodeURIComponent(String(answer||'').trim())}`;
 export function shuffleOrder(length,random=Math.random){
   const order=Array.from({length},(_,index)=>index);
@@ -48,7 +50,11 @@ export function shuffleOrder(length,random=Math.random){
   return order;
 }
 // A fresh playthrough of the same deck: new order, back to the first question, nobody has points. Also what a rebuild resets to.
-export const newTriviaState=(deck,random=Math.random)=>({order:shuffleOrder((deck||[]).length,random),position:0,scores:{}});
+// P93-P6: the organiser picks how many questions a game has (5, 10, 15 or 20; default 10). A game uses the first `count` questions of a shuffled deck (fewer if the deck is shorter).
+export const TRIVIA_QUESTION_COUNTS=[5,10,15,20],TRIVIA_DEFAULT_COUNT=10;
+export const clampQuestionCount=value=>TRIVIA_QUESTION_COUNTS.includes(Number(value))?Number(value):TRIVIA_DEFAULT_COUNT;
+export const triviaSummaryLine=(players,count)=>`${players} משתתפים · ${clampQuestionCount(count)} שאלות במשחק`;
+export const newTriviaState=(deck,random=Math.random,count=Infinity)=>({order:shuffleOrder((deck||[]).length,random).slice(0,count),position:0,scores:{}});
 export const triviaFinished=game=>!(game.deck||[]).length||(game.triviaState?.position||0)>=(game.triviaState?.order||[]).length;
 export const triviaQuestion=game=>triviaFinished(game)?null:game.deck[game.triviaState.order[game.triviaState.position]]||null;
 // Tapping a participant's chip marks them as having answered this question; tapping again takes it back. `marked` is the
@@ -96,8 +102,9 @@ export const pantomimeNext=state=>({...state,position:state.position+1});
 // Pantomime needs an actor and at least one guesser.
 // P93-P4: who plays. game.playerIds = the participants the family picked for THIS game; [] means everybody active (so a participant added later joins in).
 // Only active participants can play; if every picked participant has left, everybody active plays.
-export const pantomimePlayers=(participants,playerIds)=>{const active=(participants||[]).filter(person=>person.active!==false),picked=Array.isArray(playerIds)?playerIds:[],chosen=picked.length?active.filter(person=>picked.includes(person.id)):active;return chosen.length?chosen:active};
+export const gamePlayers=(participants,playerIds)=>{const active=(participants||[]).filter(person=>person.active!==false),picked=Array.isArray(playerIds)?playerIds:[],chosen=picked.length?active.filter(person=>picked.includes(person.id)):active;return chosen.length?chosen:active};
 // The agreed wording (PO): game / round = one phrase / turn = one player's turn. One round each reads "תור 1", more reads "N תורות" (PO, 2026-11-07).
+export const pantomimePlayers=gamePlayers;
 export const pantomimeSummaryLine=(players,rounds)=>`${players} משתתפים × ${clampRounds(rounds)===1?'תור 1':clampRounds(rounds)+' תורות'} לכל משתתף = סה"כ ${pantomimeTurns(players,rounds)} סיבובים למשחק`;
 export const pantomimePlayable=participants=>(participants||[]).filter(person=>person.active!==false).length>=2;
 

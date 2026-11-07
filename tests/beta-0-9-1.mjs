@@ -107,8 +107,8 @@ test('the build gate: "בנה טריוויה" is disabled with a hint until the 
 
 test('rebuild: a successful build REPLACES the deck, resets triviaState, appends to the history and un-starts the game; a failed build leaves the old deck alone',()=>{
   const build=fn('buildTrivia');
-  assert(build.includes('live.deck=deck;live.askedQuestions=capHistory(live.askedQuestions,deck);live.triviaState=newTriviaState(deck);live.started=false;'));
-  assert(build.includes('generateTrivia({trip:state.trip,items:state.items,history:game.askedQuestions||[]})'),'the accumulated history goes out with every build');
+  assert(build.includes('live.deck=deck;live.askedQuestions=capHistory(live.askedQuestions,deck);live.triviaState=newTriviaStateFor(live,deck);live.started=false;'));
+  assert(build.includes('generateTrivia({trip:state.trip,items:state.items,history:game.askedQuestions||[],count:clampQuestionCount(game.questionCount)})'),'the accumulated history goes out with every build');
   assert(build.indexOf('generateTrivia(')<build.indexOf('live.deck=deck'),'nothing is discarded before the new deck exists');
   assert(build.includes('catch(error){triviaBuilding=null;render();notify('));
   assert(build.includes('confirm(')&&build.includes('!triviaFinished(game)'),'a stray tap cannot wipe a game in progress');
@@ -141,7 +141,7 @@ test('the play flow end to end: shuffled order with no repeats, reveal, tap who 
   const again=newTriviaState(game.deck,seeded());
   assert.equal(again.position,0);assert.deepEqual(again.scores,{});assert.equal(again.order.length,6);
   const replayHandler=app.slice(app.indexOf("action==='trivia-replay'"),app.indexOf("action==='trivia-exit'"));
-  assert(replayHandler.includes('newTriviaState(game.deck)')&&!replayHandler.includes('generateTrivia')&&!replayHandler.includes('buildTrivia'),'"שחקו שוב" never calls the AI');
+  assert(replayHandler.includes('newTriviaStateFor(game,game.deck)')&&!replayHandler.includes('generateTrivia')&&!replayHandler.includes('buildTrivia'),'"שחקו שוב" never calls the AI');
   assert.deepEqual(shuffleOrder(0),[]);
 });
 
@@ -149,7 +149,7 @@ test('the screens: question N/M, reveal in place, chips with running scores, end
   const play=fn('triviaPlayView'),view=fn('triviaView');
   assert(play.includes('data-action="trivia-reveal"')&&play.includes('>הצג תשובה</button>')&&play.includes('triviaRevealed?'),'the answer is revealed in place');
   assert(play.includes('מי ענה נכון?')&&play.includes('data-action="trivia-score"')&&play.includes('aria-pressed='),'a row of participant chips, many taps or none');
-  assert(play.includes("person.active!==false"),'only active participants are offered');
+  assert(play.includes('gamePlayers(state.participants,game.playerIds)'),'only the chosen, active participants are offered (P93-P6; gamePlayers drops inactive ones)');
   assert(play.includes('class="btn game-primary" data-action="trivia-replay"')&&play.includes('class="btn ghost game-secondary" data-action="trivia-build"'),'"שחקו שוב" primary, "בנה טריוויה מחדש" secondary/ghost');
   assert(play.includes('<bdi dir="ltr">${ts.position+1}/${total}</bdi>'));
   assert(view.includes("gamePrimaryAction(game)")&&view.includes('אפשר לשחק גם בלי חיבור לאינטרנט'));

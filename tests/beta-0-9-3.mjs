@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {WINNER_ANIMATIONS,WINNER_MS,WINNER_REPEATS,createWinnerPlayer,winnerHtml} from '../src/winner-animation.js';
 import {REMIND_ME_HISTORY_CAP,REMIND_ME_MODES as SERVER_MODES,cleanStartHistory,extractRemindMe,remindMeInstruction,remindMeSchema,remindMeSystemPrompt,PANTOMIME_COUNT,PANTOMIME_FIELDS,buildPantomimeContext,clampCount,cleanHistory,generateWithRepeatGuard,mentionsDestination,pantomimeAccept,pantomimeInstruction,pantomimeSchema,pantomimeSystemPrompt} from '../netlify/functions/_shared/game-content.mjs';
-import {REMIND_ME_CAP,REMIND_ME_ID,REMIND_ME_MODES,applyRemindMeResult,chooseRemindMeMode,emptyRemindMe,remindMeHistory,remindMeSuggestion,PANTOMIME_ID,PANTOMIME_MAX_ROUNDS,capHistory,clampRounds,pantomimeActor,pantomimeBuildCount,pantomimeTurns,gameBuildGate,newPantomimeDeck,newPantomimeState,pantomimeFinished,pantomimeNext,pantomimePhrase,pantomimePlayable,pantomimePlayers,pantomimeSummaryLine,toggleCorrect,triviaWinners} from '../src/games.js';
+import {REMIND_ME_CAP,REMIND_ME_ID,REMIND_ME_MODES,applyRemindMeResult,chooseRemindMeMode,emptyRemindMe,remindMeHistory,remindMeSuggestion,PANTOMIME_ID,TRIVIA_ID,PANTOMIME_MAX_ROUNDS,capHistory,clampRounds,pantomimeActor,pantomimeBuildCount,pantomimeTurns,gameBuildGate,newPantomimeDeck,newPantomimeState,pantomimeFinished,pantomimeNext,pantomimePhrase,pantomimePlayable,pantomimePlayers,pantomimeSummaryLine,gamePlayers,songSearchLinks,TRIVIA_QUESTION_COUNTS,clampQuestionCount,triviaSummaryLine,newTriviaDeck,newTriviaState,toggleCorrect,triviaWinners} from '../src/games.js';
 import {BUILTIN_GAMES,diffById,normalizeOperationalState,sanitizeTripDates,syncBaseline} from '../src/operational-data.js';
 import {onboardingTripFrom,showsOnboarding} from '../src/onboarding.js';
 
@@ -128,11 +128,11 @@ test('(A) P93-P2/P3 rounds per player: 1-5, turns = players x rounds, the deck i
   assert.equal(newPantomimeState(deck,{activeIds:['a','b'],random:seeded(1)}).order.length,4,'default 2 rounds');
   // server: the requested count is clamped, anything else falls back to 12
   assert.equal(clampCount(25,12),25);assert.equal(clampCount(500,12),40);assert.equal(clampCount(1,12),6);assert.equal(clampCount(undefined,12),12);assert.equal(clampCount('abc',12),12);assert.equal(clampCount(-4,12),12);
-  const fnSrc=read('../netlify/functions/game-content.mjs');assert(fnSrc.includes('count:kind.sizable?clampCount(body.count,kind.count):kind.count')&&/generate_pantomime[^\n]*sizable:true/.test(fnSrc),'only Pantomime accepts a client count; Trivia stays at 10');
+  const fnSrc=read('../netlify/functions/game-content.mjs');assert(fnSrc.includes('count:kind.size?clampCount(body.count,kind.count,...kind.size):kind.count')&&/generate_pantomime[^\n]*size:\[6,40\]/.test(fnSrc)&&/generate_trivia[^\n]*size:\[5,20\]/.test(fnSrc),'Pantomime (6-40) and Trivia (5-20) accept a client count; nothing else does');
   assert(read('../src/game-content-client.js').includes("generateContent('generate_pantomime',{trip,items:[],history,count})"));
   // wiring: the picker, the persisted setting, the build asks for what the game needs, replay uses it, no leftovers of the old rule
-  const view=fn('pantomimeView');assert(view.includes('data-action="pantomime-setup-open"')&&view.includes('כמה סיבובים לכל משתתף')&&view.includes('סה"כ ${turns} סיבובים'),'the instructions page has the two entry rows (P93-P4 Option 2a); the rounds are picked on the sub-page');
-  assert(app.includes("game.roundsPerPlayer=clampRounds(pantomimeDraft.rounds)"),'the choice is saved on the game (and synced with it)');
+  const view=fn('pantomimeView');assert(view.includes('setupEntryRows(game)')&&app.includes('data-action="game-setup-open"')&&app.includes("row('כמה סיבובים לכל משתתף'")&&app.includes('סה"כ ${pantomimeTurns(roster.length,rounds)} סיבובים'),'the instructions page has the two entry rows (P93-P4 Option 2a); the rounds are picked on the sub-page');
+  assert(app.includes("game.roundsPerPlayer=clampRounds(gameSetupDraft.rounds)"),'the choice is saved on the game (and synced with it)');
   assert(fn('buildPantomime').includes('count:pantomimeBuildCount(pantomimePlayerIds(game).length,game.roundsPerPlayer)')&&fn('buildPantomime').includes('newPantomimeStateFor(live,deck)'));
   assert(app.includes('newPantomimeState(deck,{activeIds:pantomimePlayerIds(game),rounds:game.roundsPerPlayer})'));
   assert(!/lastActorId|currentActorId:|actorPosition|pickActor|beginPantomimeRound/.test(app+read('../src/games.js')),'the "never twice in a row" rule is gone');
@@ -152,17 +152,56 @@ test('(A) P93-P4 participant selection (PO design, Option 2): who plays is saved
   let cur=st;const seq=[];for(let r=0;r<6;r++){seq.push(pantomimeActor(cur,ids));cur=pantomimeNext(cur)}assert(seq.every((x,i)=>i===0||x!==seq[i-1])&&seq.every(x=>ids.includes(x)),'only the two chosen players act: '+seq.join(''));
   assert.equal(pantomimeBuildCount(2,3),12,'the build still asks for at least 12');assert.equal(pantomimeSummaryLine(4,2),'4 משתתפים × 2 תורות לכל משתתף = סה"כ 8 סיבובים למשחק',"the PO's example");assert.equal(pantomimeSummaryLine(5,5),'5 משתתפים × 5 תורות לכל משתתף = סה"כ 25 סיבובים למשחק',"the PO's wording for more than one round");assert.equal(pantomimeSummaryLine(5,1),'5 משתתפים × תור 1 לכל משתתף = סה"כ 5 סיבובים למשחק');
   // wiring
-  const setup=fn('pantomimeSetupView');
+  const setup=fn('gameSetupView');
   assert(setup.includes('מי משחק?')&&setup.includes('בחירת כולם')&&setup.includes('כמה סיבובים לכל משתתף?')&&setup.includes('pantomimeSummaryLine(picked,draft.rounds)')&&setup.includes('שמירה והתחלה')&&setup.includes('משתתפים וסיבובים'),'the sub-page copy of the design');
   assert(setup.includes("${ok?'':' disabled'}")&&setup.includes('בחרו לפחות שני משתתפים')&&setup.includes('role="checkbox"'),'start is disabled below two participants; the rows are real checkbox buttons');
-  assert(fn('pantomimeView').includes('if(pantomimeSetup===game.id)return pantomimeSetupView(game);'));
-  const save=app.slice(app.indexOf("else if(action==='pantomime-setup-save')"),app.indexOf('\n',app.indexOf("else if(action==='pantomime-setup-save')")));
-  assert(save.includes('ids.length>=2')&&save.includes('game.playerIds=ids.length===active.length?[]:ids')&&save.includes('newPantomimeStateFor(game,game.deck)')&&save.includes('game.started=true'),'saved on the game (all picked = [] = everybody, even people added later); a built deck starts a fresh game');
-  assert(app.includes("else if(action==='pantomime-setup-back'){pantomimeSetup=null;render()}")&&app.includes('participantDeleteArmed=null;pantomimeSetup=null;'),'back discards the draft; leaving the game resets the sub-page');
+  assert(fn('pantomimeView').includes('if(gameSetup===game.id)return gameSetupView(game);'));
+  const save=app.slice(app.indexOf("else if(action==='game-setup-save')"),app.indexOf('\n',app.indexOf("else if(action==='game-setup-save')")+400));
+  assert(save.includes('ids.length>=gameSetupMin(game)')&&save.includes('game.playerIds=ids.length===active.length?[]:ids')&&save.includes('newPantomimeStateFor(game,game.deck)')&&save.includes('game.started=true'),'saved on the game (all picked = [] = everybody, even people added later); a built deck starts a fresh game');
+  assert(app.includes("else if(action==='game-setup-back'){gameSetup=null;render()}")&&app.includes('participantDeleteArmed=null;gameSetup=null;'),'back discards the draft; leaving the game resets the sub-page');
   assert(fn('pantomimePlayView').includes('const guessers=players.filter(person=>person.id!==currentActorId)')&&fn('pantomimePlayView').includes('triviaTally(ps.scores,pantomimePlayerList(game))'),'only players guess and appear in the tally');
   assert(!app.includes('pantomime-rounds'),'the inline picker is replaced by the sub-page');
   assert.deepEqual(BUILTIN_GAMES.find(game=>game.id===PANTOMIME_ID).playerIds,[]);
   assert.match(css,/\.pick-row\{min-height:52px/);assert.match(css,/\.rounds-picker \.trivia-chip\{flex:1 1 0/);
+});
+
+test('(B) P93-P5 song links: Spotify and YouTube, each a SEARCH for the title and artist (no AI-made link), on the song card only',()=>{
+  const links=songSearchLinks({title:'Volver a los 17',artist:'Mercedes Sosa'});
+  assert.equal(links.spotify,'https://open.spotify.com/search/Volver%20a%20los%2017%20Mercedes%20Sosa');assert.equal(links.youtube,'https://www.youtube.com/results?search_query=Volver%20a%20los%2017%20Mercedes%20Sosa');
+  const nasty=songSearchLinks({title:'a&b=c#d "x"<script>',artist:'  /?  '});assert(nasty.spotify.startsWith('https://open.spotify.com/search/')&&nasty.youtube.startsWith('https://www.youtube.com/results?search_query=')&&!/[<>"# ]/.test(nasty.spotify.slice(32)+nasty.youtube.slice(45)),'whatever the model wrote is URL-encoded; the hosts are fixed');
+  assert.equal(songSearchLinks({}).spotify,'https://open.spotify.com/search/');
+  const card=fn('remindMeCard'),song=card.slice(card.indexOf("mode==='song'"),card.indexOf(':`<div class="smart-suggestion"><span class="q-label">מילה להתחלה'));
+  assert(song.includes('songSearchLinks(suggestion.song)')&&song.includes('חיפוש ב-Spotify')&&song.includes('חיפוש ב-YouTube')&&song.includes('target="_blank" rel="noopener noreferrer"'),'two links on the song card, opened in a new tab');
+  assert(!card.slice(card.indexOf('q-label\">מילה להתחלה')).includes('songSearchLinks'),'the word card has no links');
+  assert(!/spotify|youtube/i.test(read('../netlify/functions/_shared/game-content.mjs')+read('../netlify/functions/game-content.mjs')),'the server and the model never produce a link');
+  assert.match(css,/\.song-links\{display:flex/);
+});
+
+test('(A) P93-P6 participants (and Trivia\'s question count) for every relevant game: Bingo and Trivia use the same sub-page, 20 questions and מזכיר לי do not',()=>{
+  const people=[{id:'a',name:'א'},{id:'b',name:'ב'},{id:'c',name:'ג',active:false},{id:'d',name:'ד'}];
+  assert.equal(gamePlayers,pantomimePlayers);assert.deepEqual(gamePlayers(people,['b','d']).map(p=>p.id),['b','d']);assert.deepEqual(gamePlayers(people,[]).map(p=>p.id),['a','b','d']);assert.deepEqual(gamePlayers(people,['c']).map(p=>p.id),['a','b','d']);
+  // Trivia: 5 / 10 / 15 / 20, default 10
+  assert.deepEqual(TRIVIA_QUESTION_COUNTS,[5,10,15,20]);assert.equal(clampQuestionCount(15),15);assert.equal(clampQuestionCount('20'),20);assert.equal(clampQuestionCount(7),10);assert.equal(clampQuestionCount(undefined),10);assert.equal(clampQuestionCount(0),10);
+  assert.equal(triviaSummaryLine(3,15),'3 משתתפים · 15 שאלות במשחק');
+  const deck=newTriviaDeck(Array.from({length:20},(_,i)=>({question:`ש${i}`,answer:`ת${i}`})));
+  for(const n of TRIVIA_QUESTION_COUNTS){const st=newTriviaState(deck,seeded(n),n);assert.equal(st.order.length,n);assert.equal(new Set(st.order).size,n,'no repeats')}
+  assert.equal(newTriviaState(deck,seeded(1)).order.length,20,'the old call shape still plays the whole deck');assert.equal(newTriviaState(deck.slice(0,8),seeded(1),15).order.length,8,'a shorter deck simply has fewer questions');
+  // server: Trivia asks for the chosen number
+  assert.equal(clampCount(15,10,5,20),15);assert.equal(clampCount(99,10,5,20),20);assert.equal(clampCount(1,10,5,20),5);assert.equal(clampCount(undefined,10,5,20),10);
+  assert(read('../src/game-content-client.js').includes("generateTrivia=({trip,items,history,count})=>generateContent('generate_trivia',{trip,items,history,count})"));
+  // the built-in games
+  const trivia=BUILTIN_GAMES.find(g=>g.id===TRIVIA_ID),bingo=BUILTIN_GAMES.find(g=>g.id==='game-airport-bingo'),others=BUILTIN_GAMES.filter(g=>['game-20-questions',REMIND_ME_ID].includes(g.id));
+  assert.deepEqual(trivia.playerIds,[]);assert.equal(trivia.questionCount,10);assert.deepEqual(bingo.playerIds,[]);assert(bingo.questionCount===undefined&&bingo.roundsPerPlayer===undefined,'Bingo has no number option');assert(others.every(g=>g.playerIds===undefined),'20 שאלות and מזכיר לי are out of scope');
+  // wiring: the shared rows and sub-page
+  assert(app.includes('const gameSetupMin=game=>game.id===PANTOMIME_ID?2:1;')&&app.includes("if(game.id===TRIVIA_ID)rows.push(row('כמה שאלות במשחק'"),'Trivia gets a question-count row, Bingo only the participants row');
+  const setup=fn('gameSetupView');assert(setup.includes("isTrivia?'משתתפים ושאלות':'משתתפים'")&&setup.includes('TRIVIA_QUESTION_COUNTS')&&setup.includes("'game-setup-count'")&&setup.includes('לכל משתתף לוח משלו')&&setup.includes('בחרו לפחות משתתף אחד.'),'the sub-page adapts: title, question chips, Bingo summary, minimum one');
+  assert(setup.includes("startsGame?'שמירה והתחלה':'שמירה'")&&setup.includes('const startsGame=(isPantomime||isTrivia)&&(game.deck||[]).length>0;'),'Bingo only saves; Trivia / Pantomime with a deck start a fresh game');
+  const saveH=app.slice(app.indexOf("else if(action==='game-setup-save')"),app.indexOf('save();render()}}',app.indexOf("else if(action==='game-setup-save')")));assert(saveH.includes('game.questionCount=clampQuestionCount(gameSetupDraft.count)')&&saveH.includes('newTriviaStateFor(game,game.deck)'),'saved on the game');
+  assert(fn('triviaView').includes('setupEntryRows(game)')&&fn('bingoView').includes('setupEntryRows(game)'));
+  const play=fn('triviaPlayView');assert(play.includes('people=gamePlayers(state.participants,game.playerIds)')&&play.includes('triviaTally(ts.scores,gamePlayers(state.participants,game.playerIds))'),'only the chosen players answer and are tallied');
+  assert(fn('buildTrivia').includes('count:clampQuestionCount(game.questionCount)')&&app.includes('const newTriviaStateFor=(game,deck)=>newTriviaState(deck,Math.random,clampQuestionCount(game.questionCount));'),'a build asks for the chosen number of questions');
+  assert(app.includes('const bingoPlayers=game=>gamePlayers(state.participants,(game||bingoGame())?.playerIds);')&&fn('bingoCurrentParticipant').includes('bingoPlayers()')&&fn('bingoView').includes('const people=bingoPlayers(game)'),'only the chosen players have a board on screen');
+  assert(!fn('remindMeView').includes('setupEntryRows'),'מזכיר לי has no participants choice');
 });
 
 test('(F3) only the Owner can delete a trip: the button is replaced by a note for an Editor, and the handler refuses BEFORE erasing anything (firestore.rules allows delete to the owner only)',()=>{
@@ -446,7 +485,7 @@ test('(A) Pantomime phrases carry NO place names (PO, 2026-10-23): the prompt fo
   // without a rule nothing changes for the other games (Trivia passes no accept)
   const trivia=await generateWithRepeatGuard({callModel:async()=>[{question:'ש',answer:'ת'}],history:[],count:1,fields:['question','answer']});assert.equal(trivia.items.length,1);
   const fnSource=read('../netlify/functions/game-content.mjs');
-  assert(fnSource.includes('context:buildPantomimeContext,accept:pantomimeAccept,sizable:true}')&&fnSource.includes('accept:kind.accept?kind.accept(context):undefined'),'wired for Pantomime only');
+  assert(fnSource.includes('context:buildPantomimeContext,accept:pantomimeAccept,size:[6,40]}')&&fnSource.includes('accept:kind.accept?kind.accept(context):undefined'),'wired for Pantomime only');
   // P93-F1: generic foods / items only, never a specific named dish, product or speciality
   assert(pantomimeSystemPrompt.includes('GENERIC, NOT SPECIFIC')&&pantomimeSystemPrompt.includes("'cheese'")&&pantomimeSystemPrompt.includes("is NOT ('feta'"),'generic food is welcome, a specific named one is not');
   assert(!/accept:/.test(fnSource.slice(fnSource.indexOf('generate_trivia:{'),fnSource.indexOf('generate_pantomime:{'))),'Trivia is untouched');
