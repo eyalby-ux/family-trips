@@ -171,7 +171,7 @@ test('(B) P93-P5 song links: Spotify and YouTube, each a SEARCH for the title an
   const nasty=songSearchLinks({title:'a&b=c#d "x"<script>',artist:'  /?  '});assert(nasty.spotify.startsWith('https://open.spotify.com/search/')&&nasty.youtube.startsWith('https://www.youtube.com/results?search_query=')&&!/[<>"# ]/.test(nasty.spotify.slice(32)+nasty.youtube.slice(45)),'whatever the model wrote is URL-encoded; the hosts are fixed');
   assert.equal(songSearchLinks({}).spotify,'https://open.spotify.com/search/');
   const card=fn('remindMeCard'),song=card.slice(card.indexOf("mode==='song'"),card.indexOf(':`<div class="smart-suggestion"><span class="q-label">מילה להתחלה'));
-  assert(song.includes('songSearchLinks(suggestion.song)')&&song.includes('חיפוש ב-Spotify')&&song.includes('חיפוש ב-YouTube')&&song.includes('target="_blank" rel="noopener noreferrer"'),'two links on the song card, opened in a new tab');
+  assert(song.includes('songSearchLinks(suggestion.song)')&&song.includes('aria-label=\"חיפוש ב-Spotify\">Spotify</a>')&&song.includes('aria-label=\"חיפוש ב-YouTube\">YouTube</a>')&&song.includes('target="_blank" rel="noopener noreferrer"'),'two links on the song card, opened in a new tab');
   assert(!card.slice(card.indexOf('q-label\">מילה להתחלה')).includes('songSearchLinks'),'the word card has no links');
   assert(!/spotify|youtube/i.test(read('../netlify/functions/_shared/game-content.mjs')+read('../netlify/functions/game-content.mjs')),'the server and the model never produce a link');
   assert.match(css,/\.song-links\{display:flex/);
