@@ -221,9 +221,12 @@ test('(A) P93-P7 rebuild path: a deck smaller than the chosen number is offered 
 test('(F3) only the Owner can delete a trip: the button is replaced by a note for an Editor, and the handler refuses BEFORE erasing anything (firestore.rules allows delete to the owner only)',()=>{
   const section=app.slice(app.indexOf('const isTripOwner='),app.indexOf('\n',app.indexOf('const deleteSection=')));
   assert(section.includes('state.trip?.ownerUid===currentUid()')&&section.includes("${isTripOwner()?")&&section.includes('רק בעל הטיול יכול למחוק אותו'),'an Editor sees a note, not the button');
-  assert(section.indexOf('data-action="delete-current-trip"')<section.indexOf('רק בעל הטיול'),'the button is on the owner branch');
+  assert(section.indexOf('data-action="delete-current-trip"')<section.indexOf('רק בעל הטיול יכול למחוק אותו'),'the delete button is on the owner branch');
+  // 0.9.3.1 (PO reversal): erasing the data is Owner-only too -- note instead of button, and the handler refuses before touching anything
+  assert(section.includes('רק בעל הטיול יכול למחוק את נתוני הטיול')&&section.indexOf('data-action="reset-trip-data"')<section.indexOf('רק בעל הטיול יכול למחוק את נתוני הטיול'),'the erase-data button is on the owner branch, an Editor sees a note');
+  assert(fn('resetCurrentTrip').includes('if(state.trip.ownerUid&&!isTripOwner())throw new Error(removeTrip?'),'both branches (erase data and delete the trip) are refused for a non-owner');
   const body=fn('resetCurrentTrip');
-  assert(body.indexOf('if(removeTrip&&state.trip.ownerUid&&!isTripOwner())throw')>-1&&body.indexOf('!isTripOwner())throw')<body.indexOf('deleteTripCompletely(tripId)')&&body.indexOf('!isTripOwner())throw')<body.indexOf('clearAllTripContent(tripId)'),'refused before any deletion');
+  assert(body.indexOf('if(state.trip.ownerUid&&!isTripOwner())throw')>-1&&body.indexOf('!isTripOwner())throw')<body.indexOf('deleteTripCompletely(tripId)')&&body.indexOf('!isTripOwner())throw')<body.indexOf('clearAllTripContent(tripId)'),'refused before any deletion');
   assert(read('../firestore.rules').includes('allow delete: if isInvited() && isOwner(resource);'),'the rule the guard mirrors');
 });
 
