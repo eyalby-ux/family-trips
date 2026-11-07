@@ -131,12 +131,21 @@ test('(A) P93-P2/P3 rounds per player: 1-5, turns = players x rounds, the deck i
   const fnSrc=read('../netlify/functions/game-content.mjs');assert(fnSrc.includes('count:kind.sizable?clampCount(body.count,kind.count):kind.count')&&/generate_pantomime[^\n]*sizable:true/.test(fnSrc),'only Pantomime accepts a client count; Trivia stays at 10');
   assert(read('../src/game-content-client.js').includes("generateContent('generate_pantomime',{trip,items:[],history,count})"));
   // wiring: the picker, the persisted setting, the build asks for what the game needs, replay uses it, no leftovers of the old rule
-  const view=fn('pantomimeView');assert(view.includes('data-action="pantomime-rounds"')&&view.includes('כמה סיבובים לכל משתתף?')&&view.includes('תורות במשחק')&&view.includes('PANTOMIME_MAX_ROUNDS'),'the organiser picks 1-5 rounds on the detail page');
+  const view=fn('pantomimeView');assert(view.includes('data-action="pantomime-rounds"')&&view.includes('כמה סיבובים לכל משתתף?')&&view.includes('משתתפים × תור ${rounds} לכל משתתף = סה"כ ${turns} סיבובים למשחק')&&view.includes('PANTOMIME_MAX_ROUNDS'),'the organiser picks 1-5 rounds on the detail page');
   assert(app.includes("else if(action==='pantomime-rounds'){const game=state.games.find(x=>x.id===button.dataset.id);if(game){game.roundsPerPlayer=clampRounds(button.dataset.rounds);"),'the choice is saved on the game (and synced with it)');
   assert(fn('buildPantomime').includes('count:pantomimeBuildCount(pantomimeActiveIds().length,game.roundsPerPlayer)')&&fn('buildPantomime').includes('newPantomimeStateFor(live,deck)'));
   assert(app.includes('newPantomimeState(deck,{activeIds:pantomimeActiveIds(),rounds:game.roundsPerPlayer})'));
   assert(!/lastActorId|currentActorId:|actorPosition|pickActor|beginPantomimeRound/.test(app+read('../src/games.js')),'the "never twice in a row" rule is gone');
   assert(fn('pantomimePlayView').includes('pantomimeActor(ps,pantomimeActiveIds())'));
+});
+
+test('(F3) only the Owner can delete a trip: the button is replaced by a note for an Editor, and the handler refuses BEFORE erasing anything (firestore.rules allows delete to the owner only)',()=>{
+  const section=app.slice(app.indexOf('const isTripOwner='),app.indexOf('\n',app.indexOf('const deleteSection=')));
+  assert(section.includes('state.trip?.ownerUid===currentUid()')&&section.includes("${isTripOwner()?")&&section.includes('רק בעל הטיול יכול למחוק אותו'),'an Editor sees a note, not the button');
+  assert(section.indexOf('data-action="delete-current-trip"')<section.indexOf('רק בעל הטיול'),'the button is on the owner branch');
+  const body=fn('resetCurrentTrip');
+  assert(body.indexOf('if(removeTrip&&state.trip.ownerUid&&!isTripOwner())throw')>-1&&body.indexOf('!isTripOwner())throw')<body.indexOf('deleteTripCompletely(tripId)')&&body.indexOf('!isTripOwner())throw')<body.indexOf('clearAllTripContent(tripId)'),'refused before any deletion');
+  assert(read('../firestore.rules').includes('allow delete: if isInvited() && isOwner(resource);'),'the rule the guard mirrors');
 });
 
 test('(A) the round flow end to end: build gate, look-away screen naming the actor, private reveal, performance, tap who guessed, דילוג, tally, winner animation twice',()=>{
