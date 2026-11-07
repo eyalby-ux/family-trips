@@ -150,7 +150,7 @@ test('(A) P93-P4 participant selection (PO design, Option 2): who plays is saved
   const deck=newPantomimeDeck(Array.from({length:12},(_,i)=>({text:`ב${i}`}))),ids=pantomimePlayers(people,['a','e']).map(p=>p.id);
   const st=newPantomimeState(deck,{activeIds:ids,rounds:3,random:seeded(3)});assert.equal(st.order.length,6);assert.deepEqual([...st.actorOrder].sort(),['a','e']);
   let cur=st;const seq=[];for(let r=0;r<6;r++){seq.push(pantomimeActor(cur,ids));cur=pantomimeNext(cur)}assert(seq.every((x,i)=>i===0||x!==seq[i-1])&&seq.every(x=>ids.includes(x)),'only the two chosen players act: '+seq.join(''));
-  assert.equal(pantomimeBuildCount(2,3),12,'the build still asks for at least 12');assert.equal(pantomimeSummaryLine(4,2),'4 משתתפים × תור 2 לכל משתתף = סה"כ 8 סיבובים למשחק',"the PO's example");assert.equal(pantomimeSummaryLine(5,1),'5 משתתפים × תור 1 לכל משתתף = סה"כ 5 סיבובים למשחק');
+  assert.equal(pantomimeBuildCount(2,3),12,'the build still asks for at least 12');assert.equal(pantomimeSummaryLine(4,2),'4 משתתפים × 2 תורות לכל משתתף = סה"כ 8 סיבובים למשחק',"the PO's example");assert.equal(pantomimeSummaryLine(5,5),'5 משתתפים × 5 תורות לכל משתתף = סה"כ 25 סיבובים למשחק',"the PO's wording for more than one round");assert.equal(pantomimeSummaryLine(5,1),'5 משתתפים × תור 1 לכל משתתף = סה"כ 5 סיבובים למשחק');
   // wiring
   const setup=fn('pantomimeSetupView');
   assert(setup.includes('מי משחק?')&&setup.includes('בחירת כולם')&&setup.includes('כמה סיבובים לכל משתתף?')&&setup.includes('pantomimeSummaryLine(picked,draft.rounds)')&&setup.includes('שמירה והתחלה')&&setup.includes('משתתפים וסיבובים'),'the sub-page copy of the design');
