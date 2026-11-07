@@ -13,7 +13,13 @@
 - **Snapshot saved in this directory:** `production-index-before-promotion.html`.
 
 ## New Production state
-*(filled in after the deploy)*
+- **Build identifier:** `0.9.3.3-5cf52fda`
+- **Deploy ID:** `6aef59b5582b8598b406daf1` (context `production`, state `ready`)
+- **Deployed:** 2026-11-07T17:02:57Z — `netlify deploy --dir dist --prod --no-build`, run by the Development Agent at the Product Owner's explicit instruction.
+- **Verified (fresh cache-bypassed fetches):** `build-version` reads `0.9.3.3-5cf52fda`; all 11 files of `dist/` return HTTP 200 and are byte-identical to the local `dist/` (identical=11, different=0); both functions answer an unauthenticated POST with HTTP 401. **Not done:** no real trip was opened or written on Production (the same code ran live on `qa`).
+- **Artifact:** the exact, untouched `dist/` that was on `qa` (`qa`, `dist/` and Production all read `0.9.3.3-5cf52fda`; no source change since commit `5cf52fd`; no rebuild).
+- **Backend:** no `firestore.rules` / `storage.rules` / function change.
+- **Known, carried:** the "במטוס" list was drafted by the developer and edited by the PO but not run through a separate QA pass on this build; "סלפי עם דייל/ת" asks for a photo with a crew member, who has to agree; the commits since `7b32ab1` are local until pushed from the owner's machine.
 
 ## Rollback command, if needed
 ```
