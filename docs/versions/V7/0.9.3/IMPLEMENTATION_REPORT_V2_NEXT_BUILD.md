@@ -39,3 +39,12 @@ Tests: `tests/beta-0-9-3.mjs` 19 (one new, F3). Full gate green. Brief: `QA_AGEN
 | Not built | P93-P5 (song links), P93-P6 (participants in Bingo / Trivia + Trivia question count). |
 
 Tests: `tests/beta-0-9-3.mjs` 20 (new P93-P4 test); full gate green. Live: two chosen players played a 4-round game on qa (see `QA_AGENT_SUMMARY_V4.md`); the QA trip was restored to everybody / 5 rounds. Brief: `QA_AGENT_SUMMARY_V4.md`.
+
+## Fifth build `0.9.3-3f65090a` (commits `efe1de3`, `f163a79`, `3f65090`, qa only) — P93-P5 song links, P93-P6 participants in Bingo and Trivia
+| Item | What changed |
+|---|---|
+| P93-P5 | `songSearchLinks(song)` (games.js): Spotify `open.spotify.com/search/<q>` and YouTube `youtube.com/results?search_query=<q>`, `q` = encoded "title artist"; two buttons ("Spotify" / "YouTube", aria-labels "חיפוש ב-…") on the song card only, `target=_blank rel="noopener noreferrer"`. No server or model involvement. |
+| P93-P6 | The Pantomime-only setup became shared: `gamePlayers`, `setupEntryRows`, `gameSetupView` (actions `game-setup-*`, state `gameSetup`). **Bingo**: `playerIds`, participants only (no number), carousel / current participant follow the chosen players. **Trivia**: `playerIds` + `questionCount` (5/10/15/20, default 10); chips, tally and winners use the chosen players; `newTriviaState(deck,random,count)` takes the first N of the shuffle; a build requests N (`generate_trivia` accepts a client `count` clamped 5–20; Pantomime 6–40, via a per-kind `size`). 20 שאלות and מזכיר לי untouched. Existing trips need no migration (missing fields = everybody / 10). |
+| Found in live check | The first deploy opened the sub-page only for Pantomime (the dispatcher check was in `pantomimeView`); moved to `gameView`, pinned by a test. The song buttons first read "חיפוש ב-…" and wrapped to 3 lines; now "Spotify" / "YouTube". |
+
+Tests: `tests/beta-0-9-3.mjs` 22 (P93-P5 and P93-P6 tests); pins in `beta-0-9-1` / `beta-0-9-2` updated for the shared helpers; full gate green. Brief: `QA_AGENT_SUMMARY_V5.md`. All planning items of `QA_RESULTS_0_9_3_BUILD2.md` (P93-P4/P5/P6, R-4, F3) are now built.
