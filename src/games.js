@@ -94,6 +94,11 @@ export function pantomimeActor(state,activeIds){
 }
 export const pantomimeNext=state=>({...state,position:state.position+1});
 // Pantomime needs an actor and at least one guesser.
+// P93-P4: who plays. game.playerIds = the participants the family picked for THIS game; [] means everybody active (so a participant added later joins in).
+// Only active participants can play; if every picked participant has left, everybody active plays.
+export const pantomimePlayers=(participants,playerIds)=>{const active=(participants||[]).filter(person=>person.active!==false),picked=Array.isArray(playerIds)?playerIds:[],chosen=picked.length?active.filter(person=>picked.includes(person.id)):active;return chosen.length?chosen:active};
+// The agreed wording (PO): game / round = one phrase / turn = one player's turn.
+export const pantomimeSummaryLine=(players,rounds)=>`${players} משתתפים × תור ${clampRounds(rounds)} לכל משתתף = סה"כ ${pantomimeTurns(players,rounds)} סיבובים למשחק`;
 export const pantomimePlayable=participants=>(participants||[]).filter(person=>person.active!==false).length>=2;
 
 // ---- Beta 0.9.3: מזכיר לי -- an optional smart start; the chain itself stays free-form (the app tracks nothing). ----

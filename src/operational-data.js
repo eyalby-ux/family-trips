@@ -18,7 +18,7 @@ export const BUILTIN_GAMES=[
   // 0.9.1: an AI-built deck per trip. The id stays (saved state is keyed by it); the title is destination-neutral.
   {id:'game-thailand-trivia',onTheGo:true,interactive:true,title:'טריוויה על היעד',instructions:TRIVIA_INSTRUCTIONS,items:'ללא ציוד',participants:'כל המשפחה',duration:'20 דקות',deck:[],askedQuestions:[],triviaState:{order:[],position:0,scores:{}}},
   // 0.9.3: a brand-new id, so it is simply pushed into every saved trip by the push-if-missing step -- no backfill. needs everyone watching, so no onTheGo.
-  {id:'game-pantomime',interactive:true,title:'פנטומימה',instructions:PANTOMIME_INSTRUCTIONS,items:'ללא ציוד',participants:'2 ומעלה',duration:'20 דקות',roundsPerPlayer:2,deck:[],askedPhrases:[],pantomimeState:{order:[],position:0,scores:{},actorOrder:[],rounds:2}},
+  {id:'game-pantomime',interactive:true,title:'פנטומימה',instructions:PANTOMIME_INSTRUCTIONS,items:'ללא ציוד',participants:'2 ומעלה',duration:'20 דקות',roundsPerPlayer:2,playerIds:[],deck:[],askedPhrases:[],pantomimeState:{order:[],position:0,scores:{},actorOrder:[],rounds:2}},
   // 0.9.3: מזכיר לי -- a free-form game (word chain / song chain) with one optional AI smart start; a brand-new id, pushed by push-if-missing, no backfill.
   {id:'game-remind-me',onTheGo:true,title:'מזכיר לי',instructions:REMIND_ME_INSTRUCTIONS,items:'ללא ציוד (למצב השירים: טלפון עם נגן מוזיקה)',participants:'2 ומעלה',duration:'לפי הצורך',remindMeMode:'',smartStart:{word:'',song:{title:'',artist:''}},askedStarts:{words:[],songs:[]}},
 ];

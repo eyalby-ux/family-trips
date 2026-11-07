@@ -898,3 +898,14 @@ a.t-menu-item{display:flex;align-items:center;text-decoration:none}
 .pick-text{display:flex;flex-direction:column;min-width:0}
 .pick-text b{font-size:15px;font-weight:600;overflow-wrap:anywhere}
 .doc-link-name{margin:0 0 8px}
+/* P93-P4: Pantomime setup sub-page (participants + rounds) */
+.game-setup-rows{margin:12px 0}
+.pick-head{display:flex;align-items:center;justify-content:space-between;margin:14px 0 8px}.pick-head h3,.rounds-picker h3{margin:0;font-size:15px}
+.link-btn{min-height:44px;padding:0 4px;border:0;background:transparent;color:var(--ink);font-size:14px;font-weight:600;text-decoration:underline}
+.pick-list{display:flex;flex-direction:column;border:1px solid var(--border);border-radius:14px;background:var(--surface);overflow:hidden}
+.pick-row{min-height:52px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 16px;border:0;border-bottom:1px solid var(--border);background:transparent;color:var(--muted);font-size:16px;text-align:right}
+.pick-row:last-child{border-bottom:0}.pick-row.on{color:var(--ink)}
+.pick-box{flex:0 0 auto;width:24px;height:24px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px}
+.pick-row.on .pick-box{background:var(--ink);border-color:var(--ink)}
+.rounds-picker{margin-top:16px}.rounds-picker h3{margin-bottom:8px}.rounds-picker .trivia-chips{flex-wrap:nowrap;margin-bottom:12px}.rounds-picker .trivia-chip{flex:1 1 0;padding:0;border-radius:12px}
+.setup-summary{margin:0 0 12px;padding:12px;border-radius:12px;background:var(--teal-soft);font-size:14px}

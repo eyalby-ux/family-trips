@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {WINNER_ANIMATIONS,WINNER_MS,WINNER_REPEATS,createWinnerPlayer,winnerHtml} from '../src/winner-animation.js';
 import {REMIND_ME_HISTORY_CAP,REMIND_ME_MODES as SERVER_MODES,cleanStartHistory,extractRemindMe,remindMeInstruction,remindMeSchema,remindMeSystemPrompt,PANTOMIME_COUNT,PANTOMIME_FIELDS,buildPantomimeContext,clampCount,cleanHistory,generateWithRepeatGuard,mentionsDestination,pantomimeAccept,pantomimeInstruction,pantomimeSchema,pantomimeSystemPrompt} from '../netlify/functions/_shared/game-content.mjs';
-import {REMIND_ME_CAP,REMIND_ME_ID,REMIND_ME_MODES,applyRemindMeResult,chooseRemindMeMode,emptyRemindMe,remindMeHistory,remindMeSuggestion,PANTOMIME_ID,PANTOMIME_MAX_ROUNDS,capHistory,clampRounds,pantomimeActor,pantomimeBuildCount,pantomimeTurns,gameBuildGate,newPantomimeDeck,newPantomimeState,pantomimeFinished,pantomimeNext,pantomimePhrase,pantomimePlayable,toggleCorrect,triviaWinners} from '../src/games.js';
+import {REMIND_ME_CAP,REMIND_ME_ID,REMIND_ME_MODES,applyRemindMeResult,chooseRemindMeMode,emptyRemindMe,remindMeHistory,remindMeSuggestion,PANTOMIME_ID,PANTOMIME_MAX_ROUNDS,capHistory,clampRounds,pantomimeActor,pantomimeBuildCount,pantomimeTurns,gameBuildGate,newPantomimeDeck,newPantomimeState,pantomimeFinished,pantomimeNext,pantomimePhrase,pantomimePlayable,pantomimePlayers,pantomimeSummaryLine,toggleCorrect,triviaWinners} from '../src/games.js';
 import {BUILTIN_GAMES,diffById,normalizeOperationalState,sanitizeTripDates,syncBaseline} from '../src/operational-data.js';
 import {onboardingTripFrom,showsOnboarding} from '../src/onboarding.js';
 
@@ -131,12 +131,38 @@ test('(A) P93-P2/P3 rounds per player: 1-5, turns = players x rounds, the deck i
   const fnSrc=read('../netlify/functions/game-content.mjs');assert(fnSrc.includes('count:kind.sizable?clampCount(body.count,kind.count):kind.count')&&/generate_pantomime[^\n]*sizable:true/.test(fnSrc),'only Pantomime accepts a client count; Trivia stays at 10');
   assert(read('../src/game-content-client.js').includes("generateContent('generate_pantomime',{trip,items:[],history,count})"));
   // wiring: the picker, the persisted setting, the build asks for what the game needs, replay uses it, no leftovers of the old rule
-  const view=fn('pantomimeView');assert(view.includes('data-action="pantomime-rounds"')&&view.includes('כמה סיבובים לכל משתתף?')&&view.includes('משתתפים × תור ${rounds} לכל משתתף = סה"כ ${turns} סיבובים למשחק')&&view.includes('PANTOMIME_MAX_ROUNDS'),'the organiser picks 1-5 rounds on the detail page');
-  assert(app.includes("else if(action==='pantomime-rounds'){const game=state.games.find(x=>x.id===button.dataset.id);if(game){game.roundsPerPlayer=clampRounds(button.dataset.rounds);"),'the choice is saved on the game (and synced with it)');
-  assert(fn('buildPantomime').includes('count:pantomimeBuildCount(pantomimeActiveIds().length,game.roundsPerPlayer)')&&fn('buildPantomime').includes('newPantomimeStateFor(live,deck)'));
-  assert(app.includes('newPantomimeState(deck,{activeIds:pantomimeActiveIds(),rounds:game.roundsPerPlayer})'));
+  const view=fn('pantomimeView');assert(view.includes('data-action="pantomime-setup-open"')&&view.includes('כמה סיבובים לכל משתתף')&&view.includes('סה"כ ${turns} סיבובים'),'the instructions page has the two entry rows (P93-P4 Option 2a); the rounds are picked on the sub-page');
+  assert(app.includes("game.roundsPerPlayer=clampRounds(pantomimeDraft.rounds)"),'the choice is saved on the game (and synced with it)');
+  assert(fn('buildPantomime').includes('count:pantomimeBuildCount(pantomimePlayerIds(game).length,game.roundsPerPlayer)')&&fn('buildPantomime').includes('newPantomimeStateFor(live,deck)'));
+  assert(app.includes('newPantomimeState(deck,{activeIds:pantomimePlayerIds(game),rounds:game.roundsPerPlayer})'));
   assert(!/lastActorId|currentActorId:|actorPosition|pickActor|beginPantomimeRound/.test(app+read('../src/games.js')),'the "never twice in a row" rule is gone');
-  assert(fn('pantomimePlayView').includes('pantomimeActor(ps,pantomimeActiveIds())'));
+  assert(fn('pantomimePlayView').includes('pantomimeActor(ps,players.map(person=>person.id))'));
+});
+
+test('(A) P93-P4 participant selection (PO design, Option 2): who plays is saved per game; the actor order, guessers, turns and tally use only them; the setup sub-page saves and starts',()=>{
+  const people=[{id:'a',name:'פאולה'},{id:'b',name:'דניאל'},{id:'c',name:'עמית'},{id:'d',name:'עפרי',active:false},{id:'e',name:'אייל'}];
+  // [] / missing = everybody active; a pick is filtered to active participants; if nobody picked is left, everybody active plays
+  assert.deepEqual(pantomimePlayers(people,[]).map(p=>p.id),['a','b','c','e']);assert.deepEqual(pantomimePlayers(people).map(p=>p.id),['a','b','c','e']);
+  assert.deepEqual(pantomimePlayers(people,['a','e']).map(p=>p.id),['a','e']);assert.deepEqual(pantomimePlayers(people,['a','d']).map(p=>p.id),['a'],'an inactive participant cannot play');
+  assert.deepEqual(pantomimePlayers(people,['d']).map(p=>p.id),['a','b','c','e'],'nobody left -> everybody');
+  assert.equal(pantomimePlayable(pantomimePlayers(people,['a'])),false,'one picked player cannot start (the page also refuses to save fewer than 2)');
+  // the game with a subset: only they act, 2 players x 3 rounds = 6 turns, alternating
+  const deck=newPantomimeDeck(Array.from({length:12},(_,i)=>({text:`ב${i}`}))),ids=pantomimePlayers(people,['a','e']).map(p=>p.id);
+  const st=newPantomimeState(deck,{activeIds:ids,rounds:3,random:seeded(3)});assert.equal(st.order.length,6);assert.deepEqual([...st.actorOrder].sort(),['a','e']);
+  let cur=st;const seq=[];for(let r=0;r<6;r++){seq.push(pantomimeActor(cur,ids));cur=pantomimeNext(cur)}assert(seq.every((x,i)=>i===0||x!==seq[i-1])&&seq.every(x=>ids.includes(x)),'only the two chosen players act: '+seq.join(''));
+  assert.equal(pantomimeBuildCount(2,3),12,'the build still asks for at least 12');assert.equal(pantomimeSummaryLine(4,2),'4 משתתפים × תור 2 לכל משתתף = סה"כ 8 סיבובים למשחק',"the PO's example");assert.equal(pantomimeSummaryLine(5,1),'5 משתתפים × תור 1 לכל משתתף = סה"כ 5 סיבובים למשחק');
+  // wiring
+  const setup=fn('pantomimeSetupView');
+  assert(setup.includes('מי משחק?')&&setup.includes('בחירת כולם')&&setup.includes('כמה סיבובים לכל משתתף?')&&setup.includes('pantomimeSummaryLine(picked,draft.rounds)')&&setup.includes('שמירה והתחלה')&&setup.includes('משתתפים וסיבובים'),'the sub-page copy of the design');
+  assert(setup.includes("${ok?'':' disabled'}")&&setup.includes('בחרו לפחות שני משתתפים')&&setup.includes('role="checkbox"'),'start is disabled below two participants; the rows are real checkbox buttons');
+  assert(fn('pantomimeView').includes('if(pantomimeSetup===game.id)return pantomimeSetupView(game);'));
+  const save=app.slice(app.indexOf("else if(action==='pantomime-setup-save')"),app.indexOf('\n',app.indexOf("else if(action==='pantomime-setup-save')")));
+  assert(save.includes('ids.length>=2')&&save.includes('game.playerIds=ids.length===active.length?[]:ids')&&save.includes('newPantomimeStateFor(game,game.deck)')&&save.includes('game.started=true'),'saved on the game (all picked = [] = everybody, even people added later); a built deck starts a fresh game');
+  assert(app.includes("else if(action==='pantomime-setup-back'){pantomimeSetup=null;render()}")&&app.includes('participantDeleteArmed=null;pantomimeSetup=null;'),'back discards the draft; leaving the game resets the sub-page');
+  assert(fn('pantomimePlayView').includes('const guessers=players.filter(person=>person.id!==currentActorId)')&&fn('pantomimePlayView').includes('triviaTally(ps.scores,pantomimePlayerList(game))'),'only players guess and appear in the tally');
+  assert(!app.includes('pantomime-rounds'),'the inline picker is replaced by the sub-page');
+  assert.deepEqual(BUILTIN_GAMES.find(game=>game.id===PANTOMIME_ID).playerIds,[]);
+  assert.match(css,/\.pick-row\{min-height:52px/);assert.match(css,/\.rounds-picker \.trivia-chip\{flex:1 1 0/);
 });
 
 test('(F3) only the Owner can delete a trip: the button is replaced by a note for an Editor, and the handler refuses BEFORE erasing anything (firestore.rules allows delete to the owner only)',()=>{
@@ -179,7 +205,7 @@ test('(A) the round flow end to end: build gate, look-away screen naming the act
   const next=app.slice(app.indexOf("else if(action==='pantomime-next'"),app.indexOf("else if(action==='pantomime-replay')"));
   assert(next.includes("else if(action==='pantomime-next'||action==='pantomime-skip')pantomimeAdvance(button.dataset.id)"),'next and skip share one path');
   const adv=fn('pantomimeAdvance');
-  assert(adv.includes('if(pantomimeFinished(game)){const winners=triviaWinners(game.pantomimeState.scores,state.participants);if(winners.length)fireWinner(')&&adv.includes("caption:winners.length>1?'ניצחון משותף בסיבוב!':'ניצחון בסיבוב!',big:true,times:WINNER_REPEATS"),'after the last phrase: the shared animation, the winner(s) named, TWICE');
+  assert(adv.includes('if(pantomimeFinished(game)){const winners=triviaWinners(game.pantomimeState.scores,pantomimePlayerList(game));if(winners.length)fireWinner(')&&adv.includes("caption:winners.length>1?'ניצחון משותף בסיבוב!':'ניצחון בסיבוב!',big:true,times:WINNER_REPEATS"),'after the last phrase: the shared animation, the winner(s) named, TWICE');
   assert(adv.indexOf('save();render();')<adv.indexOf('fireWinner('),'drawn after the render');
   assert(!fn('pantomimePlayView').includes('fireWinner')&&!app.slice(app.indexOf("else if(action==='pantomime-replay')"),app.indexOf("else if(action==='pantomime-exit')")).includes('fireWinner'),'reopening or replaying never repeats it');
   const replay=app.slice(app.indexOf("else if(action==='pantomime-replay')"),app.indexOf("else if(action==='pantomime-exit')"));assert(replay.includes('newPantomimeStateFor(game,game.deck)')&&!replay.includes('generatePantomime')&&!replay.includes('buildPantomime'),'שחקו שוב never calls the AI');
